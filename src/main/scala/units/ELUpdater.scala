@@ -1372,40 +1372,47 @@ class ELUpdater(
       }
       .recoverWith { e =>
         logger.debug(s"Full validation of ${contractBlock.hash} failed: ${e.message}")
-        if (contractBlock.chainId == prevState.mainChainInfo.id) {
-          for {
-            lastEpoch <- chainContractClient
-              .getEpochMeta(contractBlock.epoch)
-              .toRight(
-                ClientError(
-                  s"Impossible case: can't find the epoch #${contractBlock.epoch} metadata of invalid block ${contractBlock.hash} on contract"
+        chainContractClient.getChainInfo(contractBlock.chainId) match {
+          case Some(nodeChainInfo) if canSupportAnotherAltChain(nodeChainInfo) =>
+            for {
+              lastEpoch <- chainContractClient
+                .getEpochMeta(contractBlock.epoch)
+                .toRight(
+                  ClientError(
+                    s"Impossible case: can't find the epoch #${contractBlock.epoch} metadata of invalid block ${contractBlock.hash} on contract"
+                  )
+                )
+              prevEpoch <- chainContractClient
+                .getEpochMeta(lastEpoch.prevEpoch)
+                .toRight(ClientError(s"Impossible case: can't find a previous epoch #${lastEpoch.prevEpoch} metadata on contract"))
+              toBlockHash = prevEpoch.lastBlockHash
+              toBlock <- chainContractClient
+                .getBlock(toBlockHash)
+                .toRight(ClientError(s"Impossible case: can't find a last block $toBlockHash of epoch #${lastEpoch.prevEpoch} on contract"))
+              updatedState <- rollbackTo(prevState, toBlock, prevState.finalizedBlock)
+              lastValidBlock <- chainContractClient
+                .getBlock(updatedState.lastEcBlock.hash)
+                .toRight(ClientError(s"Block ${updatedState.lastEcBlock.hash} not found at contract"))
+            } yield {
+              setState(
+                "6",
+                updatedState.copy(
+                  fullValidationStatus = FullValidationStatus(
+                    validated = Set(toBlockHash, contractBlock.hash),
+                    lastElWithdrawalIndex = None
+                  ),
+                  chainStatus = WaitForNewChain(ChainSwitchInfo(contractBlock.chainId, lastValidBlock)),
+                  returnToMainChainInfo = None
                 )
               )
-            prevEpoch <- chainContractClient
-              .getEpochMeta(lastEpoch.prevEpoch)
-              .toRight(ClientError(s"Impossible case: can't find a previous epoch #${lastEpoch.prevEpoch} metadata on contract"))
-            toBlockHash = prevEpoch.lastBlockHash
-            toBlock <- chainContractClient
-              .getBlock(toBlockHash)
-              .toRight(ClientError(s"Impossible case: can't find a last block $toBlockHash of epoch #${lastEpoch.prevEpoch} on contract"))
-            updatedState <- rollbackTo(prevState, toBlock, prevState.finalizedBlock)
-            lastValidBlock <- chainContractClient
-              .getBlock(updatedState.lastEcBlock.hash)
-              .toRight(ClientError(s"Block ${updatedState.lastEcBlock.hash} not found at contract"))
-          } yield {
-            setState(
-              "6",
-              updatedState.copy(
-                fullValidationStatus = FullValidationStatus(
-                  validated = Set(toBlockHash, contractBlock.hash),
-                  lastElWithdrawalIndex = None
-                ),
-                chainStatus = WaitForNewChain(ChainSwitchInfo(contractBlock.chainId, lastValidBlock)),
-                returnToMainChainInfo = None
-              )
-            )
-          }
-        } else Either.unit
+            }
+          case Some(_) =>
+            logger.debug(s"Ignoring invalid block ${contractBlock.hash}")
+            Either.unit
+          case _ =>
+            logger.warn(s"Chain ${contractBlock.chainId} meta not found at contract")
+            Either.unit
+        }
       }
   }
 
@@ -1529,7 +1536,7 @@ class ELUpdater(
       )
   }
 
-  private def canSupportAnotherAltChain(nodeChainInfo: ChainInfo) = {
+  private def canSupportAnotherAltChain(nodeChainInfo: ChainInfo): Boolean = {
     val chainSupporters = chainContractClient.getSupporters(nodeChainInfo.id)
     val walletAddresses = wallet.privateKeyAccounts.map(_.toAddress).toSet
 
