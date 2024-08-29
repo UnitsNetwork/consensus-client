@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%date %-5level [%.15thread] %logger{26} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="io.grpc.netty" level="ERROR"/>
+    <logger name="io.netty" level="INFO"/>
+    <logger name="io.netty.channel.DefaultChannelPipeline" level="TRACE"/>
+    <logger name="scorex.crypto.signatures.Curve25519$" level="INFO"/>
+
+    <logger name="com.wavesplatform.database" level="WARN"/>
+
+    <root level="${logback.test.level:-TRACE}">
+        <appender-ref ref="STDOUT" />
+    </root>
+</configuration>
