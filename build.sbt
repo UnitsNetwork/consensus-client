@@ -1,4 +1,4 @@
-scalaVersion := "2.13.12"
+scalaVersion := "2.13.14"
 organization := "network.units"
 organizationName := "Units Network"
 name := "consensus-client"
