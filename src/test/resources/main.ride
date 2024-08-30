@@ -226,7 +226,7 @@ func calculateFinalizedBlockHash(curMiner: Address, curPrevEpoch: Int, curLastBl
         let (miner, prevEpoch, lastBlockHash) = if (thisEpoch == height)
           then (curMiner, curPrevEpoch, curLastBlockHash)
           else epochMeta(thisEpoch).value()
-        if (prevEpoch == 0)
+        if (prevEpoch == 0 || height - thisEpoch >= 100)
           then (thisEpoch, totalBalance, lastBlockHash, allMiners)
           else {
             let (newTotalBalance, newMiners) = if (prevMiners.containsElement(miner))
@@ -240,7 +240,7 @@ func calculateFinalizedBlockHash(curMiner: Address, curPrevEpoch: Int, curLastBl
     }
   }
 
-  let (fallbackEpoch, totalBalance, finalizedBlockHashOpt, miners) = FOLD<200>(offsets_100 ++ offsets_100, (height, 0, unit, []), step)
+  let (fallbackEpoch, totalBalance, finalizedBlockHashOpt, miners) = FOLD<100>(offsets_100, (height, 0, unit, []), step)
   match finalizedBlockHashOpt {
     case finalizedBlockHash: String => finalizedBlockHash
     case _ =>
