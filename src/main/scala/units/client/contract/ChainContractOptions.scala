@@ -1,5 +1,7 @@
 package units.client.contract
 
+import com.wavesplatform.common.state.ByteStr
+import units.BlockHash
 import units.client.contract.ContractFunction.*
 import units.eth.{EthAddress, Gwei}
 
@@ -7,26 +9,26 @@ import units.eth.{EthAddress, Gwei}
   *   Make sure you have an activation gap: a new feature should not be activated suddenly during nearest blocks.
   */
 case class ChainContractOptions(miningReward: Gwei, elBridgeAddress: EthAddress) {
-  def startEpochChainFunction(epochNumber: Int, chainInfo: Option[ChainInfo]): ContractFunction = {
+  def startEpochChainFunction(reference: BlockHash, vrf: ByteStr, chainInfo: Option[ChainInfo]): ContractFunction = {
     chainInfo match {
-      case Some(ci) => extendChainFunction(ci, epochNumber)
-      case _        => startAltChainFunction(epochNumber)
+      case Some(ci) => extendChainFunction(reference, vrf, ci)
+      case _        => startAltChainFunction(reference, vrf)
     }
   }
 
-  def appendFunction: ContractFunction =
-    AppendBlock(V3)
+  def appendFunction(reference: BlockHash): AppendBlock =
+    AppendBlock(reference)
 
-  private def extendChainFunction(chainInfo: ChainInfo, epochNumber: Int): ContractFunction =
-    if (chainInfo.isMain) extendMainChainFunction(epochNumber)
-    else extendAltChainFunction(chainInfo.id, epochNumber)
+  private def extendChainFunction(reference: BlockHash, vrf: ByteStr, chainInfo: ChainInfo): ContractFunction =
+    if (chainInfo.isMain) extendMainChainFunction(reference, vrf)
+    else extendAltChainFunction(reference, vrf, chainInfo.id)
 
-  private def extendMainChainFunction(epochNumber: Int): ContractFunction =
-    ExtendMainChain(epochNumber, V3)
+  private def extendMainChainFunction(reference: BlockHash, vrf: ByteStr): ContractFunction =
+    ExtendMainChain(reference, vrf)
 
-  private def extendAltChainFunction(chainId: Long, epochNumber: Int): ContractFunction =
-    ExtendAltChain(chainId, epochNumber, V3)
+  private def extendAltChainFunction(reference: BlockHash, vrf: ByteStr, chainId: Long): ContractFunction =
+    ExtendAltChain(reference, vrf, chainId)
 
-  private def startAltChainFunction(epochNumber: Int): ContractFunction =
-    StartAltChain(epochNumber, V3)
+  private def startAltChainFunction(reference: BlockHash, vrf: ByteStr): ContractFunction =
+    StartAltChain(reference, vrf)
 }
