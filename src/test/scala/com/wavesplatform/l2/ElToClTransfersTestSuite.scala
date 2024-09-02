@@ -136,7 +136,7 @@ class ElToClTransfersTestSuite extends BaseIntegrationTestSuite {
       d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs)
       d.ecClients.addKnown(ecBlock)
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, elToClTransfersRootHashHex))
-      d.advanceMiner()
+      d.advanceElu()
 
       def tryWithdraw(): Either[Throwable, BlockId] =
         d.appendMicroBlockE(chainContract.withdraw(transferReceiver, ecBlock, transferProofs, 0, amount))
@@ -226,12 +226,6 @@ class ElToClTransfersTestSuite extends BaseIntegrationTestSuite {
           minerRewardL2Address = reliable.elRewardAddress
         )
 
-        val ecBlock2 = d.createNextEcBlock(
-          hash = d.createBlockHash("0-0"),
-          parent = ecBlock1,
-          minerRewardL2Address = reliable.elRewardAddress
-        )
-
         def tryWithdraw(): Either[Throwable, BlockId] =
           d.appendMicroBlockE(chainContract.withdraw(transferReceiver, ecBlock1, transferProofs, 0, transfer.amount))
 
@@ -242,12 +236,13 @@ class ElToClTransfersTestSuite extends BaseIntegrationTestSuite {
         val transferEvents = List(transferEvent)
         d.ecClients.setBlockLogs(ecBlock1.hash, Bridge.ElSentNativeEventTopic, transferEvents)
         d.ecClients.willForge(ecBlock1)
-        d.ecClients.willForge(ecBlock2)
+        d.advanceConsensusLayerChanged()
 
-        d.advanceElu()
-
-        val (txsOpt, _, _) = d.utxPool.packUnconfirmed(MultiDimensionalMiningConstraint.Unlimited, None)
-        d.appendMicroBlockAndVerify(txsOpt.value*)
+        d.advanceBlockDelay()
+        withClue("Transaction added to UTX pool: ") {
+          val (txsOpt, _, _) = d.utxPool.packUnconfirmed(MultiDimensionalMiningConstraint.Unlimited, None)
+          d.appendMicroBlockAndVerify(txsOpt.value*)
+        }
 
         withClue("Can't withdraw: ") {
           tryWithdraw() should produce("Expected root hash: ")
@@ -295,14 +290,13 @@ class ElToClTransfersTestSuite extends BaseIntegrationTestSuite {
       val ecBlock2Hash        = d.createBlockHash("0-1")
       val ecBlock3IgnoredHash = d.createBlockHash("0-1-1")
       val ecBlock3Hash        = d.createBlockHash("0-1-1-1")
-      val ecBlock4IgnoredHash = d.createBlockHash("0-1-1-1-1")
 
       // mm - malfunction miner, rm - reliable
       log.debug(
         s"Final chain: $ecBlock3Hash (3, rm) -> $ecBlock2Hash (2, rm) -> $ecBlock1Hash (1, mm) -> ${d.ecGenesisBlock.hash} (genesis)"
       )
       log.debug(s"Invalid chain: $ecBlock2BadHash (bad, mm) -> $ecBlock1Hash (1, mm) -> ${d.ecGenesisBlock.hash} (genesis)")
-      log.debug(s"Ignored blocks: $ecBlock4IgnoredHash (ignored) -> $ecBlock3Hash; $ecBlock3IgnoredHash (ignored) -> $ecBlock2Hash")
+      log.debug(s"Ignored blocks: $ecBlock3IgnoredHash (ignored) -> $ecBlock2Hash")
 
       step(s"Start a new epoch of malfunction miner ${malfunction.address} with ecBlock1 $ecBlock1Hash")
       d.advanceNewBlocks(malfunction.address)
@@ -341,7 +335,7 @@ class ElToClTransfersTestSuite extends BaseIntegrationTestSuite {
         cs.chainSwitchInfo.referenceBlock.hash shouldBe ecBlock1Hash
       }
 
-      step(s"Start an alternative chain by a reliable miner ${reliable.address}")
+      step(s"Start an alternative chain by a reliable miner ${reliable.address} with ecBlock2 $ecBlock2Hash")
       d.advanceNewBlocks(reliable.address)
 
       val ecBlock2 = d.createNextEcBlock(
@@ -351,8 +345,6 @@ class ElToClTransfersTestSuite extends BaseIntegrationTestSuite {
         withdrawals = Vector(d.createWithdrawal(0, malfunction.elRewardAddress))
       )
       d.ecClients.setBlockLogs(ecBlock2.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs)
-      def tryWithdraw(): Either[Throwable, BlockId] =
-        d.appendMicroBlockE(chainContract.withdraw(transferReceiver, ecBlock2, transferProofs, 0, transfer.amount))
 
       val ecBlock3Ignored = d.createNextEcBlock(
         hash = ecBlock3IgnoredHash,
@@ -362,7 +354,7 @@ class ElToClTransfersTestSuite extends BaseIntegrationTestSuite {
 
       d.ecClients.willForge(ecBlock2)
       d.ecClients.willForge(ecBlock3Ignored) // Prepare a following block, because we start mining it immediately
-      d.advanceElu()
+      d.advanceConsensusLayerChanged()
 
       withClue("State is expected:") {
         val s  = is[Working[?]](c.elu.state)
@@ -370,18 +362,27 @@ class ElToClTransfersTestSuite extends BaseIntegrationTestSuite {
         cs.nodeChainInfo.left.value.referenceBlock.hash shouldBe ecBlock1Hash
       }
 
+      d.advanceBlockDelay() // Forge ecBlock2
+
       step(s"Confirm startAltChain and append with new blocks and remove a malfunction miner")
       d.appendMicroBlockAndVerify(
-        chainContract.startAltChainV3(reliable.account, ecBlock2, d.blockchain.height, elToClTransfersRootHashHex),
+        chainContract.startAltChainV3(reliable.account, ecBlock2, d.blockchain.height, elToClTransfersRootHashHex), // TODO check utx?
         chainContract.leave(malfunction.account)
       )
-      d.advanceElu()
+      d.advanceConsensusLayerChanged()
 
+      withClue("State is expected:") {
+        val s = is[Working[?]](c.elu.state)
+        is[Mining](s.chainStatus)
+      }
+
+      def tryWithdraw(): Either[Throwable, BlockId] =
+        d.appendMicroBlockE(chainContract.withdraw(transferReceiver, ecBlock2, transferProofs, 0, transfer.amount))
       withClue("Can't withdraw from a fork:") {
         tryWithdraw() should produce("is not finalized")
       }
 
-      step("Moving whole network to the alternative chain")
+      step(s"Moving whole network to the alternative chain with ecBlock3 $ecBlock3Hash")
       d.advanceNewBlocks(reliable.address)
 
       val ecBlock3 = d.createNextEcBlock(
@@ -391,21 +392,13 @@ class ElToClTransfersTestSuite extends BaseIntegrationTestSuite {
         withdrawals = Vector(d.createWithdrawal(1, reliable.elRewardAddress))
       )
       d.ecClients.setBlockLogs(ecBlock3.hash, Bridge.ElSentNativeEventTopic, Nil)
-
-      val ecBlock4Ignored = d.createNextEcBlock(
-        hash = ecBlock4IgnoredHash,
-        parent = ecBlock3,
-        minerRewardL2Address = reliable.elRewardAddress
-      )
-
       d.ecClients.willForge(ecBlock3)
-      d.ecClients.willForge(ecBlock4Ignored)
-      d.advanceElu()
+      d.advanceConsensusLayerChanged() // Forge ecBlock3
 
       step("Confirm extendAltChain to make this chain main")
-      d.advanceBlockDelay() // Forge ecBlock3
+      d.advanceBlockDelay()
       d.appendMicroBlockAndVerify(chainContract.extendAltChainV3(reliable.account, 1, ecBlock3, d.blockchain.height))
-      d.advanceElu()
+      d.advanceConsensusLayerChanged()
 
       withClue("State is expected:") {
         val s = is[Working[?]](c.elu.state)

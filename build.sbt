@@ -1,3 +1,5 @@
+Global / onChangedBuildSource := ReloadOnSourceChanges
+
 enablePlugins(UniversalDeployPlugin, JavaAppPackaging, GitVersioning)
 
 git.useGitDescribe := true

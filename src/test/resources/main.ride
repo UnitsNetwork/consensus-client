@@ -545,16 +545,17 @@ func join(rewardAddress: ByteVector) = {
         else
           allMinersStr + SEP + newMiner
 
-      let deleteOldRewardAddressPk = match getString(minerRewardAddressKey(newMiner)) {
-        case oldAddress: String =>
-          if (oldAddress == rewardAddress.toBase16String()) then [] else [DeleteEntry(minerPkKey(oldAddress))]
+      # If a miner changed the reward address, we need to delete the previous mapping
+      let deletePrevRewardAddressPk = match getString(minerRewardAddressKey(newMiner)) {
+        case prevAddress: String =>
+          if (prevAddress == rewardAddress.toBase16String()) then [] else [DeleteEntry(minerPkKey(prevAddress))]
         case _ => []
       }
       [
         StringEntry(allMinersKey, newMiners),
         StringEntry(minerRewardAddressKey(newMiner), "0x" + rewardAddressHex),
         BinaryEntry(minerPkKey(rewardAddressHex), i.originCallerPublicKey)
-      ] ++ deleteOldRewardAddressPk
+      ] ++ deletePrevRewardAddressPk
     }
   }
 }

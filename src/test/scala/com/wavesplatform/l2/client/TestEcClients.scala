@@ -18,6 +18,7 @@ import monix.execution.atomic.{Atomic, AtomicInt}
 import play.api.libs.json.JsObject
 
 import scala.collection.View
+import scala.util.chaining.scalaUtilChainingOps
 
 class TestEcClients private (
     knownBlocks: Atomic[Map[BlockHash, ChainId]],
@@ -34,9 +35,9 @@ class TestEcClients private (
 
   private def currChainId: ChainId = currChainIdValue.get()
 
-  def addKnown(ecBlock: EcBlock, epochNumber: Int = blockchain.height): Unit = {
+  def addKnown(ecBlock: EcBlock, epochNumber: Int = blockchain.height): TestEcBlock = {
     knownBlocks.transform(_.updated(ecBlock.hash, currChainId))
-    prependToCurrentChain(mkTestEcBlock(ecBlock, epochNumber))
+    mkTestEcBlock(ecBlock, epochNumber).tap(prependToCurrentChain)
   }
 
   private def mkTestEcBlock(ecBlock: EcBlock, epochNumber: Int): TestEcBlock = TestEcBlock(
@@ -68,7 +69,10 @@ class TestEcClients private (
     logs.transform(_.updated(request, blockLogs))
   }
 
-  private val getLogsCalls                = Atomic(Set.empty[BlockHash])
+  private val getLogsCalls = Atomic(Set.empty[BlockHash])
+
+  /** Were logs of block requested during the full validation?
+    */
   def fullValidatedBlocks: Set[BlockHash] = getLogsCalls.get()
 
   val engineApi = LoggedEngineApiClient {
@@ -190,5 +194,5 @@ object TestEcClients {
       new ForgingBlock(testBlock.ecBlock.hash.take(16), testBlock)
   }
 
-  private case class TestEcBlock(ecBlock: EcBlock, prevRandao: String)
+  case class TestEcBlock(ecBlock: EcBlock, prevRandao: String)
 }

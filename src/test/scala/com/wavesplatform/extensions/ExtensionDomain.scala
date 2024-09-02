@@ -12,15 +12,9 @@ import com.wavesplatform.database.{RDB, RocksDBWriter}
 import com.wavesplatform.events.UtxEvent
 import com.wavesplatform.extensions.ExtensionDomain.*
 import com.wavesplatform.history.Domain
-import units.*
-import units.ELUpdater.calculateRandao
-import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyElToClTransfersRootHashHex
-import units.client.http.model.{EcBlock, TestEcBlocks}
-import units.client.{L2BlockLike, TestEcClients}
-import units.eth.{EthereumConstants, Gwei}
-import units.network.TestBlocksObserver
 import com.wavesplatform.lang.ValidationError
 import com.wavesplatform.lang.v1.compiler.Terms
+import com.wavesplatform.mining.MultiDimensionalMiningConstraint
 import com.wavesplatform.settings.WavesSettings
 import com.wavesplatform.state.{Blockchain, BlockchainUpdaterImpl, StringDataEntry, TxMeta}
 import com.wavesplatform.transaction.Asset.IssuedAsset
@@ -40,6 +34,13 @@ import monix.reactive.Observable
 import monix.reactive.subjects.PublishSubject
 import net.ceedubs.ficus.Ficus.*
 import play.api.libs.json.*
+import units.*
+import units.ELUpdater.calculateRandao
+import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyElToClTransfersRootHashHex
+import units.client.http.model.{EcBlock, TestEcBlocks}
+import units.client.{L2BlockLike, TestEcClients}
+import units.eth.{EthereumConstants, Gwei}
+import units.network.TestBlocksObserver
 
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.reflect.ClassTag
@@ -77,11 +78,12 @@ class ExtensionDomain(
   val neighbourChannel = new EmbeddedChannel()
   val allChannels      = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE)
   allChannels.add(neighbourChannel)
-  def pollSentNetworkBlock(): Option[NetworkL2Block]                  = Option(neighbourChannel.readOutbound[NetworkL2Block])
-  def receiveNetworkBlock(ecBlock: EcBlock, miner: SeedKeyPair): Unit = receiveNetworkBlock(toNetworkBlock(ecBlock, miner))
+  def pollSentNetworkBlock(): Option[NetworkL2Block] = Option(neighbourChannel.readOutbound[NetworkL2Block])
+  def receiveNetworkBlock(ecBlock: EcBlock, miner: SeedKeyPair, epochNumber: Int = blockchain.height): Unit =
+    receiveNetworkBlock(toNetworkBlock(ecBlock, miner, epochNumber))
   def receiveNetworkBlock(incomingNetworkBlock: NetworkL2Block): Unit = elBlockStream.onNext((new EmbeddedChannel(), incomingNetworkBlock))
 
-  def toNetworkBlock(ecBlock: EcBlock, miner: SeedKeyPair, epochNumber: Int = blockchain.height): NetworkL2Block =
+  def toNetworkBlock(ecBlock: EcBlock, miner: SeedKeyPair, epochNumber: Int): NetworkL2Block =
     NetworkL2Block
       .signed(
         TestEcBlocks.toPayload(
@@ -94,6 +96,14 @@ class ExtensionDomain(
         miner.privateKey
       )
       .explicitGet()
+
+  def forgeFromUtxPool(): Unit = {
+    val (txsOpt, _, _) = utxPool.packUnconfirmed(MultiDimensionalMiningConstraint.Unlimited, None)
+    txsOpt match {
+      case None      => throw new RuntimeException("Can't pack transactions from UTX pool")
+      case Some(txs) => appendMicroBlockAndVerify(txs*)
+    }
+  }
 
   def appendMicroBlockAndVerify(txs: Transaction*): BlockId = {
     val blockId = appendMicroBlock(txs*)
@@ -110,7 +120,8 @@ class ExtensionDomain(
     else {
       appendBlock()
       val generator = evaluatedComputedGenerator
-      if (generator != expectedElGenerator) {
+      if (generator == expectedElGenerator) testTime.advance(l2Config.blockDelay)
+      else {
         log.debug(s"advanceNewBlocks: unexpected computed generator $generator")
         advanceNewBlocks(expectedElGenerator, attempts - 1)
       }
@@ -192,30 +203,66 @@ class ExtensionDomain(
       )
     )
 
-  def advanceElu(): Unit = {
-    log.trace("advanceElu")
+  // See ELUpdater.consensusLayerChanged
+  def advanceConsensusLayerChanged(): Unit = {
+    log.trace("advanceConsensusLayerChanged")
     advanceElu(ELUpdater.ClChangedProcessingDelay)
   }
 
-  private def advanceElu(x: FiniteDuration): Unit = {
+  // See ELUpdater.requestBlocksAndStartMining
+  def advanceWaitRequestedBlock(): Unit = {
+    log.trace("advanceWaitRequestedBlock")
+    advanceElu(ELUpdater.WaitRequestedBlockTimeout)
+  }
+
+  def advanceMiningRetry(): Unit = {
+    log.trace("advanceMiningRetry")
+    advanceElu(ELUpdater.MiningRetryInterval)
+  }
+
+  def advanceMining(): Unit = {
+    log.trace("advanceMining")
+    advanceElu(l2Config.blockDelay)
+  }
+
+  def advanceElu(x: FiniteDuration = ELUpdater.ClChangedProcessingDelay): Unit = {
+    log.trace(s"advanceElu($x)")
     testTime.advance(x)
     eluScheduler.tick(x)
   }
 
-  def advanceBlockDelay(): Unit = {
-    log.trace("advanceBlockDelay")
-    advanceTime(l2Config.blockDelay)
+  def advanceBlockDelay(triggerSchedulers: Boolean = true): Unit = {
+    log.trace(s"advanceBlockDelay($triggerSchedulers)")
+    advanceAllTasks(l2Config.blockDelay, triggerSchedulers)
   }
 
-  def triggerScheduledTasks(): Unit = {
-    log.trace("triggerScheduledTasks")
-    advanceTime(0.seconds)
+  def triggerScheduledTasks(silent: Boolean = false): Unit = {
+    if (!silent) log.trace("triggerScheduledTasks")
+    advanceAllTasks(0.seconds)
   }
 
-  private def advanceTime(x: FiniteDuration): Unit = {
+  def advanceAll(x: FiniteDuration, silent: Boolean = false): Unit = {
+    if (!silent) log.trace("advanceAll")
+    advanceAllTasks(x)
+  }
+
+  private def advanceAllTasks(x: FiniteDuration, triggerSchedulers: Boolean = true): Unit = {
     testTime.advance(x)
-    globalScheduler.tick(x)
-    eluScheduler.tick(x)
+    if (triggerSchedulers) {
+      globalScheduler.tick(x)
+      eluScheduler.tick(x)
+    }
+  }
+
+  def logTasks(): Unit = {
+    log.trace("Logging tasks")
+    def l(name: String, s: TestScheduler): Unit = {
+      val tasksStr = if (s.state.tasks.isEmpty) "no tasks" else s.state.tasks.mkString(", ")
+      log.trace(s"$name tasks: $tasksStr")
+    }
+
+    l("ELUpdater", eluScheduler)
+    l("Global", globalScheduler)
   }
 
   val extensionContext = new Context {

@@ -104,7 +104,7 @@ class ELUpdater(
               case _ =>
                 logger.error(s"Failed to get chain ${rInfo.chainId} info, ignoring block ${block.hash}")
             }
-          case _ => logger.debug(s"$w: ignoring block ${block.hash}")
+          case _ => logger.debug(s"$w: ignoring block unexpected ${block.hash}")
         }
       case other =>
         logger.debug(s"$other: ignoring block ${block.hash}")
@@ -278,6 +278,10 @@ class ELUpdater(
               newEcBlock => scheduler.execute { () => tryToForgeNextBlock(epochInfo.number, newEcBlock, chainContractOptions) }
             )
         }
+      case Working(_, _, _, _, _, _: Mining | _: FollowingChain, _, _) =>
+      // a new epoch started and we trying to apply a previous epoch payload:
+      // Mining - we mine again
+      // FollowingChain - we validate
       case other => logger.debug(s"Unexpected state $other attempting to finish building $payloadId")
     }
   }
@@ -471,40 +475,44 @@ class ELUpdater(
   }
 
   private def updateStartingState(): Unit = {
-    val finalizedBlock = chainContractClient.getFinalizedBlock
-    logger.debug(s"Finalized block is ${finalizedBlock.hash}")
-    httpApiClient.getBlockByHash(finalizedBlock.hash) match {
-      case Left(error) => logger.error(s"Could not load finalized block", error)
-      case Right(Some(finalizedEcBlock)) =>
-        logger.trace(s"Finalized block ${finalizedBlock.hash} is at height ${finalizedEcBlock.height}")
-        (for {
-          newEpochInfo  <- calculateEpochInfo
-          mainChainInfo <- chainContractClient.getMainChainInfo.toRight("Can't get main chain info")
-          lastEcBlock   <- httpApiClient.getLastExecutionBlock.leftMap(_.message)
-        } yield {
-          logger.trace(s"Following main chain ${mainChainInfo.id}")
-          val fullValidationStatus = FullValidationStatus(
-            validated = Set(finalizedBlock.hash),
-            lastElWithdrawalIndex = None
+    if (!chainContractClient.isContractSetup) logger.debug("Waiting for chain contract setup")
+    else if (chainContractClient.getAllActualMiners.isEmpty) logger.debug("Waiting for at least one joined miner")
+    else {
+      val finalizedBlock = chainContractClient.getFinalizedBlock
+      logger.debug(s"Finalized block is ${finalizedBlock.hash}")
+      httpApiClient.getBlockByHash(finalizedBlock.hash) match {
+        case Left(error) => logger.error(s"Could not load finalized block", error)
+        case Right(Some(finalizedEcBlock)) =>
+          logger.trace(s"Finalized block ${finalizedBlock.hash} is at height ${finalizedEcBlock.height}")
+          (for {
+            newEpochInfo  <- calculateEpochInfo
+            mainChainInfo <- chainContractClient.getMainChainInfo.toRight("Can't get main chain info")
+            lastEcBlock   <- httpApiClient.getLastExecutionBlock.leftMap(_.message)
+          } yield {
+            logger.trace(s"Following main chain ${mainChainInfo.id}")
+            val fullValidationStatus = FullValidationStatus(
+              validated = Set(finalizedBlock.hash),
+              lastElWithdrawalIndex = None
+            )
+            val options = chainContractClient.getOptions
+            followChainAndRequestNextBlock(
+              newEpochInfo,
+              mainChainInfo,
+              lastEcBlock,
+              mainChainInfo,
+              finalizedBlock,
+              fullValidationStatus,
+              options,
+              None
+            )
+          }).fold(
+            err => logger.error(s"Could not transition to working state: $err"),
+            _ => ()
           )
-          val options = chainContractClient.getOptions
-          followChainAndRequestNextBlock(
-            newEpochInfo,
-            mainChainInfo,
-            lastEcBlock,
-            mainChainInfo,
-            finalizedBlock,
-            fullValidationStatus,
-            options,
-            None
-          )
-        }).fold(
-          err => logger.error(s"Could not transition to working state: $err"),
-          _ => ()
-        )
-      case Right(None) =>
-        logger.trace(s"Finalized block ${finalizedBlock.hash} is not in EC, requesting from peers")
-        setState("15", WaitingForSyncHead(finalizedBlock, requestAndProcessBlock(finalizedBlock.hash)))
+        case Right(None) =>
+          logger.trace(s"Finalized block ${finalizedBlock.hash} is not in EC, requesting from peers")
+          setState("15", WaitingForSyncHead(finalizedBlock, requestAndProcessBlock(finalizedBlock.hash)))
+      }
     }
   }
 
@@ -575,9 +583,9 @@ class ELUpdater(
               tryToStartMining(w, Right(nodeChainInfo))
             case WaitForNewChain(chainSwitchInfo) =>
               tryToStartMining(w, Left(chainSwitchInfo))
-            case _ => logger.warn(s"Unexpected state: $w")
+            case _ => logger.warn(s"Unexpected Working state on mining: $w")
           }
-        case other => logger.warn(s"Unexpected state: $other")
+        case other => logger.warn(s"Unexpected state on mining: $other")
       }
     }
 
@@ -933,7 +941,7 @@ class ELUpdater(
           waitForSyncCompletion(target)
       }
     case other =>
-      logger.debug(s"Unexpected state: $other")
+      logger.debug(s"Unexpected state on sync: $other")
   })
 
   private def checkSignature(block: NetworkL2Block, isConfirmed: Boolean): Either[String, Unit] = {
@@ -1114,13 +1122,13 @@ class ELUpdater(
       case Right(preValidationResult) =>
         val applyResult = for {
           _ <- validateBlock(networkBlock, expectedParent, preValidationResult.expectReward, prevState.options)
-          _ = logger.debug(s"Block ${networkBlock.hash} was successfully validated, trying to apply and broadcast")
+          _ = logger.debug(s"Block ${networkBlock.hash} was partially validated, trying to apply and broadcast")
           _ <- engineApiClient.applyNewPayload(networkBlock.payload)
         } yield ()
         applyResult match {
           case Left(err) =>
             if (ignoreInvalid) {
-              logger.error(s"Ignoring invalid block ${networkBlock.hash}: ${err.message}")
+              logger.debug(s"Ignoring invalid block ${networkBlock.hash}: ${err.message}")
             } else {
               logger.error(err.message)
 
@@ -1354,6 +1362,11 @@ class ELUpdater(
   ): Job[Unit] = {
     logger.debug(s"Full validation of ${contractBlock.hash}")
     val validation = for {
+      _ <- Either.cond(
+        contractBlock.minerRewardL2Address == ecBlock.minerRewardL2Address,
+        (),
+        ClientError(s"Miner in EC block ${ecBlock.minerRewardL2Address} should be equal to miner on contract ${contractBlock.minerRewardL2Address}")
+      )
       _                            <- validateElToClTransfers(contractBlock, prevState.options.elBridgeAddress)
       updatedLastElWithdrawalIndex <- fullWithdrawalsValidation(contractBlock, ecBlock, prevState.fullValidationStatus, prevState.options)
     } yield updatedLastElWithdrawalIndex
@@ -1370,7 +1383,7 @@ class ELUpdater(
           )
         )
       }
-      .recoverWith { e =>
+      .recoverWith { e => // Set a rollback state
         logger.debug(s"Full validation of ${contractBlock.hash} failed: ${e.message}")
         chainContractClient.getChainInfo(contractBlock.chainId) match {
           case Some(nodeChainInfo) if canSupportAnotherAltChain(nodeChainInfo) =>
@@ -1550,11 +1563,11 @@ class ELUpdater(
 }
 
 object ELUpdater {
-  private val MaxTimeDrift: Int                               = 1 // second
-  private val WaitForReferenceConfirmInterval: FiniteDuration = 500.millis
-  val ClChangedProcessingDelay: FiniteDuration                = 50.millis
-  private val MiningRetryInterval: FiniteDuration             = 5.seconds
-  private val WaitRequestedBlockTimeout: FiniteDuration       = 2.seconds
+  private val MaxTimeDrift: Int                       = 1 // second
+  val WaitForReferenceConfirmInterval: FiniteDuration = 500.millis
+  val ClChangedProcessingDelay: FiniteDuration        = 50.millis
+  val MiningRetryInterval: FiniteDuration             = 5.seconds
+  val WaitRequestedBlockTimeout: FiniteDuration       = 2.seconds
 
   case class EpochInfo(number: Int, miner: Address, rewardAddress: EthAddress, hitSource: ByteStr, prevEpochLastBlockHash: Option[BlockHash])
 

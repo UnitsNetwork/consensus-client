@@ -23,6 +23,8 @@ trait ChainContractClient {
 
   def extractData(key: String): Option[DataEntry[?]]
 
+  def isContractSetup: Boolean = getLongData("minerReward").isDefined
+
   def getLastBlockMeta(chainId: Long): Option[ContractBlock] =
     for {
       hash      <- getLastBlockHash(chainId)

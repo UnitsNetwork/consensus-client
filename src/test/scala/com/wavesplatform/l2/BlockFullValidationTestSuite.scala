@@ -1,15 +1,15 @@
 package units
 
 import com.wavesplatform.common.utils.EitherExt2
+import com.wavesplatform.transaction.TxHelpers
+import com.wavesplatform.wallet.Wallet
 import units.ELUpdater.State
 import units.ELUpdater.State.ChainStatus.{FollowingChain, WaitForNewChain}
 import units.ELUpdater.State.Working
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyElToClTransfersRootHashHex
-import units.client.http.model.GetLogsResponseEntry
+import units.client.http.model.{EcBlock, GetLogsResponseEntry}
 import units.eth.EthAddress
 import units.util.HexBytesConverter
-import com.wavesplatform.transaction.TxHelpers
-import com.wavesplatform.wallet.Wallet
 
 class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
   private val transferEvents             = List(Bridge.ElSentNativeEvent(TxHelpers.defaultAddress, 1))
@@ -100,7 +100,8 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
       "unsuccessful causes a fork" - {
         def elToClTest(
             blockLogs: List[GetLogsResponseEntry],
-            elToClTransfersRootHashHex: String
+            elToClTransfersRootHashHex: String,
+            badBlockPostProcessing: EcBlock => EcBlock = identity
         ): Unit = withConsensusClient() { (d, c) =>
           step("Start new epoch for ecBlock1")
           d.advanceNewBlocks(malfunction.address)
@@ -120,24 +121,27 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
           d.advanceNewBlocks(malfunction.address)
           d.advanceBlockDelay()
 
-          val ecBlock2 = d.createNextEcBlock(
-            hash = d.createBlockHash("0-0"),
-            parent = ecBlock1,
-            minerRewardL2Address = malfunction.elRewardAddress,
-            withdrawals = Vector(d.createWithdrawal(0, malfunction.elRewardAddress))
+          val ecBlock2 = badBlockPostProcessing(
+            d.createNextEcBlock(
+              hash = d.createBlockHash("0-0"),
+              parent = ecBlock1,
+              minerRewardL2Address = malfunction.elRewardAddress,
+              withdrawals = Vector(d.createWithdrawal(0, malfunction.elRewardAddress))
+            )
           )
           d.ecClients.setBlockLogs(ecBlock2.hash, Bridge.ElSentNativeEventTopic, blockLogs)
-
-          step(s"Receive ecBlock2 ${ecBlock2.hash} from a peer")
-          d.receiveNetworkBlock(ecBlock2, malfunction.account)
-          d.triggerScheduledTasks()
 
           step(s"Append a CL micro block with ecBlock2 ${ecBlock2.hash} confirmation")
           d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(malfunction.account, ecBlock2, d.blockchain.height, elToClTransfersRootHashHex))
           d.advanceElu()
 
+          step(s"Receive ecBlock2 ${ecBlock2.hash} from a peer")
+          d.receiveNetworkBlock(ecBlock2, malfunction.account)
+          d.triggerScheduledTasks()
+
           withClue("Validation happened:") {
-            d.ecClients.fullValidatedBlocks should contain(ecBlock2.hash)
+            val s = is[State.Working[?]](c.elu.state).fullValidationStatus
+            s.validated should contain(ecBlock2.hash)
           }
 
           withClue("Forking:") {
@@ -162,6 +166,12 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
             elToClTransfersRootHashHex = elToClTransfersRootHashHex
           )
         }
+
+        "Different miners in CL and EL" in elToClTest(
+          blockLogs = ecBlockLogs,
+          elToClTransfersRootHashHex = elToClTransfersRootHashHex,
+          badBlockPostProcessing = _.copy(minerRewardL2Address = reliable.elRewardAddress)
+        )
       }
     }
   }

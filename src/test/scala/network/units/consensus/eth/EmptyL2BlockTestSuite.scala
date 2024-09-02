@@ -1,14 +1,16 @@
 package network.units.consensus.eth
 
-import EmptyL2Block.Params
 import com.wavesplatform.test.BaseSuite
-import network.units.consensus.BlockHash
-import network.units.consensus.client.http.model.EcBlock
 import org.scalatest.freespec.AnyFreeSpec
 import org.web3j.abi.datatypes.generated.Uint256
+import play.api.libs.json.Json
+import units.BlockHash
+import units.client.http.model.EcBlock
+import units.eth.EmptyL2Block.Params
+import units.eth.{EmptyL2Block, EthAddress}
 
 class EmptyL2BlockTestSuite extends AnyFreeSpec with BaseSuite {
-  private val DefaultFeeRecipient = "0x283c3c6ad2043af4d4e7d261809260fdab4a62d2"
+  private val DefaultFeeRecipient = EthAddress.unsafeFrom("0x283c3c6ad2043af4d4e7d261809260fdab4a62d2")
 
   "mkExecutionPayload" in {
     // Got from eth_getBlockByHash
@@ -58,10 +60,10 @@ class EmptyL2BlockTestSuite extends AnyFreeSpec with BaseSuite {
         |  "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
         |  "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
         |  "prevRandao": "0x0000000000000000000000000000000000000000000000000000000000000000",
-        |  "blockNumber": "0x0000000000000010",
-        |  "gasLimit": "0x000000000103c683",
+        |  "blockNumber": "0x10",
+        |  "gasLimit": "0x103c683",
         |  "gasUsed": "0x0",
-        |  "timestamp": "0x0000000065f7e7eb",
+        |  "timestamp": "0x65f7e7eb",
         |  "extraData": "0x",
         |  "baseFeePerGas": "0x7098f91",
         |  "blockHash": "0x9c2eb1960eef14f449bbe21d582c8b66ba2a2793ab2d140f85186c8803c7d9cb",
