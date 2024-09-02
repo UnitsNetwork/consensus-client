@@ -226,7 +226,7 @@ func calculateFinalizedBlockHash(curMiner: Address, curPrevEpoch: Int, curLastBl
         let (miner, prevEpoch, lastBlockHash) = if (thisEpoch == height)
           then (curMiner, curPrevEpoch, curLastBlockHash)
           else epochMeta(thisEpoch).value()
-        if (prevEpoch == 0)
+        if (prevEpoch == 0 || height - thisEpoch >= 100)
           then (thisEpoch, totalBalance, lastBlockHash, allMiners)
           else {
             let (newTotalBalance, newMiners) = if (prevMiners.containsElement(miner))
@@ -240,7 +240,7 @@ func calculateFinalizedBlockHash(curMiner: Address, curPrevEpoch: Int, curLastBl
     }
   }
 
-  let (fallbackEpoch, totalBalance, finalizedBlockHashOpt, miners) = FOLD<200>(offsets_100 ++ offsets_100, (height, 0, unit, []), step)
+  let (fallbackEpoch, totalBalance, finalizedBlockHashOpt, miners) = FOLD<100>(offsets_100, (height, 0, unit, []), step)
   match finalizedBlockHashOpt {
     case finalizedBlockHash: String => finalizedBlockHash
     case _ =>
@@ -305,8 +305,15 @@ func ensureExpectedOrInactiveChain(generator: Address, expectedChainId: Int, che
   }
 }
 
-func ensureCorrectEpoch(epoch: Int) = {
-  if (epoch == height) then unit else throw("Expected block from epoch " + height.toString() + ". Got " + epoch.toString())
+let heightString = " at height " + height.toString()
+func vrfAt(height: Int) = blockInfoByHeight(height)
+    .valueOrErrorMessage("last block is not available" + heightString)
+    .vrf
+    .valueOrErrorMessage("VRF is not available" + heightString)
+
+func ensureCorrectEpoch(expectedVRF: ByteVector) = {
+  let actualVRF = vrfAt(height)
+  if (expectedVRF == actualVRF) then unit else throw("Expected VRF " + expectedVRF.toBase58String() + " does not match actual " + actualVRF.toBase58String() + heightString)
 }
 
 func addSupporter(chainId: Int, generator: Address) = {
@@ -347,46 +354,16 @@ func getUpdateFinalizedBlockAction(caller: Address, newBlockHashHex: String, pre
     else []
 }
 
-@Callable(i)
-func appendBlock_v3(
+func extendMainChainImpl(
+  i: Invocation,
   blockHashHex: String,
   referenceHex: String,
-  elToClTransfersRootHashHex: String,
-  lastClToElTransferIndex: Int
-) = {
-  strict checkCaller = if (thisEpochMiner == i.originCaller)
-    then true
-    else match thisEpochMiner {
-      case epochMiner: Address => throw("not allowed to forge blocks in this epoch, expected from " + epochMiner.toString())
-      case _                   => throw("not allowed to forge blocks in this epoch, epoch miner is absent")
-    }
-
-  let chainId = minerChainId(i.originCaller).valueOrElse(mainChainId)
-
-  let (chainHeight, lastBlockId) = chainMeta(chainId)
-  strict checkReference = isReferenceCorrect(referenceHex, lastBlockId)
-  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._7, lastClToElTransferIndex, false)
-
-  let newChainHeight    = chainHeight + 1
-  strict checkBlockHash = validateBlockHash(blockHashHex)
-  [
-    mkBlockMetaEntry(blockHashHex, newChainHeight, lastBlockId, i.originCaller, chainId, elToClTransfersRootHashHex, lastClToElTransferIndex),
-    IntegerEntry(chainLastHeightKey(chainId, i.originCaller), newChainHeight),
-    mkChainMetaEntry(chainId, newChainHeight, blockHashHex),
-    StringEntry(epochMetaKey(height), thisEpochMiner.value().toString() + SEP + thisEpochRef.toString() + SEP + blockHashHex)
-  ]
-}
-
-@Callable(i)
-func extendMainChain_v3(
-  blockHashHex: String,
-  referenceHex: String,
-  epoch: Int,
+  vrf: ByteVector,
   elToClTransfersRootHashHex: String,
   lastClToElTransferIndex: Int
 ) = {
   strict checkBlockHash = validateBlockHash(blockHashHex)
-  strict checkEpoch     = ensureCorrectEpoch(epoch)
+  strict checkEpoch     = ensureCorrectEpoch(vrf)
   strict checkChain     = ensureExpectedOrInactiveChain(i.originCaller, mainChainId, unit)
   strict checkReference = isReferenceCorrect(referenceHex, mainChainLastBlock)
   strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._7, lastClToElTransferIndex, true)
@@ -410,16 +387,16 @@ func extendMainChain_v3(
   ] ++ updateFinalizedBlock
 }
 
-@Callable(i)
-func startAltChain_v3(
+func startAltChainImpl(
+  i: Invocation,
   blockHashHex: String,
   referenceHex: String,
-  epoch: Int,
+  vrf: ByteVector,
   elToClTransfersRootHashHex: String,
   lastClToElTransferIndex: Int
 ) = {
   strict checkBlockHash = validateBlockHash(blockHashHex)
-  strict checkEpoch     = ensureCorrectEpoch(epoch)
+  strict checkEpoch     = ensureCorrectEpoch(vrf)
   let (refChainHeight, refEpoch, refRef, refGenerator, refIgnored5, refIgnored6, refTransferIndex) = blockMeta(referenceHex)
   let finalizedEpoch = blockMeta(getStringValue(finalizedBlockKey))._2
   let epochRef = if (refEpoch >= finalizedEpoch)
@@ -451,12 +428,12 @@ func startAltChain_v3(
   ]
 }
 
-@Callable(i)
-func extendAltChain_v3(
+func extendAltChainImpl(
+  i: Invocation,
   chainId: Int,
   blockHashHex: String,
   referenceHex: String,
-  epoch: Int,
+  vrf: ByteVector,
   elToClTransfersRootHashHex: String,
   lastClToElTransferIndex: Int
 ) = {
@@ -466,7 +443,7 @@ func extendAltChain_v3(
   # 2.2. cancel all other active forks (!)
 
   strict checkBlockHash   = validateBlockHash(blockHashHex)
-  strict checkEpoch       = ensureCorrectEpoch(epoch)
+  strict checkEpoch       = ensureCorrectEpoch(vrf)
   let chainFirstBlockMeta = blockMeta(getStringValue(chainFirstBlockIdKey(chainId)))
   strict checkChain       = ensureExpectedOrInactiveChain(i.originCaller, chainId, chainFirstBlockMeta._3.toBase16String())
   let (chainHeight, chainLastBlock) = chainMeta(chainId)
@@ -506,6 +483,100 @@ func extendAltChain_v3(
     IntegerEntry(minerChainIdKey(i.originCaller), chainId),
     IntegerEntry(chainLastHeightKey(chainId, i.originCaller), newChainHeight)
   ] ++ updateMainChainData ++ addSupporter(chainId, i.originCaller) ++ updateMainChainLastMinedBlock
+}
+
+func allowOmittingVrf(epoch: Int) =
+  match getInteger("requireVrfArgumentFromHeight") {
+    case _: Unit => vrfAt(epoch)
+    case h: Int =>
+      if (h < epoch) then vrfAt(epoch) else throw("VRF argument is mandatory. Upgrade your client!")
+  }
+
+@Callable(i)
+func extendMainChain_v3(
+  blockHashHex: String,
+  referenceHex: String,
+  epoch: Int,
+  elToClTransfersRootHashHex: String,
+  lastClToElTransferIndex: Int
+) = extendMainChainImpl(i, blockHashHex, referenceHex, allowOmittingVrf(epoch), elToClTransfersRootHashHex, lastClToElTransferIndex)
+
+
+@Callable(i)
+func extendMainChain_v4(
+  blockHashHex: String,
+  referenceHex: String,
+  vrf: ByteVector,
+  elToClTransfersRootHashHex: String,
+  lastClToElTransferIndex: Int
+) = extendMainChainImpl(i, blockHashHex, referenceHex, vrf, elToClTransfersRootHashHex, lastClToElTransferIndex)
+
+@Callable(i)
+func startAltChain_v3(
+  blockHashHex: String,
+  referenceHex: String,
+  epoch: Int,
+  elToClTransfersRootHashHex: String,
+  lastClToElTransferIndex: Int
+) = startAltChainImpl(i, blockHashHex, referenceHex, allowOmittingVrf(epoch), elToClTransfersRootHashHex, lastClToElTransferIndex)
+
+@Callable(i)
+func startAltChain_v4(
+  blockHashHex: String,
+  referenceHex: String,
+  vrf: ByteVector,
+  elToClTransfersRootHashHex: String,
+  lastClToElTransferIndex: Int
+) = startAltChainImpl(i, blockHashHex, referenceHex, vrf, elToClTransfersRootHashHex, lastClToElTransferIndex)
+
+@Callable(i)
+func extendAltChain_v3(
+  chainId: Int,
+  blockHashHex: String,
+  referenceHex: String,
+  epoch: Int,
+  elToClTransfersRootHashHex: String,
+  lastClToElTransferIndex: Int
+) = extendAltChainImpl(i, chainId, blockHashHex, referenceHex, allowOmittingVrf(epoch), elToClTransfersRootHashHex, lastClToElTransferIndex)
+
+@Callable(i)
+func extendAltChain_v4(
+  blockHashHex: String,
+  referenceHex: String,
+  vrf: ByteVector,
+  chainId: Int,
+  elToClTransfersRootHashHex: String,
+  lastClToElTransferIndex: Int
+) = extendAltChainImpl(i, chainId, blockHashHex, referenceHex, vrf, elToClTransfersRootHashHex, lastClToElTransferIndex)
+
+@Callable(i)
+func appendBlock_v3(
+  blockHashHex: String,
+  referenceHex: String,
+  elToClTransfersRootHashHex: String,
+  lastClToElTransferIndex: Int
+) = {
+  strict checkCaller = if (thisEpochMiner == i.originCaller)
+    then true
+    else match thisEpochMiner {
+      case epochMiner: Address => throw("not allowed to forge blocks in this epoch, expected from " + epochMiner.toString())
+      case _                   => throw("not allowed to forge blocks in this epoch, epoch miner is absent")
+    }
+
+  let chainId = minerChainId(i.originCaller).valueOrElse(mainChainId)
+
+  let (chainHeight, lastBlockId) = chainMeta(chainId)
+  strict checkReference = isReferenceCorrect(referenceHex, lastBlockId)
+  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._7, lastClToElTransferIndex, false)
+
+  let newChainHeight    = chainHeight + 1
+  strict checkBlockHash = validateBlockHash(blockHashHex)
+  [
+    mkBlockMetaEntry(blockHashHex, newChainHeight, lastBlockId, i.originCaller, chainId, elToClTransfersRootHashHex, lastClToElTransferIndex),
+    IntegerEntry(chainLastHeightKey(chainId, i.originCaller), newChainHeight),
+    mkChainMetaEntry(chainId, newChainHeight, blockHashHex),
+    StringEntry(epochMetaKey(height), thisEpochMiner.value().toString() + SEP + thisEpochRef.toString() + SEP + blockHashHex)
+  ]
 }
 
 @Callable(i)
