@@ -1,49 +1,35 @@
 package units.client.contract
 
-import cats.syntax.option.*
-import units.client.contract.ContractFunction.*
+import com.wavesplatform.common.merkle.Digest
+import com.wavesplatform.common.state.ByteStr
+import com.wavesplatform.lang.CommonError
+import com.wavesplatform.lang.v1.FunctionHeader
+import com.wavesplatform.lang.v1.compiler.Terms.{CONST_BYTESTR, CONST_LONG, CONST_STRING, EVALUATED, FUNCTION_CALL}
+import units.{BlockHash, ClientError, Job}
+import units.util.HexBytesConverter.toHexNoPrefix
+import cats.syntax.either.*
 
-sealed abstract class ContractFunction(
-    baseName: String,
-    val chainIdOpt: Option[Long] = none,
-    val epochOpt: Option[Int] = none
-) {
-  def version: Version
-
-  val name: String = s"$baseName${version.mineFunctionsSuffix}"
+abstract class ContractFunction(name: String, reference: BlockHash, extraArgs: Either[CommonError, List[EVALUATED]]) {
+  def toFunctionCall(blockHash: BlockHash, transfersRootHash: Digest, lastClToElTransferIndex: Long): Job[FUNCTION_CALL] = (for {
+    hash <- CONST_STRING(blockHash)
+    ref  <- CONST_STRING(reference)
+    trh  <- CONST_STRING(toHexNoPrefix(transfersRootHash))
+    xtra <- extraArgs
+  } yield FUNCTION_CALL(
+    FunctionHeader.User(name),
+    List(hash, ref) ++ xtra ++ List(trh, CONST_LONG(lastClToElTransferIndex))
+  )).leftMap(e => ClientError(s"Error building function call for $name: $e"))
 }
 
 object ContractFunction {
-  val ExtendMainChainBaseName = "extendMainChain"
-  val AppendBlockBaseName     = "appendBlock"
-  val ExtendAltChainBaseName  = "extendAltChain"
-  val StartAltChainBaseName   = "startAltChain"
+  case class ExtendMainChain(reference: BlockHash, vrf: ByteStr)
+      extends ContractFunction("extendMainChain_v4", reference, CONST_BYTESTR(vrf).map(v => List(v)))
 
-  case class ExtendMainChain(epoch: Int, version: Version)               extends ContractFunction(ExtendMainChainBaseName, epochOpt = epoch.some)
-  case class AppendBlock(version: Version)                               extends ContractFunction(AppendBlockBaseName)
-  case class ExtendAltChain(chainId: Long, epoch: Int, version: Version) extends ContractFunction(ExtendAltChainBaseName, chainId.some, epoch.some)
-  case class StartAltChain(epoch: Int, version: Version)                 extends ContractFunction(StartAltChainBaseName, epochOpt = epoch.some)
+  case class AppendBlock(reference: BlockHash) extends ContractFunction("appendBlock_v3", reference, Right(Nil))
 
-  val AllNames: List[String] = for {
-    function <- List(ExtendMainChainBaseName, AppendBlockBaseName, ExtendAltChainBaseName, StartAltChainBaseName)
-    version  <- Version.All
-  } yield function + version.mineFunctionsSuffix
+  case class ExtendAltChain(reference: BlockHash, vrf: ByteStr, chainId: Long)
+      extends ContractFunction("extendAltChain_v4", reference, CONST_BYTESTR(vrf).map(v => List(v, CONST_LONG(chainId))))
 
-  val StartAltChainNames = AllNames.filter(_.startsWith(StartAltChainBaseName))
-
-  sealed abstract class Version(protected val n: Int) extends Ordered[Version] with Product with Serializable {
-    val mineFunctionsSuffix: String = s"_v$n"
-
-    override def compare(that: Version): Int = java.lang.Integer.compare(n, that.n)
-    override def canEqual(that: Any): Boolean = that match {
-      case _: Version => true
-      case _          => false
-    }
-  }
-
-  case object V2 extends Version(2) // Supports EL to CL transfers
-  case object V3 extends Version(3) // Supports CL to EL transfers
-  object Version {
-    val All = List(V2, V3)
-  }
+  case class StartAltChain(reference: BlockHash, vrf: ByteStr)
+      extends ContractFunction("startAltChain_v4", reference, CONST_BYTESTR(vrf).map(v => List(v)))
 }
