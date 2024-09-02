@@ -17,7 +17,7 @@ import units.util.HexBytesConverter
 
 import scala.jdk.CollectionConverters.SeqHasAsJava
 
-class ElToClTransfersTestSuite extends BaseIntegrationTestSuite {
+class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
   private val transferReceiver           = TxHelpers.secondSigner
   private val transfer                   = Bridge.ElSentNativeEvent(transferReceiver.toAddress, 1)
   private val transferEvent              = getLogsResponseEntry(transfer)

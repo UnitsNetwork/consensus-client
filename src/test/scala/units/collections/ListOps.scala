@@ -1,4 +1,4 @@
-package com.wavesplatform.collections
+package units.collections
 
 import cats.syntax.option.*
 

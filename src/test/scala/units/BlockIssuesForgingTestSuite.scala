@@ -1,7 +1,6 @@
 package units
 
 import com.wavesplatform.db.WithState.AddrWithBalance
-import com.wavesplatform.extensions.ExtensionDomain
 import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.wallet.Wallet
 import units.ELUpdater.State.ChainStatus.{FollowingChain, Mining, WaitForNewChain}

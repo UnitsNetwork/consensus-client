@@ -5,7 +5,6 @@ import com.wavesplatform.database.{RDB, loadActiveLeases}
 import com.wavesplatform.db.WithDomain
 import com.wavesplatform.db.WithState.AddrWithBalance
 import com.wavesplatform.events.BlockchainUpdateTriggers
-import com.wavesplatform.extensions.ExtensionDomain
 import com.wavesplatform.state.BlockchainUpdaterImpl
 import com.wavesplatform.test.{BaseSuite, NumericExt}
 import com.wavesplatform.transaction.TxHelpers

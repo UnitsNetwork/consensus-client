@@ -1,6 +1,5 @@
 package units
 
-import com.wavesplatform.AutoShutdown
 import com.wavesplatform.block.{Block, MicroBlock}
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.events.BlockchainUpdateTriggers
@@ -37,7 +36,7 @@ class ConsensusClient(
     ownedResources: AutoCloseable
 ) extends Extension
     with BlockchainUpdateTriggers
-    with AutoShutdown {
+    {
 
   def this(context: ExtensionContext, deps: ConsensusClientDependencies) =
     this(
@@ -75,7 +74,7 @@ class ConsensusClient(
 
   override def start(): Unit = {}
 
-  override def shutdown(): Future[Unit] = Future {
+  def shutdown(): Future[Unit] = Future {
     blocksStreamCancelable.cancel()
     elu.close()
     ownedResources.close()

@@ -1,7 +1,6 @@
 package units.client
 
 import cats.syntax.either.*
-import com.wavesplatform.collections.ListOps.*
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.state.Blockchain
 import com.wavesplatform.utils.ScorexLogging
@@ -14,6 +13,7 @@ import units.client.engine.model.Withdrawal
 import units.client.engine.{EngineApiClient, LoggedEngineApiClient}
 import units.client.http.model.*
 import units.client.http.{EcApiClient, LoggedEcApiClient}
+import units.collections.ListOps.*
 import units.eth.{EthAddress, EthereumConstants}
 import units.{BlockHash, Job, NetworkL2Block}
 

@@ -1,4 +1,4 @@
-package com.wavesplatform.extensions
+package units
 
 import cats.syntax.either.*
 import com.wavesplatform.account.{Address, KeyPair, PublicKey, SeedKeyPair}
@@ -10,7 +10,7 @@ import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.database.{RDB, RocksDBWriter}
 import com.wavesplatform.events.UtxEvent
-import com.wavesplatform.extensions.ExtensionDomain.*
+import com.wavesplatform.extensions.Context
 import com.wavesplatform.history.Domain
 import com.wavesplatform.lang.ValidationError
 import com.wavesplatform.lang.v1.compiler.Terms
@@ -34,8 +34,8 @@ import monix.reactive.Observable
 import monix.reactive.subjects.PublishSubject
 import net.ceedubs.ficus.Ficus.*
 import play.api.libs.json.*
-import units.*
 import units.ELUpdater.calculateRandao
+import units.ExtensionDomain.*
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyElToClTransfersRootHashHex
 import units.client.http.model.{EcBlock, TestEcBlocks}
 import units.client.{L2BlockLike, TestEcClients}
