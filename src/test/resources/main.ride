@@ -541,10 +541,10 @@ func extendAltChain_v3(
 
 @Callable(i)
 func extendAltChain_v4(
-  chainId: Int,
   blockHashHex: String,
   referenceHex: String,
   vrf: ByteVector,
+  chainId: Int,
   elToClTransfersRootHashHex: String,
   lastClToElTransferIndex: Int
 ) = extendAltChainImpl(i, chainId, blockHashHex, referenceHex, vrf, elToClTransfersRootHashHex, lastClToElTransferIndex)
