@@ -4,10 +4,6 @@ import com.wavesplatform.block.{Block, MicroBlock}
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.events.BlockchainUpdateTriggers
 import com.wavesplatform.extensions.{Extension, Context as ExtensionContext}
-import units.client.engine.{EngineApiClient, HttpEngineApiClient}
-import units.client.http.{EcApiClient, HttpEcApiClient}
-import units.client.{JwtAuthenticationBackend, LoggingBackend}
-import units.network.*
 import com.wavesplatform.network.{PeerDatabaseImpl, PeerInfo}
 import com.wavesplatform.state.{Blockchain, StateSnapshot}
 import com.wavesplatform.utils.{LoggerFacade, Schedulers}
@@ -19,6 +15,10 @@ import monix.execution.{CancelableFuture, Scheduler}
 import net.ceedubs.ficus.Ficus.*
 import org.slf4j.LoggerFactory
 import sttp.client3.HttpClientSyncBackend
+import units.client.engine.{EngineApiClient, HttpEngineApiClient}
+import units.client.http.{EcApiClient, HttpEcApiClient}
+import units.client.{JwtAuthenticationBackend, LoggingBackend}
+import units.network.*
 
 import java.util.concurrent.ConcurrentHashMap
 import scala.concurrent.Future
@@ -35,8 +35,7 @@ class ConsensusClient(
     eluScheduler: Scheduler,
     ownedResources: AutoCloseable
 ) extends Extension
-    with BlockchainUpdateTriggers
-    {
+    with BlockchainUpdateTriggers {
 
   def this(context: ExtensionContext, deps: ConsensusClientDependencies) =
     this(

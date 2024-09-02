@@ -225,7 +225,7 @@ class ExtensionDomain(
     advanceElu(l2Config.blockDelay)
   }
 
-  def advanceElu(x: FiniteDuration = ELUpdater.ClChangedProcessingDelay): Unit = {
+  def advanceElu(x: FiniteDuration): Unit = {
     log.trace(s"advanceElu($x)")
     testTime.advance(x)
     eluScheduler.tick(x)

@@ -127,7 +127,7 @@ trait BaseIntegrationTestSuite
               }
 
         d.appendBlock(txs*)
-        d.advanceElu()
+        d.advanceConsensusLayerChanged()
         f(d, client)
       }((resource: ConsensusClient) => {
         log.trace("Resources cleanup")

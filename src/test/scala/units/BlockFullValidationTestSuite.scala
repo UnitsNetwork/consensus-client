@@ -35,7 +35,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
 
       step("Start new epoch for ecBlock")
       d.advanceNewBlocks(reliable.address)
-      d.advanceElu()
+      d.advanceConsensusLayerChanged()
 
       step(s"Receive ecBlock ${ecBlock.hash} from a peer")
       d.receiveNetworkBlock(ecBlock, reliable.account)
@@ -43,7 +43,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
 
       step(s"Append a CL micro block with ecBlock ${ecBlock.hash} confirmation")
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height))
-      d.advanceElu()
+      d.advanceConsensusLayerChanged()
 
       withClue("Validation doesn't happen:") {
         d.ecClients.fullValidatedBlocks shouldBe empty
@@ -71,7 +71,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
 
         step("Start new epoch for ecBlock")
         d.advanceNewBlocks(reliable.address)
-        d.advanceElu()
+        d.advanceConsensusLayerChanged()
 
         step(s"Receive ecBlock ${ecBlock.hash} from a peer")
         d.receiveNetworkBlock(ecBlock, reliable.account)
@@ -79,7 +79,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
 
         step(s"Append a CL micro block with ecBlock ${ecBlock.hash} confirmation")
         d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, elToClTransfersRootHashHex))
-        d.advanceElu()
+        d.advanceConsensusLayerChanged()
 
         withClue("Expected state:") {
           val s = is[Working[?]](c.elu.state)
@@ -105,7 +105,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
         ): Unit = withConsensusClient() { (d, c) =>
           step("Start new epoch for ecBlock1")
           d.advanceNewBlocks(malfunction.address)
-          d.advanceElu()
+          d.advanceConsensusLayerChanged()
 
           val ecBlock1 = d.createNextEcBlock(
             hash = d.createBlockHash("0"),
@@ -115,7 +115,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
           d.ecClients.setBlockLogs(ecBlock1.hash, Bridge.ElSentNativeEventTopic, Nil)
           d.ecClients.addKnown(ecBlock1)
           d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(malfunction.account, ecBlock1, d.blockchain.height))
-          d.advanceElu()
+          d.advanceConsensusLayerChanged()
 
           step("Start new epoch for ecBlock2")
           d.advanceNewBlocks(malfunction.address)
@@ -133,7 +133,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
 
           step(s"Append a CL micro block with ecBlock2 ${ecBlock2.hash} confirmation")
           d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(malfunction.account, ecBlock2, d.blockchain.height, elToClTransfersRootHashHex))
-          d.advanceElu()
+          d.advanceConsensusLayerChanged()
 
           step(s"Receive ecBlock2 ${ecBlock2.hash} from a peer")
           d.receiveNetworkBlock(ecBlock2, malfunction.account)

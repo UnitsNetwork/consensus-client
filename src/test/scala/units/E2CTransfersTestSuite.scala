@@ -71,7 +71,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs)
       d.ecClients.addKnown(ecBlock)
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, elToClTransfersRootHashHex))
-      d.advanceElu()
+      d.advanceConsensusLayerChanged()
 
       tryWithdraw() should beRight
       withClue("Tokens came:") {
@@ -106,7 +106,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs)
       d.ecClients.addKnown(ecBlock)
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, elToClTransfersRootHashHex))
-      d.advanceElu()
+      d.advanceConsensusLayerChanged()
 
       def tryWithdraw(): Either[Throwable, BlockId] =
         d.appendMicroBlockE(chainContract.withdraw(transferReceiver, ecBlock, transferProofs, index, transfer.amount))
@@ -136,7 +136,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs)
       d.ecClients.addKnown(ecBlock)
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, elToClTransfersRootHashHex))
-      d.advanceElu()
+      d.advanceConsensusLayerChanged()
 
       def tryWithdraw(): Either[Throwable, BlockId] =
         d.appendMicroBlockE(chainContract.withdraw(transferReceiver, ecBlock, transferProofs, 0, amount))
@@ -164,7 +164,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs)
       d.ecClients.addKnown(ecBlock)
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, elToClTransfersRootHashHex))
-      d.advanceElu()
+      d.advanceConsensusLayerChanged()
 
       tryWithdraw() should beRight
       withClue("Tokens came:") {
@@ -196,7 +196,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs)
       d.ecClients.addKnown(ecBlock)
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, elToClTransfersRootHashHex))
-      d.advanceElu()
+      d.advanceConsensusLayerChanged()
 
       tryWithdraw() should beRight
       tryWithdraw() should produce("Transfer #0 has been already taken")
@@ -275,7 +275,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       d.ecClients.willForge(ecBlock1)
       d.ecClients.willForge(ecBlock2)
 
-      d.advanceElu()
+      d.advanceConsensusLayerChanged()
 
       val (txsOpt, _, _) = d.utxPool.packUnconfirmed(MultiDimensionalMiningConstraint.Unlimited, None)
       txsOpt shouldBe empty
@@ -300,7 +300,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
 
       step(s"Start a new epoch of malfunction miner ${malfunction.address} with ecBlock1 $ecBlock1Hash")
       d.advanceNewBlocks(malfunction.address)
-      d.advanceElu()
+      d.advanceConsensusLayerChanged()
 
       val ecBlock1 = d.createNextEcBlock( // Need this block, because we can not rollback to the genesis block
         hash = ecBlock1Hash,
@@ -311,7 +311,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
 
       d.ecClients.addKnown(ecBlock1)
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(malfunction.account, ecBlock1, d.blockchain.height))
-      d.advanceElu()
+      d.advanceConsensusLayerChanged()
 
       step(s"Try to append a block with a wrong transfers root hash $ecBlock2BadHash")
       d.advanceNewBlocks(malfunction.address)
@@ -327,7 +327,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
 
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(malfunction.account, ecBlock2Bad, d.blockchain.height)) // No root hash
       d.receiveNetworkBlock(ecBlock2Bad, malfunction.account)
-      d.advanceElu()
+      d.advanceConsensusLayerChanged()
 
       withClue("State is expected:") {
         val s  = is[Working[?]](c.elu.state)

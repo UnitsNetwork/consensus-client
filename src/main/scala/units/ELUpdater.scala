@@ -1383,7 +1383,7 @@ class ELUpdater(
           )
         )
       }
-      .recoverWith { e => // Set a rollback state
+      .recoverWith { e =>
         logger.debug(s"Full validation of ${contractBlock.hash} failed: ${e.message}")
         chainContractClient.getChainInfo(contractBlock.chainId) match {
           case Some(nodeChainInfo) if canSupportAnotherAltChain(nodeChainInfo) =>
