@@ -63,10 +63,16 @@ def universalDepMappings(deps: Seq[Attributed[File]]): Seq[(File, String)] =
     dep <- deps
   } yield dep.data -> ("lib/" + getJarFullFilename(dep))
 
+Universal / mappings += {
+  val jar = (Compile / packageBin).value
+  val id = projectID.value
+  val art = (Compile / packageBin / artifact).value
+  jar -> ("lib/" + makeJarName(id.organization, id.name, id.revision, art.name, art.classifier))
+}
 Universal / mappings ++= universalDepMappings((Runtime / dependencyClasspath).value.filterNot { p =>
-  p.get(AttributeKey[ModuleID]("moduleID")).exists { m =>
-    m.organization == "org.scala-lang" ||
-    m.organization.startsWith("com.fasterxml.jackson")
+  p.get(AttributeKey[ModuleID]("moduleID")).exists { m => false
+//    m.organization == "org.scala-lang" ||
+//    m.organization.startsWith("com.fasterxml.jackson")
   }
 })
 
