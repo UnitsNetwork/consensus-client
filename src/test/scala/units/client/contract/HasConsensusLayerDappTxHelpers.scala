@@ -77,8 +77,8 @@ trait HasConsensusLayerDappTxHelpers {
         minerAccount: KeyPair,
         block: L2BlockLike,
         epoch: Long,
-        elToClTransfersRootHashHex: String = EmptyElToClTransfersRootHashHex,
-        lastElToClTransferIndex: Long = -1
+        e2CTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
+        lastC2ETransferIndex: Long = -1
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = minerAccount,
@@ -88,8 +88,8 @@ trait HasConsensusLayerDappTxHelpers {
           Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
           Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
           Terms.CONST_LONG(epoch),
-          Terms.CONST_STRING(elToClTransfersRootHashHex.drop(2)).explicitGet(),
-          Terms.CONST_LONG(lastElToClTransferIndex)
+          Terms.CONST_STRING(e2CTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(lastC2ETransferIndex)
         ),
         fee = extendMainChainV3Fee
       )
@@ -98,8 +98,8 @@ trait HasConsensusLayerDappTxHelpers {
     def appendBlockV3(
         minerAccount: KeyPair,
         block: L2BlockLike,
-        elToClTransfersRootHashHex: String = EmptyElToClTransfersRootHashHex,
-        lastElToClTransferIndex: Long = -1
+        e2CTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
+        lastC2ETransferIndex: Long = -1
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = minerAccount,
@@ -108,8 +108,8 @@ trait HasConsensusLayerDappTxHelpers {
         args = List(
           Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
           Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
-          Terms.CONST_STRING(elToClTransfersRootHashHex.drop(2)).explicitGet(),
-          Terms.CONST_LONG(lastElToClTransferIndex)
+          Terms.CONST_STRING(e2CTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(lastC2ETransferIndex)
         ),
         fee = appendBlockV3Fee
       )
@@ -119,8 +119,8 @@ trait HasConsensusLayerDappTxHelpers {
         minerAccount: KeyPair,
         block: L2BlockLike,
         epoch: Long,
-        elToClTransfersRootHashHex: String = EmptyElToClTransfersRootHashHex,
-        lastElToClTransferIndex: Long = -1
+        e2CTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
+        lastC2ETransferIndex: Long = -1
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = minerAccount,
@@ -130,8 +130,8 @@ trait HasConsensusLayerDappTxHelpers {
           Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
           Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
           Terms.CONST_LONG(epoch),
-          Terms.CONST_STRING(elToClTransfersRootHashHex.drop(2)).explicitGet(),
-          Terms.CONST_LONG(lastElToClTransferIndex)
+          Terms.CONST_STRING(e2CTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(lastC2ETransferIndex)
         ),
         fee = startAltChainV3Fee
       )
@@ -142,8 +142,8 @@ trait HasConsensusLayerDappTxHelpers {
         chainId: Long,
         block: L2BlockLike,
         epoch: Long,
-        elToClTransfersRootHashHex: String = EmptyElToClTransfersRootHashHex,
-        lastElToClTransferIndex: Long = -1
+        e2CTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
+        lastC2ETransferIndex: Long = -1
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = minerAccount,
@@ -154,8 +154,8 @@ trait HasConsensusLayerDappTxHelpers {
           Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
           Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
           Terms.CONST_LONG(epoch),
-          Terms.CONST_STRING(elToClTransfersRootHashHex.drop(2)).explicitGet(),
-          Terms.CONST_LONG(lastElToClTransferIndex)
+          Terms.CONST_STRING(e2CTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(lastC2ETransferIndex)
         ),
         fee = extendAltChainV3Fee
       )
@@ -216,5 +216,5 @@ trait HasConsensusLayerDappTxHelpers {
 }
 
 object HasConsensusLayerDappTxHelpers {
-  val EmptyElToClTransfersRootHashHex = EthereumConstants.NullHex
+  val EmptyE2CTransfersRootHashHex = EthereumConstants.NullHex
 }

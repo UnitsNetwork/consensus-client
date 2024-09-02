@@ -36,7 +36,7 @@ import net.ceedubs.ficus.Ficus.*
 import play.api.libs.json.*
 import units.ELUpdater.calculateRandao
 import units.ExtensionDomain.*
-import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyElToClTransfersRootHashHex
+import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.client.http.model.{EcBlock, TestEcBlocks}
 import units.client.{L2BlockLike, TestEcClients}
 import units.eth.{EthereumConstants, Gwei}
@@ -150,7 +150,7 @@ class ExtensionDomain(
       chainId: Long,
       block: L2BlockLike,
       epoch: Long,
-      elToClTransfersRootHashHex: String = EmptyElToClTransfersRootHashHex
+      e2CTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex
   ): Either[String, JsObject] = {
     val r = evaluate(
       chainContractAddress,
@@ -161,7 +161,7 @@ class ExtensionDomain(
           Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
           Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
           Terms.CONST_LONG(epoch),
-          Terms.CONST_STRING(elToClTransfersRootHashHex.drop(2)).explicitGet()
+          Terms.CONST_STRING(e2CTransfersRootHashHex.drop(2)).explicitGet()
         )
       ),
       minerAccount.publicKey,

@@ -6,15 +6,15 @@ import com.wavesplatform.wallet.Wallet
 import units.ELUpdater.State
 import units.ELUpdater.State.ChainStatus.{FollowingChain, WaitForNewChain}
 import units.ELUpdater.State.Working
-import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyElToClTransfersRootHashHex
+import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.client.http.model.{EcBlock, GetLogsResponseEntry}
 import units.eth.EthAddress
 import units.util.HexBytesConverter
 
 class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
-  private val transferEvents             = List(Bridge.ElSentNativeEvent(TxHelpers.defaultAddress, 1))
-  private val ecBlockLogs                = transferEvents.map(getLogsResponseEntry)
-  private val elToClTransfersRootHashHex = HexBytesConverter.toHex(Bridge.mkTransfersHash(ecBlockLogs).explicitGet())
+  private val transferEvents          = List(Bridge.ElSentNativeEvent(TxHelpers.defaultAddress, 1))
+  private val ecBlockLogs             = transferEvents.map(getLogsResponseEntry)
+  private val e2CTransfersRootHashHex = HexBytesConverter.toHex(Bridge.mkTransfersHash(ecBlockLogs).explicitGet())
 
   private val reliable    = ElMinerSettings(Wallet.generateNewAccount(TestSettings.Default.walletSeed, 0))
   private val malfunction = ElMinerSettings(TxHelpers.signer(2)) // Prevents a block finalization
@@ -78,7 +78,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
         d.triggerScheduledTasks()
 
         step(s"Append a CL micro block with ecBlock ${ecBlock.hash} confirmation")
-        d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, elToClTransfersRootHashHex))
+        d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, e2CTransfersRootHashHex))
         d.advanceConsensusLayerChanged()
 
         withClue("Expected state:") {
@@ -98,9 +98,9 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
       }
 
       "unsuccessful causes a fork" - {
-        def elToClTest(
+        def e2CTest(
             blockLogs: List[GetLogsResponseEntry],
-            elToClTransfersRootHashHex: String,
+            e2CTransfersRootHashHex: String,
             badBlockPostProcessing: EcBlock => EcBlock = identity
         ): Unit = withConsensusClient() { (d, c) =>
           step("Start new epoch for ecBlock1")
@@ -132,7 +132,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
           d.ecClients.setBlockLogs(ecBlock2.hash, Bridge.ElSentNativeEventTopic, blockLogs)
 
           step(s"Append a CL micro block with ecBlock2 ${ecBlock2.hash} confirmation")
-          d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(malfunction.account, ecBlock2, d.blockchain.height, elToClTransfersRootHashHex))
+          d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(malfunction.account, ecBlock2, d.blockchain.height, e2CTransfersRootHashHex))
           d.advanceConsensusLayerChanged()
 
           step(s"Receive ecBlock2 ${ecBlock2.hash} from a peer")
@@ -153,23 +153,23 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
           }
         }
 
-        "CL confirmation without a transfers root hash" in elToClTest(
+        "CL confirmation without a transfers root hash" in e2CTest(
           blockLogs = ecBlockLogs,
-          elToClTransfersRootHashHex = EmptyElToClTransfersRootHashHex
+          e2CTransfersRootHashHex = EmptyE2CTransfersRootHashHex
         )
 
         "Events from an unexpected EL bridge address" in {
           val fakeBridgeAddress = EthAddress.unsafeFrom("0x53481054Ad294207F6ed4B6C2E6EaE34E1Bb8704")
           val ecBlock2Logs      = transferEvents.map(x => getLogsResponseEntry(x).copy(address = fakeBridgeAddress))
-          elToClTest(
+          e2CTest(
             blockLogs = ecBlock2Logs,
-            elToClTransfersRootHashHex = elToClTransfersRootHashHex
+            e2CTransfersRootHashHex = e2CTransfersRootHashHex
           )
         }
 
-        "Different miners in CL and EL" in elToClTest(
+        "Different miners in CL and EL" in e2CTest(
           blockLogs = ecBlockLogs,
-          elToClTransfersRootHashHex = elToClTransfersRootHashHex,
+          e2CTransfersRootHashHex = e2CTransfersRootHashHex,
           badBlockPostProcessing = _.copy(minerRewardL2Address = reliable.elRewardAddress)
         )
       }
