@@ -1,4 +1,4 @@
-package network.units.consensus.eth
+package units.eth
 
 import com.wavesplatform.test.BaseSuite
 import org.scalatest.freespec.AnyFreeSpec
@@ -7,7 +7,6 @@ import play.api.libs.json.Json
 import units.BlockHash
 import units.client.http.model.EcBlock
 import units.eth.EmptyL2Block.Params
-import units.eth.{EmptyL2Block, EthAddress}
 
 class EmptyL2BlockTestSuite extends AnyFreeSpec with BaseSuite {
   private val DefaultFeeRecipient = EthAddress.unsafeFrom("0x283c3c6ad2043af4d4e7d261809260fdab4a62d2")

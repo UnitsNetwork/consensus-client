@@ -1,10 +1,10 @@
 package units
 
+import com.wavesplatform.utils.Time
+import org.web3j.abi.datatypes.generated.Uint256
 import units.client.engine.model.Withdrawal
 import units.client.http.model.EcBlock
 import units.eth.{EthAddress, EthereumConstants, Gwei}
-import com.wavesplatform.utils.Time
-import org.web3j.abi.datatypes.generated.Uint256
 
 import java.nio.charset.StandardCharsets
 import scala.concurrent.duration.FiniteDuration

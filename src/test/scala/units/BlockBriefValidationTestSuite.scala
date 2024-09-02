@@ -1,8 +1,8 @@
 package units
 
 import com.wavesplatform.extensions.ExtensionDomain
-import units.ELUpdater.State.Working
 import com.wavesplatform.wallet.Wallet
+import units.ELUpdater.State.Working
 
 class BlockBriefValidationTestSuite extends BaseIntegrationTestSuite {
   private val miner = ElMinerSettings(Wallet.generateNewAccount(TestSettings.Default.walletSeed, 0))

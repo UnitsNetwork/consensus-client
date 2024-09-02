@@ -1,4 +1,4 @@
-package com.wavesplatform.l2
+package units
 
 import com.wavesplatform.db.WithState.AddrWithBalance
 import com.wavesplatform.extensions.ExtensionDomain
@@ -7,7 +7,6 @@ import com.wavesplatform.wallet.Wallet
 import units.ELUpdater.State.ChainStatus.{FollowingChain, Mining, WaitForNewChain}
 import units.ELUpdater.WaitRequestedBlockTimeout
 import units.client.http.model.EcBlock
-import units.*
 
 import scala.concurrent.duration.DurationInt
 

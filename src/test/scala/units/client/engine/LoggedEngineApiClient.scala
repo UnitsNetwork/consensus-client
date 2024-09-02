@@ -1,10 +1,10 @@
 package units.client.engine
 
+import play.api.libs.json.JsObject
 import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.model.Withdrawal
 import units.eth.EthAddress
 import units.{BlockHash, HasJobLogging, Job}
-import play.api.libs.json.JsObject
 
 class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient with HasJobLogging {
   override def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): Job[String] =

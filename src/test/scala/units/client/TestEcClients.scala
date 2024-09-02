@@ -3,6 +3,10 @@ package units.client
 import cats.syntax.either.*
 import com.wavesplatform.collections.ListOps.*
 import com.wavesplatform.common.utils.EitherExt2
+import com.wavesplatform.state.Blockchain
+import com.wavesplatform.utils.ScorexLogging
+import monix.execution.atomic.{Atomic, AtomicInt}
+import play.api.libs.json.JsObject
 import units.ELUpdater.calculateRandao
 import units.client.TestEcClients.*
 import units.client.engine.EngineApiClient.PayloadId
@@ -12,10 +16,6 @@ import units.client.http.model.*
 import units.client.http.{EcApiClient, LoggedEcApiClient}
 import units.eth.{EthAddress, EthereumConstants}
 import units.{BlockHash, Job, NetworkL2Block}
-import com.wavesplatform.state.Blockchain
-import com.wavesplatform.utils.ScorexLogging
-import monix.execution.atomic.{Atomic, AtomicInt}
-import play.api.libs.json.JsObject
 
 import scala.collection.View
 import scala.util.chaining.scalaUtilChainingOps

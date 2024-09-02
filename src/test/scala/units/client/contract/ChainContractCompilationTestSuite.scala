@@ -2,7 +2,6 @@ package units.client.contract
 
 import com.wavesplatform.account.Address
 import com.wavesplatform.api.http.utils.UtilsEvaluator
-import units.client.contract.CompiledChainContract.script
 import com.wavesplatform.lang.contract.DApp
 import com.wavesplatform.state.AccountScriptInfo
 import com.wavesplatform.test.BaseSuite
@@ -11,6 +10,7 @@ import com.wavesplatform.utils.EmptyBlockchain
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.{BeforeAndAfterAll, EitherValues}
 import play.api.libs.json.{JsDefined, JsObject, JsString, Json}
+import units.client.contract.CompiledChainContract.script
 
 class ChainContractCompilationTestSuite extends AnyFreeSpec with BaseSuite with BeforeAndAfterAll with EitherValues {
   private val dAppAcc  = TxHelpers.signer(0)

@@ -5,15 +5,15 @@ import com.wavesplatform.account.{Address, KeyPair}
 import com.wavesplatform.common.merkle.Digest
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2
-import units.client.L2BlockLike
-import units.client.contract.HasConsensusLayerDappTxHelpers.*
-import units.eth.{EthAddress, EthereumConstants}
-import units.util.HexBytesConverter
 import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.state.StringDataEntry
 import com.wavesplatform.test.NumericExt
 import com.wavesplatform.transaction.smart.{InvokeScriptTransaction, SetScriptTransaction}
 import com.wavesplatform.transaction.{Asset, DataTransaction, TxHelpers}
+import units.client.L2BlockLike
+import units.client.contract.HasConsensusLayerDappTxHelpers.*
+import units.eth.{EthAddress, EthereumConstants}
+import units.util.HexBytesConverter
 
 trait HasConsensusLayerDappTxHelpers {
   def stakingContractAccount: KeyPair

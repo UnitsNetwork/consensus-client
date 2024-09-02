@@ -3,10 +3,6 @@ package units
 import com.wavesplatform.block.Block.BlockId
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.db.WithState.AddrWithBalance
-import units.ELUpdater.State.ChainStatus.{Mining, WaitForNewChain}
-import units.ELUpdater.State.Working
-import units.eth.EthAddress
-import units.util.HexBytesConverter
 import com.wavesplatform.mining.MultiDimensionalMiningConstraint
 import com.wavesplatform.test.produce
 import com.wavesplatform.transaction.TxHelpers
@@ -14,6 +10,10 @@ import com.wavesplatform.wallet.Wallet
 import org.web3j.abi.TypeReference
 import org.web3j.abi.datatypes.Event
 import org.web3j.abi.datatypes.generated.Bytes20
+import units.ELUpdater.State.ChainStatus.{Mining, WaitForNewChain}
+import units.ELUpdater.State.Working
+import units.eth.EthAddress
+import units.util.HexBytesConverter
 
 import scala.jdk.CollectionConverters.SeqHasAsJava
 

@@ -1,8 +1,8 @@
 package units.client.http
 
+import play.api.libs.json.JsObject
 import units.client.http.model.{BlockNumber, EcBlock, GetLogsResponseEntry}
 import units.{BlockHash, HasJobLogging, Job}
-import play.api.libs.json.JsObject
 
 class LoggedEcApiClient(underlying: EcApiClient) extends EcApiClient with HasJobLogging {
   override def getBlockByNumber(number: BlockNumber): Job[Option[EcBlock]] = wrap(s"getBlockByNumber($number)", underlying.getBlockByNumber(number))

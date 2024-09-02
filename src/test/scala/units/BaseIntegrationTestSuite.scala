@@ -7,7 +7,7 @@ import com.wavesplatform.db.WithState.AddrWithBalance
 import com.wavesplatform.events.BlockchainUpdateTriggers
 import com.wavesplatform.extensions.ExtensionDomain
 import com.wavesplatform.state.BlockchainUpdaterImpl
-import com.wavesplatform.test.{BaseSuite, CustomMatchers, NumericExt}
+import com.wavesplatform.test.{BaseSuite, NumericExt}
 import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.utils.ScorexLogging
 import org.scalatest.exceptions.TestFailedException
@@ -19,6 +19,7 @@ import units.ELUpdater.{ClChangedProcessingDelay, MiningRetryInterval, WaitForRe
 import units.client.contract.HasConsensusLayerDappTxHelpers
 import units.client.http.model.GetLogsResponseEntry
 import units.eth.{EthAddress, Gwei}
+import units.test.CustomMatchers
 import units.util.HexBytesConverter
 
 import java.nio.charset.StandardCharsets

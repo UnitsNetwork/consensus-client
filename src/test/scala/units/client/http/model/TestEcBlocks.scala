@@ -2,9 +2,9 @@ package units.client.http.model
 
 import com.wavesplatform.account.SeedKeyPair
 import com.wavesplatform.common.utils.EitherExt2
+import play.api.libs.json.{JsObject, Json}
 import units.NetworkL2Block
 import units.util.HexBytesConverter.toHex
-import play.api.libs.json.{JsObject, Json}
 
 object TestEcBlocks {
   def toNetworkBlock(ecBlock: EcBlock, miner: SeedKeyPair, prevRandao: String): NetworkL2Block =

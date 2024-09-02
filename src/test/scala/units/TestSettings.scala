@@ -3,11 +3,11 @@ package units
 import com.typesafe.config.ConfigFactory
 import com.wavesplatform.account.SeedKeyPair
 import com.wavesplatform.db.WithState.AddrWithBalance
-import units.TestSettings.*
-import units.eth.EthAddress
 import com.wavesplatform.settings.WavesSettings
 import com.wavesplatform.test.{DomainPresets, NumericExt}
 import com.wavesplatform.transaction.utils.EthConverters.EthereumAddressExt
+import units.TestSettings.*
+import units.eth.EthAddress
 
 case class TestSettings(
     wavesSettings: WavesSettings = Waves.Default,

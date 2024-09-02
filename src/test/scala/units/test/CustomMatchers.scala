@@ -1,4 +1,4 @@
-package com.wavesplatform.test
+package units.test
 
 import org.scalatest.TestSuite
 
