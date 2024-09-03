@@ -6,25 +6,9 @@ import com.typesafe.scalalogging.StrictLogging
 import com.wavesplatform.account.{Address, KeyPair}
 import com.wavesplatform.common.merkle.Digest
 import com.wavesplatform.common.state.ByteStr
-import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.crypto
-import units.ELUpdater.State.*
-import units.ELUpdater.State.ChainStatus.{FollowingChain, Mining, WaitForNewChain}
-import units.client.L2BlockLike
-import units.client.contract.*
-import units.client.engine.EngineApiClient
-import units.client.engine.EngineApiClient.PayloadId
-import units.client.engine.model.*
-import units.client.engine.model.Withdrawal.WithdrawalIndex
-import units.client.http.EcApiClient
-import units.client.http.model.EcBlock
-import units.eth.{EmptyL2Block, EthAddress, EthereumConstants}
-import units.network.BlocksObserverImpl.BlockWithChannel
-import units.util.HexBytesConverter
-import units.util.HexBytesConverter.toHexNoPrefix
 import com.wavesplatform.lang.ValidationError
-import com.wavesplatform.lang.v1.FunctionHeader
-import com.wavesplatform.lang.v1.compiler.Terms.{CONST_LONG, CONST_STRING, FUNCTION_CALL}
+import com.wavesplatform.lang.v1.compiler.Terms.FUNCTION_CALL
 import com.wavesplatform.network.ChannelGroupExt
 import com.wavesplatform.state.Blockchain
 import com.wavesplatform.state.diffs.FeeValidation.{FeeConstants, FeeUnit, ScriptExtraFee}
@@ -41,6 +25,20 @@ import io.netty.channel.group.DefaultChannelGroup
 import monix.execution.cancelables.SerialCancelable
 import monix.execution.{CancelableFuture, Scheduler}
 import play.api.libs.json.*
+import units.ELUpdater.State.*
+import units.ELUpdater.State.ChainStatus.{FollowingChain, Mining, WaitForNewChain}
+import units.client.L2BlockLike
+import units.client.contract.*
+import units.client.engine.EngineApiClient
+import units.client.engine.EngineApiClient.PayloadId
+import units.client.engine.model.*
+import units.client.engine.model.Withdrawal.WithdrawalIndex
+import units.client.http.EcApiClient
+import units.client.http.model.EcBlock
+import units.eth.{EmptyL2Block, EthAddress, EthereumConstants}
+import units.network.BlocksObserverImpl.BlockWithChannel
+import units.util.HexBytesConverter
+import units.util.HexBytesConverter.toHexNoPrefix
 
 import scala.annotation.tailrec
 import scala.concurrent.duration.*
@@ -155,7 +153,7 @@ class ELUpdater(
     // Removing here, because we have these transactions in PP after the onProcessBlock trigger
     utx.getPriorityPool.foreach { pp =>
       val staleTxs = pp.priorityTransactions.filter {
-        case tx: InvokeScriptTransaction => tx.dApp == contractAddress && ContractFunction.AllNames.contains(tx.funcCall.function.funcName)
+        case tx: InvokeScriptTransaction => tx.dApp == contractAddress
         case _                           => false
       }
 
@@ -166,48 +164,22 @@ class ELUpdater(
     }
   }
 
-  private def callContract(
-      contractFunction: ContractFunction,
-      blockData: EcBlock,
-      transfersRootHash: Digest,
-      lastClToElTransferIndex: Long,
-      invoker: KeyPair
-  ): Job[Unit] = {
+  private def callContract(fc: FUNCTION_CALL, blockData: EcBlock, invoker: KeyPair): Job[Unit] = {
     val extraFee = if (blockchain.hasPaidVerifier(invoker.toAddress)) ScriptExtraFee else 0
 
-    val chainIdArg = contractFunction.chainIdOpt.map(CONST_LONG.apply).toList
-    val epochArg   = contractFunction.epochOpt.map(x => CONST_LONG(x)).toList
-
-    val v2Args =
-      if (contractFunction.version >= ContractFunction.V2) List(CONST_STRING(toHexNoPrefix(transfersRootHash)).explicitGet())
-      else Nil
-
-    val v3Args =
-      if (contractFunction.version >= ContractFunction.V3) List(CONST_LONG(lastClToElTransferIndex))
-      else Nil
-
-    val args = chainIdArg ++ List(
-      CONST_STRING(toHexNoPrefix(blockData.hashByteStr.arr)).explicitGet(),
-      CONST_STRING(toHexNoPrefix(blockData.parentHashByteStr.arr)).explicitGet()
-    ) ++ epochArg ++ v2Args ++ v3Args
     val tx = InvokeScriptTransaction(
       TxVersion.V2,
       invoker.publicKey,
       contractAddress,
-      Some(
-        FUNCTION_CALL(
-          FunctionHeader.User(contractFunction.name),
-          args
-        )
-      ),
+      Some(fc),
       Seq.empty,
       TxPositiveAmount.unsafeFrom(FeeConstants(TransactionType.InvokeScript) * FeeUnit + extraFee),
       Asset.Waves,
-      System.currentTimeMillis(),
+      time.correctedTime(),
       Proofs.empty,
       blockchain.settings.addressSchemeCharacter.toByte
     ).signWith(invoker.privateKey)
-    logger.info(s"Invoking $contractAddress '${contractFunction.name}' for block ${blockData.hash}->${blockData.parentHash}, txId=${tx.id()}")
+    logger.info(s"Invoking $contractAddress '${fc.function.funcName}' for block ${blockData.hash}->${blockData.parentHash}, txId=${tx.id()}")
     cleanPriorityPool()
 
     broadcastTx(tx).resultE match {
@@ -266,11 +238,10 @@ class ELUpdater(
               )
               ecBlock = newBlock.toEcBlock
               transfersRootHash <- getElToClTransfersRootHash(ecBlock.hash, chainContractOptions.elBridgeAddress)
+              funcCall          <- contractFunction.toFunctionCall(ecBlock.hash, transfersRootHash, m.lastClToElTransferIndex)
               _ <- callContract(
-                contractFunction,
+                funcCall,
                 ecBlock,
-                transfersRootHash,
-                m.lastClToElTransferIndex,
                 m.keyPair
               )
             } yield ecBlock).fold(
@@ -411,7 +382,7 @@ class ELUpdater(
               miningData.payloadId,
               parentBlock.hash,
               miningData.nextBlockUnixTs,
-              newState.options.startEpochChainFunction(epochInfo.number, nodeChainInfo.toOption),
+              newState.options.startEpochChainFunction(parentBlock.hash, epochInfo.hitSource, nodeChainInfo.toOption),
               newState.options
             )
           )
@@ -464,7 +435,7 @@ class ELUpdater(
                 miningData.payloadId,
                 parentBlock.hash,
                 miningData.nextBlockUnixTs,
-                chainContractOptions.appendFunction,
+                chainContractOptions.appendFunction(parentBlock.hash),
                 chainContractOptions
               )
             )
