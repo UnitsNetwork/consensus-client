@@ -34,6 +34,7 @@ import monix.reactive.Observable
 import monix.reactive.subjects.PublishSubject
 import net.ceedubs.ficus.Ficus.*
 import org.scalatest.exceptions.TestFailedException
+import org.web3j.abi.datatypes.generated.Uint256
 import play.api.libs.json.*
 import units.ELUpdater.*
 import units.ELUpdater.State.{ChainStatus, Working}
@@ -56,27 +57,28 @@ class ExtensionDomain(
     blockchainUpdater: BlockchainUpdaterImpl,
     rocksDBWriter: RocksDBWriter,
     settings: WavesSettings,
-    // TODO remove
-    override val elMinerDefaultReward: Gwei,
+    elMinerDefaultReward: Gwei,
     override val chainContractAccount: KeyPair,
     override val stakingContractAccount: KeyPair
 ) extends Domain(rdb, blockchainUpdater, rocksDBWriter, settings)
-    with HasCreateEcBlock
     with HasConsensusLayerDappTxHelpers
     with CustomMatchers
     with AutoCloseable
     with ScorexLogging { self =>
   val l2Config = settings.config.as[ClientConfig]("waves.l2")
-  // TODO????
-  override def blockDelay: FiniteDuration = l2Config.blockDelay
-
   require(l2Config.chainContractAddress == chainContractAddress, "Check settings")
 
-  val ecGenesisBlock = createEcBlock(
-    hash = createBlockHash(""),
+  val ecGenesisBlock = EcBlock(
+    hash = TestEcBlockBuilder.createBlockHash(""),
     parentHash = BlockHash(EthereumConstants.EmptyBlockHashHex), // see main.ride
+    stateRoot = EthereumConstants.EmptyRootHashHex,
     height = 0,
-    timestampInMillis = testTime.getTimestamp() - l2Config.blockDelay.toMillis
+    timestamp = testTime.getTimestamp() / 1000 - l2Config.blockDelay.toSeconds,
+    minerRewardL2Address = EthAddress.empty,
+    baseFeePerGas = Uint256.DEFAULT,
+    gasLimit = 0,
+    gasUsed = 0,
+    withdrawals = Vector.empty
   )
 
   val ecClients = new TestEcClients(ecGenesisBlock, blockchain)
@@ -344,19 +346,16 @@ class ExtensionDomain(
     utxPool.close()
   }
 
-  // TODO
-
   def createEcBlockBuilder(hashPath: String, miner: ElMinerSettings, parent: EcBlock = ecGenesisBlock): TestEcBlockBuilder =
     createEcBlockBuilder(hashPath, miner.elRewardAddress, parent)
 
   def createEcBlockBuilder(hashPath: String, minerRewardL2Address: EthAddress, parent: EcBlock): TestEcBlockBuilder =
-    TestEcBlockBuilder(ecClients, elMinerDefaultReward, blockDelay, parent = parent) // TODO pass TestEnvironment?
-      .updateBlock(
-        _.copy(
-          hash = TestEcBlockBuilder.createBlockHash(hashPath),
-          minerRewardL2Address = minerRewardL2Address
-        )
+    TestEcBlockBuilder(ecClients, elMinerDefaultReward, l2Config.blockDelay, parent = parent).updateBlock(
+      _.copy(
+        hash = TestEcBlockBuilder.createBlockHash(hashPath),
+        minerRewardL2Address = minerRewardL2Address
       )
+    )
 }
 
 object ExtensionDomain {

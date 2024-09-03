@@ -59,7 +59,7 @@ trait BaseIntegrationTestSuite
       f(d)
     }
 
-  private def withExtensionDomainUninitialized[R](settings: TestSettings = defaultSettings)(test: ExtensionDomain => R): R =
+  private def withExtensionDomainUninitialized[R](settings: TestSettings)(test: ExtensionDomain => R): R =
     withRocksDBWriter(settings.wavesSettings) { blockchain =>
       var domain: ExtensionDomain = null
       val bcu = new BlockchainUpdaterImpl(
