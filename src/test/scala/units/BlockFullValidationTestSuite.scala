@@ -22,13 +22,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
 
   "Full validation when the block is available on EL and CL" - {
     "doesn't happen for finalized blocks" in withExtensionDomain(defaultSettings.copy(initialMiners = List(reliable))) { d =>
-      val ecBlock = d.createNextEcBlock(
-        hash = d.createBlockHash("0"),
-        parent = d.ecGenesisBlock,
-        minerRewardL2Address = reliable.elRewardAddress
-      )
-
-      d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs)
+      val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
 
       step("Start new epoch for ecBlock")
       d.advanceNewBlocks(reliable.address)
@@ -57,13 +51,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
 
     "happens for not finalized blocks" - {
       "successful validation updates the chain information" in withExtensionDomain() { d =>
-        val ecBlock = d.createNextEcBlock(
-          hash = d.createBlockHash("0"),
-          parent = d.ecGenesisBlock,
-          minerRewardL2Address = reliable.elRewardAddress
-        )
-
-        d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs)
+        val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
 
         step("Start new epoch for ecBlock")
         d.advanceNewBlocks(reliable.address)
@@ -100,12 +88,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
           d.advanceNewBlocks(malfunction.address)
           d.advanceConsensusLayerChanged()
 
-          val ecBlock1 = d.createNextEcBlock(
-            hash = d.createBlockHash("0"),
-            parent = d.ecGenesisBlock,
-            minerRewardL2Address = malfunction.elRewardAddress
-          )
-          d.ecClients.setBlockLogs(ecBlock1.hash, Bridge.ElSentNativeEventTopic, Nil)
+          val ecBlock1 = d.createEcBlockBuilder("0", malfunction).buildAndSetLogs()
           d.ecClients.addKnown(ecBlock1)
           d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(malfunction.account, ecBlock1, d.blockchain.height))
           d.advanceConsensusLayerChanged()
@@ -114,15 +97,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
           d.advanceNewBlocks(malfunction.address)
           d.advanceBlockDelay() // TODO
 
-          val ecBlock2 = badBlockPostProcessing(
-            d.createNextEcBlock(
-              hash = d.createBlockHash("0-0"),
-              parent = ecBlock1,
-              minerRewardL2Address = malfunction.elRewardAddress,
-              withdrawals = Vector(d.createWithdrawal(0, malfunction.elRewardAddress))
-            )
-          )
-          d.ecClients.setBlockLogs(ecBlock2.hash, Bridge.ElSentNativeEventTopic, blockLogs)
+          val ecBlock2 = badBlockPostProcessing(d.createEcBlockBuilder("0-0", malfunction, ecBlock1).rewardPrevMiner().buildAndSetLogs(blockLogs))
 
           step(s"Append a CL micro block with ecBlock2 ${ecBlock2.hash} confirmation")
           d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(malfunction.account, ecBlock2, d.blockchain.height, e2CTransfersRootHashHex))

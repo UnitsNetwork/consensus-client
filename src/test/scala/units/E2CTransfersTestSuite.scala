@@ -11,7 +11,6 @@ import org.web3j.abi.TypeReference
 import org.web3j.abi.datatypes.Event
 import org.web3j.abi.datatypes.generated.Bytes20
 import units.ELUpdater.State.ChainStatus.{Mining, WaitForNewChain}
-import units.ELUpdater.State.Working
 import units.eth.EthAddress
 import units.util.HexBytesConverter
 
@@ -52,11 +51,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
     )
 
     withExtensionDomain(settings) { d =>
-      val ecBlock = d.createNextEcBlock(
-        hash = d.createBlockHash("0"),
-        parent = d.ecGenesisBlock,
-        minerRewardL2Address = reliable.elRewardAddress
-      )
+      val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
 
       def tryWithdraw(): Either[Throwable, BlockId] = d.appendMicroBlockE(
         chainContract.withdraw(transferReceiver1, ecBlock, transfer1Proofs, 0, transfer1.amount),
@@ -68,7 +63,6 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       tryWithdraw() should produce("not found for the contract address")
 
       step("Append a CL micro block with ecBlock confirmation")
-      d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs)
       d.ecClients.addKnown(ecBlock)
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, e2CTransfersRootHashHex))
       d.advanceConsensusLayerChanged()
@@ -93,15 +87,10 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
     )
   ) { case (index, errorMessage) =>
     withExtensionDomain() { d =>
-      val ecBlock = d.createNextEcBlock(
-        hash = d.createBlockHash("0"),
-        parent = d.ecGenesisBlock,
-        minerRewardL2Address = reliable.elRewardAddress
-      )
+      val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
 
       step(s"Start new epoch with ecBlock ${ecBlock.hash}")
       d.advanceNewBlocks(reliable.address)
-      d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs) // TODO move up
       d.ecClients.addKnown(ecBlock)
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, e2CTransfersRootHashHex))
       d.advanceConsensusLayerChanged()
@@ -121,15 +110,10 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
     )
   ) { amount =>
     withExtensionDomain() { d =>
-      val ecBlock = d.createNextEcBlock(
-        hash = d.createBlockHash("0"),
-        parent = d.ecGenesisBlock,
-        minerRewardL2Address = reliable.elRewardAddress
-      )
+      val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
 
       step(s"Start new epoch with ecBlock ${ecBlock.hash}")
       d.advanceNewBlocks(reliable.address)
-      d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs) // TODO move up
       d.ecClients.addKnown(ecBlock)
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, e2CTransfersRootHashHex))
       d.advanceConsensusLayerChanged()
@@ -142,11 +126,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
   }
 
   "Can't get transferred tokens if the data is incorrect and able if it is correct" in withExtensionDomain() { d =>
-    val ecBlock = d.createNextEcBlock(
-      hash = d.createBlockHash("0"),
-      parent = d.ecGenesisBlock,
-      minerRewardL2Address = reliable.elRewardAddress
-    )
+    val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
 
     def tryWithdraw(): Either[Throwable, BlockId] =
       d.appendMicroBlockE(chainContract.withdraw(transferReceiver, ecBlock, transferProofs, 0, transfer.amount))
@@ -154,7 +134,6 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
     step(s"Start new epoch with ecBlock ${ecBlock.hash}")
     d.advanceNewBlocks(reliable.address)
     tryWithdraw() should produce("not found for the contract address")
-    d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs) // TODO move up
     d.ecClients.addKnown(ecBlock)
     d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, e2CTransfersRootHashHex))
     d.advanceConsensusLayerChanged()
@@ -172,11 +151,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
     )
 
     withExtensionDomain(settings) { d =>
-      val ecBlock = d.createNextEcBlock(
-        hash = d.createBlockHash("0"),
-        parent = d.ecGenesisBlock,
-        minerRewardL2Address = reliable.elRewardAddress
-      )
+      val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
 
       def tryWithdraw(): Either[Throwable, BlockId] =
         d.appendMicroBlockE(chainContract.withdraw(transferReceiver, ecBlock, transferProofs, 0, transfer.amount))
@@ -184,7 +159,6 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       step(s"Start new epoch with ecBlock ${ecBlock.hash}")
       d.advanceNewBlocks(reliable.address)
       tryWithdraw() should produce("not found for the contract address")
-      d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs) // TODO move up
       d.ecClients.addKnown(ecBlock)
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, e2CTransfersRootHashHex))
       d.advanceConsensusLayerChanged()
@@ -211,19 +185,14 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       )
     ) { transferEvent =>
       withExtensionDomain(settings) { d =>
-        val ecBlock1 = d.createNextEcBlock(
-          hash = d.createBlockHash("0"),
-          parent = d.ecGenesisBlock,
-          minerRewardL2Address = reliable.elRewardAddress
-        )
+        val transferEvents = List(transferEvent)
+        val ecBlock1       = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(transferEvents)
 
         def tryWithdraw(): Either[Throwable, BlockId] =
           d.appendMicroBlockE(chainContract.withdraw(transferReceiver, ecBlock1, transferProofs, 0, transfer.amount))
 
         step(s"Start new epoch with ecBlock1 ${ecBlock1.hash}")
         d.advanceNewBlocks(reliable.address)
-        val transferEvents = List(transferEvent)
-        d.ecClients.setBlockLogs(ecBlock1.hash, Bridge.ElSentNativeEventTopic, transferEvents) // TODO move up
         d.ecClients.willForge(ecBlock1)
         d.advanceConsensusLayerChanged()
 
@@ -243,24 +212,13 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
   "Fails on wrong data" in {
     val settings = defaultSettings.withEnabledElMining
     withExtensionDomain(settings) { d =>
-      val ecBlock1 = d.createNextEcBlock(
-        hash = d.createBlockHash("0"),
-        parent = d.ecGenesisBlock,
-        minerRewardL2Address = reliable.elRewardAddress
-      )
-
-      val ecBlock2 = d.createNextEcBlock(
-        hash = d.createBlockHash("0-0"),
-        parent = ecBlock1,
-        minerRewardL2Address = reliable.elRewardAddress
-      )
+      val transferEvents = List(transferEvent.copy(data = "d3ad884fa04292"))
+      val ecBlock1       = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(transferEvents)
 
       step(s"Start new epoch with ecBlock1 ${ecBlock1.hash}")
       d.advanceNewBlocks(reliable.address)
-      val transferEvents = List(transferEvent.copy(data = "d3ad884fa04292"))
-      d.ecClients.setBlockLogs(ecBlock1.hash, Bridge.ElSentNativeEventTopic, transferEvents) // TODO move up
       d.ecClients.willForge(ecBlock1)
-      d.ecClients.willForge(ecBlock2)
+      d.ecClients.willForge(d.createEcBlockBuilder("0-0", reliable).build())
 
       d.advanceConsensusLayerChanged()
 
@@ -272,83 +230,40 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
   "Can't get transferred tokens from a fork and can after the fork becomes a main chain" in {
     val settings = defaultSettings.copy(initialMiners = List(reliable, malfunction)).withEnabledElMining
     withExtensionDomain(settings) { d =>
-      val ecBlock1Hash        = d.createBlockHash("0")
-      val ecBlock2BadHash     = d.createBlockHash("0-0")
-      val ecBlock2Hash        = d.createBlockHash("0-1")
-      val ecBlock3IgnoredHash = d.createBlockHash("0-1-1")
-      val ecBlock3Hash        = d.createBlockHash("0-1-1-1")
-
-      // mm - malfunction miner, rm - reliable
-      log.debug(
-        s"Final chain: $ecBlock3Hash (3, rm) -> $ecBlock2Hash (2, rm) -> $ecBlock1Hash (1, mm) -> ${d.ecGenesisBlock.hash} (genesis)"
-      )
-      log.debug(s"Invalid chain: $ecBlock2BadHash (bad, mm) -> $ecBlock1Hash (1, mm) -> ${d.ecGenesisBlock.hash} (genesis)")
-      log.debug(s"Ignored blocks: $ecBlock3IgnoredHash (ignored) -> $ecBlock2Hash")
-
-      step(s"Start a new epoch of malfunction miner ${malfunction.address} with ecBlock1 $ecBlock1Hash")
+      // Need this block, because we can not rollback to the genesis block
+      val ecBlock1 = d.createEcBlockBuilder("0", malfunction).buildAndSetLogs()
+      step(s"Start a new epoch of malfunction miner ${malfunction.address} with ecBlock1 ${ecBlock1.hash}")
       d.advanceNewBlocks(malfunction.address)
       d.advanceConsensusLayerChanged()
-
-      val ecBlock1 = d.createNextEcBlock( // Need this block, because we can not rollback to the genesis block
-        hash = ecBlock1Hash,
-        parent = d.ecGenesisBlock,
-        minerRewardL2Address = malfunction.elRewardAddress
-      )
-      d.ecClients.setBlockLogs(ecBlock1Hash, Bridge.ElSentNativeEventTopic, Nil)
 
       d.ecClients.addKnown(ecBlock1)
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(malfunction.account, ecBlock1, d.blockchain.height))
       d.advanceConsensusLayerChanged()
 
-      step(s"Try to append a block with a wrong transfers root hash $ecBlock2BadHash")
+      val ecBadBlock2 = d.createEcBlockBuilder("0-0", malfunction, ecBlock1).rewardPrevMiner().buildAndSetLogs(ecBlockLogs)
+      step(s"Try to append a block with a wrong transfers root hash ${ecBadBlock2.hash}")
       d.advanceNewBlocks(malfunction.address)
       d.advanceBlockDelay()
 
-      val ecBlock2Bad = d.createNextEcBlock( // No root hash in extendMainChain tx
-        hash = ecBlock2BadHash,
-        parent = ecBlock1,
-        minerRewardL2Address = malfunction.elRewardAddress,
-        withdrawals = Vector(d.createWithdrawal(0, malfunction.elRewardAddress))
-      )
-      d.ecClients.setBlockLogs(ecBlock2BadHash, Bridge.ElSentNativeEventTopic, ecBlockLogs)
-
-      d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(malfunction.account, ecBlock2Bad, d.blockchain.height)) // No root hash
-      d.receiveNetworkBlock(ecBlock2Bad, malfunction.account)
+      // No root hash in extendMainChain tx
+      d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(malfunction.account, ecBadBlock2, d.blockchain.height)) // No root hash
+      d.receiveNetworkBlock(ecBadBlock2, malfunction.account)
       d.advanceConsensusLayerChanged()
 
-      // TODO
-      withClue("State is expected:") {
-        val s  = is[Working[?]](d.consensusClient.elu.state)
-        val cs = is[WaitForNewChain](s.chainStatus)
-        cs.chainSwitchInfo.referenceBlock.hash shouldBe ecBlock1Hash
+      d.waitForCS[WaitForNewChain]("State is expected") { s =>
+        s.chainSwitchInfo.referenceBlock.hash shouldBe ecBlock1.hash
       }
 
-      step(s"Start an alternative chain by a reliable miner ${reliable.address} with ecBlock2 $ecBlock2Hash")
+      val ecBlock2 = d.createEcBlockBuilder("0-1", reliable, ecBlock1).rewardPrevMiner().buildAndSetLogs(ecBlockLogs)
+      step(s"Start an alternative chain by a reliable miner ${reliable.address} with ecBlock2 ${ecBlock2.hash}")
       d.advanceNewBlocks(reliable.address)
-
-      val ecBlock2 = d.createNextEcBlock(
-        hash = ecBlock2Hash,
-        parent = ecBlock1,
-        minerRewardL2Address = reliable.elRewardAddress,
-        withdrawals = Vector(d.createWithdrawal(0, malfunction.elRewardAddress))
-      )
-      d.ecClients.setBlockLogs(ecBlock2.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs)
-
-      val ecBlock3Ignored = d.createNextEcBlock(
-        hash = ecBlock3IgnoredHash,
-        parent = ecBlock2,
-        minerRewardL2Address = reliable.elRewardAddress
-      )
-
       d.ecClients.willForge(ecBlock2)
-      d.ecClients.willForge(ecBlock3Ignored) // Prepare a following block, because we start mining it immediately
+      // Prepare a following block, because we start mining it immediately
+      d.ecClients.willForge(d.createEcBlockBuilder("0-1-1", reliable, ecBlock2).build())
       d.advanceConsensusLayerChanged()
 
-      // TODO
-      withClue("State is expected:") {
-        val s  = is[Working[?]](d.consensusClient.elu.state)
-        val cs = is[Mining](s.chainStatus)
-        cs.nodeChainInfo.left.value.referenceBlock.hash shouldBe ecBlock1Hash
+      d.waitForCS[Mining]("State is expected") { s =>
+        s.nodeChainInfo.left.value.referenceBlock.hash shouldBe ecBlock1.hash
       }
 
       d.advanceBlockDelay() // Forge ecBlock2
@@ -360,11 +275,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       )
       d.advanceConsensusLayerChanged()
 
-      // TODO
-      withClue("State is expected:") {
-        val s = is[Working[?]](d.consensusClient.elu.state)
-        is[Mining](s.chainStatus)
-      }
+      d.waitForCS[Mining]("State is expected") { _ => }
 
       def tryWithdraw(): Either[Throwable, BlockId] =
         d.appendMicroBlockE(chainContract.withdraw(transferReceiver, ecBlock2, transferProofs, 0, transfer.amount))
@@ -372,30 +283,18 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
         tryWithdraw() should produce("is not finalized")
       }
 
-      step(s"Moving whole network to the alternative chain with ecBlock3 $ecBlock3Hash")
+      val ecBlock3 = d.createEcBlockBuilder("0-1-1-1", reliable, ecBlock2).rewardPrevMiner(1).buildAndSetLogs()
+      step(s"Moving whole network to the alternative chain with ecBlock3 ${ecBlock3.hash}")
       d.advanceNewBlocks(reliable.address)
-
-      // TODO a merged function
-      val ecBlock3 = d.createNextEcBlock(
-        hash = ecBlock3Hash,
-        parent = ecBlock2,
-        minerRewardL2Address = reliable.elRewardAddress,
-        withdrawals = Vector(d.createWithdrawal(1, reliable.elRewardAddress))
-      )
-      d.ecClients.setBlockLogs(ecBlock3.hash, Bridge.ElSentNativeEventTopic, Nil)
       d.ecClients.willForge(ecBlock3)
-      d.advanceConsensusLayerChanged() // Forge ecBlock3
+      d.advanceConsensusLayerChanged()
 
       step("Confirm extendAltChain to make this chain main")
       d.advanceBlockDelay()
       d.appendMicroBlockAndVerify(chainContract.extendAltChainV3(reliable.account, 1, ecBlock3, d.blockchain.height))
       d.advanceConsensusLayerChanged()
 
-      // TODO
-      withClue("State is expected:") {
-        val s = is[Working[?]](d.consensusClient.elu.state)
-        is[Mining](s.chainStatus)
-      }
+      d.waitForCS[Mining]("State is expected") { _ => }
 
       withClue("Can withdraw from the new main chain:") {
         tryWithdraw() should beRight

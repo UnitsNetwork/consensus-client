@@ -21,8 +21,10 @@ class TestEcBlockBuilder private (
     this
   }
 
-  def rewardPrevMiner(elWithdrawalIndex: Int = 0): TestEcBlockBuilder = {
-    block = block.copy(withdrawals = Vector(Withdrawal(elWithdrawalIndex, parentBlock.minerRewardL2Address, elMinerDefaultReward)))
+  def rewardPrevMiner(elWithdrawalIndex: Int = 0): TestEcBlockBuilder = rewardMiner(parentBlock.minerRewardL2Address, elWithdrawalIndex)
+
+  def rewardMiner(minerRewardL2Address: EthAddress, elWithdrawalIndex: Int = 0): TestEcBlockBuilder = {
+    block = block.copy(withdrawals = Vector(Withdrawal(elWithdrawalIndex, minerRewardL2Address, elMinerDefaultReward)))
     this
   }
 
