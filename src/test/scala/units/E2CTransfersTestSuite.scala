@@ -51,7 +51,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       )
     )
 
-    withConsensusClient2(settings) { d =>
+    withExtensionDomain(settings) { d =>
       val ecBlock = d.createNextEcBlock(
         hash = d.createBlockHash("0"),
         parent = d.ecGenesisBlock,
@@ -92,7 +92,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       1       -> "Expected root hash"
     )
   ) { case (index, errorMessage) =>
-    withConsensusClient2() { d =>
+    withExtensionDomain() { d =>
       val ecBlock = d.createNextEcBlock(
         hash = d.createBlockHash("0"),
         parent = d.ecGenesisBlock,
@@ -120,7 +120,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       Long.MinValue
     )
   ) { amount =>
-    withConsensusClient2() { d =>
+    withExtensionDomain() { d =>
       val ecBlock = d.createNextEcBlock(
         hash = d.createBlockHash("0"),
         parent = d.ecGenesisBlock,
@@ -141,38 +141,37 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
     }
   }
 
-  "Can't get transferred tokens if the data is incorrect and able if it is correct" in
-    withConsensusClient2() { d =>
-      val ecBlock = d.createNextEcBlock(
-        hash = d.createBlockHash("0"),
-        parent = d.ecGenesisBlock,
-        minerRewardL2Address = reliable.elRewardAddress
-      )
+  "Can't get transferred tokens if the data is incorrect and able if it is correct" in withExtensionDomain() { d =>
+    val ecBlock = d.createNextEcBlock(
+      hash = d.createBlockHash("0"),
+      parent = d.ecGenesisBlock,
+      minerRewardL2Address = reliable.elRewardAddress
+    )
 
-      def tryWithdraw(): Either[Throwable, BlockId] =
-        d.appendMicroBlockE(chainContract.withdraw(transferReceiver, ecBlock, transferProofs, 0, transfer.amount))
+    def tryWithdraw(): Either[Throwable, BlockId] =
+      d.appendMicroBlockE(chainContract.withdraw(transferReceiver, ecBlock, transferProofs, 0, transfer.amount))
 
-      step(s"Start new epoch with ecBlock ${ecBlock.hash}")
-      d.advanceNewBlocks(reliable.address)
-      tryWithdraw() should produce("not found for the contract address")
-      d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs) // TODO move up
-      d.ecClients.addKnown(ecBlock)
-      d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, e2CTransfersRootHashHex))
-      d.advanceConsensusLayerChanged()
+    step(s"Start new epoch with ecBlock ${ecBlock.hash}")
+    d.advanceNewBlocks(reliable.address)
+    tryWithdraw() should produce("not found for the contract address")
+    d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs) // TODO move up
+    d.ecClients.addKnown(ecBlock)
+    d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, e2CTransfersRootHashHex))
+    d.advanceConsensusLayerChanged()
 
-      tryWithdraw() should beRight
-      withClue("Tokens came:") {
-        val balanceAfter = d.balance(transferReceiver.toAddress, d.token)
-        balanceAfter shouldBe transfer.amount
-      }
+    tryWithdraw() should beRight
+    withClue("Tokens came:") {
+      val balanceAfter = d.balance(transferReceiver.toAddress, d.token)
+      balanceAfter shouldBe transfer.amount
     }
+  }
 
   "Can't get transferred tokens twice" in {
     val settings = defaultSettings.copy(
       additionalBalances = List(AddrWithBalance(transferReceiver.toAddress, chainContract.withdrawFee * 2))
     )
 
-    withConsensusClient2(settings) { d =>
+    withExtensionDomain(settings) { d =>
       val ecBlock = d.createNextEcBlock(
         hash = d.createBlockHash("0"),
         parent = d.ecGenesisBlock,
@@ -211,7 +210,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
         transferEvent.copy(topics = List(wrongEventDefTopic))
       )
     ) { transferEvent =>
-      withConsensusClient2(settings) { d =>
+      withExtensionDomain(settings) { d =>
         val ecBlock1 = d.createNextEcBlock(
           hash = d.createBlockHash("0"),
           parent = d.ecGenesisBlock,
@@ -243,7 +242,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
 
   "Fails on wrong data" in {
     val settings = defaultSettings.withEnabledElMining
-    withConsensusClient2(settings) { d =>
+    withExtensionDomain(settings) { d =>
       val ecBlock1 = d.createNextEcBlock(
         hash = d.createBlockHash("0"),
         parent = d.ecGenesisBlock,
@@ -272,7 +271,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
 
   "Can't get transferred tokens from a fork and can after the fork becomes a main chain" in {
     val settings = defaultSettings.copy(initialMiners = List(reliable, malfunction)).withEnabledElMining
-    withConsensusClient2(settings) { d =>
+    withExtensionDomain(settings) { d =>
       val ecBlock1Hash        = d.createBlockHash("0")
       val ecBlock2BadHash     = d.createBlockHash("0-0")
       val ecBlock2Hash        = d.createBlockHash("0-1")

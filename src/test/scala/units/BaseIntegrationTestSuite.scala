@@ -9,12 +9,9 @@ import com.wavesplatform.state.BlockchainUpdaterImpl
 import com.wavesplatform.test.{BaseSuite, NumericExt}
 import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.utils.ScorexLogging
-import org.scalatest.exceptions.TestFailedException
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues}
 import units.Bridge.ElSentNativeEvent
-import units.ELUpdater.State.{ChainStatus, Working}
-import units.ELUpdater.{ClChangedProcessingDelay, MiningRetryInterval, WaitForReferenceConfirmInterval, WaitRequestedBlockTimeout}
 import units.client.contract.HasConsensusLayerDappTxHelpers
 import units.client.http.model.GetLogsResponseEntry
 import units.eth.{EthAddress, Gwei}
@@ -23,9 +20,6 @@ import units.util.HexBytesConverter
 
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.ThreadLocalRandom
-import scala.annotation.tailrec
-import scala.concurrent.duration.{DurationInt, FiniteDuration}
-import scala.reflect.ClassTag
 
 trait BaseIntegrationTestSuite
     extends AnyFreeSpec
@@ -44,7 +38,28 @@ trait BaseIntegrationTestSuite
   override val stakingContractAccount: KeyPair = KeyPair("staking-contract".getBytes(StandardCharsets.UTF_8))
   override val chainContractAccount: KeyPair   = KeyPair("chain-contract".getBytes(StandardCharsets.UTF_8))
 
-  def withExtensionDomain[A](settings: TestSettings = defaultSettings)(test: ExtensionDomain => A): A =
+  protected def withExtensionDomain[R](settings: TestSettings = defaultSettings)(f: ExtensionDomain => R): R =
+    withExtensionDomainUninitialized(settings) { d =>
+      log.debug("EL init")
+      val txs =
+        List(
+          chainContract.setScript(),
+          chainContract.setup(d.ecGenesisBlock, elMinerDefaultReward.amount.longValue(), elBridgeAddress)
+        ) ++
+          settings.initialMiners
+            .flatMap { x =>
+              List(
+                stakingContract.stakingBalance(x.address, 0, x.stakingBalance, 1, x.stakingBalance),
+                chainContract.join(x.account, x.elRewardAddress)
+              )
+            }
+
+      d.appendBlock(txs*)
+      d.advanceConsensusLayerChanged()
+      f(d)
+    }
+
+  private def withExtensionDomainUninitialized[R](settings: TestSettings = defaultSettings)(test: ExtensionDomain => R): R =
     withRocksDBWriter(settings.wavesSettings) { blockchain =>
       var domain: ExtensionDomain = null
       val bcu = new BlockchainUpdaterImpl(
@@ -93,75 +108,6 @@ trait BaseIntegrationTestSuite
         bcu.shutdown()
       }
     }
-
-  protected def withConsensusClient[R](settings: TestSettings = defaultSettings)(f: (ExtensionDomain, ConsensusClient) => R): R =
-    withConsensusClient2(settings) { d =>
-      f(d, d.consensusClient)
-    }
-
-  protected def withConsensusClient2[R](settings: TestSettings = defaultSettings)(f: ExtensionDomain => R): R =
-    withExtensionDomain(settings) { d =>
-      log.debug("EL init")
-      val txs =
-        List(
-          chainContract.setScript(),
-          chainContract.setup(d.ecGenesisBlock, elMinerDefaultReward.amount.longValue(), elBridgeAddress)
-        ) ++
-          settings.initialMiners
-            .flatMap { x =>
-              List(
-                stakingContract.stakingBalance(x.address, 0, x.stakingBalance, 1, x.stakingBalance),
-                chainContract.join(x.account, x.elRewardAddress)
-              )
-            }
-
-      d.appendBlock(txs*)
-      d.advanceConsensusLayerChanged()
-      f(d)
-    }
-
-  protected val defaultMaxTimeout =
-    List(WaitForReferenceConfirmInterval, ClChangedProcessingDelay, MiningRetryInterval, WaitRequestedBlockTimeout).max + 1.millis
-  protected val defaultInterval = ClChangedProcessingDelay
-
-  // TODO move
-  protected def waitForWorking(
-      extensionDomain: ExtensionDomain,
-      consensusClient: ConsensusClient, // TODO remove
-      title: String = "",
-      maxTimeout: FiniteDuration = defaultMaxTimeout,
-      interval: FiniteDuration = defaultInterval
-  )(f: Working[?] => Unit): Unit = {
-    val logPrefix = if (title.isEmpty) "waitForWorking" else s"waitForWorking($title)"
-    log.trace(logPrefix)
-    val maxAttempts = (maxTimeout / interval).toInt
-    @tailrec
-    def loop(currAttempt: Int, lastException: Throwable): Unit = {
-      currAttempt match {
-        case 0                     => // Do nothing
-        case 1                     => extensionDomain.triggerScheduledTasks(silent = true)
-        case x if x <= maxAttempts => extensionDomain.advanceAll(interval, silent = true)
-        case _ =>
-          log.warn(s"$logPrefix: $maxAttempts attempts are out")
-          throw lastException
-      }
-
-      try {
-        f(is[Working[?]](consensusClient.elu.state))
-        log.trace(s"$logPrefix: successful after ${interval * math.max(0, currAttempt - 1)} (${currAttempt - 1} attempts)")
-      } catch {
-        case e: Throwable => loop(currAttempt + 1, e)
-      }
-    }
-
-    loop(0, new TestFailedException(s"$maxAttempts attempts are out", 0))
-  }
-
-  protected def waitForCS[CS <: ChainStatus: ClassTag](
-      extensionDomain: ExtensionDomain,
-      consensusClient: ConsensusClient,
-      title: String = ""
-  )(f: CS => Unit): Unit = waitForWorking(extensionDomain, consensusClient, title) { s => f(is[CS](s.chainStatus)) }
 
   protected def mkPayloadId(): String = {
     val bytes = new Array[Byte](8)

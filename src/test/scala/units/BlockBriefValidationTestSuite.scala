@@ -38,7 +38,7 @@ class BlockBriefValidationTestSuite extends BaseIntegrationTestSuite {
     }
   }
 
-  private def test(f: ExtensionDomain => Unit): Unit = withConsensusClient2() { d =>
+  private def test(f: ExtensionDomain => Unit): Unit = withExtensionDomain() { d =>
     step("Start a new epoch")
     d.advanceNewBlocks(miner.address)
     d.advanceConsensusLayerChanged()

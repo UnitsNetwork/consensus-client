@@ -33,8 +33,10 @@ import monix.execution.schedulers.TestScheduler
 import monix.reactive.Observable
 import monix.reactive.subjects.PublishSubject
 import net.ceedubs.ficus.Ficus.*
+import org.scalatest.exceptions.TestFailedException
 import play.api.libs.json.*
-import units.ELUpdater.calculateRandao
+import units.ELUpdater.*
+import units.ELUpdater.State.{ChainStatus, Working}
 import units.ExtensionDomain.*
 import units.client.contract.HasConsensusLayerDappTxHelpers
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
@@ -42,7 +44,9 @@ import units.client.http.model.{EcBlock, TestEcBlocks}
 import units.client.{L2BlockLike, TestEcClients}
 import units.eth.{EthAddress, EthereumConstants, Gwei}
 import units.network.TestBlocksObserver
+import units.test.CustomMatchers
 
+import scala.annotation.tailrec
 import scala.concurrent.Await
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.reflect.ClassTag
@@ -59,6 +63,7 @@ class ExtensionDomain(
 ) extends Domain(rdb, blockchainUpdater, rocksDBWriter, settings)
     with HasCreateEcBlock
     with HasConsensusLayerDappTxHelpers
+    with CustomMatchers
     with AutoCloseable
     with ScorexLogging { self =>
   val l2Config = settings.config.as[ClientConfig]("waves.l2")
@@ -121,6 +126,44 @@ class ExtensionDomain(
     () => {}
   )
   triggers = triggers.appended(consensusClient)
+
+  val defaultMaxTimeout =
+    List(WaitForReferenceConfirmInterval, ClChangedProcessingDelay, MiningRetryInterval, WaitRequestedBlockTimeout).max + 1.millis
+  val defaultInterval = ClChangedProcessingDelay
+
+  def waitForWorking(
+      title: String = "",
+      maxTimeout: FiniteDuration = defaultMaxTimeout,
+      interval: FiniteDuration = defaultInterval
+  )(f: Working[?] => Unit): Unit = {
+    val logPrefix = if (title.isEmpty) "waitForWorking" else s"waitForWorking($title)"
+    log.trace(logPrefix)
+    val maxAttempts = (maxTimeout / interval).toInt
+    @tailrec
+    def loop(currAttempt: Int, lastException: Throwable): Unit = {
+      currAttempt match {
+        case 0                     => // Do nothing
+        case 1                     => triggerScheduledTasks(silent = true)
+        case x if x <= maxAttempts => advanceAll(interval, silent = true)
+        case _ =>
+          log.warn(s"$logPrefix: $maxAttempts attempts are out")
+          throw lastException
+      }
+
+      try {
+        f(is[Working[?]](consensusClient.elu.state))
+        log.trace(s"$logPrefix: successful after ${interval * math.max(0, currAttempt - 1)} (${currAttempt - 1} attempts)")
+      } catch {
+        case e: Throwable => loop(currAttempt + 1, e)
+      }
+    }
+
+    loop(0, new TestFailedException(s"$maxAttempts attempts are out", 0))
+  }
+
+  def waitForCS[CS <: ChainStatus: ClassTag](title: String = "")(f: CS => Unit): Unit = waitForWorking(title) { s =>
+    f(is[CS](s.chainStatus))
+  }
 
   def toNetworkBlock(ecBlock: EcBlock, miner: SeedKeyPair, epochNumber: Int): NetworkL2Block =
     NetworkL2Block
