@@ -51,7 +51,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       )
     )
 
-    withConsensusClient(settings) { (d, _) =>
+    withConsensusClient2(settings) { d =>
       val ecBlock = d.createNextEcBlock(
         hash = d.createBlockHash("0"),
         parent = d.ecGenesisBlock,
@@ -92,18 +92,16 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       1       -> "Expected root hash"
     )
   ) { case (index, errorMessage) =>
-    withConsensusClient() { (d, _) =>
+    withConsensusClient2() { d =>
       val ecBlock = d.createNextEcBlock(
         hash = d.createBlockHash("0"),
         parent = d.ecGenesisBlock,
         minerRewardL2Address = reliable.elRewardAddress
       )
 
-      step(s"Start new epoch for ecBlock ${ecBlock.hash}")
+      step(s"Start new epoch with ecBlock ${ecBlock.hash}")
       d.advanceNewBlocks(reliable.address)
-
-      step("Append a CL micro block with ecBlock confirmation")
-      d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs)
+      d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs) // TODO move up
       d.ecClients.addKnown(ecBlock)
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, e2CTransfersRootHashHex))
       d.advanceConsensusLayerChanged()
@@ -122,18 +120,16 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       Long.MinValue
     )
   ) { amount =>
-    withConsensusClient() { (d, _) =>
+    withConsensusClient2() { d =>
       val ecBlock = d.createNextEcBlock(
         hash = d.createBlockHash("0"),
         parent = d.ecGenesisBlock,
         minerRewardL2Address = reliable.elRewardAddress
       )
 
-      step(s"Start new epoch for ecBlock ${ecBlock.hash}")
+      step(s"Start new epoch with ecBlock ${ecBlock.hash}")
       d.advanceNewBlocks(reliable.address)
-
-      step("Append a CL micro block with ecBlock confirmation")
-      d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs)
+      d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs) // TODO move up
       d.ecClients.addKnown(ecBlock)
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, e2CTransfersRootHashHex))
       d.advanceConsensusLayerChanged()
@@ -146,7 +142,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
   }
 
   "Can't get transferred tokens if the data is incorrect and able if it is correct" in
-    withConsensusClient() { (d, _) =>
+    withConsensusClient2() { d =>
       val ecBlock = d.createNextEcBlock(
         hash = d.createBlockHash("0"),
         parent = d.ecGenesisBlock,
@@ -156,12 +152,10 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       def tryWithdraw(): Either[Throwable, BlockId] =
         d.appendMicroBlockE(chainContract.withdraw(transferReceiver, ecBlock, transferProofs, 0, transfer.amount))
 
-      step(s"Start new epoch for ecBlock ${ecBlock.hash}")
+      step(s"Start new epoch with ecBlock ${ecBlock.hash}")
       d.advanceNewBlocks(reliable.address)
       tryWithdraw() should produce("not found for the contract address")
-
-      step("Append a CL micro block with ecBlock confirmation")
-      d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs)
+      d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs) // TODO move up
       d.ecClients.addKnown(ecBlock)
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, e2CTransfersRootHashHex))
       d.advanceConsensusLayerChanged()
@@ -178,7 +172,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       additionalBalances = List(AddrWithBalance(transferReceiver.toAddress, chainContract.withdrawFee * 2))
     )
 
-    withConsensusClient(settings) { (d, _) =>
+    withConsensusClient2(settings) { d =>
       val ecBlock = d.createNextEcBlock(
         hash = d.createBlockHash("0"),
         parent = d.ecGenesisBlock,
@@ -188,12 +182,10 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       def tryWithdraw(): Either[Throwable, BlockId] =
         d.appendMicroBlockE(chainContract.withdraw(transferReceiver, ecBlock, transferProofs, 0, transfer.amount))
 
-      step(s"Start new epoch for ecBlock ${ecBlock.hash}")
+      step(s"Start new epoch with ecBlock ${ecBlock.hash}")
       d.advanceNewBlocks(reliable.address)
       tryWithdraw() should produce("not found for the contract address")
-
-      step("Append a CL micro block with ecBlock confirmation")
-      d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs)
+      d.ecClients.setBlockLogs(ecBlock.hash, Bridge.ElSentNativeEventTopic, ecBlockLogs) // TODO move up
       d.ecClients.addKnown(ecBlock)
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, e2CTransfersRootHashHex))
       d.advanceConsensusLayerChanged()
@@ -219,7 +211,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
         transferEvent.copy(topics = List(wrongEventDefTopic))
       )
     ) { transferEvent =>
-      withConsensusClient(settings) { (d, _) =>
+      withConsensusClient2(settings) { d =>
         val ecBlock1 = d.createNextEcBlock(
           hash = d.createBlockHash("0"),
           parent = d.ecGenesisBlock,
@@ -229,12 +221,10 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
         def tryWithdraw(): Either[Throwable, BlockId] =
           d.appendMicroBlockE(chainContract.withdraw(transferReceiver, ecBlock1, transferProofs, 0, transfer.amount))
 
-        step(s"Start new epoch for ecBlock1 ${ecBlock1.hash}")
+        step(s"Start new epoch with ecBlock1 ${ecBlock1.hash}")
         d.advanceNewBlocks(reliable.address)
-
-        step("Append a CL micro block with ecBlock1 confirmation")
         val transferEvents = List(transferEvent)
-        d.ecClients.setBlockLogs(ecBlock1.hash, Bridge.ElSentNativeEventTopic, transferEvents)
+        d.ecClients.setBlockLogs(ecBlock1.hash, Bridge.ElSentNativeEventTopic, transferEvents) // TODO move up
         d.ecClients.willForge(ecBlock1)
         d.advanceConsensusLayerChanged()
 
@@ -253,7 +243,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
 
   "Fails on wrong data" in {
     val settings = defaultSettings.withEnabledElMining
-    withConsensusClient(settings) { (d, _) =>
+    withConsensusClient2(settings) { d =>
       val ecBlock1 = d.createNextEcBlock(
         hash = d.createBlockHash("0"),
         parent = d.ecGenesisBlock,
@@ -266,12 +256,10 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
         minerRewardL2Address = reliable.elRewardAddress
       )
 
-      step(s"Start new epoch for ecBlock1 ${ecBlock1.hash}")
+      step(s"Start new epoch with ecBlock1 ${ecBlock1.hash}")
       d.advanceNewBlocks(reliable.address)
-
-      step("Append a CL micro block with ecBlock1 confirmation")
       val transferEvents = List(transferEvent.copy(data = "d3ad884fa04292"))
-      d.ecClients.setBlockLogs(ecBlock1.hash, Bridge.ElSentNativeEventTopic, transferEvents)
+      d.ecClients.setBlockLogs(ecBlock1.hash, Bridge.ElSentNativeEventTopic, transferEvents) // TODO move up
       d.ecClients.willForge(ecBlock1)
       d.ecClients.willForge(ecBlock2)
 
@@ -284,7 +272,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
 
   "Can't get transferred tokens from a fork and can after the fork becomes a main chain" in {
     val settings = defaultSettings.copy(initialMiners = List(reliable, malfunction)).withEnabledElMining
-    withConsensusClient(settings) { (d, c) =>
+    withConsensusClient2(settings) { d =>
       val ecBlock1Hash        = d.createBlockHash("0")
       val ecBlock2BadHash     = d.createBlockHash("0-0")
       val ecBlock2Hash        = d.createBlockHash("0-1")
@@ -329,8 +317,9 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       d.receiveNetworkBlock(ecBlock2Bad, malfunction.account)
       d.advanceConsensusLayerChanged()
 
+      // TODO
       withClue("State is expected:") {
-        val s  = is[Working[?]](c.elu.state)
+        val s  = is[Working[?]](d.consensusClient.elu.state)
         val cs = is[WaitForNewChain](s.chainStatus)
         cs.chainSwitchInfo.referenceBlock.hash shouldBe ecBlock1Hash
       }
@@ -356,8 +345,9 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       d.ecClients.willForge(ecBlock3Ignored) // Prepare a following block, because we start mining it immediately
       d.advanceConsensusLayerChanged()
 
+      // TODO
       withClue("State is expected:") {
-        val s  = is[Working[?]](c.elu.state)
+        val s  = is[Working[?]](d.consensusClient.elu.state)
         val cs = is[Mining](s.chainStatus)
         cs.nodeChainInfo.left.value.referenceBlock.hash shouldBe ecBlock1Hash
       }
@@ -371,8 +361,9 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       )
       d.advanceConsensusLayerChanged()
 
+      // TODO
       withClue("State is expected:") {
-        val s = is[Working[?]](c.elu.state)
+        val s = is[Working[?]](d.consensusClient.elu.state)
         is[Mining](s.chainStatus)
       }
 
@@ -385,6 +376,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       step(s"Moving whole network to the alternative chain with ecBlock3 $ecBlock3Hash")
       d.advanceNewBlocks(reliable.address)
 
+      // TODO a merged function
       val ecBlock3 = d.createNextEcBlock(
         hash = ecBlock3Hash,
         parent = ecBlock2,
@@ -400,8 +392,9 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       d.appendMicroBlockAndVerify(chainContract.extendAltChainV3(reliable.account, 1, ecBlock3, d.blockchain.height))
       d.advanceConsensusLayerChanged()
 
+      // TODO
       withClue("State is expected:") {
-        val s = is[Working[?]](c.elu.state)
+        val s = is[Working[?]](d.consensusClient.elu.state)
         is[Mining](s.chainStatus)
       }
 

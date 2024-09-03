@@ -24,7 +24,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
     .withEnabledElMining
 
   "We're on the main chain and" - {
-    def test(f: (ExtensionDomain, ConsensusClient, EcBlock, Int) => Unit): Unit = withConsensusClient() { (d, c) =>
+    def test(f: (ExtensionDomain, ConsensusClient, EcBlock, Int) => Unit): Unit = withConsensusClient2() { d =>
       val ecBlock1Hash = d.createBlockHash("0")
       val ecBlock2Hash = d.createBlockHash("0-0")
 
@@ -38,7 +38,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       d.ecClients.setBlockLogs(ecBlock1.hash, Bridge.ElSentNativeEventTopic, Nil)
       d.ecClients.addKnown(ecBlock1)
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(otherMiner1.account, ecBlock1, d.blockchain.height))
-      waitForCS[FollowingChain](d, c) { s =>
+      waitForCS[FollowingChain](d, d.consensusClient) { s =>
         s.nodeChainInfo.lastBlock.hash shouldBe ecBlock1.hash
       }
 
@@ -54,7 +54,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       d.ecClients.setBlockLogs(ecBlock2.hash, Bridge.ElSentNativeEventTopic, Nil)
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(otherMiner1.account, ecBlock2, ecBlock2Epoch))
 
-      waitForCS[FollowingChain](d, c, s"Waiting ecBlock2 ${ecBlock2.hash}") { s =>
+      waitForCS[FollowingChain](d, d.consensusClient, s"Waiting ecBlock2 ${ecBlock2.hash}") { s =>
         s.nodeChainInfo.lastBlock.hash shouldBe ecBlock2.hash
         s.nextExpectedEcBlock.value shouldBe ecBlock2.hash
       }
@@ -62,7 +62,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       step(s"Start a new epoch of thisMiner ${thisMiner.address}")
       d.advanceNewBlocks(thisMiner.address)
 
-      f(d, c, ecBlock2, ecBlock2Epoch)
+      f(d, d.consensusClient, ecBlock2, ecBlock2Epoch)
     }
 
     "EC-block comes within timeout - then we continue forging" in test { (d, c, ecBlock2, ecBlock2Epoch) =>
@@ -95,7 +95,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
   }
 
   "We're on the alternative chain and" - {
-    "EC-block comes within timeout - then we continue forging" in withConsensusClient() { (d, c) =>
+    "EC-block comes within timeout - then we continue forging" in withConsensusClient2() { d =>
       val ecBlock1Hash    = d.createBlockHash("0")
       val ecBadBlock2Hash = d.createBlockHash("0-0")
       val ecBlock2Hash    = d.createBlockHash("0-1")
@@ -112,7 +112,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       d.ecClients.addKnown(ecBlock1)
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(otherMiner1.account, ecBlock1, d.blockchain.height))
 
-      waitForCS[FollowingChain](d, c) { s =>
+      waitForCS[FollowingChain](d, d.consensusClient) { s =>
         s.nodeChainInfo.isMain shouldBe true
         s.nodeChainInfo.lastBlock.hash shouldBe ecBlock1.hash
       }
@@ -129,7 +129,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       d.ecClients.setBlockLogs(ecBadBlock2.hash, Bridge.ElSentNativeEventTopic, Nil)
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(otherMiner1.account, ecBadBlock2, ecBadBlock2Epoch))
 
-      waitForCS[FollowingChain](d, c) { s =>
+      waitForCS[FollowingChain](d, d.consensusClient) { s =>
         s.nodeChainInfo.isMain shouldBe true
         s.nodeChainInfo.lastBlock.hash shouldBe ecBadBlock2.hash
       }
@@ -137,7 +137,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       step(s"Start a new epoch of otherMiner2 ${otherMiner2.address} with alternative chain ecBlock2 $ecBlock2Hash")
       d.advanceNewBlocks(otherMiner2.address)
 
-      waitForCS[WaitForNewChain](d, c) { s =>
+      waitForCS[WaitForNewChain](d, d.consensusClient) { s =>
         s.chainSwitchInfo.referenceBlock.hash shouldBe ecBlock1.hash
       }
 
@@ -150,14 +150,14 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       d.ecClients.setBlockLogs(ecBlock2.hash, Bridge.ElSentNativeEventTopic, Nil)
       d.appendMicroBlockAndVerify(chainContract.startAltChainV3(otherMiner2.account, ecBlock2, d.blockchain.height))
 
-      waitForCS[FollowingChain](d, c) { s =>
+      waitForCS[FollowingChain](d, d.consensusClient) { s =>
         s.nodeChainInfo.isMain shouldBe false
         s.nodeChainInfo.lastBlock.hash shouldBe ecBlock2.hash
         s.nextExpectedEcBlock.value shouldBe ecBlock2.hash
       }
 
       d.receiveNetworkBlock(ecBlock2, otherMiner2.account, d.blockchain.height)
-      waitForCS[FollowingChain](d, c) { s =>
+      waitForCS[FollowingChain](d, d.consensusClient) { s =>
         s.nodeChainInfo.isMain shouldBe false
         s.nodeChainInfo.lastBlock.hash shouldBe ecBlock2.hash
         s.nextExpectedEcBlock shouldBe empty
@@ -175,7 +175,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       d.ecClients.setBlockLogs(ecBlock3Hash, Bridge.ElSentNativeEventTopic, Nil)
       d.appendMicroBlockAndVerify(chainContract.extendAltChainV3(otherMiner2.account, 1, ecBlock3, ecBlock3Epoch))
 
-      waitForCS[FollowingChain](d, c) { s =>
+      waitForCS[FollowingChain](d, d.consensusClient) { s =>
         s.nodeChainInfo.isMain shouldBe false
         s.nodeChainInfo.lastBlock.hash shouldBe ecBlock3.hash
         s.nextExpectedEcBlock.value shouldBe ecBlock3.hash
@@ -186,7 +186,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       d.advanceConsensusLayerChanged()
       d.advanceElu(WaitRequestedBlockTimeout - 1.millis)
 
-      waitForCS[FollowingChain](d, c, s"Waiting ecBlock3 $ecBlock3Hash") { s =>
+      waitForCS[FollowingChain](d, d.consensusClient, s"Waiting ecBlock3 $ecBlock3Hash") { s =>
         s.nodeChainInfo.isMain shouldBe false
         s.nodeChainInfo.lastBlock.hash shouldBe ecBlock3.hash
         s.nextExpectedEcBlock.value shouldBe ecBlock3.hash
@@ -203,12 +203,12 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
           withdrawals = Vector(d.createWithdrawal(2, thisMiner.elRewardAddress))
         )
       )
-      waitForCS[Mining](d, c) { s =>
+      waitForCS[Mining](d, d.consensusClient) { s =>
         s.nodeChainInfo.value.isMain shouldBe false
       }
     }
 
-    "We mined before the alternative chain before and EC-block doesn't come - then we still wait for it" in withConsensusClient() { (d, c) =>
+    "We mined before the alternative chain before and EC-block doesn't come - then we still wait for it" in withConsensusClient2() { d =>
       val ecBlock1Hash    = d.createBlockHash("0")
       val ecBadBlock2Hash = d.createBlockHash("0-0")
       val ecBlock2Hash    = d.createBlockHash("0-1")
@@ -225,7 +225,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       d.ecClients.addKnown(ecBlock1)
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(otherMiner1.account, ecBlock1, d.blockchain.height))
 
-      waitForCS[FollowingChain](d, c) { s =>
+      waitForCS[FollowingChain](d, d.consensusClient) { s =>
         s.nodeChainInfo.isMain shouldBe true
         s.nodeChainInfo.lastBlock.hash shouldBe ecBlock1.hash
       }
@@ -237,12 +237,12 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
         hash = ecBadBlock2Hash,
         parent = ecBlock1,
         minerRewardL2Address = otherMiner1.elRewardAddress,
-        withdrawals = Vector(d.createWithdrawal(0, otherMiner1.elRewardAddress))
+        withdrawals = Vector(d.createWithdrawal(0, otherMiner1.elRewardAddress)) // TODO
       )
       d.ecClients.setBlockLogs(ecBadBlock2.hash, Bridge.ElSentNativeEventTopic, Nil)
       d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(otherMiner1.account, ecBadBlock2, d.blockchain.height))
 
-      waitForCS[FollowingChain](d, c) { s =>
+      waitForCS[FollowingChain](d, d.consensusClient) { s =>
         s.nodeChainInfo.isMain shouldBe true
         s.nodeChainInfo.lastBlock.hash shouldBe ecBadBlock2.hash
       }
@@ -267,7 +267,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       d.ecClients.setBlockLogs(ecIgnoredBlock3.hash, Bridge.ElSentNativeEventTopic, Nil)
       d.ecClients.willForge(ecIgnoredBlock3)
 
-      waitForCS[Mining](d, c) { s =>
+      waitForCS[Mining](d, d.consensusClient) { s =>
         val ci = s.nodeChainInfo.left.value
         ci.referenceBlock.hash shouldBe ecBlock1.hash
       }
@@ -275,7 +275,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       d.advanceMining()
       d.forgeFromUtxPool()
 
-      waitForCS[Mining](d, c) { s =>
+      waitForCS[Mining](d, d.consensusClient) { s =>
         val ci = s.nodeChainInfo.value
         ci.lastBlock.hash shouldBe ecBlock2.hash
       }
@@ -292,7 +292,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       d.ecClients.setBlockLogs(ecBadBlock3Hash, Bridge.ElSentNativeEventTopic, Nil)
       d.appendMicroBlockAndVerify(chainContract.extendAltChainV3(otherMiner2.account, 1, ecBlock3, ecBlock3Epoch))
 
-      waitForCS[FollowingChain](d, c) { s =>
+      waitForCS[FollowingChain](d, d.consensusClient) { s =>
         s.nodeChainInfo.isMain shouldBe false
         s.nodeChainInfo.lastBlock.hash shouldBe ecBlock3.hash
         s.nextExpectedEcBlock.value shouldBe ecBlock3.hash
@@ -305,7 +305,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       d.advanceWaitRequestedBlock()
 
       withClue(s"Still wait for ecBlock3 ${ecBlock3.hash}: ") {
-        waitForCS[FollowingChain](d, c) { s =>
+        waitForCS[FollowingChain](d, d.consensusClient) { s =>
           s.nodeChainInfo.isMain shouldBe false
           s.nodeChainInfo.lastBlock.hash shouldBe ecBlock3.hash
           s.nextExpectedEcBlock.value shouldBe ecBlock3.hash
@@ -313,8 +313,8 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       }
     }
 
-    "We haven't mined the alternative chain before and EC-block doesn't come - then we wait for a new alternative chain" in withConsensusClient() {
-      (d, c) =>
+    "We haven't mined the alternative chain before and EC-block doesn't come - then we wait for a new alternative chain" in withConsensusClient2() {
+      d =>
         val ecBlock1Hash    = d.createBlockHash("0")
         val ecBadBlock2Hash = d.createBlockHash("0-0")
         val ecBlock2Hash    = d.createBlockHash("0-1")
@@ -331,7 +331,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
         d.ecClients.addKnown(ecBlock1)
         d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(otherMiner1.account, ecBlock1, d.blockchain.height))
 
-        waitForCS[FollowingChain](d, c) { s =>
+        waitForCS[FollowingChain](d, d.consensusClient) { s =>
           s.nodeChainInfo.isMain shouldBe true
           s.nodeChainInfo.lastBlock.hash shouldBe ecBlock1.hash
         }
@@ -348,7 +348,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
         d.ecClients.setBlockLogs(ecBadBlock2.hash, Bridge.ElSentNativeEventTopic, Nil)
         d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(otherMiner1.account, ecBadBlock2, ecBadBlock2Epoch))
 
-        waitForCS[FollowingChain](d, c) { s =>
+        waitForCS[FollowingChain](d, d.consensusClient) { s =>
           s.nodeChainInfo.isMain shouldBe true
           s.nodeChainInfo.lastBlock.hash shouldBe ecBadBlock2.hash
         }
@@ -356,7 +356,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
         step(s"Start a new epoch of otherMiner2 ${otherMiner2.address} with alternative chain ecBlock2 $ecBlock2Hash")
         d.advanceNewBlocks(otherMiner2.address)
 
-        waitForCS[WaitForNewChain](d, c) { s =>
+        waitForCS[WaitForNewChain](d, d.consensusClient) { s =>
           s.chainSwitchInfo.referenceBlock.hash shouldBe ecBlock1.hash
         }
 
@@ -369,14 +369,14 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
         d.ecClients.setBlockLogs(ecBlock2.hash, Bridge.ElSentNativeEventTopic, Nil)
         d.appendMicroBlockAndVerify(chainContract.startAltChainV3(otherMiner2.account, ecBlock2, d.blockchain.height))
 
-        waitForCS[FollowingChain](d, c) { s =>
+        waitForCS[FollowingChain](d, d.consensusClient) { s =>
           s.nodeChainInfo.isMain shouldBe false
           s.nodeChainInfo.lastBlock.hash shouldBe ecBlock2.hash
           s.nextExpectedEcBlock.value shouldBe ecBlock2.hash
         }
 
         d.receiveNetworkBlock(ecBlock2, otherMiner2.account, d.blockchain.height)
-        waitForCS[FollowingChain](d, c) { s =>
+        waitForCS[FollowingChain](d, d.consensusClient) { s =>
           s.nodeChainInfo.isMain shouldBe false
           s.nodeChainInfo.lastBlock.hash shouldBe ecBlock2.hash
           s.nextExpectedEcBlock shouldBe empty
@@ -394,7 +394,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
         d.ecClients.setBlockLogs(ecBlock3Hash, Bridge.ElSentNativeEventTopic, Nil)
         d.appendMicroBlockAndVerify(chainContract.extendAltChainV3(otherMiner2.account, 1, ecBlock3, ecBlock3Epoch))
 
-        waitForCS[FollowingChain](d, c) { s =>
+        waitForCS[FollowingChain](d, d.consensusClient) { s =>
           s.nodeChainInfo.isMain shouldBe false
           s.nodeChainInfo.lastBlock.hash shouldBe ecBlock3.hash
           s.nextExpectedEcBlock.value shouldBe ecBlock3.hash
@@ -402,7 +402,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
 
         step(s"Start a new epoch of thisMiner ${thisMiner.address}")
         d.advanceNewBlocks(thisMiner.address)
-        waitForCS[WaitForNewChain](d, c) { s =>
+        waitForCS[WaitForNewChain](d, d.consensusClient) { s =>
           s.chainSwitchInfo.referenceBlock.hash shouldBe ecBlock1.hash
         }
     }

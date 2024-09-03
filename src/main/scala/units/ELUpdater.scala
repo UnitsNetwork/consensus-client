@@ -100,14 +100,14 @@ class ELUpdater(
               case Some(chainInfo) if chainInfo.isMain =>
                 validateAndApply(block, ch, w, rInfo.missedBlockParent, chainInfo, None, ignoreInvalid = true)
               case Some(_) =>
-                logger.debug(s"Chain ${rInfo.chainId} is not main anymore, ignoring block ${block.hash}")
+                logger.debug(s"Chain ${rInfo.chainId} is not main anymore, ignoring ${block.hash}")
               case _ =>
-                logger.error(s"Failed to get chain ${rInfo.chainId} info, ignoring block ${block.hash}")
+                logger.error(s"Failed to get chain ${rInfo.chainId} info, ignoring ${block.hash}")
             }
-          case _ => logger.debug(s"$w: ignoring block unexpected ${block.hash}")
+          case _ => logger.debug(s"Expecting ${w.returnToMainChainInfo.fold("no block")(_.toString)}, ignoring unexpected ${block.hash}")
         }
       case other =>
-        logger.debug(s"$other: ignoring block ${block.hash}")
+        logger.debug(s"$other: ignoring ${block.hash}")
     }
   }
 

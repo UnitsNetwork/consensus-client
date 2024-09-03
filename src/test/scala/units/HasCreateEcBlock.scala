@@ -19,23 +19,15 @@ trait HasCreateEcBlock {
   def createNextEcBlock(
       hash: BlockHash,
       parent: EcBlock,
-      stateRoot: String = EthereumConstants.EmptyRootHashHex,
-      timestampInMillis: Long = 0,
       minerRewardL2Address: EthAddress = EthAddress.empty,
-      baseFeePerGas: Uint256 = Uint256.DEFAULT,
-      gasLimit: Long = 0,
-      gasUsed: Long = 0,
       withdrawals: Vector[Withdrawal] = Vector.empty
   ): EcBlock = createEcBlock(
     hash = hash,
     parentHash = parent.hash,
-    stateRoot = stateRoot,
+    stateRoot = EthereumConstants.EmptyRootHashHex,
     height = parent.height + 1,
-    timestampInMillis = if (timestampInMillis == 0) parent.timestamp * 1000 + blockDelay.toMillis else timestampInMillis,
+    timestampInMillis = parent.timestamp * 1000 + blockDelay.toMillis,
     minerRewardL2Address = minerRewardL2Address,
-    baseFeePerGas = baseFeePerGas,
-    gasLimit = gasLimit,
-    gasUsed = gasUsed,
     withdrawals = withdrawals
   )
 

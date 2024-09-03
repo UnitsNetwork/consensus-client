@@ -2,10 +2,7 @@ package units
 
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.transaction.TxHelpers
-import com.wavesplatform.wallet.Wallet
-import units.ELUpdater.State
 import units.ELUpdater.State.ChainStatus.{FollowingChain, WaitForNewChain}
-import units.ELUpdater.State.Working
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.client.http.model.{EcBlock, GetLogsResponseEntry}
 import units.eth.EthAddress
@@ -16,7 +13,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
   private val ecBlockLogs             = transferEvents.map(getLogsResponseEntry)
   private val e2CTransfersRootHashHex = HexBytesConverter.toHex(Bridge.mkTransfersHash(ecBlockLogs).explicitGet())
 
-  private val reliable    = ElMinerSettings(Wallet.generateNewAccount(TestSettings.Default.walletSeed, 0))
+  private val reliable    = ElMinerSettings(TxHelpers.signer(1))
   private val malfunction = ElMinerSettings(TxHelpers.signer(2)) // Prevents a block finalization
 
   override protected val defaultSettings: TestSettings = TestSettings.Default.copy(
@@ -24,7 +21,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
   )
 
   "Full validation when the block is available on EL and CL" - {
-    "doesn't happen for finalized blocks" in withConsensusClient(defaultSettings.copy(initialMiners = List(reliable))) { (d, c) =>
+    "doesn't happen for finalized blocks" in withConsensusClient2(defaultSettings.copy(initialMiners = List(reliable))) { d =>
       val ecBlock = d.createNextEcBlock(
         hash = d.createBlockHash("0"),
         parent = d.ecGenesisBlock,
@@ -49,18 +46,17 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
         d.ecClients.fullValidatedBlocks shouldBe empty
       }
 
-      withClue("Block considered validated:") {
-        val s = is[Working[?]](c.elu.state)
-        is[FollowingChain](s.chainStatus)
-
+      waitForWorking(d, d.consensusClient, "Block considered validated and following") { s =>
         val vs = s.fullValidationStatus
         vs.validated should contain(ecBlock.hash)
         vs.lastElWithdrawalIndex shouldBe empty
+
+        is[FollowingChain](s.chainStatus)
       }
     }
 
     "happens for not finalized blocks" - {
-      "successful validation updates the chain information" in withConsensusClient() { (d, c) =>
+      "successful validation updates the chain information" in withConsensusClient2() { d =>
         val ecBlock = d.createNextEcBlock(
           hash = d.createBlockHash("0"),
           parent = d.ecGenesisBlock,
@@ -81,19 +77,16 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
         d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, e2CTransfersRootHashHex))
         d.advanceConsensusLayerChanged()
 
-        withClue("Expected state:") {
-          val s = is[Working[?]](c.elu.state)
-          is[FollowingChain](s.chainStatus)
-        }
+        waitForCS[FollowingChain](d, d.consensusClient, "Following chain") { _ => }
 
         withClue("Validation happened:") {
           d.ecClients.fullValidatedBlocks shouldBe Set(ecBlock.hash)
         }
 
-        withClue("Block considered validated:") {
-          val s = is[State.Working[?]](c.elu.state).fullValidationStatus
-          s.validated should contain(ecBlock.hash)
-          s.lastElWithdrawalIndex.value shouldBe -1L
+        waitForWorking(d, d.consensusClient, "Block considered validated") { s =>
+          val vs = s.fullValidationStatus
+          vs.validated should contain(ecBlock.hash)
+          vs.lastElWithdrawalIndex.value shouldBe -1L
         }
       }
 
@@ -102,7 +95,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
             blockLogs: List[GetLogsResponseEntry],
             e2CTransfersRootHashHex: String,
             badBlockPostProcessing: EcBlock => EcBlock = identity
-        ): Unit = withConsensusClient() { (d, c) =>
+        ): Unit = withConsensusClient2() { d =>
           step("Start new epoch for ecBlock1")
           d.advanceNewBlocks(malfunction.address)
           d.advanceConsensusLayerChanged()
@@ -119,7 +112,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
 
           step("Start new epoch for ecBlock2")
           d.advanceNewBlocks(malfunction.address)
-          d.advanceBlockDelay()
+          d.advanceBlockDelay() // TODO
 
           val ecBlock2 = badBlockPostProcessing(
             d.createNextEcBlock(
@@ -139,15 +132,10 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
           d.receiveNetworkBlock(ecBlock2, malfunction.account)
           d.triggerScheduledTasks()
 
-          withClue("Validation happened:") {
-            val s = is[State.Working[?]](c.elu.state).fullValidationStatus
-            s.validated should contain(ecBlock2.hash)
-          }
-
-          withClue("Forking:") {
-            val s = is[Working[?]](c.elu.state)
-            s.fullValidationStatus.validated should contain(ecBlock2.hash)
-            s.fullValidationStatus.lastElWithdrawalIndex shouldBe empty
+          waitForWorking(d, d.consensusClient, "Block considered validated and forking") { s =>
+            val vs = s.fullValidationStatus
+            vs.validated should contain(ecBlock2.hash)
+            vs.lastElWithdrawalIndex shouldBe empty
 
             is[WaitForNewChain](s.chainStatus)
           }

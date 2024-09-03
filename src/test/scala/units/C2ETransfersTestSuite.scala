@@ -60,7 +60,7 @@ class C2ETransfersTestSuite extends BaseIntegrationTestSuite {
       tokenId: Option[Asset] = None,
       queueSize: Int = 0
   ): Either[Throwable, BlockId] =
-    withConsensusClient() { (d, _) =>
+    withConsensusClient2() { d =>
       val transferSenderTokenAmount = Long.MaxValue / 2
       d.appendMicroBlock(
         unrelatedAsset,

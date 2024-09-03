@@ -24,10 +24,8 @@ import units.util.HexBytesConverter
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.ThreadLocalRandom
 import scala.annotation.tailrec
-import scala.concurrent.Await
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.reflect.ClassTag
-import scala.util.Using
 
 trait BaseIntegrationTestSuite
     extends AnyFreeSpec
@@ -63,10 +61,11 @@ trait BaseIntegrationTestSuite
           blockchainUpdater = bcu,
           rocksDBWriter = blockchain,
           settings = settings.wavesSettings,
-          elMinerDefaultReward = elMinerDefaultReward
+          elMinerDefaultReward = elMinerDefaultReward,
+          chainContractAccount = chainContractAccount,
+          stakingContractAccount = stakingContractAccount
         )
 
-        require(domain.l2Config.chainContractAddress == chainContractAddress, "Check settings")
         domain.wallet.generateNewAccounts(2) // Enough for now
 
         val balances = List(
@@ -96,54 +95,39 @@ trait BaseIntegrationTestSuite
     }
 
   protected def withConsensusClient[R](settings: TestSettings = defaultSettings)(f: (ExtensionDomain, ConsensusClient) => R): R =
+    withConsensusClient2(settings) { d =>
+      f(d, d.consensusClient)
+    }
+
+  protected def withConsensusClient2[R](settings: TestSettings = defaultSettings)(f: ExtensionDomain => R): R =
     withExtensionDomain(settings) { d =>
-      Using(
-        new ConsensusClient(
-          d.l2Config,
-          d.extensionContext,
-          d.ecClients.engineApi,
-          d.ecClients.ecApi,
-          d.blockObserver,
-          d.allChannels,
-          d.globalScheduler,
-          d.eluScheduler,
-          () => {}
-        )
-      ) { client =>
-        d.triggers = d.triggers.appended(client)
+      log.debug("EL init")
+      val txs =
+        List(
+          chainContract.setScript(),
+          chainContract.setup(d.ecGenesisBlock, elMinerDefaultReward.amount.longValue(), elBridgeAddress)
+        ) ++
+          settings.initialMiners
+            .flatMap { x =>
+              List(
+                stakingContract.stakingBalance(x.address, 0, x.stakingBalance, 1, x.stakingBalance),
+                chainContract.join(x.account, x.elRewardAddress)
+              )
+            }
 
-        log.debug("EL init")
-        val txs =
-          List(
-            chainContract.setScript(),
-            chainContract.setup(d.ecGenesisBlock, elMinerDefaultReward.amount.longValue(), elBridgeAddress)
-          ) ++
-            settings.initialMiners
-              .flatMap { x =>
-                List(
-                  stakingContract.stakingBalance(x.address, 0, x.stakingBalance, 1, x.stakingBalance),
-                  chainContract.join(x.account, x.elRewardAddress)
-                )
-              }
-
-        d.appendBlock(txs*)
-        d.advanceConsensusLayerChanged()
-        f(d, client)
-      }((resource: ConsensusClient) => {
-        log.trace("Resources cleanup")
-        val r = resource.shutdown()
-        d.triggerScheduledTasks()
-        Await.result(r, 10.seconds)
-      }).get
+      d.appendBlock(txs*)
+      d.advanceConsensusLayerChanged()
+      f(d)
     }
 
   protected val defaultMaxTimeout =
     List(WaitForReferenceConfirmInterval, ClChangedProcessingDelay, MiningRetryInterval, WaitRequestedBlockTimeout).max + 1.millis
   protected val defaultInterval = ClChangedProcessingDelay
 
+  // TODO move
   protected def waitForWorking(
       extensionDomain: ExtensionDomain,
-      consensusClient: ConsensusClient,
+      consensusClient: ConsensusClient, // TODO remove
       title: String = "",
       maxTimeout: FiniteDuration = defaultMaxTimeout,
       interval: FiniteDuration = defaultInterval

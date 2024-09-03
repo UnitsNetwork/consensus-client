@@ -36,12 +36,14 @@ import net.ceedubs.ficus.Ficus.*
 import play.api.libs.json.*
 import units.ELUpdater.calculateRandao
 import units.ExtensionDomain.*
+import units.client.contract.HasConsensusLayerDappTxHelpers
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.client.http.model.{EcBlock, TestEcBlocks}
 import units.client.{L2BlockLike, TestEcClients}
-import units.eth.{EthereumConstants, Gwei}
+import units.eth.{EthAddress, EthereumConstants, Gwei}
 import units.network.TestBlocksObserver
 
+import scala.concurrent.Await
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.reflect.ClassTag
 
@@ -50,15 +52,20 @@ class ExtensionDomain(
     blockchainUpdater: BlockchainUpdaterImpl,
     rocksDBWriter: RocksDBWriter,
     settings: WavesSettings,
-    override val elMinerDefaultReward: Gwei
+    // TODO remove
+    override val elMinerDefaultReward: Gwei,
+    override val chainContractAccount: KeyPair,
+    override val stakingContractAccount: KeyPair
 ) extends Domain(rdb, blockchainUpdater, rocksDBWriter, settings)
     with HasCreateEcBlock
+    with HasConsensusLayerDappTxHelpers
     with AutoCloseable
     with ScorexLogging { self =>
-  val l2Config                            = settings.config.as[ClientConfig]("waves.l2")
+  val l2Config = settings.config.as[ClientConfig]("waves.l2")
+  // TODO????
   override def blockDelay: FiniteDuration = l2Config.blockDelay
 
-  val chainContractAddress = l2Config.chainContractAddress
+  require(l2Config.chainContractAddress == chainContractAddress, "Check settings")
 
   val ecGenesisBlock = createEcBlock(
     hash = createBlockHash(""),
@@ -82,6 +89,38 @@ class ExtensionDomain(
   def receiveNetworkBlock(ecBlock: EcBlock, miner: SeedKeyPair, epochNumber: Int = blockchain.height): Unit =
     receiveNetworkBlock(toNetworkBlock(ecBlock, miner, epochNumber))
   def receiveNetworkBlock(incomingNetworkBlock: NetworkL2Block): Unit = elBlockStream.onNext((new EmbeddedChannel(), incomingNetworkBlock))
+
+  val extensionContext = new Context {
+    override def settings: WavesSettings = self.settings
+    override def blockchain: Blockchain  = self.blockchain
+
+    override def rollbackTo(blockId: ByteStr): Task[Either[ValidationError, DiscardedBlocks]]  = Task(blockchainUpdater.removeAfter(blockId))
+    override def broadcastTransaction(tx: Transaction): TracedResult[ValidationError, Boolean] = utx.putIfNew(tx)
+
+    override def time: Time     = self.testTime
+    override def utx: UtxPool   = self.utxPool
+    override def wallet: Wallet = self.wallet
+
+    override def transactionsApi: CommonTransactionsApi = self.transactionsApi
+    override def blocksApi: CommonBlocksApi             = self.blocksApi
+    override def accountsApi: CommonAccountsApi         = self.accountsApi
+    override def assetsApi: CommonAssetsApi             = self.assetsApi
+
+    override def utxEvents: Observable[UtxEvent] = Observable.empty
+  }
+
+  val consensusClient: ConsensusClient = new ConsensusClient(
+    l2Config,
+    extensionContext,
+    ecClients.engineApi,
+    ecClients.ecApi,
+    blockObserver,
+    allChannels,
+    globalScheduler,
+    eluScheduler,
+    () => {}
+  )
+  triggers = triggers.appended(consensusClient)
 
   def toNetworkBlock(ecBlock: EcBlock, miner: SeedKeyPair, epochNumber: Int): NetworkL2Block =
     NetworkL2Block
@@ -204,33 +243,22 @@ class ExtensionDomain(
     )
 
   // See ELUpdater.consensusLayerChanged
-  def advanceConsensusLayerChanged(): Unit = {
-    log.trace("advanceConsensusLayerChanged")
-    advanceElu(ELUpdater.ClChangedProcessingDelay)
-  }
+  def advanceConsensusLayerChanged(): Unit = advanceElu(ELUpdater.ClChangedProcessingDelay, "advanceConsensusLayerChanged")
 
   // See ELUpdater.requestBlocksAndStartMining
-  def advanceWaitRequestedBlock(): Unit = {
-    log.trace("advanceWaitRequestedBlock")
-    advanceElu(ELUpdater.WaitRequestedBlockTimeout)
-  }
+  def advanceWaitRequestedBlock(): Unit = advanceElu(ELUpdater.WaitRequestedBlockTimeout, "advanceWaitRequestedBlock")
 
-  def advanceMiningRetry(): Unit = {
-    log.trace("advanceMiningRetry")
-    advanceElu(ELUpdater.MiningRetryInterval)
-  }
+  def advanceMiningRetry(): Unit = advanceElu(ELUpdater.MiningRetryInterval, "advanceMiningRetry")
 
-  def advanceMining(): Unit = {
-    log.trace("advanceMining")
-    advanceElu(l2Config.blockDelay)
-  }
+  def advanceMining(): Unit = advanceElu(l2Config.blockDelay, "advanceMining")
 
-  def advanceElu(x: FiniteDuration): Unit = {
-    log.trace(s"advanceElu($x)")
+  def advanceElu(x: FiniteDuration, name: String = "advanceElu"): Unit = {
+    log.trace(s"$name($x)")
     testTime.advance(x)
     eluScheduler.tick(x)
   }
 
+  // TODO
   def advanceBlockDelay(triggerSchedulers: Boolean = true): Unit = {
     log.trace(s"advanceBlockDelay($triggerSchedulers)")
     advanceAllTasks(l2Config.blockDelay, triggerSchedulers)
@@ -265,26 +293,27 @@ class ExtensionDomain(
     l("Global", globalScheduler)
   }
 
-  val extensionContext = new Context {
-    override def settings: WavesSettings = self.settings
-    override def blockchain: Blockchain  = self.blockchain
-
-    override def rollbackTo(blockId: ByteStr): Task[Either[ValidationError, DiscardedBlocks]]  = Task(blockchainUpdater.removeAfter(blockId))
-    override def broadcastTransaction(tx: Transaction): TracedResult[ValidationError, Boolean] = utx.putIfNew(tx)
-
-    override def time: Time     = self.testTime
-    override def utx: UtxPool   = self.utxPool
-    override def wallet: Wallet = self.wallet
-
-    override def transactionsApi: CommonTransactionsApi = self.transactionsApi
-    override def blocksApi: CommonBlocksApi             = self.blocksApi
-    override def accountsApi: CommonAccountsApi         = self.accountsApi
-    override def assetsApi: CommonAssetsApi             = self.assetsApi
-
-    override def utxEvents: Observable[UtxEvent] = Observable.empty
+  override def close(): Unit = {
+    log.trace("close")
+    val r = consensusClient.shutdown()
+    triggerScheduledTasks()
+    Await.result(r, 10.seconds)
+    utxPool.close()
   }
 
-  override def close(): Unit = utxPool.close()
+  // TODO
+
+  def createEcBlockBuilder(hashPath: String, miner: ElMinerSettings, parent: EcBlock = ecGenesisBlock): TestEcBlockBuilder =
+    createEcBlockBuilder(hashPath, miner.elRewardAddress, parent)
+
+  def createEcBlockBuilder(hashPath: String, minerRewardL2Address: EthAddress, parent: EcBlock): TestEcBlockBuilder =
+    TestEcBlockBuilder(ecClients, elMinerDefaultReward, blockDelay, parent = parent) // TODO pass TestEnvironment?
+      .updateBlock(
+        _.copy(
+          hash = TestEcBlockBuilder.createBlockHash(hashPath),
+          minerRewardL2Address = minerRewardL2Address
+        )
+      )
 }
 
 object ExtensionDomain {
