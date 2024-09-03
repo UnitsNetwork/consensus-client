@@ -12,7 +12,6 @@ import com.wavesplatform.utils.ScorexLogging
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues}
 import units.Bridge.ElSentNativeEvent
-import units.client.contract.HasConsensusLayerDappTxHelpers
 import units.client.http.model.GetLogsResponseEntry
 import units.eth.{EthAddress, Gwei}
 import units.test.CustomMatchers
@@ -26,7 +25,6 @@ trait BaseIntegrationTestSuite
     with BaseSuite
     with ScorexLogging
     with WithDomain
-    with HasConsensusLayerDappTxHelpers
     with BeforeAndAfterAll
     with EitherValues
     with OptionValues
@@ -35,22 +33,19 @@ trait BaseIntegrationTestSuite
   protected val elMinerDefaultReward = Gwei.ofRawGwei(2_000_000_000L)
   protected val elBridgeAddress      = EthAddress.unsafeFrom("0x189643C45cC2782DFd42185d0cD86B71943D6315")
 
-  override val stakingContractAccount: KeyPair = KeyPair("staking-contract".getBytes(StandardCharsets.UTF_8))
-  override val chainContractAccount: KeyPair   = KeyPair("chain-contract".getBytes(StandardCharsets.UTF_8))
-
   protected def withExtensionDomain[R](settings: TestSettings = defaultSettings)(f: ExtensionDomain => R): R =
     withExtensionDomainUninitialized(settings) { d =>
       log.debug("EL init")
       val txs =
         List(
-          chainContract.setScript(),
-          chainContract.setup(d.ecGenesisBlock, elMinerDefaultReward.amount.longValue(), elBridgeAddress)
+          d.chainContract.setScript(),
+          d.chainContract.setup(d.ecGenesisBlock, elMinerDefaultReward.amount.longValue(), elBridgeAddress)
         ) ++
           settings.initialMiners
             .flatMap { x =>
               List(
-                stakingContract.stakingBalance(x.address, 0, x.stakingBalance, 1, x.stakingBalance),
-                chainContract.join(x.account, x.elRewardAddress)
+                d.stakingContract.stakingBalance(x.address, 0, x.stakingBalance, 1, x.stakingBalance),
+                d.chainContract.join(x.account, x.elRewardAddress)
               )
             }
 
@@ -61,32 +56,33 @@ trait BaseIntegrationTestSuite
 
   private def withExtensionDomainUninitialized[R](settings: TestSettings)(test: ExtensionDomain => R): R =
     withRocksDBWriter(settings.wavesSettings) { blockchain =>
-      var domain: ExtensionDomain = null
+      var d: ExtensionDomain = null
       val bcu = new BlockchainUpdaterImpl(
         blockchain,
         settings.wavesSettings,
         ntpTime,
-        BlockchainUpdateTriggers.combined(domain.triggers),
+        BlockchainUpdateTriggers.combined(d.triggers),
         loadActiveLeases(rdb, _, _)
       )
 
       try {
-        domain = new ExtensionDomain(
+        d = new ExtensionDomain(
           rdb = new RDB(rdb.db, rdb.txMetaHandle, rdb.txHandle, rdb.txSnapshotHandle, rdb.apiHandle, Seq.empty),
           blockchainUpdater = bcu,
           rocksDBWriter = blockchain,
           settings = settings.wavesSettings,
           elMinerDefaultReward = elMinerDefaultReward,
-          chainContractAccount = chainContractAccount,
-          stakingContractAccount = stakingContractAccount
+          // TODO remove
+          chainContractAccount = KeyPair("chain-contract".getBytes(StandardCharsets.UTF_8)),
+          stakingContractAccount = KeyPair("staking-contract".getBytes(StandardCharsets.UTF_8))
         )
 
-        domain.wallet.generateNewAccounts(2) // Enough for now
+        d.wallet.generateNewAccounts(2) // Enough for now
 
         val balances = List(
           AddrWithBalance(TxHelpers.defaultAddress, 1_000_000.waves),
-          AddrWithBalance(stakingContractAddress, 10.waves),
-          AddrWithBalance(chainContractAddress, 10.waves)
+          AddrWithBalance(d.stakingContractAddress, 10.waves),
+          AddrWithBalance(d.chainContractAddress, 10.waves)
         ) ++ settings.finalAdditionalBalances
 
         val genesis = balances.map { case AddrWithBalance(address, amount) =>
@@ -94,7 +90,7 @@ trait BaseIntegrationTestSuite
         }
 
         if (genesis.nonEmpty)
-          domain.appendBlock(
+          d.appendBlock(
             createGenesisWithStateHash(
               genesis,
               fillStateHash = blockchain.supportsLightNodeBlockFields(),
@@ -102,9 +98,9 @@ trait BaseIntegrationTestSuite
             )
           )
 
-        test(domain)
+        test(d)
       } finally {
-        Option(domain).foreach(_.close())
+        Option(d).foreach(_.close())
         bcu.shutdown()
       }
     }

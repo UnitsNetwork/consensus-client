@@ -5,6 +5,7 @@ import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.wallet.Wallet
 import units.ELUpdater.State.ChainStatus.{FollowingChain, Mining, WaitForNewChain}
 import units.ELUpdater.WaitRequestedBlockTimeout
+import units.client.contract.HasConsensusLayerDappTxHelpers.defaultFees
 import units.client.http.model.EcBlock
 
 import scala.concurrent.duration.DurationInt
@@ -19,7 +20,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
   override protected val defaultSettings: TestSettings = TestSettings.Default
     .copy(
       initialMiners = List(thisMiner, otherMiner1, otherMiner2),
-      additionalBalances = List(AddrWithBalance(transferReceiver.toAddress, chainContract.withdrawFee))
+      additionalBalances = List(AddrWithBalance(transferReceiver.toAddress, defaultFees.chainContract.withdrawFee))
     )
     .withEnabledElMining
 
@@ -29,7 +30,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       step(s"Start a new epoch of otherMiner1 ${otherMiner1.address} with ecBlock1 ${ecBlock1.hash}")
       d.advanceNewBlocks(otherMiner1.address)
       d.ecClients.addKnown(ecBlock1)
-      d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(otherMiner1.account, ecBlock1, d.blockchain.height))
+      d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(otherMiner1.account, ecBlock1))
       d.waitForCS[FollowingChain]() { s =>
         s.nodeChainInfo.lastBlock.hash shouldBe ecBlock1.hash
       }
@@ -38,7 +39,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       step(s"Start a new epoch of otherMiner1 ${otherMiner1.address} with ecBlock2 ${ecBlock2.hash}")
       d.advanceNewBlocks(otherMiner1.address)
       val ecBlock2Epoch = d.blockchain.height
-      d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(otherMiner1.account, ecBlock2, ecBlock2Epoch))
+      d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(otherMiner1.account, ecBlock2))
 
       d.waitForCS[FollowingChain](s"Waiting ecBlock2 ${ecBlock2.hash}") { s =>
         s.nodeChainInfo.lastBlock.hash shouldBe ecBlock2.hash
@@ -79,7 +80,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       step(s"Start a new epoch of otherMiner1 ${otherMiner1.address} with ecBlock1 ${ecBlock1.hash}")
       d.advanceNewBlocks(otherMiner1.address)
       d.ecClients.addKnown(ecBlock1)
-      d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(otherMiner1.account, ecBlock1, d.blockchain.height))
+      d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(otherMiner1.account, ecBlock1))
 
       d.waitForCS[FollowingChain]() { s =>
         s.nodeChainInfo.isMain shouldBe true
@@ -89,8 +90,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       val ecBadBlock2 = d.createEcBlockBuilder("0-0", otherMiner1, ecBlock1).rewardPrevMiner().buildAndSetLogs()
       step(s"Start a new epoch of otherMiner1 ${otherMiner1.address} with ecBadBlock2 ${ecBadBlock2.hash}")
       d.advanceNewBlocks(otherMiner1.address)
-      val ecBadBlock2Epoch = d.blockchain.height
-      d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(otherMiner1.account, ecBadBlock2, ecBadBlock2Epoch))
+      d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(otherMiner1.account, ecBadBlock2))
 
       d.waitForCS[FollowingChain]() { s =>
         s.nodeChainInfo.isMain shouldBe true
@@ -105,7 +105,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
         s.chainSwitchInfo.referenceBlock.hash shouldBe ecBlock1.hash
       }
 
-      d.appendMicroBlockAndVerify(chainContract.startAltChainV3(otherMiner2.account, ecBlock2, d.blockchain.height))
+      d.appendMicroBlockAndVerify(d.chainContract.startAltChain(otherMiner2.account, ecBlock2))
 
       d.waitForCS[FollowingChain]() { s =>
         s.nodeChainInfo.isMain shouldBe false
@@ -124,7 +124,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       step(s"Continue an alternative chain by otherMiner2 ${otherMiner2.address} with ecBlock3 ${ecBlock3.hash}")
       d.advanceNewBlocks(otherMiner2.address)
       val ecBlock3Epoch = d.blockchain.height
-      d.appendMicroBlockAndVerify(chainContract.extendAltChainV3(otherMiner2.account, 1, ecBlock3, ecBlock3Epoch))
+      d.appendMicroBlockAndVerify(d.chainContract.extendAltChain(otherMiner2.account, ecBlock3, chainId = 1))
 
       d.waitForCS[FollowingChain]() { s =>
         s.nodeChainInfo.isMain shouldBe false
@@ -157,7 +157,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       step(s"Start a new epoch of otherMiner1 ${otherMiner1.address} with ecBlock1 ${ecBlock1.hash}")
       d.advanceNewBlocks(otherMiner1.address)
       d.ecClients.addKnown(ecBlock1)
-      d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(otherMiner1.account, ecBlock1, d.blockchain.height))
+      d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(otherMiner1.account, ecBlock1))
 
       d.waitForCS[FollowingChain]() { s =>
         s.nodeChainInfo.isMain shouldBe true
@@ -167,7 +167,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       val ecBadBlock2 = d.createEcBlockBuilder("0-0", otherMiner1, ecBlock1).rewardPrevMiner().buildAndSetLogs()
       step(s"Start a new epoch of otherMiner1 ${otherMiner1.address} with ecBadBlock2 ${ecBadBlock2.hash}")
       d.advanceNewBlocks(otherMiner1.address)
-      d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(otherMiner1.account, ecBadBlock2, d.blockchain.height))
+      d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(otherMiner1.account, ecBadBlock2))
 
       d.waitForCS[FollowingChain]() { s =>
         s.nodeChainInfo.isMain shouldBe true
@@ -196,7 +196,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       val ecBadBlock3 = d.createEcBlockBuilder("0-1-1", otherMiner2, ecBlock2).rewardMiner(otherMiner2.elRewardAddress, 1).buildAndSetLogs()
       step(s"Continue an alternative chain by otherMiner2 ${otherMiner2.address} with ecBadBlock3 ${ecBadBlock3.hash}")
       d.advanceNewBlocks(otherMiner2.address)
-      d.appendMicroBlockAndVerify(chainContract.extendAltChainV3(otherMiner2.account, 1, ecBadBlock3, d.blockchain.height))
+      d.appendMicroBlockAndVerify(d.chainContract.extendAltChain(otherMiner2.account, ecBadBlock3, chainId = 1))
 
       d.waitForCS[FollowingChain]() { s =>
         s.nodeChainInfo.isMain shouldBe false
@@ -223,7 +223,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
         step(s"Start a new epoch of otherMiner1 ${otherMiner1.address} with ecBlock1 ${ecBlock1.hash}")
         d.advanceNewBlocks(otherMiner1.address)
         d.ecClients.addKnown(ecBlock1)
-        d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(otherMiner1.account, ecBlock1, d.blockchain.height))
+        d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(otherMiner1.account, ecBlock1))
 
         d.waitForCS[FollowingChain]() { s =>
           s.nodeChainInfo.isMain shouldBe true
@@ -233,8 +233,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
         val ecBadBlock2 = d.createEcBlockBuilder("0-0", otherMiner1, ecBlock1).rewardPrevMiner().buildAndSetLogs()
         step(s"Start a new epoch of otherMiner1 ${otherMiner1.address} with ecBadBlock2 ${ecBadBlock2.hash}")
         d.advanceNewBlocks(otherMiner1.address)
-        val ecBadBlock2Epoch = d.blockchain.height
-        d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(otherMiner1.account, ecBadBlock2, ecBadBlock2Epoch))
+        d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(otherMiner1.account, ecBadBlock2))
 
         d.waitForCS[FollowingChain]() { s =>
           s.nodeChainInfo.isMain shouldBe true
@@ -249,7 +248,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
           s.chainSwitchInfo.referenceBlock.hash shouldBe ecBlock1.hash
         }
 
-        d.appendMicroBlockAndVerify(chainContract.startAltChainV3(otherMiner2.account, ecBlock2, d.blockchain.height))
+        d.appendMicroBlockAndVerify(d.chainContract.startAltChain(otherMiner2.account, ecBlock2))
 
         d.waitForCS[FollowingChain]() { s =>
           s.nodeChainInfo.isMain shouldBe false
@@ -267,8 +266,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
         val ecBlock3 = d.createEcBlockBuilder("0-1-1", otherMiner2, ecBlock2).rewardPrevMiner(1).buildAndSetLogs()
         step(s"Continue an alternative chain by otherMiner2 ${otherMiner2.address} with ecBlock3 ${ecBlock3.hash}")
         d.advanceNewBlocks(otherMiner2.address)
-        val ecBlock3Epoch = d.blockchain.height
-        d.appendMicroBlockAndVerify(chainContract.extendAltChainV3(otherMiner2.account, 1, ecBlock3, ecBlock3Epoch))
+        d.appendMicroBlockAndVerify(d.chainContract.extendAltChain(otherMiner2.account, ecBlock3, chainId = 1))
 
         d.waitForCS[FollowingChain]() { s =>
           s.nodeChainInfo.isMain shouldBe false

@@ -356,6 +356,9 @@ class ExtensionDomain(
         minerRewardL2Address = minerRewardL2Address
       )
     )
+
+  override def currentHitSource: BlockId =
+    blockchain.hitSource(blockchain.height).getOrElse(throw new RuntimeException(s"Can't get hit source for ${blockchain.height}"))
 }
 
 object ExtensionDomain {

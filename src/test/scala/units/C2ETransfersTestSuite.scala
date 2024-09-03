@@ -63,11 +63,11 @@ class C2ETransfersTestSuite extends BaseIntegrationTestSuite {
     val transferSenderTokenAmount = Long.MaxValue / 2
     d.appendMicroBlock(
       unrelatedAsset,
-      TxHelpers.reissue(d.token, chainContractAccount, transferSenderTokenAmount),
-      TxHelpers.transfer(chainContractAccount, transferSenderAccount.toAddress, transferSenderTokenAmount, d.token)
+      TxHelpers.reissue(d.token, d.chainContractAccount, transferSenderTokenAmount),
+      TxHelpers.transfer(d.chainContractAccount, transferSenderAccount.toAddress, transferSenderTokenAmount, d.token)
     )
-    if (queueSize > 0) d.appendMicroBlock(TxHelpers.data(chainContractAccount, Seq(IntegerDataEntry("nativeTransfersCount", queueSize))))
+    if (queueSize > 0) d.appendMicroBlock(TxHelpers.data(d.chainContractAccount, Seq(IntegerDataEntry("nativeTransfersCount", queueSize))))
 
-    d.appendMicroBlockE(chainContract.transferUnsafe(transferSenderAccount, destElAddressHex, tokenId.getOrElse(d.token), transferAmount))
+    d.appendMicroBlockE(d.chainContract.transferUnsafe(transferSenderAccount, destElAddressHex, tokenId.getOrElse(d.token), transferAmount))
   }
 }

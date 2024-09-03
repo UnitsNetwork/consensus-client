@@ -11,6 +11,7 @@ import org.web3j.abi.TypeReference
 import org.web3j.abi.datatypes.Event
 import org.web3j.abi.datatypes.generated.Bytes20
 import units.ELUpdater.State.ChainStatus.{Mining, WaitForNewChain}
+import units.client.contract.HasConsensusLayerDappTxHelpers.defaultFees
 import units.eth.EthAddress
 import units.util.HexBytesConverter
 
@@ -29,7 +30,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
 
   override protected val defaultSettings: TestSettings = TestSettings.Default.copy(
     initialMiners = List(reliable),
-    additionalBalances = List(AddrWithBalance(transferReceiver.toAddress, chainContract.withdrawFee))
+    additionalBalances = List(AddrWithBalance(transferReceiver.toAddress, defaultFees.chainContract.withdrawFee))
   )
 
   "Multiple withdrawals" in {
@@ -45,8 +46,8 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
 
     val settings = defaultSettings.copy(
       additionalBalances = List(
-        AddrWithBalance(transferReceiver1.toAddress, chainContract.withdrawFee),
-        AddrWithBalance(transferReceiver2.toAddress, chainContract.withdrawFee)
+        AddrWithBalance(transferReceiver1.toAddress, defaultFees.chainContract.withdrawFee),
+        AddrWithBalance(transferReceiver2.toAddress, defaultFees.chainContract.withdrawFee)
       )
     )
 
@@ -54,8 +55,8 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
 
       def tryWithdraw(): Either[Throwable, BlockId] = d.appendMicroBlockE(
-        chainContract.withdraw(transferReceiver1, ecBlock, transfer1Proofs, 0, transfer1.amount),
-        chainContract.withdraw(transferReceiver2, ecBlock, transfer2Proofs, 1, transfer2.amount)
+        d.chainContract.withdraw(transferReceiver1, ecBlock, transfer1Proofs, 0, transfer1.amount),
+        d.chainContract.withdraw(transferReceiver2, ecBlock, transfer2Proofs, 1, transfer2.amount)
       )
 
       step(s"Start new epoch for ecBlock ${ecBlock.hash}")
@@ -64,7 +65,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
 
       step("Append a CL micro block with ecBlock confirmation")
       d.ecClients.addKnown(ecBlock)
-      d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, e2CTransfersRootHashHex))
+      d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(reliable.account, ecBlock, e2CTransfersRootHashHex))
       d.advanceConsensusLayerChanged()
 
       tryWithdraw() should beRight
@@ -92,11 +93,11 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       step(s"Start new epoch with ecBlock ${ecBlock.hash}")
       d.advanceNewBlocks(reliable.address)
       d.ecClients.addKnown(ecBlock)
-      d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, e2CTransfersRootHashHex))
+      d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(reliable.account, ecBlock, e2CTransfersRootHashHex))
       d.advanceConsensusLayerChanged()
 
       def tryWithdraw(): Either[Throwable, BlockId] =
-        d.appendMicroBlockE(chainContract.withdraw(transferReceiver, ecBlock, transferProofs, index, transfer.amount))
+        d.appendMicroBlockE(d.chainContract.withdraw(transferReceiver, ecBlock, transferProofs, index, transfer.amount))
 
       tryWithdraw() should produce(errorMessage)
     }
@@ -115,11 +116,11 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       step(s"Start new epoch with ecBlock ${ecBlock.hash}")
       d.advanceNewBlocks(reliable.address)
       d.ecClients.addKnown(ecBlock)
-      d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, e2CTransfersRootHashHex))
+      d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(reliable.account, ecBlock, e2CTransfersRootHashHex))
       d.advanceConsensusLayerChanged()
 
       def tryWithdraw(): Either[Throwable, BlockId] =
-        d.appendMicroBlockE(chainContract.withdraw(transferReceiver, ecBlock, transferProofs, 0, amount))
+        d.appendMicroBlockE(d.chainContract.withdraw(transferReceiver, ecBlock, transferProofs, 0, amount))
 
       tryWithdraw() should produce("Amount should be positive")
     }
@@ -129,13 +130,13 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
     val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
 
     def tryWithdraw(): Either[Throwable, BlockId] =
-      d.appendMicroBlockE(chainContract.withdraw(transferReceiver, ecBlock, transferProofs, 0, transfer.amount))
+      d.appendMicroBlockE(d.chainContract.withdraw(transferReceiver, ecBlock, transferProofs, 0, transfer.amount))
 
     step(s"Start new epoch with ecBlock ${ecBlock.hash}")
     d.advanceNewBlocks(reliable.address)
     tryWithdraw() should produce("not found for the contract address")
     d.ecClients.addKnown(ecBlock)
-    d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, e2CTransfersRootHashHex))
+    d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(reliable.account, ecBlock, e2CTransfersRootHashHex))
     d.advanceConsensusLayerChanged()
 
     tryWithdraw() should beRight
@@ -147,20 +148,20 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
 
   "Can't get transferred tokens twice" in {
     val settings = defaultSettings.copy(
-      additionalBalances = List(AddrWithBalance(transferReceiver.toAddress, chainContract.withdrawFee * 2))
+      additionalBalances = List(AddrWithBalance(transferReceiver.toAddress, defaultFees.chainContract.withdrawFee * 2))
     )
 
     withExtensionDomain(settings) { d =>
       val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
 
       def tryWithdraw(): Either[Throwable, BlockId] =
-        d.appendMicroBlockE(chainContract.withdraw(transferReceiver, ecBlock, transferProofs, 0, transfer.amount))
+        d.appendMicroBlockE(d.chainContract.withdraw(transferReceiver, ecBlock, transferProofs, 0, transfer.amount))
 
       step(s"Start new epoch with ecBlock ${ecBlock.hash}")
       d.advanceNewBlocks(reliable.address)
       tryWithdraw() should produce("not found for the contract address")
       d.ecClients.addKnown(ecBlock)
-      d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(reliable.account, ecBlock, d.blockchain.height, e2CTransfersRootHashHex))
+      d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(reliable.account, ecBlock, e2CTransfersRootHashHex))
       d.advanceConsensusLayerChanged()
 
       tryWithdraw() should beRight
@@ -189,7 +190,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
         val ecBlock1       = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(transferEvents)
 
         def tryWithdraw(): Either[Throwable, BlockId] =
-          d.appendMicroBlockE(chainContract.withdraw(transferReceiver, ecBlock1, transferProofs, 0, transfer.amount))
+          d.appendMicroBlockE(d.chainContract.withdraw(transferReceiver, ecBlock1, transferProofs, 0, transfer.amount))
 
         step(s"Start new epoch with ecBlock1 ${ecBlock1.hash}")
         d.advanceNewBlocks(reliable.address)
@@ -237,7 +238,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       d.advanceConsensusLayerChanged()
 
       d.ecClients.addKnown(ecBlock1)
-      d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(malfunction.account, ecBlock1, d.blockchain.height))
+      d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(malfunction.account, ecBlock1))
       d.advanceConsensusLayerChanged()
 
       val ecBadBlock2 = d.createEcBlockBuilder("0-0", malfunction, ecBlock1).rewardPrevMiner().buildAndSetLogs(ecBlockLogs)
@@ -246,7 +247,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       d.advanceBlockDelay()
 
       // No root hash in extendMainChain tx
-      d.appendMicroBlockAndVerify(chainContract.extendMainChainV3(malfunction.account, ecBadBlock2, d.blockchain.height)) // No root hash
+      d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(malfunction.account, ecBadBlock2)) // No root hash
       d.receiveNetworkBlock(ecBadBlock2, malfunction.account)
       d.advanceConsensusLayerChanged()
 
@@ -270,15 +271,15 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
 
       step(s"Confirm startAltChain and append with new blocks and remove a malfunction miner")
       d.appendMicroBlockAndVerify(
-        chainContract.startAltChainV3(reliable.account, ecBlock2, d.blockchain.height, e2CTransfersRootHashHex),
-        chainContract.leave(malfunction.account)
+        d.chainContract.startAltChain(reliable.account, ecBlock2, e2CTransfersRootHashHex),
+        d.chainContract.leave(malfunction.account)
       )
       d.advanceConsensusLayerChanged()
 
       d.waitForCS[Mining]("State is expected") { _ => }
 
       def tryWithdraw(): Either[Throwable, BlockId] =
-        d.appendMicroBlockE(chainContract.withdraw(transferReceiver, ecBlock2, transferProofs, 0, transfer.amount))
+        d.appendMicroBlockE(d.chainContract.withdraw(transferReceiver, ecBlock2, transferProofs, 0, transfer.amount))
       withClue("Can't withdraw from a fork:") {
         tryWithdraw() should produce("is not finalized")
       }
@@ -291,7 +292,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
 
       step("Confirm extendAltChain to make this chain main")
       d.advanceBlockDelay()
-      d.appendMicroBlockAndVerify(chainContract.extendAltChainV3(reliable.account, 1, ecBlock3, d.blockchain.height))
+      d.appendMicroBlockAndVerify(d.chainContract.extendAltChain(reliable.account, ecBlock3, chainId = 1))
       d.advanceConsensusLayerChanged()
 
       d.waitForCS[Mining]("State is expected") { _ => }

@@ -12,10 +12,13 @@ import com.wavesplatform.transaction.smart.{InvokeScriptTransaction, SetScriptTr
 import com.wavesplatform.transaction.{Asset, DataTransaction, TxHelpers}
 import units.client.L2BlockLike
 import units.client.contract.HasConsensusLayerDappTxHelpers.*
+import units.client.contract.HasConsensusLayerDappTxHelpers.defaultFees.chainContract.*
 import units.eth.{EthAddress, EthereumConstants}
 import units.util.HexBytesConverter
 
 trait HasConsensusLayerDappTxHelpers {
+  def currentHitSource: ByteStr
+
   def stakingContractAccount: KeyPair
   lazy val stakingContractAddress: Address = stakingContractAccount.toAddress
 
@@ -39,10 +42,8 @@ trait HasConsensusLayerDappTxHelpers {
   }
 
   object chainContract {
-    val setScriptFee                      = 0.05.waves
     def setScript(): SetScriptTransaction = TxHelpers.setScript(chainContractAccount, CompiledChainContract.script, fee = setScriptFee)
 
-    val setupFee = 2.waves
     def setup(genesisBlock: L2BlockLike, elMinerReward: Long, elBridgeAddress: EthAddress): InvokeScriptTransaction = TxHelpers.invoke(
       dApp = chainContractAddress,
       func = "setup".some,
@@ -55,7 +56,6 @@ trait HasConsensusLayerDappTxHelpers {
       fee = setupFee
     )
 
-    val joinFee = 0.1.waves
     def join(minerAccount: KeyPair, elRewardAddress: EthAddress): InvokeScriptTransaction = TxHelpers.invoke(
       invoker = minerAccount,
       dApp = chainContractAddress,
@@ -64,7 +64,6 @@ trait HasConsensusLayerDappTxHelpers {
       fee = joinFee
     )
 
-    val leaveFee = 0.1.waves
     def leave(minerAccount: KeyPair): InvokeScriptTransaction = TxHelpers.invoke(
       invoker = minerAccount,
       dApp = chainContractAddress,
@@ -72,30 +71,28 @@ trait HasConsensusLayerDappTxHelpers {
       fee = leaveFee
     )
 
-    val extendMainChainV3Fee = 0.1.waves
-    def extendMainChainV3(
+    def extendMainChain(
         minerAccount: KeyPair,
         block: L2BlockLike,
-        epoch: Long,
         e2CTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
-        lastC2ETransferIndex: Long = -1
+        lastC2ETransferIndex: Long = -1,
+        vrf: ByteStr = currentHitSource
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = minerAccount,
         dApp = chainContractAddress,
-        func = "extendMainChain_v3".some,
+        func = "extendMainChain_v4".some,
         args = List(
           Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
           Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
-          Terms.CONST_LONG(epoch),
+          Terms.CONST_BYTESTR(vrf).explicitGet(),
           Terms.CONST_STRING(e2CTransfersRootHashHex.drop(2)).explicitGet(),
           Terms.CONST_LONG(lastC2ETransferIndex)
         ),
-        fee = extendMainChainV3Fee
+        fee = extendMainChainFee
       )
 
-    val appendBlockV3Fee = 0.1.waves
-    def appendBlockV3(
+    def appendBlock(
         minerAccount: KeyPair,
         block: L2BlockLike,
         e2CTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
@@ -111,56 +108,53 @@ trait HasConsensusLayerDappTxHelpers {
           Terms.CONST_STRING(e2CTransfersRootHashHex.drop(2)).explicitGet(),
           Terms.CONST_LONG(lastC2ETransferIndex)
         ),
-        fee = appendBlockV3Fee
+        fee = appendBlockFee
       )
 
-    val startAltChainV3Fee = 0.1.waves
-    def startAltChainV3(
+    def startAltChain(
         minerAccount: KeyPair,
         block: L2BlockLike,
-        epoch: Long,
         e2CTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
-        lastC2ETransferIndex: Long = -1
+        lastC2ETransferIndex: Long = -1,
+        vrf: ByteStr = currentHitSource
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = minerAccount,
         dApp = chainContractAddress,
-        func = "startAltChain_v3".some,
+        func = "startAltChain_v4".some,
         args = List(
           Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
           Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
-          Terms.CONST_LONG(epoch),
+          Terms.CONST_BYTESTR(vrf).explicitGet(),
           Terms.CONST_STRING(e2CTransfersRootHashHex.drop(2)).explicitGet(),
           Terms.CONST_LONG(lastC2ETransferIndex)
         ),
-        fee = startAltChainV3Fee
+        fee = startAltChainFee
       )
 
-    val extendAltChainV3Fee = 0.1.waves
-    def extendAltChainV3(
+    def extendAltChain(
         minerAccount: KeyPair,
+        block: L2BlockLike,
         chainId: Long,
-        block: L2BlockLike,
-        epoch: Long,
         e2CTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
-        lastC2ETransferIndex: Long = -1
+        lastC2ETransferIndex: Long = -1,
+        vrf: ByteStr = currentHitSource
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = minerAccount,
         dApp = chainContractAddress,
-        func = "extendAltChain_v3".some,
+        func = "extendAltChain_v4".some,
         args = List(
-          Terms.CONST_LONG(chainId),
           Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
           Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
-          Terms.CONST_LONG(epoch),
+          Terms.CONST_BYTESTR(vrf).explicitGet(),
+          Terms.CONST_LONG(chainId),
           Terms.CONST_STRING(e2CTransfersRootHashHex.drop(2)).explicitGet(),
           Terms.CONST_LONG(lastC2ETransferIndex)
         ),
-        fee = extendAltChainV3Fee
+        fee = extendAltChainFee
       )
 
-    val transferFee = 0.1.waves
     def transfer(
         sender: KeyPair,
         destElAddress: EthAddress,
@@ -192,7 +186,6 @@ trait HasConsensusLayerDappTxHelpers {
         fee = withdrawFee
       )
 
-    val withdrawFee = 0.1.waves
     def withdraw(
         sender: KeyPair,
         block: L2BlockLike,
@@ -217,4 +210,19 @@ trait HasConsensusLayerDappTxHelpers {
 
 object HasConsensusLayerDappTxHelpers {
   val EmptyE2CTransfersRootHashHex = EthereumConstants.NullHex
+
+  object defaultFees {
+    object chainContract {
+      val setScriptFee       = 0.05.waves
+      val setupFee           = 2.waves
+      val joinFee            = 0.1.waves
+      val leaveFee           = 0.1.waves
+      val extendMainChainFee = 0.1.waves
+      val appendBlockFee     = 0.1.waves
+      val startAltChainFee   = 0.1.waves
+      val extendAltChainFee  = 0.1.waves
+      val transferFee        = 0.1.waves
+      val withdrawFee        = 0.1.waves
+    }
+  }
 }
