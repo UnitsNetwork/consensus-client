@@ -270,7 +270,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
 
       step(s"Confirm startAltChain and append with new blocks and remove a malfunction miner")
       d.appendMicroBlockAndVerify(
-        chainContract.startAltChainV3(reliable.account, ecBlock2, d.blockchain.height, e2CTransfersRootHashHex), // TODO check utx?
+        chainContract.startAltChainV3(reliable.account, ecBlock2, d.blockchain.height, e2CTransfersRootHashHex),
         chainContract.leave(malfunction.account)
       )
       d.advanceConsensusLayerChanged()

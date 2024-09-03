@@ -35,19 +35,6 @@ class TestEcBlockBuilder private (
 }
 
 object TestEcBlockBuilder {
-  val emptyEcBlock = EcBlock(
-    hash = createBlockHash("???"),
-    parentHash = createBlockHash("???"),
-    stateRoot = EthereumConstants.EmptyRootHashHex,
-    height = 0,
-    timestamp = 0,
-    minerRewardL2Address = EthAddress.empty,
-    baseFeePerGas = Uint256.DEFAULT,
-    gasLimit = 0,
-    gasUsed = 0,
-    withdrawals = Vector.empty
-  )
-
   def apply(
       testEcClients: TestEcClients,
       elMinerDefaultReward: Gwei,
@@ -57,10 +44,17 @@ object TestEcBlockBuilder {
     new TestEcBlockBuilder(
       testEcClients,
       elMinerDefaultReward,
-      emptyEcBlock.copy(
+      EcBlock(
+        hash = createBlockHash("???"),
         parentHash = parent.hash,
+        stateRoot = EthereumConstants.EmptyRootHashHex,
         height = parent.height + 1,
-        timestamp = parent.timestamp + blockDelay.toSeconds
+        timestamp = parent.timestamp + blockDelay.toSeconds,
+        minerRewardL2Address = EthAddress.empty,
+        baseFeePerGas = Uint256.DEFAULT,
+        gasLimit = 0,
+        gasUsed = 0,
+        withdrawals = Vector.empty
       ),
       parent
     )
