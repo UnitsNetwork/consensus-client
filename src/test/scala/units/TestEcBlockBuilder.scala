@@ -9,7 +9,6 @@ import units.eth.{EthAddress, EthereumConstants, Gwei}
 import java.nio.charset.StandardCharsets
 import scala.concurrent.duration.FiniteDuration
 
-// TODO TestEcBlocks
 class TestEcBlockBuilder private (
     testEcClients: TestEcClients,
     elMinerDefaultReward: Gwei,
@@ -53,13 +52,12 @@ object TestEcBlockBuilder {
       testEcClients: TestEcClients,
       elMinerDefaultReward: Gwei,
       blockDelay: FiniteDuration,
-      parent: EcBlock,
-      block: EcBlock = TestEcBlockBuilder.emptyEcBlock
+      parent: EcBlock
   ): TestEcBlockBuilder =
     new TestEcBlockBuilder(
       testEcClients,
       elMinerDefaultReward,
-      block.copy(
+      emptyEcBlock.copy(
         parentHash = parent.hash,
         height = parent.height + 1,
         timestamp = parent.timestamp + blockDelay.toSeconds
@@ -68,7 +66,4 @@ object TestEcBlockBuilder {
     )
 
   def createBlockHash(path: String): BlockHash = BlockHash(eth.hash(path.getBytes(StandardCharsets.UTF_8)))
-
-  def createWithdrawal(index: Int, elRewardAddress: EthAddress, elMinerReward: Gwei): Withdrawal =
-    Withdrawal(index, elRewardAddress, elMinerReward)
 }
