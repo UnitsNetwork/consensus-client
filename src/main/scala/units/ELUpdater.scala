@@ -280,7 +280,7 @@ class ELUpdater(
     }
   }
 
-  private def checkRandao(networkBlock: NetworkL2Block, epochNumber: Int): Either[String, Unit] =
+  private def validateRandao(networkBlock: NetworkL2Block, epochNumber: Int): Either[String, Unit] =
     blockchain.vrf(epochNumber) match {
       case None => s"VRF of $epochNumber epoch is empty".asLeft
       case Some(vrf) =>
@@ -288,7 +288,7 @@ class ELUpdater(
         Either.cond(
           expectedPrevRandao == networkBlock.prevRandao,
           (),
-          s"expected prevRandao $expectedPrevRandao, got ${networkBlock.prevRandao}, VRF=$vrf of $epochNumber. Wrong epoch?"
+          s"expected prevRandao $expectedPrevRandao, got ${networkBlock.prevRandao}, VRF=$vrf of $epochNumber"
         )
     }
 
@@ -988,7 +988,7 @@ class ELUpdater(
         s"block miner ${networkBlock.minerRewardL2Address} doesn't equal to ${epochInfo.rewardAddress}"
       )
       _      <- checkSignature(networkBlock, isConfirmed)
-      _      <- checkRandao(networkBlock, contractBlock.fold(epochInfo.number)(_.epoch))
+      _      <- if (contractBlock.isEmpty) validateRandao(networkBlock, epochInfo.number) else Either.unit
       result <- preValidateWithdrawals(networkBlock, epochInfo, contractBlock)
     } yield result).leftMap { err =>
       s"Block ${networkBlock.hash} validation error: $err, ignoring block"
@@ -998,12 +998,14 @@ class ELUpdater(
   private def validateBlock(
       networkBlock: NetworkL2Block,
       parentEcBlock: EcBlock,
+      contractBlock: Option[ContractBlock],
       expectReward: Boolean,
       chainContractOptions: ChainContractOptions
   ): Job[Unit] = {
     (for {
       _ <- validateTimestamp(networkBlock, parentEcBlock)
       _ <- validateWithdrawals(networkBlock, parentEcBlock, expectReward, chainContractOptions)
+      _ <- contractBlock.fold(Either.unit[String])(cb => validateRandao(networkBlock, cb.epoch))
     } yield ()).leftMap(err => ClientError(s"Network block ${networkBlock.hash} validation error: $err"))
   }
 
@@ -1092,7 +1094,7 @@ class ELUpdater(
         logger.debug(err)
       case Right(preValidationResult) =>
         val applyResult = for {
-          _ <- validateBlock(networkBlock, expectedParent, preValidationResult.expectReward, prevState.options)
+          _ <- validateBlock(networkBlock, expectedParent, contractBlock, preValidationResult.expectReward, prevState.options)
           _ = logger.debug(s"Block ${networkBlock.hash} was partially validated, trying to apply and broadcast")
           _ <- engineApiClient.applyNewPayload(networkBlock.payload)
         } yield ()
