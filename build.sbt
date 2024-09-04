@@ -47,12 +47,7 @@ def makeJarName(
 
 def getJarFullFilename(dep: Attributed[File]): String = {
   val filename: Option[String] = for {
-    module <-
-      dep.metadata
-        // sbt 0.13.x key
-        .get(AttributeKey[ModuleID]("module-id"))
-        // sbt 1.x key
-        .orElse(dep.metadata.get(AttributeKey[ModuleID]("moduleID")))
+    module   <- dep.metadata.get(AttributeKey[ModuleID]("moduleID"))
     artifact <- dep.metadata.get(AttributeKey[Artifact]("artifact"))
   } yield makeJarName(module.organization, module.name, module.revision, artifact.name, artifact.classifier)
   filename.getOrElse(dep.data.getName)
@@ -65,18 +60,18 @@ def universalDepMappings(deps: Seq[Attributed[File]]): Seq[(File, String)] =
 
 Universal / mappings += {
   val jar = (Compile / packageBin).value
-  val id = projectID.value
+  val id  = projectID.value
   val art = (Compile / packageBin / artifact).value
   jar -> ("lib/" + makeJarName(id.organization, id.name, id.revision, art.name, art.classifier))
 }
 Universal / mappings ++= universalDepMappings((Runtime / dependencyClasspath).value.filterNot { p =>
-  p.get(AttributeKey[ModuleID]("moduleID")).exists { m => false
-//    m.organization == "org.scala-lang" ||
-//    m.organization.startsWith("com.fasterxml.jackson")
+  p.get(AttributeKey[ModuleID]("moduleID")).exists { m =>
+    m.organization == "org.scala-lang" ||
+    m.organization.startsWith("com.fasterxml.jackson")
   }
 })
 
-lazy val buildTarballsForDocker = taskKey[Unit]("Package node and grpc-server tarballs and copy them to docker/target")
+lazy val buildTarballsForDocker = taskKey[Unit]("Package consensus-client tarball and copy it to docker/target")
 buildTarballsForDocker := {
   IO.copyFile(
     (Universal / packageZipTarball).value,

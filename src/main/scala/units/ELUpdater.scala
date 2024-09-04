@@ -179,7 +179,7 @@ class ELUpdater(
       Proofs.empty,
       blockchain.settings.addressSchemeCharacter.toByte
     ).signWith(invoker.privateKey)
-    logger.info(s"Invoking $contractAddress '${fc.function.funcName}' for block ${blockData.hash}->${blockData.parentHash}, txId=${tx.json()}")
+    logger.info(s"Invoking $contractAddress '${fc.function.funcName}' for block ${blockData.hash}->${blockData.parentHash}, txId=${tx.id()}")
     cleanPriorityPool()
 
     broadcastTx(tx).resultE match {
