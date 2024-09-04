@@ -197,7 +197,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
         d.ecClients.willForge(ecBlock1)
         d.advanceConsensusLayerChanged()
 
-        d.advanceBlockDelay()
+        d.advanceMining()
         withClue("Transaction added to UTX pool: ") {
           val (txsOpt, _, _) = d.utxPool.packUnconfirmed(MultiDimensionalMiningConstraint.Unlimited, None)
           d.appendMicroBlockAndVerify(txsOpt.value*)
@@ -244,7 +244,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       val ecBadBlock2 = d.createEcBlockBuilder("0-0", malfunction, ecBlock1).rewardPrevMiner().buildAndSetLogs(ecBlockLogs)
       step(s"Try to append a block with a wrong transfers root hash ${ecBadBlock2.hash}")
       d.advanceNewBlocks(malfunction.address)
-      d.advanceBlockDelay()
+      d.advanceConsensusLayerChanged()
 
       // No root hash in extendMainChain tx
       d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(malfunction.account, ecBadBlock2)) // No root hash
@@ -261,13 +261,16 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       d.ecClients.willForge(ecBlock2)
       // Prepare a following block, because we start mining it immediately
       d.ecClients.willForge(d.createEcBlockBuilder("0-1-1", reliable, ecBlock2).build())
-      d.advanceConsensusLayerChanged()
 
+      d.advanceConsensusLayerChanged()
       d.waitForCS[Mining]("State is expected") { s =>
         s.nodeChainInfo.left.value.referenceBlock.hash shouldBe ecBlock1.hash
       }
 
-      d.advanceBlockDelay() // Forge ecBlock2
+      d.advanceMining()
+      d.waitForCS[Mining]("State is expected") { s =>
+        s.nodeChainInfo.left.value.referenceBlock.hash shouldBe ecBlock1.hash
+      }
 
       step(s"Confirm startAltChain and append with new blocks and remove a malfunction miner")
       d.appendMicroBlockAndVerify(
@@ -291,7 +294,8 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       d.advanceConsensusLayerChanged()
 
       step("Confirm extendAltChain to make this chain main")
-      d.advanceBlockDelay()
+      d.advanceMining()
+
       d.appendMicroBlockAndVerify(d.chainContract.extendAltChain(reliable.account, ecBlock3, chainId = 1))
       d.advanceConsensusLayerChanged()
 

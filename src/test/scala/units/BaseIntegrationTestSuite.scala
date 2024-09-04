@@ -1,6 +1,5 @@
 package units
 
-import com.wavesplatform.account.KeyPair
 import com.wavesplatform.database.{RDB, loadActiveLeases}
 import com.wavesplatform.db.WithDomain
 import com.wavesplatform.db.WithState.AddrWithBalance
@@ -17,7 +16,6 @@ import units.eth.{EthAddress, Gwei}
 import units.test.CustomMatchers
 import units.util.HexBytesConverter
 
-import java.nio.charset.StandardCharsets
 import java.util.concurrent.ThreadLocalRandom
 
 trait BaseIntegrationTestSuite
@@ -71,10 +69,7 @@ trait BaseIntegrationTestSuite
           blockchainUpdater = bcu,
           rocksDBWriter = blockchain,
           settings = settings.wavesSettings,
-          elMinerDefaultReward = elMinerDefaultReward,
-          // TODO remove
-          chainContractAccount = KeyPair("chain-contract".getBytes(StandardCharsets.UTF_8)),
-          stakingContractAccount = KeyPair("staking-contract".getBytes(StandardCharsets.UTF_8))
+          elMinerDefaultReward = elMinerDefaultReward
         )
 
         d.wallet.generateNewAccounts(2) // Enough for now

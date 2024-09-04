@@ -47,6 +47,7 @@ import units.eth.{EthAddress, EthereumConstants, Gwei}
 import units.network.TestBlocksObserver
 import units.test.CustomMatchers
 
+import java.nio.charset.StandardCharsets
 import scala.annotation.tailrec
 import scala.concurrent.Await
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
@@ -57,14 +58,15 @@ class ExtensionDomain(
     blockchainUpdater: BlockchainUpdaterImpl,
     rocksDBWriter: RocksDBWriter,
     settings: WavesSettings,
-    elMinerDefaultReward: Gwei,
-    override val chainContractAccount: KeyPair,
-    override val stakingContractAccount: KeyPair
+    elMinerDefaultReward: Gwei
 ) extends Domain(rdb, blockchainUpdater, rocksDBWriter, settings)
     with HasConsensusLayerDappTxHelpers
     with CustomMatchers
     with AutoCloseable
     with ScorexLogging { self =>
+  override val chainContractAccount: KeyPair   = KeyPair("chain-contract".getBytes(StandardCharsets.UTF_8))
+  override val stakingContractAccount: KeyPair = KeyPair("staking-contract".getBytes(StandardCharsets.UTF_8))
+
   val l2Config = settings.config.as[ClientConfig]("waves.l2")
   require(l2Config.chainContractAddress == chainContractAddress, "Check settings")
 
@@ -301,12 +303,6 @@ class ExtensionDomain(
     log.trace(s"$name($x)")
     testTime.advance(x)
     eluScheduler.tick(x)
-  }
-
-  // TODO
-  def advanceBlockDelay(triggerSchedulers: Boolean = true): Unit = {
-    log.trace(s"advanceBlockDelay($triggerSchedulers)")
-    advanceAllTasks(l2Config.blockDelay, triggerSchedulers)
   }
 
   def triggerScheduledTasks(silent: Boolean = false): Unit = {

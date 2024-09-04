@@ -95,7 +95,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
 
           step("Start new epoch for ecBlock2")
           d.advanceNewBlocks(malfunction.address)
-          d.advanceBlockDelay() // TODO
+          d.advanceConsensusLayerChanged()
 
           val ecBlock2 = badBlockPostProcessing(d.createEcBlockBuilder("0-0", malfunction, ecBlock1).rewardPrevMiner().buildAndSetLogs(blockLogs))
 
