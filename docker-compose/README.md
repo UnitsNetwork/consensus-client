@@ -12,7 +12,7 @@ You have to build consensus client. Run [./consensus_client-image-build.sh](./co
 
 ## How to start
 
-- Run `./images-all-build.sh` after pulling the repository, so docker compose will pull new external images and rebuild
+- Run `./all-images-build.sh` after pulling the repository, so docker compose will pull new external images and rebuild
   the `deploy` image.
 - If you need to run Blockscout, run `BS=1 ./restart.sh`. Otherwise, just [./restart.sh](./restart.sh).
 - If deploy failed, and you want to retry, run `./deploy-run.sh`.
