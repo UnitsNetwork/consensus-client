@@ -8,31 +8,14 @@
 
 ## Pre-requirements
 
-You have to build [consensus client](https://github.com/UnitsNetwork/consensus-client). Go to a cloned repository, build
-the image from the `main` branch:
-
-```bash
-sbt -J-Xmx4G -J-Xss4m -Dfile.encoding=UTF-8 buildTarballsForDocker && \
-docker build -t unitsnetwork/consensus-client:main docker
-```
-
-### FAQ
-
-- [Besu configuration](configs/besu/).
-
-### Troubleshooting
-
-If you have:
-> [error] [launcher] error during sbt launcher: java.lang.OutOfMemoryError: Java heap space
-
-try to change 2048 to 3072 in `build-with-docker.sh`
+You have to build consensus client. Run [./consensus_client-image-build.sh](./consensus_client-image-build.sh)
 
 ## How to start
 
-- Run `./build.sh` after pulling the repository, so docker compose will pull new external images and rebuild
+- Run `./images-all-build.sh` after pulling the repository, so docker compose will pull new external images and rebuild
   the `deploy` image.
 - If you need to run Blockscout, run `BS=1 ./restart.sh`. Otherwise, just [./restart.sh](./restart.sh).
-- If deploy failed and you want to retry, run `./deploy-run.sh`.
+- If deploy failed, and you want to retry, run `./deploy-run.sh`.
 
 ## How to stop
 
@@ -109,3 +92,13 @@ For example, we will deploy a `HelloWorld`:
 2. If you want to deploy a contract via Explorer ("Contracts" tab), make sure you've chosen not a nightly version and it
    matches [bridge.sol](./deploy/setup/el/bridge.sol).
  
+# Useful links
+
+## Besu configuration
+
+See [Besu configuration](configs/besu/).
+
+## How to change Waves initial miners or time between blocks
+
+1. Update [genesis-template.conf](./configs/wavesnode/common/genesis-template.conf).
+2. [genesis.conf](./configs/wavesnode/common/genesis.conf) will be updated in [restart.sh](./restart.sh).
