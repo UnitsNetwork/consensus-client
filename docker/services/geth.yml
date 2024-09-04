@@ -1,0 +1,49 @@
+services:
+  geth-init:
+    container_name: geth-init
+    image: ethereum/client-go:stable
+    entrypoint: /tmp/init-geth.sh
+    volumes:
+      - ../genesis-${NETWORK}.json:/tmp/genesis.json
+      - ../data/geth:/root/.ethereum
+      - ../init-geth.sh:/tmp/init-geth.sh
+  geth:
+    container_name: geth
+    image: ethereum/client-go:stable
+    pull_policy: always
+    stop_grace_period: 5m
+    command:
+      - --verbosity=4
+      - --http
+      - --http.addr=0.0.0.0
+      - --http.vhosts=*
+      - --http.api=eth,web3,txpool,net,debug,engine
+      - --http.corsdomain=*
+      - --ws
+      - --ws.addr=0.0.0.0
+      - --ws.api=eth,web3,txpool,net,debug
+      - --ws.rpcprefix=/
+      - --ws.origins=*
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.vhosts=*
+      - --discovery.dns=enrtree://AIRIZFFZSCSIVHXTKA44WYZQJMR75FLTGWJ5TUNEW5IP7QKZDLBRK@${NETWORK}-nodes.unit0.dev
+      - --networkid=88817
+      - --authrpc.jwtsecret=/etc/secrets/jwtsecret
+      - --nodekey=/etc/secrets/p2p-key
+      - --nat=extip:65.108.122.140
+    logging:
+      driver: local
+      options:
+        max-size: 1g
+        max-file: 5
+    volumes:
+      - ../data/secrets:/etc/secrets:ro
+      - ../data/geth:/root/.ethereum
+    ports:
+      - '30303:30303/tcp'
+      - '30303:30303/udp'
+    healthcheck:
+      test: 'wget -qO /dev/null --header "content-type: application/json" --post-data {\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}  http://127.0.0.1:8545'
+      interval: 5s
+      timeout: 1s
+      retries: 10
