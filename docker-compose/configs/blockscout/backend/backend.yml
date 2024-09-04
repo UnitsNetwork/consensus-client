@@ -1,0 +1,14 @@
+services:
+  backend:
+    container_name: bs-backend
+    hostname: bs-backend
+    image: blockscout/blockscout:${BLOCKSCOUT_DOCKER_TAG:-latest}
+    restart: always
+    stop_grace_period: 20s
+    command: sh -c "bin/blockscout eval \"Elixir.Explorer.ReleaseTasks.create_and_migrate()\" && bin/blockscout start"
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    env_file:
+      -  ./bs-backend.env
+    volumes:
+      - ../../../logs/bs-backend/:/app/logs/prod

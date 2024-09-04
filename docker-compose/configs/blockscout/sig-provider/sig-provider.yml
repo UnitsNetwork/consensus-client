@@ -1,0 +1,6 @@
+services:
+  sig-provider:
+    container_name: sig-provider
+    image: ghcr.io/blockscout/sig-provider:${SIG_PROVIDER_DOCKER_TAG:-latest}
+    platform: linux/amd64 # No ARM image for now
+    restart: always

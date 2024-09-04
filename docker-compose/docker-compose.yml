@@ -1,0 +1,116 @@
+name: l2
+include:
+  - ./configs/blockscout/${BS-enabled}.yml
+services:
+  besu-1:
+    container_name: besu-1
+    hostname: besu-1
+    # To update use: docker pull hyperledger/besu:latest
+    image: hyperledger/besu:latest # Debug version: besu-debug:latest , see _debug/
+    ports:
+      - "0.0.0.0:18551:8551" # Engine port
+      - "0.0.0.0:18545:8545" # RPC port, for Metamask e.g.
+      - "0.0.0.0:18546:8546" # WebSocket
+    volumes:
+      - ./logs/besu-1:/opt/besu/logs
+      - ./configs/besu:/config:ro
+    environment:
+      - LOG4J_CONFIGURATION_FILE=/config/log4j2.xml
+    command:
+      - '--config-file=/config/besu-1.conf'
+
+  besu-1-check:
+    container_name: besu-1-check
+    image: curlimages/curl:8.8.0
+    command: >
+      --retry 20 
+      --retry-all-errors 
+      --retry-max-time 60 
+      -d '{"jsonrpc":"2.0","method":"engine_exchangeCapabilities","params":[[]],"id":1}' 
+      http://besu-1:8551
+    depends_on:
+      - besu-1
+
+  besu-2:
+    container_name: besu-2
+    hostname: besu-2
+    image: hyperledger/besu:latest
+    ports:
+      - "0.0.0.0:28551:8551" # Engine port
+      - "0.0.0.0:28545:8545" # RPC port
+    volumes:
+      - ./logs/besu-2:/opt/besu/logs
+      - ./configs/besu:/config:ro
+    environment:
+      - LOG4J_CONFIGURATION_FILE=/config/log4j2.xml
+    command:
+      - '--config-file=/config/besu-2.conf'
+
+  besu-2-check:
+    container_name: besu-2-check
+    image: curlimages/curl:8.8.0
+    command: >
+      --retry 20 
+      --retry-all-errors 
+      --retry-max-time 60 
+      -d '{"jsonrpc":"2.0","method":"engine_exchangeCapabilities","params":[[]],"id":1}' 
+      http://besu-2:8551
+    depends_on:
+      - besu-2
+
+  wavesnode-1:
+    container_name: wavesnode-1
+    hostname: wavesnode-1
+    image: unitsnetwork/consensus-client:${WAVES_NODE_1_TAG:-main}
+    ports:
+      - "0.0.0.0:16869:6869"
+    environment:
+      - WAVES_HEAP_SIZE=2g
+      - JAVA_OPTS=-Dwaves.config.directory=/etc/waves -Dlogback.file.level=TRACE
+      - NODE_NUMBER=1
+    volumes:
+      - ./data/wavesnode-1:/var/lib/waves
+      - ./logs/wavesnode-1:/var/log/waves
+      - ./configs/wavesnode/common:/etc/waves/common:ro
+      - ./configs/wavesnode/common/logback.xml:/etc/waves/logback.xml:ro
+      - ./configs/wavesnode/waves-1.conf:/etc/waves/waves.conf:ro
+    depends_on:
+      besu-1-check:
+        condition: service_completed_successfully
+
+  wavesnode-2:
+    container_name: wavesnode-2
+    hostname: wavesnode-2
+    image: unitsnetwork/consensus-client:${WAVES_NODE_2_TAG:-main}
+    ports:
+      - "0.0.0.0:26869:6869"
+    environment:
+      - WAVES_HEAP_SIZE=2g
+      - JAVA_OPTS=-Dwaves.config.directory=/etc/waves -Dlogback.file.level=TRACE
+      - NODE_NUMBER=2
+    volumes:
+      - ./data/wavesnode-2:/var/lib/waves
+      - ./logs/wavesnode-2:/var/log/waves
+      - ./configs/wavesnode/common:/etc/waves/common:ro
+      - ./configs/wavesnode/common/logback.xml:/etc/waves/logback.xml:ro
+      - ./configs/wavesnode/waves-2.conf:/etc/waves/waves.conf:ro
+    depends_on:
+      besu-2-check:
+        condition: service_completed_successfully
+
+  deploy:
+    container_name: deploy
+    build: ./deploy/
+    restart: no # Manual start
+    platform: linux/amd64 # HACK for Apple Silicon
+    environment:
+      DEPLOY_LOG_DIR: /home/node/logs
+    volumes:
+      - ./deploy:/home/node/app
+      - ./logs/deploy:/home/node/logs
+      - /home/node/app/node_modules # Ignore this subdirectory
+    depends_on:
+      - wavesnode-1
+      - wavesnode-2
+      - besu-1
+      - besu-2
