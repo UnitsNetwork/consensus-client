@@ -11,8 +11,8 @@ import cats.syntax.either.*
 
 abstract class ContractFunction(name: String, reference: BlockHash, extraArgs: Either[CommonError, List[EVALUATED]]) {
   def toFunctionCall(blockHash: BlockHash, transfersRootHash: Digest, lastClToElTransferIndex: Long): Job[FUNCTION_CALL] = (for {
-    hash <- CONST_STRING(blockHash)
-    ref  <- CONST_STRING(reference)
+    hash <- CONST_STRING(blockHash.drop(2))
+    ref  <- CONST_STRING(reference.drop(2))
     trh  <- CONST_STRING(toHexNoPrefix(transfersRootHash))
     xtra <- extraArgs
   } yield FUNCTION_CALL(
