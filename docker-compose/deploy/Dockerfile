@@ -1,10 +1,10 @@
-FROM node:18-bullseye-slim
+FROM node:18-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     curl \
-    && pip3 install solc-select \
+    && pip3 install solc-select --break-system-packages \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 WORKDIR /home/node/app

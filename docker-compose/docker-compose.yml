@@ -102,7 +102,9 @@ services:
 
   deploy:
     container_name: deploy
-    build: ./deploy/
+    build:
+      context: ./deploy/
+      network: host
     restart: no # Manual start
     platform: linux/amd64 # HACK for Apple Silicon
     environment:
