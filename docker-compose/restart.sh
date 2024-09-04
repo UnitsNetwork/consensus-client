@@ -21,6 +21,6 @@ export BS=${BS:+enabled}
 export BS=${BS:-disabled}
 echo "BlockScout is ${BS}"
 
-./update-genesis.sh
+./genesis-update.sh
 docker compose up -d
 docker logs deploy -f
