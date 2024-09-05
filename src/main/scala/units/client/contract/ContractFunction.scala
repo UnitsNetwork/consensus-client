@@ -1,14 +1,14 @@
 package units.client.contract
 
+import cats.syntax.either.*
 import com.wavesplatform.common.merkle.Digest
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.lang.CommonError
 import com.wavesplatform.lang.v1.FunctionHeader
 import com.wavesplatform.lang.v1.compiler.Terms.{CONST_BYTESTR, CONST_LONG, CONST_STRING, EVALUATED, FUNCTION_CALL}
-import units.{BlockHash, ClientError, Job}
-import units.util.HexBytesConverter.toHexNoPrefix
-import cats.syntax.either.*
 import org.web3j.utils.Numeric.cleanHexPrefix
+import units.util.HexBytesConverter.toHexNoPrefix
+import units.{BlockHash, ClientError, Job}
 
 abstract class ContractFunction(name: String, reference: BlockHash, extraArgs: Either[CommonError, List[EVALUATED]]) {
   def toFunctionCall(blockHash: BlockHash, transfersRootHash: Digest, lastClToElTransferIndex: Long): Job[FUNCTION_CALL] = (for {

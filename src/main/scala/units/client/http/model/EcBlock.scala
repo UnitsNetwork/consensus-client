@@ -25,7 +25,7 @@ case class EcBlock(
     baseFeePerGas: Uint256,
     gasLimit: Long,
     gasUsed: Long,
-    withdrawals: Vector[Withdrawal],
+    withdrawals: Vector[Withdrawal]
 ) extends L2BlockLike
 
 object EcBlock {

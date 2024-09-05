@@ -5,15 +5,15 @@ import com.wavesplatform.account.{Address, PublicKey}
 import com.wavesplatform.block.BlockHeader
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.consensus.{FairPoSCalculator, PoSCalculator}
+import com.wavesplatform.lang.Global
+import com.wavesplatform.serialization.ByteBufferOps
+import com.wavesplatform.state.{BinaryDataEntry, Blockchain, DataEntry, EmptyDataEntry, IntegerDataEntry, StringDataEntry}
 import units.BlockHash
 import units.client.contract.ChainContractClient.*
 import units.client.staking.StakingContractClient
 import units.eth.{EthAddress, Gwei}
 import units.util.HexBytesConverter
 import units.util.HexBytesConverter.*
-import com.wavesplatform.lang.Global
-import com.wavesplatform.serialization.ByteBufferOps
-import com.wavesplatform.state.{BinaryDataEntry, Blockchain, DataEntry, EmptyDataEntry, IntegerDataEntry, StringDataEntry}
 
 import java.nio.ByteBuffer
 import scala.reflect.ClassTag
@@ -22,6 +22,8 @@ trait ChainContractClient {
   def contract: Address
 
   def extractData(key: String): Option[DataEntry[?]]
+
+  def isContractSetup: Boolean = getLongData("minerReward").isDefined
 
   def getLastBlockMeta(chainId: Long): Option[ContractBlock] =
     for {
@@ -64,17 +66,17 @@ trait ChainContractClient {
         val clGenerator = ByteStr(bb.getByteArray(Address.AddressLength))
         val chainId     = if (bb.remaining() >= 8) bb.getLong() else 0L
 
-        val elToClTransfersRootHash =
+        val e2CTransfersRootHash =
           if (bb.remaining() >= ContractBlock.ElToClTransfersRootHashLength) bb.getByteArray(ContractBlock.ElToClTransfersRootHashLength)
           else Array.emptyByteArray
 
-        val lastClToElTransferIndex = if (bb.remaining() >= 8) bb.getLong() else -1L
+        val lastC2ETransferIndex = if (bb.remaining() >= 8) bb.getLong() else -1L
 
         require(
           !bb.hasRemaining,
           s"Not parsed ${bb.remaining()} bytes from ${blockMeta.base64}, read data: " +
             s"chainHeight=$chainHeight, epoch=$epoch, parentHash=$parentHash, clGenerator=$clGenerator, chainId=$chainId, " +
-            s"elToClTransfersRootHash=${HexBytesConverter.toHex(elToClTransfersRootHash)}, lastClToElTransferIndex=$lastClToElTransferIndex"
+            s"e2CTransfersRootHash=${HexBytesConverter.toHex(e2CTransfersRootHash)}, lastC2ETransferIndex=$lastC2ETransferIndex"
         )
 
         val minerRewardElAddress =
@@ -89,8 +91,8 @@ trait ChainContractClient {
           clGenerator,
           minerRewardElAddress,
           chainId,
-          elToClTransfersRootHash,
-          lastClToElTransferIndex
+          e2CTransfersRootHash,
+          lastC2ETransferIndex
         )
       } catch {
         case e: Throwable => fail(s"Can't read a block $hash meta, bytes: ${blockMeta.base64}, remaining: ${bb.remaining()}", e)

@@ -1,3 +1,5 @@
+Global / onChangedBuildSource := ReloadOnSourceChanges
+
 enablePlugins(UniversalDeployPlugin, GitVersioning)
 
 git.useGitDescribe       := true
