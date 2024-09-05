@@ -1,5 +1,9 @@
 package units.client.engine
 
+import cats.syntax.either.*
+import cats.syntax.traverse.*
+import play.api.libs.json.*
+import sttp.client3.*
 import units.client.JsonRpcClient
 import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.HttpEngineApiClient.*
@@ -7,8 +11,6 @@ import units.client.engine.model.*
 import units.client.engine.model.ForkChoiceUpdatedRequest.ForkChoiceAttributes
 import units.eth.EthAddress
 import units.{BlockHash, ClientConfig, ClientError, Job}
-import play.api.libs.json.*
-import sttp.client3.*
 
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 
@@ -17,7 +19,10 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
   val apiUrl = uri"http://${config.executionClientAddress}:${config.engineApiPort}"
 
   def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): Job[String] = {
-    sendEngineRequest[ForkChoiceUpdatedRequest, ForkChoiceUpdatedResponse](ForkChoiceUpdatedRequest(blockHash, finalizedBlockHash, None), BlockExecutionTimeout)
+    sendEngineRequest[ForkChoiceUpdatedRequest, ForkChoiceUpdatedResponse](
+      ForkChoiceUpdatedRequest(blockHash, finalizedBlockHash, None),
+      BlockExecutionTimeout
+    )
       .flatMap {
         case ForkChoiceUpdatedResponse(PayloadStatus(status, _, _), None) if status == "SYNCING" || status == "VALID" => Right(status)
         case ForkChoiceUpdatedResponse(PayloadStatus(_, _, Some(validationError)), _) =>
@@ -71,6 +76,41 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
     sendEngineRequest[GetPayloadBodyByHash, JsArray](GetPayloadBodyByHash(hash), NonBlockExecutionTimeout)
       .map(_.value.headOption.flatMap(_.asOpt[JsObject]))
   }
+
+  def getBlockByNumber(number: BlockNumber): Job[Option[EcBlock]] = {
+    for {
+      json      <- getBlockByNumberJson(number.str)
+      blockMeta <- json.traverse(parseJson[EcBlock](_))
+    } yield blockMeta
+  }
+
+  def getBlockByHash(hash: BlockHash): Job[Option[EcBlock]] = {
+    sendRequest[GetBlockByHashRequest, EcBlock](GetBlockByHashRequest(hash, fullTxs = false))
+      .leftMap(err => ClientError(s"Error getting block by hash $hash: $err"))
+  }
+
+  def getBlockByHashJson(hash: BlockHash, fullTxs: Boolean = false): Job[Option[JsObject]] = {
+    sendRequest[GetBlockByHashRequest, JsObject](GetBlockByHashRequest(hash, fullTxs))
+      .leftMap(err => ClientError(s"Error getting block json by hash $hash: $err"))
+  }
+
+  def getLastExecutionBlock: Job[EcBlock] = for {
+    lastEcBlockOpt <- getBlockByNumber(BlockNumber.Latest)
+    lastEcBlock    <- Either.fromOption(lastEcBlockOpt, ClientError("Impossible: EC doesn't have blocks"))
+  } yield lastEcBlock
+
+  def blockExists(hash: BlockHash): Job[Boolean] =
+    getBlockByHash(hash).map(_.isDefined)
+
+  private def getBlockByNumberJson(number: String): Job[Option[JsObject]] = {
+    sendRequest[GetBlockByNumberRequest, JsObject](GetBlockByNumberRequest(number))
+      .leftMap(err => ClientError(s"Error getting block by number $number: $err"))
+  }
+
+  override def getLogs(hash: BlockHash, topic: String): Job[List[GetLogsResponseEntry]] =
+    sendRequest[GetLogsRequest, List[GetLogsResponseEntry]](GetLogsRequest(hash, List(topic)))
+      .leftMap(err => ClientError(s"Error getting block logs by hash $hash: $err"))
+      .map(_.getOrElse(List.empty))
 
   private def sendEngineRequest[A: Writes, B: Reads](request: A, timeout: FiniteDuration): Job[B] = {
     sendRequest(request, timeout) match {

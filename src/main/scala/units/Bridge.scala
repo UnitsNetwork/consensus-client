@@ -7,7 +7,7 @@ import com.wavesplatform.utils.EthEncoding
 import org.web3j.abi.datatypes.Event
 import org.web3j.abi.datatypes.generated.{Bytes20, Int64}
 import org.web3j.abi.{FunctionReturnDecoder, TypeEncoder, TypeReference}
-import units.client.http.model.GetLogsResponseEntry
+import units.client.engine.model.GetLogsResponseEntry
 import units.eth.Gwei
 
 import java.math.BigInteger

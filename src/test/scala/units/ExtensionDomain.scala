@@ -41,7 +41,7 @@ import units.ELUpdater.State.{ChainStatus, Working}
 import units.ExtensionDomain.*
 import units.client.contract.HasConsensusLayerDappTxHelpers
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
-import units.client.http.model.{EcBlock, TestEcBlocks}
+import units.client.engine.model.{EcBlock, TestEcBlocks}
 import units.client.{L2BlockLike, TestEcClients}
 import units.eth.{EthAddress, EthereumConstants, Gwei}
 import units.network.TestBlocksObserver
@@ -122,7 +122,6 @@ class ExtensionDomain(
     l2Config,
     extensionContext,
     ecClients.engineApi,
-    ecClients.ecApi,
     blockObserver,
     allChannels,
     globalScheduler,

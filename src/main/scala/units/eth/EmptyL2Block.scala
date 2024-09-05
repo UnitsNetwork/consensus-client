@@ -1,11 +1,11 @@
 package units.eth
 
-import units.BlockHash
-import units.client.http.model.EcBlock
-import units.util.HexBytesConverter
 import org.web3j.abi.datatypes.generated.Uint256
 import org.web3j.rlp.{RlpEncoder, RlpList, RlpString}
 import play.api.libs.json.{JsObject, Json}
+import units.BlockHash
+import units.client.engine.model.EcBlock
+import units.util.HexBytesConverter
 
 object EmptyL2Block {
   case class Params(

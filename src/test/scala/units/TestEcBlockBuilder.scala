@@ -2,8 +2,7 @@ package units
 
 import org.web3j.abi.datatypes.generated.Uint256
 import units.client.TestEcClients
-import units.client.engine.model.Withdrawal
-import units.client.http.model.{EcBlock, GetLogsResponseEntry}
+import units.client.engine.model.{EcBlock, GetLogsResponseEntry, Withdrawal}
 import units.eth.{EthAddress, EthereumConstants, Gwei}
 
 import java.nio.charset.StandardCharsets

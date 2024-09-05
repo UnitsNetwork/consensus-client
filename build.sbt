@@ -80,3 +80,5 @@ buildTarballsForDocker := {
     baseDirectory.value / "docker" / "target" / "consensus-client.tgz"
   )
 }
+
+Test / unmanagedJars += file("src/test/lib/waves-all.jar")

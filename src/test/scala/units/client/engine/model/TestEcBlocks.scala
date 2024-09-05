@@ -1,4 +1,4 @@
-package units.client.http.model
+package units.client.engine.model
 
 import com.wavesplatform.account.SeedKeyPair
 import com.wavesplatform.common.utils.EitherExt2

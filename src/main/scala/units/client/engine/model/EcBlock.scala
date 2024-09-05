@@ -1,14 +1,13 @@
-package units.client.http.model
+package units.client.engine.model
 
-import units.BlockHash
-import units.client.L2BlockLike
-import units.client.engine.model.Withdrawal
-import units.eth.EthAddress
-import units.util.HexBytesConverter.*
 import org.web3j.abi.datatypes.generated.Uint256
 import play.api.libs.functional.syntax.*
 import play.api.libs.json.*
 import play.api.libs.json.Format.GenericFormat
+import units.BlockHash
+import units.client.L2BlockLike
+import units.eth.EthAddress
+import units.util.HexBytesConverter.*
 
 /** Block in EC API, not a payload of Engine API! See BlockHeader in besu.
   * @param timestamp

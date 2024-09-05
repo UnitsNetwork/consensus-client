@@ -9,10 +9,8 @@ import play.api.libs.json.JsObject
 import units.ELUpdater.calculateRandao
 import units.client.TestEcClients.*
 import units.client.engine.EngineApiClient.PayloadId
-import units.client.engine.model.Withdrawal
+import units.client.engine.model.*
 import units.client.engine.{EngineApiClient, LoggedEngineApiClient}
-import units.client.http.model.*
-import units.client.http.{EcApiClient, LoggedEcApiClient}
 import units.collections.ListOps.*
 import units.eth.{EthAddress, EthereumConstants}
 import units.{BlockHash, Job, NetworkL2Block}
@@ -143,12 +141,8 @@ class TestEcClients private (
       }.asRight
 
       override def getPayloadBodyByHash(hash: BlockHash): Job[Option[JsObject]] =
-        ecApi.getBlockByHashJson(hash)
-    }
-  }
+        getBlockByHashJson(hash)
 
-  val ecApi = LoggedEcApiClient {
-    new EcApiClient {
       override def getBlockByNumber(number: BlockNumber): Job[Option[EcBlock]] =
         number match {
           case BlockNumber.Latest    => currChain.headOption.asRight

@@ -4,7 +4,7 @@ import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.transaction.TxHelpers
 import units.ELUpdater.State.ChainStatus.{FollowingChain, WaitForNewChain}
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
-import units.client.http.model.{EcBlock, GetLogsResponseEntry}
+import units.client.engine.model.{EcBlock, GetLogsResponseEntry}
 import units.eth.EthAddress
 import units.util.HexBytesConverter
 

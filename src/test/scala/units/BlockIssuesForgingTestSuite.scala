@@ -6,7 +6,7 @@ import com.wavesplatform.wallet.Wallet
 import units.ELUpdater.State.ChainStatus.{FollowingChain, Mining, WaitForNewChain}
 import units.ELUpdater.WaitRequestedBlockTimeout
 import units.client.contract.HasConsensusLayerDappTxHelpers.defaultFees
-import units.client.http.model.EcBlock
+import units.client.engine.model.EcBlock
 
 import scala.concurrent.duration.DurationInt
 
