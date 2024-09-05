@@ -1,0 +1,74 @@
+services:
+  redis:
+    extends:
+      file: ./redis/redis.yml
+      service: redis
+
+  # db-init:
+  #   extends:
+  #     file: ./services/db.yml
+  #     service: db-init
+
+  db:
+    # depends_on:
+    #   db-init:
+    #     condition: service_completed_successfully
+    extends:
+      file: ./db/db.yml
+      service: db
+
+  backend:
+    depends_on:
+      - db
+      - redis
+      - besu-1
+    extends:
+      file: ./backend/backend.yml
+      service: backend
+
+  # visualizer:
+  #   extends:
+  #     file: ./services/visualizer.yml
+  #     service: visualizer
+
+  sig-provider:
+    extends:
+      file: ./sig-provider/sig-provider.yml
+      service: sig-provider
+
+  frontend:
+    depends_on:
+      - backend
+    extends:
+      file: ./frontend/frontend.yml
+      service: frontend
+
+  # stats-db-init:
+  #   extends:
+  #     file: ./services/stats.yml
+  #     service: stats-db-init
+
+  stats-db:
+    # depends_on:
+    #   stats-db-init:
+    #     condition: service_completed_successfully
+    extends:
+      file: ./stats/stats.yml
+      service: stats-db
+
+  stats:
+    depends_on:
+      - stats-db
+      - backend
+    extends:
+      file: ./stats/stats.yml
+      service: stats
+
+  nginx:
+    depends_on:
+      - backend
+      - frontend
+      - stats
+    extends:
+      file: ./nginx/nginx.yml
+      service: nginx

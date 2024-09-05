@@ -1,0 +1,20 @@
+services:
+  nginx:
+    container_name: nginx
+    image: nginx
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    volumes:
+      - './templates:/etc/nginx/templates'
+      - '../../../logs/nginx:/var/log/nginx'
+    environment:
+      BACK_PROXY_PASS: ${BACK_PROXY_PASS:-http://bs-backend:4000}
+      FRONT_PROXY_PASS: ${FRONT_PROXY_PASS:-http://bs-frontend:3000}
+      BESU_RPC_PROXY_PASS: ${BESU_RPC_PROXY_PASS:-http://besu-1:8545}
+      BESU_WS_PROXY_PASS: ${BESU_WS_PROXY_PASS:-http://besu-1:8546}
+      WAVES_PROXY_PASS: ${WAVES_PROXY_PASS:-http://wavesnode-1:6869}
+    ports:
+      - '0.0.0.0:3000:3000'
+      - '0.0.0.0:3001:3001'
+      - '0.0.0.0:3002:3002'
+      - '0.0.0.0:10001:10001'
