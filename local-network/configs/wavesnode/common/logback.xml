@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<included>
+    <property name="default.pattern" value="%d{HH:mm:ss.SSS}:${NODE_NUMBER} %.-1level [%.-12thread] %logger{0} - %msg%n"/>
+
+    <appender name="CHAIN-CONTRACT" class="ch.qos.logback.core.FileAppender">
+        <file>/var/log/waves/ChainContractSnapshotClient.log</file>
+        <encoder>
+            <pattern>${default.pattern}</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="com.wavesplatform.l2.client.contract.ChainContractSnapshotClient" level="TRACE">
+        <appender-ref ref="CHAIN-CONTRACT"/>
+    </logger>
+</included>
