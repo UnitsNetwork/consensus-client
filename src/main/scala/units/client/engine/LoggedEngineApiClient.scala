@@ -56,7 +56,7 @@ class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient
     wrap(s"blockExists($hash)", underlying.blockExists(hash))
 
   override def getLogs(hash: BlockHash, address: EthAddress, topic: String): Job[List[GetLogsResponseEntry]] =
-    wrap(s"getLogs($hash, a=$address, t=$topic)", underlying.getLogs(hash, address, topic), _.mkString("{", ", ", "}"))
+    wrap(s"getLogs($hash, a=$address, t=$topic)", underlying.getLogs(hash, address, topic), _.view.map(_.data).mkString("{", ", ", "}"))
 
   protected def wrap[R](method: String, f: => Job[R], toMsg: R => String = (_: R).toString): Job[R] = {
     val currRequestId = ThreadLocalRandom.current().nextInt(10000, 100000).toString
