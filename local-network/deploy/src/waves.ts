@@ -9,7 +9,7 @@ import * as logger from './logger';
 import * as wavesTxs from './waves-txs';
 import * as wavesUtils from './waves-utils';
 import { ExtendedWavesApi } from './waves-utils';
-import { ec1Rpc } from './nodes';
+import { wavesApi1, wavesApi2, ec1Rpc } from './nodes';
 
 const chainContractAddress = s.chainContract.address;
 
@@ -21,18 +21,8 @@ export interface SetupResult {
   utils: typeof wavesUtils;
 }
 
-function getWavesApiUrl(insideDocker: boolean, i: number): string {
-  return insideDocker ? `http://wavesnode-${i}:6869` : `http://127.0.0.1:${i}6869`;
-}
-
 export async function setup(force: boolean): Promise<SetupResult> {
   logger.info('Set up CL');
-
-  const insideDocker = await common.isInsideDocker();
-  const wavesApi1Url = getWavesApiUrl(insideDocker, 1);
-  const wavesApi2Url = getWavesApiUrl(insideDocker, 2);
-
-  logger.info(`Waves Node HTTP API: ${wavesApi1Url}, ${wavesApi2Url}`);
 
   const scSetBalances = async (): Promise<boolean> => {
     const tx = wavesTxs.scSetBalances;
@@ -94,9 +84,6 @@ export async function setup(force: boolean): Promise<SetupResult> {
       await wavesApi1.transactions.broadcast(tx);
     }
   };
-
-  let wavesApi1: ExtendedWavesApi = { ...waves.create(wavesApi1Url), base: wavesApi1Url };
-  let wavesApi2: ExtendedWavesApi = { ...waves.create(wavesApi2Url), base: wavesApi2Url };
 
   logger.info('Wait Waves 1 node');
   await wavesUtils.waitForUp(wavesApi1);

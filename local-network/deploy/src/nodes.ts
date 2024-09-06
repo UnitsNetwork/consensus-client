@@ -11,7 +11,7 @@ function getWavesApiUrl(insideDocker: boolean, i: number): string {
 }
 
 function getEcApiUrl(insideDocker: boolean, i: number): string {
-  return insideDocker ? `http://besu-${i}:8545` : `http://127.0.0.1:${i}8545`;
+  return insideDocker ? `http://ec-${i}:8545` : `http://127.0.0.1:${i}8545`;
 }
 
 function mkWeb3(ecRpcUrl: string): Web3 {

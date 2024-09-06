@@ -2,9 +2,9 @@ name: l2
 include:
   - ./configs/blockscout/${BS-enabled}.yml
 services:
-  besu-1:
-    container_name: besu-1
-    hostname: besu-1
+  ec-1:
+    container_name: ec-1
+    hostname: ec-1
     # To update use: docker pull hyperledger/besu:latest
     image: hyperledger/besu:latest # Debug version: besu-debug:latest , see _debug/
     ports:
@@ -12,51 +12,51 @@ services:
       - "0.0.0.0:18545:8545" # RPC port, for Metamask e.g.
       - "0.0.0.0:18546:8546" # WebSocket
     volumes:
-      - ./logs/besu-1:/opt/besu/logs
+      - ./logs/ec-1:/opt/besu/logs
       - ./configs/besu:/config:ro
     environment:
       - LOG4J_CONFIGURATION_FILE=/config/log4j2.xml
     command:
       - '--config-file=/config/besu-1.conf'
 
-  besu-1-check:
-    container_name: besu-1-check
+  ec-1-check:
+    container_name: ec-1-check
     image: curlimages/curl:8.8.0
     command: >
       --retry 20 
       --retry-all-errors 
       --retry-max-time 60 
       -d '{"jsonrpc":"2.0","method":"engine_exchangeCapabilities","params":[[]],"id":1}' 
-      http://besu-1:8551
+      http://ec-1:8551
     depends_on:
-      - besu-1
+      - ec-1
 
-  besu-2:
-    container_name: besu-2
-    hostname: besu-2
+  ec-2:
+    container_name: ec-2
+    hostname: ec-2
     image: hyperledger/besu:latest
     ports:
       - "0.0.0.0:28551:8551" # Engine port
       - "0.0.0.0:28545:8545" # RPC port
     volumes:
-      - ./logs/besu-2:/opt/besu/logs
+      - ./logs/ec-2:/opt/besu/logs
       - ./configs/besu:/config:ro
     environment:
       - LOG4J_CONFIGURATION_FILE=/config/log4j2.xml
     command:
       - '--config-file=/config/besu-2.conf'
 
-  besu-2-check:
-    container_name: besu-2-check
+  ec-2-check:
+    container_name: ec-2-check
     image: curlimages/curl:8.8.0
     command: >
       --retry 20 
       --retry-all-errors 
       --retry-max-time 60 
       -d '{"jsonrpc":"2.0","method":"engine_exchangeCapabilities","params":[[]],"id":1}' 
-      http://besu-2:8551
+      http://ec-2:8551
     depends_on:
-      - besu-2
+      - ec-2
 
   wavesnode-1:
     container_name: wavesnode-1
@@ -76,7 +76,7 @@ services:
       - ./configs/wavesnode/common/logback.xml:/etc/waves/logback.xml:ro
       - ./configs/wavesnode/waves-1.conf:/etc/waves/waves.conf:ro
     depends_on:
-      besu-1-check:
+      ec-1-check:
         condition: service_completed_successfully
 
   wavesnode-2:
@@ -99,7 +99,7 @@ services:
     depends_on:
       wavesnode-1: # To reduce possible forks at start
         condition: service_started
-      besu-2-check:
+      ec-2-check:
         condition: service_completed_successfully
 
   deploy:
@@ -117,6 +117,4 @@ services:
       - /home/node/app/node_modules # Ignore this subdirectory
     depends_on:
       - wavesnode-1
-      - wavesnode-2
-      - besu-1
-      - besu-2
+      - ec-1
