@@ -15,8 +15,8 @@ import monix.execution.{CancelableFuture, Scheduler}
 import net.ceedubs.ficus.Ficus.*
 import org.slf4j.LoggerFactory
 import sttp.client3.HttpClientSyncBackend
-import units.client.engine.{EngineApiClient, HttpEngineApiClient}
-import units.client.{JwtAuthenticationBackend, LoggingBackend}
+import units.client.JwtAuthenticationBackend
+import units.client.engine.{EngineApiClient, HttpEngineApiClient, LoggedEngineApiClient}
 import units.network.*
 
 import java.util.concurrent.ConcurrentHashMap
@@ -106,18 +106,20 @@ class ConsensusClientDependencies(context: ExtensionContext) extends AutoCloseab
   val globalScheduler: Scheduler     = monix.execution.Scheduler.global
   val eluScheduler: SchedulerService = Scheduler.singleThread("el-updater", reporter = { e => log.warn("Exception in ELUpdater", e) })
 
-  private val httpClientBackend = new LoggingBackend(HttpClientSyncBackend())
-  val engineApiClient = new HttpEngineApiClient(
-    config,
-    config.jwtSecretFile match {
-      case Some(secretFile) =>
-        val src = Source.fromFile(secretFile)
-        try new JwtAuthenticationBackend(src.getLines().next(), httpClientBackend)
-        finally src.close()
-      case _ =>
-        log.warn("JWT secret is not set")
-        httpClientBackend
-    }
+  private val httpClientBackend = HttpClientSyncBackend()
+  val engineApiClient = new LoggedEngineApiClient(
+    new HttpEngineApiClient(
+      config,
+      config.jwtSecretFile match {
+        case Some(secretFile) =>
+          val src = Source.fromFile(secretFile)
+          try new JwtAuthenticationBackend(src.getLines().next(), httpClientBackend)
+          finally src.close()
+        case _ =>
+          log.warn("JWT secret is not set")
+          httpClientBackend
+      }
+    )
   )
 
   val allChannels     = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE)

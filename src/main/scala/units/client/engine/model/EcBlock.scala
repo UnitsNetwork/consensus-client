@@ -25,7 +25,10 @@ case class EcBlock(
     gasLimit: Long,
     gasUsed: Long,
     withdrawals: Vector[Withdrawal]
-) extends L2BlockLike
+) extends L2BlockLike {
+  override def toString: String =
+    s"EcBlock($hash, p=$parentHash, h=$height, t=$timestamp, m=$minerRewardL2Address, w={${withdrawals.mkString(", ")}})"
+}
 
 object EcBlock {
   implicit val reads: Reads[EcBlock] = (

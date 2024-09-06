@@ -85,12 +85,12 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
   }
 
   def getBlockByHash(hash: BlockHash): Job[Option[EcBlock]] = {
-    sendRequest[GetBlockByHashRequest, EcBlock](GetBlockByHashRequest(hash, fullTxs = false))
+    sendRequest[GetBlockByHashRequest, EcBlock](GetBlockByHashRequest(hash))
       .leftMap(err => ClientError(s"Error getting block by hash $hash: $err"))
   }
 
-  def getBlockByHashJson(hash: BlockHash, fullTxs: Boolean = false): Job[Option[JsObject]] = {
-    sendRequest[GetBlockByHashRequest, JsObject](GetBlockByHashRequest(hash, fullTxs))
+  def getBlockByHashJson(hash: BlockHash): Job[Option[JsObject]] = {
+    sendRequest[GetBlockByHashRequest, JsObject](GetBlockByHashRequest(hash))
       .leftMap(err => ClientError(s"Error getting block json by hash $hash: $err"))
   }
 

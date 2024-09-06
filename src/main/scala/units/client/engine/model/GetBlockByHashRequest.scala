@@ -1,15 +1,15 @@
 package units.client.engine.model
 
-import units.BlockHash
 import play.api.libs.json.{Json, Writes}
+import units.BlockHash
 
-case class GetBlockByHashRequest(hash: BlockHash, fullTxs: Boolean)
+case class GetBlockByHashRequest(hash: BlockHash)
 object GetBlockByHashRequest {
   implicit val writes: Writes[GetBlockByHashRequest] = (o: GetBlockByHashRequest) => {
     Json.obj(
       "jsonrpc" -> "2.0",
       "method"  -> "eth_getBlockByHash",
-      "params"  -> Json.arr(o.hash, o.fullTxs),
+      "params"  -> Json.arr(o.hash, false),
       "id"      -> 1
     )
   }

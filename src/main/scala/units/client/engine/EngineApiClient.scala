@@ -28,7 +28,7 @@ trait EngineApiClient {
 
   def getBlockByHash(hash: BlockHash): Job[Option[EcBlock]]
 
-  def getBlockByHashJson(hash: BlockHash, fullTxs: Boolean = false): Job[Option[JsObject]]
+  def getBlockByHashJson(hash: BlockHash): Job[Option[JsObject]]
 
   def getLastExecutionBlock: Job[EcBlock]
 

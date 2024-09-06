@@ -73,7 +73,7 @@ class TestEcClients private (
     */
   def fullValidatedBlocks: Set[BlockHash] = getLogsCalls.get()
 
-  val engineApi = LoggedEngineApiClient {
+  val engineApi = new LoggedEngineApiClient(
     new EngineApiClient {
       override def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): Job[String] = {
         knownBlocks.get().get(blockHash) match {
@@ -157,7 +157,7 @@ class TestEcClients private (
         } yield b.ecBlock
       }.asRight
 
-      override def getBlockByHashJson(hash: BlockHash, fullTxs: Boolean): Job[Option[JsObject]] =
+      override def getBlockByHashJson(hash: BlockHash): Job[Option[JsObject]] =
         notImplementedMethodJob("getBlockByHashJson")
 
       override def getLastExecutionBlock: Job[EcBlock] = currChain.head.asRight
@@ -170,7 +170,7 @@ class TestEcClients private (
         logs.get().getOrElse(request, throw notImplementedCase("call setBlockLogs"))
       }.asRight
     }
-  }
+  )
 
   protected def notImplementedMethodJob[A](text: String): Job[A] = throw new NotImplementedMethod(text)
   protected def notImplementedCase(text: String): Throwable      = new NotImplementedCase(text)
