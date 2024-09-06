@@ -37,7 +37,7 @@ trait BaseIntegrationTestSuite
       val txs =
         List(
           d.chainContract.setScript(),
-          d.chainContract.setup(d.ecGenesisBlock, elMinerDefaultReward.amount.longValue(), elBridgeAddress)
+          d.chainContract.setup(d.ecGenesisBlock, elMinerDefaultReward.amount.longValue())
         ) ++
           settings.initialMiners
             .flatMap { x =>
@@ -69,6 +69,7 @@ trait BaseIntegrationTestSuite
           blockchainUpdater = bcu,
           rocksDBWriter = blockchain,
           settings = settings.wavesSettings,
+          elBridgeAddress = elBridgeAddress,
           elMinerDefaultReward = elMinerDefaultReward
         )
 

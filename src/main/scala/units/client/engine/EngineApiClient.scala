@@ -34,7 +34,7 @@ trait EngineApiClient {
 
   def blockExists(hash: BlockHash): Job[Boolean]
 
-  def getLogs(hash: BlockHash, topic: String): Job[List[GetLogsResponseEntry]]
+  def getLogs(hash: BlockHash, address: EthAddress, topic: String): Job[List[GetLogsResponseEntry]]
 }
 
 object EngineApiClient {

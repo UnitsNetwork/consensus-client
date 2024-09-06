@@ -10,6 +10,7 @@ import scala.concurrent.duration.FiniteDuration
 
 class TestEcBlockBuilder private (
     testEcClients: TestEcClients,
+    elBridgeAddress: EthAddress,
     elMinerDefaultReward: Gwei,
     private var block: EcBlock,
     parentBlock: EcBlock
@@ -28,7 +29,7 @@ class TestEcBlockBuilder private (
 
   def build(): EcBlock = block
   def buildAndSetLogs(logs: List[GetLogsResponseEntry] = Nil): EcBlock = {
-    testEcClients.setBlockLogs(block.hash, Bridge.ElSentNativeEventTopic, logs)
+    testEcClients.setBlockLogs(block.hash, elBridgeAddress, Bridge.ElSentNativeEventTopic, logs)
     block
   }
 }
@@ -36,12 +37,14 @@ class TestEcBlockBuilder private (
 object TestEcBlockBuilder {
   def apply(
       testEcClients: TestEcClients,
+      elBridgeAddress: EthAddress,
       elMinerDefaultReward: Gwei,
       blockDelay: FiniteDuration,
       parent: EcBlock
   ): TestEcBlockBuilder =
     new TestEcBlockBuilder(
       testEcClients,
+      elBridgeAddress,
       elMinerDefaultReward,
       EcBlock(
         hash = createBlockHash("???"),

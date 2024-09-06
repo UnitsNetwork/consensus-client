@@ -62,8 +62,8 @@ class TestEcClients private (
     forgingBlocks.transform(ForgingBlock(mkTestEcBlock(ecBlock, epochNumber)) :: _)
 
   private val logs = Atomic(Map.empty[GetLogsRequest, List[GetLogsResponseEntry]])
-  def setBlockLogs(hash: BlockHash, topic: String, blockLogs: List[GetLogsResponseEntry]): Unit = {
-    val request = GetLogsRequest(hash, List(topic))
+  def setBlockLogs(hash: BlockHash, address: EthAddress, topic: String, blockLogs: List[GetLogsResponseEntry]): Unit = {
+    val request = GetLogsRequest(hash, address, List(topic))
     logs.transform(_.updated(request, blockLogs))
   }
 
@@ -164,8 +164,8 @@ class TestEcClients private (
 
       override def blockExists(hash: BlockHash): Job[Boolean] = notImplementedMethodJob("blockExists")
 
-      override def getLogs(hash: BlockHash, topic: String): Job[List[GetLogsResponseEntry]] = {
-        val request = GetLogsRequest(hash, List(topic))
+      override def getLogs(hash: BlockHash, address: EthAddress, topic: String): Job[List[GetLogsResponseEntry]] = {
+        val request = GetLogsRequest(hash, address, List(topic))
         getLogsCalls.transform(_ + hash)
         logs.get().getOrElse(request, throw notImplementedCase("call setBlockLogs"))
       }.asRight

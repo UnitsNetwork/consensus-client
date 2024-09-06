@@ -107,8 +107,8 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
       .leftMap(err => ClientError(s"Error getting block by number $number: $err"))
   }
 
-  override def getLogs(hash: BlockHash, topic: String): Job[List[GetLogsResponseEntry]] =
-    sendRequest[GetLogsRequest, List[GetLogsResponseEntry]](GetLogsRequest(hash, List(topic)))
+  override def getLogs(hash: BlockHash, address: EthAddress, topic: String): Job[List[GetLogsResponseEntry]] =
+    sendRequest[GetLogsRequest, List[GetLogsResponseEntry]](GetLogsRequest(hash, address, List(topic)))
       .leftMap(err => ClientError(s"Error getting block logs by hash $hash: $err"))
       .map(_.getOrElse(List.empty))
 

@@ -1236,7 +1236,7 @@ class ELUpdater(
 
   private def getElToClTransfersRootHash(hash: BlockHash, elBridgeAddress: EthAddress): Job[Digest] =
     for {
-      elRawLogs <- engineApiClient.getLogs(hash, Bridge.ElSentNativeEventTopic)
+      elRawLogs <- engineApiClient.getLogs(hash, elBridgeAddress, Bridge.ElSentNativeEventTopic)
       rootHash <- {
         val relatedElRawLogs = elRawLogs.filter(x => x.address == elBridgeAddress && x.topics.contains(Bridge.ElSentNativeEventTopic))
         Bridge
