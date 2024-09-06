@@ -97,6 +97,8 @@ services:
       - ./configs/wavesnode/common/logback.xml:/etc/waves/logback.xml:ro
       - ./configs/wavesnode/waves-2.conf:/etc/waves/waves.conf:ro
     depends_on:
+      wavesnode-1: # To reduce possible forks at start
+        condition: service_started
       besu-2-check:
         condition: service_completed_successfully
 
