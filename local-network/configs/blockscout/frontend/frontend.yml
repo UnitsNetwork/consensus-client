@@ -1,0 +1,9 @@
+services:
+  frontend:
+    container_name: bs-frontend
+    hostname: bs-frontend
+    image: ghcr.io/blockscout/frontend:${FRONTEND_DOCKER_TAG:-latest}
+    platform: linux/amd64
+    restart: always
+    env_file:
+      -  ./bs-frontend.env
