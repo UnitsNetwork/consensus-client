@@ -9,11 +9,11 @@ geth \
   --http \
   --http.addr=0.0.0.0 \
   --http.vhosts=* \
-  --http.api=eth,web3,txpool,net,debug,engine \
+  --http.api=eth,web3,net,txpool,debug,trace,admin,rpc \
   --http.corsdomain=* \
   --ws \
   --ws.addr=0.0.0.0 \
-  --ws.api=eth,web3,txpool,net,debug \
+  --ws.api=eth,web3,net,txpool,debug,trace,admin,rpc \
   --ws.rpcprefix=/ \
   --ws.origins=* \
   --authrpc.addr=0.0.0.0 \

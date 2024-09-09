@@ -9,7 +9,7 @@ services:
       file: ./configs/besu/besu.yml
       service: besu
     ports:
-      - "0.0.0.0:18551:8551" # Engine port
+      - "0.0.0.0:18551:8551" # Engine port - doesn't have all APIs
       - "0.0.0.0:18545:8545" # RPC port, for Metamask e.g.
       - "0.0.0.0:18546:8546" # WebSocket
     volumes:
@@ -24,7 +24,7 @@ services:
       service: geth
     ports:
       - "0.0.0.0:28551:8551" # Engine port
-      - "0.0.0.0:28545:8545" # RPC port
+      - "0.0.0.0:28545:8545" # RPC port, useful because doesn't require an auth token
     volumes:
       - ./configs/ec-common/p2p-key-2:/etc/secrets/p2p-key:ro
       - ./configs/ec-common/jwtsecret-2:/etc/secrets/jwtsecret:ro
@@ -45,6 +45,7 @@ services:
       - WAVES_HEAP_SIZE=2g
       - JAVA_OPTS=-Dwaves.config.directory=/etc/waves -Dlogback.file.level=TRACE
       - NODE_NUMBER=1
+      - EXECUTION_CLIENT=ec-1
     volumes:
       - ./logs/wavesnode-1:/var/log/waves
       - ./configs/wavesnode/common:/etc/waves/common:ro
@@ -65,6 +66,7 @@ services:
       - WAVES_HEAP_SIZE=2g
       - JAVA_OPTS=-Dwaves.config.directory=/etc/waves -Dlogback.file.level=TRACE
       - NODE_NUMBER=2
+      - EXECUTION_CLIENT=ec-2
     volumes:
       - ./configs/wavesnode/common:/etc/waves/common:ro
       - ./configs/wavesnode/common/logback.xml:/etc/waves/logback.xml:ro

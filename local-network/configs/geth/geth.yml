@@ -1,7 +1,7 @@
 services:
   geth:
     image: ethereum/client-go:stable
-    stop_grace_period: 30s
+    stop_grace_period: 10s
     entrypoint: /tmp/run.sh
     volumes:
       - ./run.sh:/tmp/run.sh
