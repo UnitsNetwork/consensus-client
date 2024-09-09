@@ -16,15 +16,6 @@ services:
       - ./configs/ec-common/p2p-key-1:/etc/secrets/p2p-key:ro
       - ./logs/ec-1:/opt/besu/logs
 
-  # TODO remove
-  ec-1-check:
-    container_name: ec-1-check
-    extends:
-      file: ./configs/besu/besu.yml
-      service: besu-check
-    depends_on:
-      - ec-1
-
   ec-2-init:
     container_name: ec-2-init
     extends:
@@ -47,10 +38,10 @@ services:
       - ./configs/ec-common/jwtsecret-2:/etc/secrets/jwtsecret:ro
       - ./data/geth:/root/.ethereum
     depends_on:
-      ec-1-check:
-        condition: service_completed_successfully
       ec-2-init:
         condition: service_completed_successfully
+      ec-1: # TODO issues with connections
+        condition: service_healthy
 
   wavesnode-1:
     container_name: wavesnode-1
@@ -70,8 +61,8 @@ services:
       - ./configs/wavesnode/common/logback.xml:/etc/waves/logback.xml:ro
       - ./configs/wavesnode/waves-1.conf:/etc/waves/waves.conf:ro
     depends_on:
-      ec-1-check:
-        condition: service_completed_successfully # TODO ec-1: healthy
+      ec-1:
+        condition: service_healthy
 
   wavesnode-2:
     container_name: wavesnode-2
@@ -92,10 +83,10 @@ services:
       - ./data/wavesnode-2:/var/lib/waves
       - ./logs/wavesnode-2:/var/log/waves
     depends_on:
-      wavesnode-1: # To reduce possible forks at start
-        condition: service_started
       ec-2:
         condition: service_healthy
+      wavesnode-1: # To reduce possible forks at start
+        condition: service_started
 
   deploy:
     container_name: deploy

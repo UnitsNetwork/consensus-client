@@ -8,11 +8,3 @@ services:
       - LOG4J_CONFIGURATION_FILE=/config/log4j2.xml
     command:
       - --config-file=/config/besu.conf
-  besu-check:
-    image: curlimages/curl:8.8.0
-    command: >
-      --retry 20 
-      --retry-all-errors 
-      --retry-max-time 60 
-      -d '{"jsonrpc":"2.0","method":"engine_exchangeCapabilities","params":[[]],"id":1}' 
-      http://ec-1:8551
