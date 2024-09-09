@@ -16,14 +16,6 @@ services:
       - ./configs/ec-common/p2p-key-1:/etc/secrets/p2p-key:ro
       - ./logs/ec-1:/opt/besu/logs
 
-  ec-2-init:
-    container_name: ec-2-init
-    extends:
-      file: ./configs/geth/geth.yml
-      service: geth-init
-    volumes:
-      - ./data/geth:/root/.ethereum
-
   ec-2:
     container_name: ec-2
     hostname: ec-2
@@ -37,9 +29,8 @@ services:
       - ./configs/ec-common/p2p-key-2:/etc/secrets/p2p-key:ro
       - ./configs/ec-common/jwtsecret-2:/etc/secrets/jwtsecret:ro
       - ./data/geth:/root/.ethereum
+      - ./logs/ec-2:/root/logs
     depends_on:
-      ec-2-init:
-        condition: service_completed_successfully
       ec-1: # TODO issues with connections
         condition: service_healthy
 
@@ -55,7 +46,6 @@ services:
       - JAVA_OPTS=-Dwaves.config.directory=/etc/waves -Dlogback.file.level=TRACE
       - NODE_NUMBER=1
     volumes:
-      - ./data/wavesnode-1:/var/lib/waves
       - ./logs/wavesnode-1:/var/log/waves
       - ./configs/wavesnode/common:/etc/waves/common:ro
       - ./configs/wavesnode/common/logback.xml:/etc/waves/logback.xml:ro
@@ -80,7 +70,6 @@ services:
       - ./configs/wavesnode/common/logback.xml:/etc/waves/logback.xml:ro
       - ./configs/wavesnode/waves-2.conf:/etc/waves/waves.conf:ro
       - ./configs/ec-common/jwtsecret-2:/etc/secrets/jwtsecret:ro
-      - ./data/wavesnode-2:/var/lib/waves
       - ./logs/wavesnode-2:/var/log/waves
     depends_on:
       ec-2:
