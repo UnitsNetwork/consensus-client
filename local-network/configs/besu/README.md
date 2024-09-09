@@ -1,8 +1,5 @@
 # Besu configs
 
-Use [./generate-configs.sh](generate-configs.sh) to generate `genesis.json` and keys for nodes.
-Note: it always generates new keys! So, don't use it if you don't need to add nodes.
-
 ## Manual connecting
 
 Follow [https://besu.hyperledger.org/stable/private-networks/tutorials/permissioning](instructions):

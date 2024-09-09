@@ -43,7 +43,7 @@ See [./deploy](./deploy/).
         * Address: `0xcF0b9E13FDd593f4Ca26D36aFCaA44dd3FDCCbeD`
         * Private key: `ab49fee4fc326ecbc7abc7f2e5870bf1f86076eb0979c524e20c843f2a73f647`
     * To see all information, run `npx tsx common-settings-show.ts` from [./deploy](./deploy/) directory.
-* Ethereum addresses and private keys for `besu` nodes in [config](./configs/besu/generated/genesis.json):
+* Ethereum addresses and private keys for `besu` nodes in [config](configs/ec-common/genesis.json):
     * `fe3b557e8fb62b89f4916b721be55ceb828dbd73`: `8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63`
     * `f17f52151EbEF6C7334FAD080c5704D77216b732`: `ae6ae8e5ccbfb04590405997ee2d52d2b330726137b875053c36d94e974d162f`
 

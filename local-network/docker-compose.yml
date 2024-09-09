@@ -5,29 +5,23 @@ services:
   ec-1:
     container_name: ec-1
     hostname: ec-1
-    # To update use: docker pull hyperledger/besu:latest
-    image: hyperledger/besu:latest # Debug version: besu-debug:latest , see _debug/
+    extends:
+      file: ./configs/besu/besu.yml
+      service: besu
     ports:
       - "0.0.0.0:18551:8551" # Engine port
       - "0.0.0.0:18545:8545" # RPC port, for Metamask e.g.
       - "0.0.0.0:18546:8546" # WebSocket
     volumes:
+      - ./configs/ec-common/p2p-key-1:/etc/secrets/p2p-key:ro
       - ./logs/ec-1:/opt/besu/logs
-      - ./configs/besu:/config:ro
-    environment:
-      - LOG4J_CONFIGURATION_FILE=/config/log4j2.xml
-    command:
-      - '--config-file=/config/besu-1.conf'
 
+  # TODO remove
   ec-1-check:
     container_name: ec-1-check
-    image: curlimages/curl:8.8.0
-    command: >
-      --retry 20 
-      --retry-all-errors 
-      --retry-max-time 60 
-      -d '{"jsonrpc":"2.0","method":"engine_exchangeCapabilities","params":[[]],"id":1}' 
-      http://ec-1:8551
+    extends:
+      file: ./configs/besu/besu.yml
+      service: besu-check
     depends_on:
       - ec-1
 
@@ -38,42 +32,25 @@ services:
       service: geth-init
     volumes:
       - ./data/geth:/root/.ethereum
-      - ./configs/besu/generated/genesis.json:/tmp/genesis.json:ro
-      - ./configs/geth/init.sh:/tmp/init.sh
 
   ec-2:
+    container_name: ec-2
+    hostname: ec-2
     extends:
       file: ./configs/geth/geth.yml
       service: geth
-    container_name: ec-2
-    hostname: ec-2
     ports:
       - "0.0.0.0:28551:8551" # Engine port
       - "0.0.0.0:28545:8545" # RPC port
     volumes:
+      - ./configs/ec-common/p2p-key-2:/etc/secrets/p2p-key:ro
+      - ./configs/ec-common/jwtsecret-2:/etc/secrets/jwtsecret:ro
       - ./data/geth:/root/.ethereum
-      #      - ./configs/besu/generated/keys/0xcfff36559885b5541258c3de97b63dc59a60a583/key:/etc/secrets/p2p-key
-      - ./configs/geth/key:/etc/secrets/p2p-key:ro
-      - ./configs/geth/jwtsecret:/etc/secrets/jwtsecret:ro
-      # - ./logs/ec-2:/opt/besu/logs # TODO logging driver + grep
-      # - ./configs/besu:/config:ro
     depends_on:
       ec-1-check:
         condition: service_completed_successfully
       ec-2-init:
         condition: service_completed_successfully
-
-  ec-2-check:
-    container_name: ec-2-check
-    image: curlimages/curl:8.8.0
-    command: >
-      --retry 20 
-      --retry-all-errors 
-      --retry-max-time 60 
-      -d '{"jsonrpc":"2.0","method":"engine_exchangeCapabilities","params":[[]],"id":1}' 
-      http://ec-2:8551
-    depends_on:
-      - ec-2
 
   wavesnode-1:
     container_name: wavesnode-1
@@ -108,17 +85,17 @@ services:
       - JAVA_OPTS=-Dwaves.config.directory=/etc/waves -Dlogback.file.level=TRACE
       - NODE_NUMBER=2
     volumes:
-      - ./data/wavesnode-2:/var/lib/waves
-      - ./logs/wavesnode-2:/var/log/waves
       - ./configs/wavesnode/common:/etc/waves/common:ro
       - ./configs/wavesnode/common/logback.xml:/etc/waves/logback.xml:ro
       - ./configs/wavesnode/waves-2.conf:/etc/waves/waves.conf:ro
-      - ./configs/geth/jwtsecret:/etc/secrets/jwtsecret:ro
+      - ./configs/ec-common/jwtsecret-2:/etc/secrets/jwtsecret:ro
+      - ./data/wavesnode-2:/var/lib/waves
+      - ./logs/wavesnode-2:/var/log/waves
     depends_on:
       wavesnode-1: # To reduce possible forks at start
         condition: service_started
-      ec-2-check:
-        condition: service_completed_successfully
+      ec-2:
+        condition: service_healthy
 
   deploy:
     container_name: deploy

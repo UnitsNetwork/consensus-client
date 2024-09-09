@@ -2,6 +2,9 @@ services:
   geth-init:
     image: ethereum/client-go:stable
     entrypoint: /tmp/init.sh
+    volumes:
+      - ./init.sh:/tmp/init.sh
+      - ../ec-common/genesis.json:/tmp/genesis.json:ro
   geth:
     image: ethereum/client-go:stable
     stop_grace_period: 30s
@@ -28,10 +31,6 @@ services:
       options:
         max-size: 1g
         max-file: 5
-    # volumes:
-    #   # TODO
-    #   # - ../besu/generated/genesis.json:/tmp/genesis.json # do we need?
-    #   - ../data/secrets:/etc/secrets:ro
     healthcheck:
       test: 'wget -qO /dev/null --header "content-type: application/json" --post-data {\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1} http://127.0.0.1:8545'
       interval: 5s
