@@ -1,3 +1,6 @@
 target
 .bsp
 .idea
+docker/data
+docker/logs
+docker/secrets.env

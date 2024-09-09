@@ -13,8 +13,6 @@ import scala.concurrent.duration.FiniteDuration
 case class ClientConfig(
     chainContract: String,
     executionClientAddress: String,
-    engineApiPort: Int,
-    httpApiPort: Int,
     apiRequestRetries: Int,
     apiRequestRetryWaitTime: FiniteDuration,
     blockDelay: FiniteDuration,
