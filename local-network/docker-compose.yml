@@ -31,20 +31,37 @@ services:
     depends_on:
       - ec-1
 
+  ec-2-init:
+    container_name: ec-2-init
+    extends:
+      file: ./configs/geth/geth.yml
+      service: geth-init
+    volumes:
+      - ./data/geth:/root/.ethereum
+      - ./configs/besu/generated/genesis.json:/tmp/genesis.json:ro
+      - ./configs/geth/init.sh:/tmp/init.sh
+
   ec-2:
+    extends:
+      file: ./configs/geth/geth.yml
+      service: geth
     container_name: ec-2
     hostname: ec-2
-    image: hyperledger/besu:latest
     ports:
       - "0.0.0.0:28551:8551" # Engine port
       - "0.0.0.0:28545:8545" # RPC port
     volumes:
-      - ./logs/ec-2:/opt/besu/logs
-      - ./configs/besu:/config:ro
-    environment:
-      - LOG4J_CONFIGURATION_FILE=/config/log4j2.xml
-    command:
-      - '--config-file=/config/besu-2.conf'
+      - ./data/geth:/root/.ethereum
+      #      - ./configs/besu/generated/keys/0xcfff36559885b5541258c3de97b63dc59a60a583/key:/etc/secrets/p2p-key
+      - ./configs/geth/key:/etc/secrets/p2p-key:ro
+      - ./configs/geth/jwtsecret:/etc/secrets/jwtsecret:ro
+      # - ./logs/ec-2:/opt/besu/logs # TODO logging driver + grep
+      # - ./configs/besu:/config:ro
+    depends_on:
+      ec-1-check:
+        condition: service_completed_successfully
+      ec-2-init:
+        condition: service_completed_successfully
 
   ec-2-check:
     container_name: ec-2-check
@@ -77,7 +94,7 @@ services:
       - ./configs/wavesnode/waves-1.conf:/etc/waves/waves.conf:ro
     depends_on:
       ec-1-check:
-        condition: service_completed_successfully
+        condition: service_completed_successfully # TODO ec-1: healthy
 
   wavesnode-2:
     container_name: wavesnode-2
@@ -96,6 +113,7 @@ services:
       - ./configs/wavesnode/common:/etc/waves/common:ro
       - ./configs/wavesnode/common/logback.xml:/etc/waves/logback.xml:ro
       - ./configs/wavesnode/waves-2.conf:/etc/waves/waves.conf:ro
+      - ./configs/geth/jwtsecret:/etc/secrets/jwtsecret:ro
     depends_on:
       wavesnode-1: # To reduce possible forks at start
         condition: service_started

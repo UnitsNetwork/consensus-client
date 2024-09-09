@@ -1,0 +1,39 @@
+services:
+  geth-init:
+    image: ethereum/client-go:stable
+    entrypoint: /tmp/init.sh
+  geth:
+    image: ethereum/client-go:stable
+    stop_grace_period: 30s
+    command:
+      - --networkid=1337 # TODO remove: https://ethereum.stackexchange.com/a/56118 Commented, because both besu and geth uses genesis.json
+      - --verbosity=4
+      - --http
+      - --http.addr=0.0.0.0
+      - --http.vhosts=*
+      - --http.api=eth,web3,txpool,net,debug,engine
+      - --http.corsdomain=*
+      - --ws
+      - --ws.addr=0.0.0.0
+      - --ws.api=eth,web3,txpool,net,debug
+      - --ws.rpcprefix=/
+      - --ws.origins=*
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.vhosts=*
+      - --authrpc.jwtsecret=/etc/secrets/jwtsecret
+      - --nodekey=/etc/secrets/p2p-key
+      - --bootnodes=enode://b2ce9caff5e7472eafaf006904e2cb39cdd79801cda1328c510118cafdb0e9574526af6d05a89dae07a376606227c54c724cab1e88edf43190b7544976b275b8@ec-1:30303,enode://4e355eebfd77e5c2c0c20328c2bd5f3fde033c58e06e758c3e0a4ad88e8ced176f0d5eb32e214461b73e014591587f7c6567ee373e9c389b872a6d97d74a913c@ec-2:30303
+    logging:
+      driver: local
+      options:
+        max-size: 1g
+        max-file: 5
+    # volumes:
+    #   # TODO
+    #   # - ../besu/generated/genesis.json:/tmp/genesis.json # do we need?
+    #   - ../data/secrets:/etc/secrets:ro
+    healthcheck:
+      test: 'wget -qO /dev/null --header "content-type: application/json" --post-data {\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1} http://127.0.0.1:8545'
+      interval: 5s
+      timeout: 1s
+      retries: 10
