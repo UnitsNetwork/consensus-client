@@ -107,20 +107,17 @@ class ConsensusClientDependencies(context: ExtensionContext) extends AutoCloseab
   val eluScheduler: SchedulerService = Scheduler.singleThread("el-updater", reporter = { e => log.warn("Exception in ELUpdater", e) })
 
   private val httpClientBackend = HttpClientSyncBackend()
-  val engineApiClient = new LoggedEngineApiClient(
-    new HttpEngineApiClient(
-      config,
-      config.jwtSecretFile match {
-        case Some(secretFile) =>
-          val src = Source.fromFile(secretFile)
-          try new JwtAuthenticationBackend(src.getLines().next(), httpClientBackend)
-          finally src.close()
-        case _ =>
-          log.warn("JWT secret is not set")
-          httpClientBackend
-      }
-    )
-  )
+  private val maybeAuthenticatedBackend = config.jwtSecretFile match {
+    case Some(secretFile) =>
+      val src = Source.fromFile(secretFile)
+      try new JwtAuthenticationBackend(src.getLines().next(), httpClientBackend)
+      finally src.close()
+    case _ =>
+      log.warn("JWT secret is not set")
+      httpClientBackend
+  }
+
+  val engineApiClient = new LoggedEngineApiClient(new HttpEngineApiClient(config, maybeAuthenticatedBackend))
 
   val allChannels     = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE)
   val peerDatabase    = new PeerDatabaseImpl(config.network)

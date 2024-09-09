@@ -1,0 +1,11 @@
+services:
+  besu:
+    extends:
+      file: ./services/besu.yml
+      service: besu
+  waves-node:
+    extends:
+      file: ./services/waves-node.yml
+      service: waves-node
+    environment:
+      EXECUTION_CLIENT: besu
