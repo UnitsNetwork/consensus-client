@@ -30,7 +30,6 @@ services:
       - --networkid=88817
       - --authrpc.jwtsecret=/etc/secrets/jwtsecret
       - --nodekey=/etc/secrets/p2p-key
-      - --nat=extip:65.108.122.140
     logging:
       driver: local
       options:

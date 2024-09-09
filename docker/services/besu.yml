@@ -8,10 +8,11 @@ services:
       - --logging=ALL
       - --host-allowlist=*
       - --rpc-http-enabled
-      - --rpc-http-api=ETH,NET,WEB3,TXPOOL,TRACE,ADMIN
+      - --rpc-http-api=ETH,NET,WEB3,TXPOOL,TRACE
       - --rpc-http-cors-origins=all
       - --rpc-ws-enabled
       - --discovery-dns-url=enrtree://AIRIZFFZSCSIVHXTKA44WYZQJMR75FLTGWJ5TUNEW5IP7QKZDLBRK@${NETWORK}-nodes.unit0.dev
+      - --discovery-enabled=true
       - --engine-rpc-enabled
       - --engine-jwt-secret=/etc/secrets/jwtsecret
       - --engine-host-allowlist=*
@@ -19,7 +20,6 @@ services:
       - --data-path=/var/lib/besu
       - --genesis-file=/etc/besu/genesis.json
       - --data-storage-format=BONSAI
-      - --discovery-enabled=true
       - --network-id=${NETWORK_ID}
     volumes:
       - ../genesis-${NETWORK}.json:/etc/besu/genesis.json
