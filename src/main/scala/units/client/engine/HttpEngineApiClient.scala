@@ -2,7 +2,6 @@ package units.client.engine
 
 import cats.syntax.either.*
 import cats.syntax.traverse.*
-import com.wavesplatform.common.utils.EitherExt2
 import play.api.libs.json.*
 import sttp.client3.*
 import sttp.model.Uri
@@ -18,7 +17,7 @@ import scala.concurrent.duration.{DurationInt, FiniteDuration}
 
 class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Identity, ?]) extends EngineApiClient with JsonRpcClient {
 
-  val apiUrl: Uri = Uri.parse(config.executionClientAddress).explicitGet()
+  val apiUrl: Uri = uri"${config.executionClientAddress}"
 
   def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): Job[String] = {
     sendEngineRequest[ForkChoiceUpdatedRequest, ForkChoiceUpdatedResponse](

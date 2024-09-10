@@ -4,6 +4,7 @@ if [ ! -d /root/.ethereum/geth ] ; then
   geth init /tmp/genesis.json 2>&1 | tee /root/logs/init.log
 fi
 
+# --syncmode full, because default "snap" mode and starting concurrently with ec-1 cause a stopped sync
 geth \
   --http \
   --http.addr=0.0.0.0 \
@@ -21,8 +22,9 @@ geth \
   --nodekey=/etc/secrets/p2p-key \
   --nat=none \
   --bootnodes="${BESU_BOOTNODES}" \
+  --syncmode full \
   --log.file="/root/logs/geth.log" \
-  --verbosity=4 \
+  --verbosity=5 \
   --log.format=terminal \
   --log.rotate \
   --log.compress
