@@ -4,9 +4,9 @@ services:
     volumes:
       - ../ec-common/genesis.json:/genesis.json:ro
       - .:/config:ro
-    environment:
-      - LOG4J_CONFIGURATION_FILE=/config/log4j2.xml
     env_file:
       - ../ec-common/peers.env
+    environment:
+      LOG4J_CONFIGURATION_FILE: /config/log4j2.xml
     command:
       - --config-file=/config/besu.conf

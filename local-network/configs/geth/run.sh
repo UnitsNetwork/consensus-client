@@ -5,7 +5,6 @@ if [ ! -d /root/.ethereum/geth ] ; then
 fi
 
 geth \
-  --verbosity=4 \
   --http \
   --http.addr=0.0.0.0 \
   --http.vhosts=* \
@@ -22,4 +21,8 @@ geth \
   --nodekey=/etc/secrets/p2p-key \
   --nat=none \
   --bootnodes="${BESU_BOOTNODES}" \
-2>&1 | tee /root/logs/geth.log # There can be logrotate or something like this
+  --log.file="/root/logs/geth.log" \
+  --verbosity=4 \
+  --log.format=terminal \
+  --log.rotate \
+  --log.compress

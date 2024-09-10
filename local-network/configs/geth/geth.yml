@@ -8,6 +8,8 @@ services:
       - ./run.sh:/tmp/run.sh
     env_file:
       - ../ec-common/peers.env
+    logging:
+      driver: none
     healthcheck:
       test: 'wget -qO /dev/null --header "content-type: application/json" --post-data {\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1} http://127.0.0.1:8545'
       interval: 5s
