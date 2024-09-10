@@ -6,5 +6,7 @@ services:
       - .:/config:ro
     environment:
       - LOG4J_CONFIGURATION_FILE=/config/log4j2.xml
+    env_file:
+      - ../ec-common/peers.env
     command:
       - --config-file=/config/besu.conf
