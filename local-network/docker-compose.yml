@@ -28,7 +28,6 @@ services:
     volumes:
       - ./configs/ec-common/p2p-key-2.hex:/etc/secrets/p2p-key:ro
       - ./configs/ec-common/jwtsecret-2.hex:/etc/secrets/jwtsecret:ro
-      - ./data/geth:/root/.ethereum
       - ./logs/ec-2:/root/logs
 
   wavesnode-1:
