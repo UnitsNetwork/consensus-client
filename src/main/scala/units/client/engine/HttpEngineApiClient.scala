@@ -15,7 +15,7 @@ import scala.concurrent.duration.{DurationInt, FiniteDuration}
 
 class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Identity, ?]) extends EngineApiClient with JsonRpcClient {
 
-  val apiUrl: Uri = Uri(config.executionClientAddress)
+  val apiUrl: Uri = uri"${config.executionClientAddress}"
 
   def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): Job[String] = {
     sendEngineRequest[ForkChoiceUpdatedRequest, ForkChoiceUpdatedResponse](ForkChoiceUpdatedRequest(blockHash, finalizedBlockHash, None), BlockExecutionTimeout)

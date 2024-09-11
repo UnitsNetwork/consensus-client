@@ -10,7 +10,7 @@ import sttp.client3.*
 
 class HttpEcApiClient(val config: ClientConfig, val backend: SttpBackend[Identity, ?]) extends EcApiClient with JsonRpcClient {
 
-  val apiUrl = uri"http://${config.executionClientAddress}:${config.httpApiPort}"
+  val apiUrl = uri"${config.executionClientAddress}"
 
   def getBlockByNumber(number: BlockNumber): Job[Option[EcBlock]] = {
     for {
