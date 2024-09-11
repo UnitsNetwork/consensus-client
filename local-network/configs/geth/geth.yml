@@ -1,11 +1,18 @@
 services:
+  bootnode:
+    image: ethereum/client-go:alltools-stable
+    volumes:
+      - ./run-bootnode.sh:/tmp/run.sh:ro
+      - ../ec-common/p2p-key-bootnode.hex:/bootnode.key:ro
+      - ../../logs/ec-bootnode:/root/logs
+    command: /tmp/run.sh
   geth:
     image: ethereum/client-go:stable
     stop_grace_period: 10s
     entrypoint: /tmp/run.sh
     volumes:
       - ../ec-common/genesis.json:/tmp/genesis.json:ro
-      - ./run.sh:/tmp/run.sh
+      - ./run-node.sh:/tmp/run.sh
     env_file:
       - ../ec-common/peers.env
     logging:

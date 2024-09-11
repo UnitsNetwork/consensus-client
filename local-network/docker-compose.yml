@@ -5,12 +5,9 @@ services:
   ec-bootnode:
     container_name: ec-bootnode
     hostname: ec-bootnode
-    image: ethereum/client-go:alltools-stable
-    volumes:
-      - ./configs/ec-common/p2p-key-5.hex:/bootnode.key
-    # -addr ec-bootnode:30303
-    command: >
-      bootnode --nodekey /bootnode.key --nat "extip:172.18.0.2" --addr ":30303" --verbosity 5 --netrestrict 172.18.0.0/16 
+    extends:
+      file: ./configs/geth/geth.yml
+      service: bootnode
 
   ec-1:
     container_name: ec-1
@@ -25,11 +22,11 @@ services:
     volumes:
       - ./configs/ec-common/p2p-key-1.hex:/etc/secrets/p2p-key:ro
       - ./logs/ec-1:/opt/besu/logs
-    depends_on:
-      - ec-bootnode # TODO healthy?
     networks:
       default:
-        ipv4_address: 172.18.0.3
+        ipv4_address: 172.18.0.3 # Static IP otherwise docker changes it everytime
+    depends_on:
+      - ec-bootnode
 
   ec-2:
     container_name: ec-2
@@ -45,11 +42,11 @@ services:
       - ./configs/ec-common/jwtsecret-2.hex:/etc/secrets/jwtsecret:ro
       - ./data/geth:/root/.ethereum
       - ./logs/ec-2:/root/logs
-    depends_on:
-      - ec-bootnode
     networks:
       default:
         ipv4_address: 172.18.0.4
+    depends_on:
+      - ec-bootnode
 
   wavesnode-1:
     container_name: wavesnode-1
