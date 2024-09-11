@@ -4,6 +4,17 @@ if [ ! -d /root/.ethereum/geth ] ; then
   geth init /tmp/genesis.json 2>&1 | tee /root/logs/init.log
 fi
 
+IP_RAW=$(ip -4 addr show dev eth0 | awk '/inet / {print $2}')
+IP=$(echo "$IP_RAW" | cut -d/ -f1)
+NETWORK=$(echo "$IP_RAW" | xargs ipcalc -n | awk -F= '{print $2}')
+PREFIX=$(echo "$IP_RAW" | xargs ipcalc -p | awk -F= '{print $2}')
+
+tee /root/logs/bootnode.log <<EOF
+IP: $IP
+NETWORK: $NETWORK
+PREFIX: ${PREFIX}
+EOF
+
 # --syncmode full, because default "snap" mode and starting concurrently with ec-1 cause a stopped sync
 geth \
   --http \
@@ -20,8 +31,8 @@ geth \
   --authrpc.vhosts=* \
   --authrpc.jwtsecret=/etc/secrets/jwtsecret \
   --nodekey=/etc/secrets/p2p-key \
-  --nat="extip:172.18.0.4" \
-  --netrestrict="172.18.0.0/16" \
+  --nat="extip:${IP}" \
+  --netrestrict="${NETWORK}/${PREFIX}" \
   --bootnodes="${BESU_BOOTNODES}" \
   --syncmode full \
   --log.file="/root/logs/geth.log" \

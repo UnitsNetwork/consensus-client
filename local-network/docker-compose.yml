@@ -2,13 +2,6 @@ name: l2
 include:
   - ./configs/blockscout/${BS-enabled}.yml
 services:
-  ec-bootnode:
-    container_name: ec-bootnode
-    hostname: ec-bootnode
-    extends:
-      file: ./configs/geth/geth.yml
-      service: bootnode
-
   ec-1:
     container_name: ec-1
     hostname: ec-1
@@ -16,17 +9,12 @@ services:
       file: ./configs/besu/besu.yml
       service: besu
     ports:
-      - "0.0.0.0:18551:8551" # Engine port - doesn't have all APIs
-      - "0.0.0.0:18545:8545" # RPC port, for Metamask e.g.
-      - "0.0.0.0:18546:8546" # WebSocket
+      - "127.0.0.1:18551:8551" # Engine port - doesn't have all APIs
+      - "127.0.0.1:18545:8545" # RPC port, for Metamask e.g.
+      - "127.0.0.1:18546:8546" # WebSocket
     volumes:
       - ./configs/ec-common/p2p-key-1.hex:/etc/secrets/p2p-key:ro
       - ./logs/ec-1:/opt/besu/logs
-    networks:
-      default:
-        ipv4_address: 172.18.0.3 # Static IP otherwise docker changes it everytime
-    depends_on:
-      - ec-bootnode
 
   ec-2:
     container_name: ec-2
@@ -35,18 +23,13 @@ services:
       file: ./configs/geth/geth.yml
       service: geth
     ports:
-      - "0.0.0.0:28551:8551" # Engine port
-      - "0.0.0.0:28545:8545" # RPC port, useful because doesn't require an auth token
+      - "127.0.0.1:28551:8551" # Engine port
+      - "127.0.0.1:28545:8545" # RPC port, useful because doesn't require an auth token
     volumes:
       - ./configs/ec-common/p2p-key-2.hex:/etc/secrets/p2p-key:ro
       - ./configs/ec-common/jwtsecret-2.hex:/etc/secrets/jwtsecret:ro
       - ./data/geth:/root/.ethereum
       - ./logs/ec-2:/root/logs
-    networks:
-      default:
-        ipv4_address: 172.18.0.4
-    depends_on:
-      - ec-bootnode
 
   wavesnode-1:
     container_name: wavesnode-1
@@ -54,7 +37,7 @@ services:
     image: unitsnetwork/consensus-client:${WAVES_NODE_1_TAG:-main}
     pull_policy: never
     ports:
-      - "0.0.0.0:16869:6869"
+      - "127.0.0.1:16869:6869"
     environment:
       - WAVES_HEAP_SIZE=2g
       - JAVA_OPTS=-Dwaves.config.directory=/etc/waves -Dlogback.file.level=TRACE
@@ -75,7 +58,7 @@ services:
     image: unitsnetwork/consensus-client:${WAVES_NODE_2_TAG:-main}
     pull_policy: never
     ports:
-      - "0.0.0.0:26869:6869"
+      - "127.0.0.1:26869:6869"
     environment:
       - WAVES_HEAP_SIZE=2g
       - JAVA_OPTS=-Dwaves.config.directory=/etc/waves -Dlogback.file.level=TRACE
@@ -109,12 +92,3 @@ services:
     depends_on:
       - wavesnode-1
       - ec-1
-
-networks:
-  default:
-    driver: bridge
-    enable_ipv6: false
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.18.0.0/16
