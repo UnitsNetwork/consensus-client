@@ -18,7 +18,7 @@ else
 fi
 
 java -cp "${DIR}/.cache/waves.jar" com.wavesplatform.GenesisBlockGenerator \
-  "${DIR}/configs/wavesnode/common/genesis-template.conf" \
-  "${DIR}/configs/wavesnode/common/genesis.conf" > /dev/null
+  "${DIR}/configs/wavesnode/genesis-template.conf" \
+  "${DIR}/configs/wavesnode/genesis.conf" > /dev/null
 
 echo "Genesis config updated"

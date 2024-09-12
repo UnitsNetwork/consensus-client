@@ -29,7 +29,7 @@ See [./deploy](./deploy/).
 # Keys
 
 * Node HTTP API Key: `testapi`
-* CL accounts (see [genesis-template.conf](./configs/wavesnode/common/genesis-template.conf) for more information):
+* CL accounts (see [genesis-template.conf](configs/wavesnode/genesis-template.conf) for more information):
     * Node wallet seed:
         * wavesnode-1: `devnet-1`
         * wavesnode-2: `devnet-2`
@@ -100,5 +100,5 @@ See [Besu configuration](configs/besu/).
 
 ## How to change Waves initial miners or time between blocks
 
-1. Update [genesis-template.conf](./configs/wavesnode/common/genesis-template.conf).
-2. [genesis.conf](./configs/wavesnode/common/genesis.conf) will be updated in [restart.sh](./restart.sh).
+1. Update [genesis-template.conf](configs/wavesnode/genesis-template.conf).
+2. [genesis.conf](configs/wavesnode/genesis.conf) will be updated in [restart.sh](./restart.sh).
