@@ -72,8 +72,6 @@ services:
     depends_on:
       ec-2:
         condition: service_healthy
-      wavesnode-1: # To reduce possible forks at start
-        condition: service_started
 
   deploy:
     container_name: deploy
