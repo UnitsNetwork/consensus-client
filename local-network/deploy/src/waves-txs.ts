@@ -5,7 +5,7 @@ import * as s from './common-settings';
 export const scSetBalances = wt.data(
   {
     chainId: s.chainId,
-    fee: 2400000,
+    fee: 2_400_000,
     data: [
       {
         key: `%s__${s.wavesMiner1.address}`,
