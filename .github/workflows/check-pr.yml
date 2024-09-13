@@ -14,4 +14,4 @@ jobs:
           java-version: '11'
           cache: 'sbt'
       - name: Check PR
-        run: sbt --batch "compile"
+        run: sbt --batch "compile;test"
