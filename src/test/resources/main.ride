@@ -129,27 +129,26 @@ func blockMeta(blockId: String) = {
   let meta     = getBinaryValue(blockMetaK + blockId)
   let metaSize = meta.size()
 
-  let blockHeight    = meta.toInt() # _1
-  let blockEpoch     = meta.toInt(8) # _2
-  let blockParent    = meta.drop(16).take(BLOCK_HASH_SIZE) # _3
-  let blockGenerator = meta.drop(16 + BLOCK_HASH_SIZE).take(ADDRESS_SIZE) # _4
-  let chainId        = meta.toInt(16 + BLOCK_HASH_SIZE + ADDRESS_SIZE) # _5
+  let blockHeight = meta.toInt() # _1
+  let blockEpoch  = meta.toInt(8) # _2
+  let blockParent = meta.drop(16).take(BLOCK_HASH_SIZE) # _3
+  let chainId     = meta.toInt(16 + BLOCK_HASH_SIZE) # _4
 
-  let baseOffset     = 24 + BLOCK_HASH_SIZE + ADDRESS_SIZE
+  let baseOffset     = 24 + BLOCK_HASH_SIZE
   let remainingBytes = metaSize - baseOffset
-  let elToClTransfersRootHash = if (remainingBytes >= ROOT_HASH_SIZE) # _6
+  let elToClTransfersRootHash = if (remainingBytes >= ROOT_HASH_SIZE) # _5
     then meta.drop(baseOffset).take(ROOT_HASH_SIZE)
     else base16''
 
-  let lastClToElTransferIndex = if (remainingBytes == 8 || remainingBytes > ROOT_HASH_SIZE) # _7
+  let lastClToElTransferIndex = if (remainingBytes == 8 || remainingBytes > ROOT_HASH_SIZE) # _6
     then meta.toInt(baseOffset + elToClTransfersRootHash.size())
     else -1
 
-  (blockHeight, blockEpoch, blockParent, blockGenerator, chainId, elToClTransfersRootHash, lastClToElTransferIndex)
+  (blockHeight, blockEpoch, blockParent, chainId, elToClTransfersRootHash, lastClToElTransferIndex)
 }
 
 func mkBlockMetaEntry(
-  blockHashHex: String, blockHeight: Int, blockParentHex: String, blockGenerator: Address, chainId: Int,
+  blockHashHex: String, blockHeight: Int, blockParentHex: String, chainId: Int,
   elToClTransfersRootHashHex: String, lastClToElTransferIndex: Int
 ) = {
   let elToClTransfersRootHashBytes = elToClTransfersRootHashHex.fromBase16String()
@@ -157,7 +156,7 @@ func mkBlockMetaEntry(
   strict checkRootHash = if (rootHashBytesSize == 0 || rootHashBytesSize == ROOT_HASH_SIZE) then true
     else throw("Transfers root hash should have 0 or " + ROOT_HASH_SIZE.toString() + " bytes, got " + rootHashBytesSize.toString())
 
-  let blockMetaBytes = blockHeight.toBytes() + height.toBytes() + blockParentHex.fromBase16String() + blockGenerator.bytes +
+  let blockMetaBytes = blockHeight.toBytes() + height.toBytes() + blockParentHex.fromBase16String() +
     chainId.toBytes() + elToClTransfersRootHashBytes + lastClToElTransferIndex.toBytes()
 
   BinaryEntry(blockMetaK + blockHashHex, blockMetaBytes)
@@ -195,7 +194,8 @@ let (computedDelay, computedGenerator, computedTotalBalance, filteredMiners) = {
 
 func getChainLastBlockId(chainId: Int) = chainMeta(chainId)._2
 
-let (mclbIgnored1, mainChainEpoch, mainChainParentHash, mainChainGenerator) = blockMeta(mainChainLastBlock)
+let (mclbIgnored1, mainChainEpoch, mainChainParentHash) = blockMeta(mainChainLastBlock)
+let (mainChainGenerator, mceIgnored1) = epochMeta(mainChainEpoch).valueOrErrorMessage("Can't find main chain epoch meta for epoch " + mainChainEpoch.toString())
 
 func calculateFinalizedBlockHash(curMiner: Address, curPrevEpoch: Int, curLastBlockHash: String) = {
   let offsets_100 = "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::".split_4C("")
@@ -349,7 +349,7 @@ func extendMainChain(
   strict checkEpoch     = ensureCorrectEpoch(vrf)
   strict checkChain     = ensureExpectedOrInactiveChain(i.originCaller, mainChainId, unit)
   strict checkReference = isReferenceCorrect(referenceHex, mainChainLastBlock)
-  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._7, lastClToElTransferIndex, true)
+  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._6, lastClToElTransferIndex, true)
 
   strict thisEpochMeta = match epochMeta(height) {
     case _: Unit => StringEntry(epochMetaKey(height), i.originCaller.toString() + SEP + mainChainEpoch.toString() + SEP + blockHashHex)
@@ -362,7 +362,7 @@ func extendMainChain(
 
   let newChainHeight  = mainChainHeight + 1
   [
-    mkBlockMetaEntry(blockHashHex, newChainHeight, mainChainLastBlock, i.originCaller, mainChainId, elToClTransfersRootHashHex, lastClToElTransferIndex),
+    mkBlockMetaEntry(blockHashHex, newChainHeight, mainChainLastBlock, mainChainId, elToClTransfersRootHashHex, lastClToElTransferIndex),
     mkChainMetaEntry(mainChainId, newChainHeight, blockHashHex),
     IntegerEntry(minerChainIdKey(i.originCaller), mainChainId),
     IntegerEntry(chainLastHeightKey(mainChainId, i.originCaller), newChainHeight),
@@ -380,7 +380,7 @@ func startAltChain(
 ) = {
   strict checkBlockHash = validateBlockHash(blockHashHex)
   strict checkEpoch     = ensureCorrectEpoch(vrf)
-  let (refChainHeight, refEpoch, refRef, refGenerator, refIgnored5, refIgnored6, refTransferIndex) = blockMeta(referenceHex)
+  let (refChainHeight, refEpoch, refRef, refIgnored5, refIgnored6, refTransferIndex) = blockMeta(referenceHex)
   let finalizedEpoch = blockMeta(getStringValue(finalizedBlockKey))._2
   let epochRef = if (refEpoch >= finalizedEpoch)
     then refEpoch
@@ -400,7 +400,7 @@ func startAltChain(
 
   [
     thisEpochMeta,
-    mkBlockMetaEntry(blockHashHex, newChainHeight, referenceHex, i.originCaller, newChainId, elToClTransfersRootHashHex, lastClToElTransferIndex),
+    mkBlockMetaEntry(blockHashHex, newChainHeight, referenceHex, newChainId, elToClTransfersRootHashHex, lastClToElTransferIndex),
     StringEntry(chainFirstBlockIdKey(newChainId), blockHashHex),
     mkChainMetaEntry(newChainId, newChainHeight, blockHashHex),
     IntegerEntry(minerChainIdKey(i.originCaller), newChainId),
@@ -431,7 +431,7 @@ func extendAltChain(
   strict checkChain       = ensureExpectedOrInactiveChain(i.originCaller, chainId, chainFirstBlockMeta._3.toBase16String())
   let (chainHeight, chainLastBlock) = chainMeta(chainId)
   strict checkReference = isReferenceCorrect(referenceHex, chainLastBlock)
-  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._7, lastClToElTransferIndex, true)
+  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._6, lastClToElTransferIndex, true)
 
   let newChainHeight  = chainHeight + 1
 
@@ -460,7 +460,7 @@ func extendAltChain(
     [IntegerEntry(chainLastHeightKey(mainChainId, i.originCaller), chainFirstBlockMeta._1)]
   } else []
   [
-    mkBlockMetaEntry(blockHashHex, newChainHeight, referenceHex, i.originCaller, chainId, elToClTransfersRootHashHex, lastClToElTransferIndex),
+    mkBlockMetaEntry(blockHashHex, newChainHeight, referenceHex, chainId, elToClTransfersRootHashHex, lastClToElTransferIndex),
     mkChainMetaEntry(chainId, newChainHeight, blockHashHex),
     thisEpochMeta,
     IntegerEntry(minerChainIdKey(i.originCaller), chainId),
@@ -486,12 +486,12 @@ func appendBlock(
 
   let (chainHeight, lastBlockId) = chainMeta(chainId)
   strict checkReference = isReferenceCorrect(referenceHex, lastBlockId)
-  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._7, lastClToElTransferIndex, false)
+  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._6, lastClToElTransferIndex, false)
 
   let newChainHeight    = chainHeight + 1
   strict checkBlockHash = validateBlockHash(blockHashHex)
   [
-    mkBlockMetaEntry(blockHashHex, newChainHeight, lastBlockId, i.originCaller, chainId, elToClTransfersRootHashHex, lastClToElTransferIndex),
+    mkBlockMetaEntry(blockHashHex, newChainHeight, lastBlockId, chainId, elToClTransfersRootHashHex, lastClToElTransferIndex),
     IntegerEntry(chainLastHeightKey(chainId, i.originCaller), newChainHeight),
     mkChainMetaEntry(chainId, newChainHeight, blockHashHex),
     StringEntry(epochMetaKey(height), thisEpochMiner.value().toString() + SEP + thisEpochRef.toString() + SEP + blockHashHex)
@@ -588,7 +588,7 @@ func transfer(destElAddressHex: String) = {
     case _ => throw("Expected " + tokenIdStr + " in the payment, got Waves")
   }
 
-  let lastIndex = blockMeta(mainChainLastBlock)._7
+  let lastIndex = blockMeta(mainChainLastBlock)._6
   let queueSize = nativeTransfersCount - lastIndex
   strict checkQueueLimit =
          if (queueSize <  160) then amountGtEq(t,     1_000_000, queueSize)
@@ -616,7 +616,7 @@ func withdraw(blockHashHex: String, merkleProof: List[ByteVector], transferIndex
   else if (transferIndexInBlock < 0) then throw("Transfer index in block should be nonnegative, got " + transferIndexInBlock.toString())
   else if (amount <= 0) then throw("Amount should be positive, got " + amount.toString())
   else {
-    let withdrawBlockChainId = withdrawBlockMeta._5
+    let withdrawBlockChainId = withdrawBlockMeta._4
     let isMainChain          = withdrawBlockChainId == mainChainId
 
     # A chain forked after a block with withdrawal
@@ -636,7 +636,7 @@ func withdraw(blockHashHex: String, merkleProof: List[ByteVector], transferIndex
       let elEventDataDigest = blake2b256_16Kb(elEventData)
 
       let calculatedRootHash = createMerkleRoot(merkleProof, elEventDataDigest, transferIndexInBlock)
-      let expectedRootHash   = withdrawBlockMeta._6
+      let expectedRootHash   = withdrawBlockMeta._5
       if (calculatedRootHash == expectedRootHash) then {
         let tokenId      = getStringValue(tokenIdKey).fromBase58String()
         let transfersKey = blockElToClTransfersKey(blockHashHex)
@@ -676,7 +676,6 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int) = {
       genesisBlockHashHex,
       0, # blockHeight
       genesisBlockReferenceHash,
-      genesisMinerAddress,
       0, # chainId
       base16''.toBase16String(), # elToClTransfersRootHashHex
       -1 # lastClToElTransferIndex
