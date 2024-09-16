@@ -35,12 +35,6 @@ export function ccSetup(elGenesisBlockHashHex: string) {
             // 2_000_000_000 Gwei = 2_000_000_000*10^9 Wei = 2*10^18 Wei = 2 UNIT0 for epoch, 
             // see bridge.sol for conversion details
             value: 2_000_000_000
-          },
-          {
-            // elBridgeAddressHex
-            type: "string",
-            // npx tsx common-settings-show.ts and see elBridgeContractAddress.
-            value: s.elBridgeContractAddress.substring(2)
           }
         ]
       }

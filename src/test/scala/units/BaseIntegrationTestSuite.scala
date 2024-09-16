@@ -29,7 +29,7 @@ trait BaseIntegrationTestSuite
     with CustomMatchers {
   protected def defaultSettings      = TestSettings.Default
   protected val elMinerDefaultReward = Gwei.ofRawGwei(2_000_000_000L)
-  protected val elBridgeAddress      = EthAddress.unsafeFrom("0x189643C45cC2782DFd42185d0cD86B71943D6315")
+  protected val elBridgeAddress      = EthAddress.unsafeFrom("0x0000000000000000000000000000000000006a7e")
 
   protected def withExtensionDomain[R](settings: TestSettings = defaultSettings)(f: ExtensionDomain => R): R =
     withExtensionDomainUninitialized(settings) { d =>

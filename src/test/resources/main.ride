@@ -413,10 +413,10 @@ func startAltChain(
 
 @Callable(i)
 func extendAltChain(
-  chainId: Int,
   blockHashHex: String,
   referenceHex: String,
   vrf: ByteVector,
+  chainId: Int,
   elToClTransfersRootHashHex: String,
   lastClToElTransferIndex: Int
 ) = {
@@ -656,18 +656,13 @@ func withdraw(blockHashHex: String, merkleProof: List[ByteVector], transferIndex
 }
 
 # genesisBlockHashHex without 0x
-# elBridgeAddressHex without 0x
 @Callable(i)
-func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, elBridgeAddressHex: String) = {
+func setup(genesisBlockHashHex: String, minerRewardInGwei: Int) = {
   if (isContractSetup()) then throw("The contract has been already set up")
   else if (minerRewardInGwei < 0) then throw("The miner reward must be nonnegative")
   else {
     let genesisBlockHash = genesisBlockHashHex.fromBase16String()
     strict checkGenesisBlockHashSize = if (genesisBlockHash.size() == BLOCK_HASH_SIZE) then true else throw("Wrong genesis block hash")
-
-    strict checkElBridgeAddress = if (elBridgeAddressHex.size() == ETH_ADDRESS_STR_SIZE)
-      then fromBase16String(elBridgeAddressHex)
-      else throw("Wrong bridge address")
 
     let emptyPk                   = base58'11111111111111111111111111111111'
     let genesisMinerAddress       = addressFromPublicKey(emptyPk)
@@ -696,7 +691,7 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, elBridgeAddressH
       StringEntry(finalizedBlockKey, genesisBlockHashHex),
       issue,
       StringEntry(tokenIdKey, tokenId.toBase58String()),
-      StringEntry(elBridgeAddressKey, "0x" + elBridgeAddressHex)
+      StringEntry(elBridgeAddressKey, "0x0000000000000000000000000000000000006a7e")
     ]
   }
 }

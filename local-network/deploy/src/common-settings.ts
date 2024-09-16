@@ -21,7 +21,7 @@ function mkWavesAccount(seed: string, nonce: number): WavesAccount {
   }
 }
 
-export const elBridgeContractAddress = '0x1000000000000000000000000000000000000000';
+export const elBridgeContractAddress = '0x0000000000000000000000000000000000006a7e';
 export const chainContract = mkWavesAccount('devnet-1', 2);
 export const wavesMiner1 = mkWavesAccount('devnet-1', 0);
 export const wavesMiner2 = mkWavesAccount('devnet-2', 0);

@@ -16,8 +16,6 @@ import units.eth.{EthAddress, EthereumConstants}
 import units.util.HexBytesConverter
 
 trait HasConsensusLayerDappTxHelpers {
-  def elBridgeAddress: EthAddress
-
   def currentHitSource: ByteStr
 
   def chainContractAccount: KeyPair
@@ -31,8 +29,7 @@ trait HasConsensusLayerDappTxHelpers {
       func = "setup".some,
       args = List(
         Terms.CONST_STRING(genesisBlock.hash.drop(2)).explicitGet(),
-        Terms.CONST_LONG(elMinerReward),
-        Terms.CONST_STRING(elBridgeAddress.hexNoPrefix).explicitGet()
+        Terms.CONST_LONG(elMinerReward)
       ),
       fee = setupFee
     )
@@ -126,10 +123,10 @@ trait HasConsensusLayerDappTxHelpers {
         dApp = chainContractAddress,
         func = "extendAltChain".some,
         args = List(
-          Terms.CONST_LONG(chainId),
           Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
           Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
           Terms.CONST_BYTESTR(vrf).explicitGet(),
+          Terms.CONST_LONG(chainId),
           Terms.CONST_STRING(e2CTransfersRootHashHex.drop(2)).explicitGet(),
           Terms.CONST_LONG(lastC2ETransferIndex)
         ),

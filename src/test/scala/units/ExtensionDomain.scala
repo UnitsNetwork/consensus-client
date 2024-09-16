@@ -58,7 +58,7 @@ class ExtensionDomain(
     blockchainUpdater: BlockchainUpdaterImpl,
     rocksDBWriter: RocksDBWriter,
     settings: WavesSettings,
-    override val elBridgeAddress: EthAddress,
+    elBridgeAddress: EthAddress,
     elMinerDefaultReward: Gwei
 ) extends Domain(rdb, blockchainUpdater, rocksDBWriter, settings)
     with HasConsensusLayerDappTxHelpers
