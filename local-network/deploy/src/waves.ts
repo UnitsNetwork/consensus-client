@@ -25,27 +25,11 @@ export interface SetupResult {
 export async function setup(force: boolean): Promise<SetupResult> {
   logger.info('Set up CL');
 
-  const scSetBalances = async (): Promise<boolean> => {
-    const tx = wavesTxs.scSetBalances;
-    const dAppAddress = wt.libs.crypto.address({ publicKey: tx.senderPublicKey }, s.chainId);
-
-    let dataKeyResponse: DataTransactionEntry<TLong>;
-    try { dataKeyResponse = await wavesApi1.addresses.fetchDataKey(dAppAddress, tx.data[0].key); } catch { }
-
-    // @ts-ignore: Property 'value' does not exist on type 'object'.
-    if (dataKeyResponse && dataKeyResponse.value) {
-      logger.info('Staking contract data is already set up');
-      return false;
-    } else {
-      await wavesApi1.transactions.broadcast(tx);
-      return true;
-    }
-  };
-
-  const deployChainContract = async (): Promise<void> => {
+  const deployChainContract = async (): Promise<boolean> => {
     const scriptInfo = await wavesApi1.addresses.fetchScriptInfo(s.chainContract.address);
     if (scriptInfo.script) {
-      logger.info(`${s.chainContract.address} already has a script, cancel deploying.`);
+      logger.info(`${s.chainContract.address} already has a script.`);
+      return false;
     } else {
       logger.info('Compile CL chain contract');
       const chainContractCode = await fs.readFile('./setup/waves/main.ride', 'utf-8');
@@ -56,6 +40,7 @@ export async function setup(force: boolean): Promise<SetupResult> {
       const tx = wavesTxs.mkCcDeploy(compiledChainContract.script);
       await wavesApi1.transactions.broadcast(tx)
       await wavesUtils.waitForTxn(wavesApi1, tx.id);
+      return true;
     }
   };
 
@@ -98,16 +83,12 @@ export async function setup(force: boolean): Promise<SetupResult> {
 
   logger.info(`Waves nodes peers: ${connectedPeers}`);
 
-  logger.info('Set staking contract balances');
-  const isNew = await scSetBalances();
+  logger.info('Deploy chain contract');
+  const isNew = await deployChainContract();
   const waitTime = 3000;// To eliminate micro fork issue
   if (isNew) await common.sleep(waitTime);
 
   if (isNew || force) {
-    logger.info('Deploy chain contract');
-    await deployChainContract();
-    if (isNew) await common.sleep(waitTime);
-
     logger.info('Setup chain contract');
     await setupChainContract();
     if (isNew) await common.sleep(waitTime);

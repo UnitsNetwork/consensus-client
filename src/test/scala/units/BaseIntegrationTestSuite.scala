@@ -39,13 +39,7 @@ trait BaseIntegrationTestSuite
           d.chainContract.setScript(),
           d.chainContract.setup(d.ecGenesisBlock, elMinerDefaultReward.amount.longValue())
         ) ++
-          settings.initialMiners
-            .flatMap { x =>
-              List(
-                d.stakingContract.stakingBalance(x.address, 0, x.stakingBalance, 1, x.stakingBalance),
-                d.chainContract.join(x.account, x.elRewardAddress)
-              )
-            }
+          settings.initialMiners.map { x => d.chainContract.join(x.account, x.elRewardAddress) }
 
       d.appendBlock(txs*)
       d.advanceConsensusLayerChanged()
@@ -77,7 +71,6 @@ trait BaseIntegrationTestSuite
 
         val balances = List(
           AddrWithBalance(TxHelpers.defaultAddress, 1_000_000.waves),
-          AddrWithBalance(d.stakingContractAddress, 10.waves),
           AddrWithBalance(d.chainContractAddress, 10.waves)
         ) ++ settings.finalAdditionalBalances
 

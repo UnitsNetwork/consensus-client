@@ -23,7 +23,6 @@ let mainChainIdKey            = "mainChainId"
 let lastChainIdKey            = "lastChainId"
 let firstValidAltChainIdKey   = "firstValidAltChainId"
 let minerRewardKey            = "minerReward" # In Gwei. Changing the value is unexpected and isn't held by code
-let stakingContractAddressKey = "stakingContractAddress"
 let blockMetaK                = "block_0x"
 let finalizedBlockKey         = "finalizedBlock"
 let tokenIdKey                = "tokenId"
@@ -84,24 +83,8 @@ func amountGtEq(t: AttachedPayment, gtEq: Int, queueSize: Int) = {
   )
 }
 
-let stakingContractAddress = match this.getString(stakingContractAddressKey) {
-  case s: String => addressFromString(s).valueOrErrorMessage("invalid staking contract address: " + s)
-  case _ => Address(this.getBinaryValue(stakingContractAddressKey))
-}
-
 func generatingBalance(address: Address) = {
-  match stakingContractAddress.getString("%s__" + address.toString()) {
-    case str: String =>
-      let paramList = str.split("__")
-      let prevHeight = paramList[1].parseIntValue()
-      let prevBalance = paramList[2].parseIntValue()
-      let nextHeight = paramList[3].parseIntValue()
-      let nextBalance = paramList[4].parseIntValue()
-      if (height >= nextHeight) then nextBalance
-      else if (height >= prevHeight) then prevBalance
-      else 0
-    case _ => 0
-  }
+  address.wavesBalance().generating
 }
 
 func chainMeta(chainId: Int) = {
@@ -354,8 +337,8 @@ func getUpdateFinalizedBlockAction(caller: Address, newBlockHashHex: String, pre
     else []
 }
 
-func extendMainChainImpl(
-  i: Invocation,
+@Callable(i)
+func extendMainChain(
   blockHashHex: String,
   referenceHex: String,
   vrf: ByteVector,
@@ -387,8 +370,8 @@ func extendMainChainImpl(
   ] ++ updateFinalizedBlock
 }
 
-func startAltChainImpl(
-  i: Invocation,
+@Callable(i)
+func startAltChain(
   blockHashHex: String,
   referenceHex: String,
   vrf: ByteVector,
@@ -428,8 +411,8 @@ func startAltChainImpl(
   ]
 }
 
-func extendAltChainImpl(
-  i: Invocation,
+@Callable(i)
+func extendAltChain(
   chainId: Int,
   blockHashHex: String,
   referenceHex: String,
@@ -485,72 +468,8 @@ func extendAltChainImpl(
   ] ++ updateMainChainData ++ addSupporter(chainId, i.originCaller) ++ updateMainChainLastMinedBlock
 }
 
-func allowOmittingVrf(epoch: Int) =
-  match getInteger("requireVrfArgumentFromHeight") {
-    case _: Unit => vrfAt(epoch)
-    case h: Int =>
-      if (h < epoch) then vrfAt(epoch) else throw("VRF argument is mandatory. Upgrade your client!")
-  }
-
 @Callable(i)
-func extendMainChain_v3(
-  blockHashHex: String,
-  referenceHex: String,
-  epoch: Int,
-  elToClTransfersRootHashHex: String,
-  lastClToElTransferIndex: Int
-) = extendMainChainImpl(i, blockHashHex, referenceHex, allowOmittingVrf(epoch), elToClTransfersRootHashHex, lastClToElTransferIndex)
-
-
-@Callable(i)
-func extendMainChain_v4(
-  blockHashHex: String,
-  referenceHex: String,
-  vrf: ByteVector,
-  elToClTransfersRootHashHex: String,
-  lastClToElTransferIndex: Int
-) = extendMainChainImpl(i, blockHashHex, referenceHex, vrf, elToClTransfersRootHashHex, lastClToElTransferIndex)
-
-@Callable(i)
-func startAltChain_v3(
-  blockHashHex: String,
-  referenceHex: String,
-  epoch: Int,
-  elToClTransfersRootHashHex: String,
-  lastClToElTransferIndex: Int
-) = startAltChainImpl(i, blockHashHex, referenceHex, allowOmittingVrf(epoch), elToClTransfersRootHashHex, lastClToElTransferIndex)
-
-@Callable(i)
-func startAltChain_v4(
-  blockHashHex: String,
-  referenceHex: String,
-  vrf: ByteVector,
-  elToClTransfersRootHashHex: String,
-  lastClToElTransferIndex: Int
-) = startAltChainImpl(i, blockHashHex, referenceHex, vrf, elToClTransfersRootHashHex, lastClToElTransferIndex)
-
-@Callable(i)
-func extendAltChain_v3(
-  chainId: Int,
-  blockHashHex: String,
-  referenceHex: String,
-  epoch: Int,
-  elToClTransfersRootHashHex: String,
-  lastClToElTransferIndex: Int
-) = extendAltChainImpl(i, chainId, blockHashHex, referenceHex, allowOmittingVrf(epoch), elToClTransfersRootHashHex, lastClToElTransferIndex)
-
-@Callable(i)
-func extendAltChain_v4(
-  blockHashHex: String,
-  referenceHex: String,
-  vrf: ByteVector,
-  chainId: Int,
-  elToClTransfersRootHashHex: String,
-  lastClToElTransferIndex: Int
-) = extendAltChainImpl(i, chainId, blockHashHex, referenceHex, vrf, elToClTransfersRootHashHex, lastClToElTransferIndex)
-
-@Callable(i)
-func appendBlock_v3(
+func appendBlock(
   blockHashHex: String,
   referenceHex: String,
   elToClTransfersRootHashHex: String,
@@ -739,15 +658,12 @@ func withdraw(blockHashHex: String, merkleProof: List[ByteVector], transferIndex
 # genesisBlockHashHex without 0x
 # elBridgeAddressHex without 0x
 @Callable(i)
-func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, stakingContractAddressB58: String, elBridgeAddressHex: String) = {
+func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, elBridgeAddressHex: String) = {
   if (isContractSetup()) then throw("The contract has been already set up")
   else if (minerRewardInGwei < 0) then throw("The miner reward must be nonnegative")
   else {
     let genesisBlockHash = genesisBlockHashHex.fromBase16String()
     strict checkGenesisBlockHashSize = if (genesisBlockHash.size() == BLOCK_HASH_SIZE) then true else throw("Wrong genesis block hash")
-
-    let stakingContractAddressBytes = fromBase58String(stakingContractAddressB58)
-    strict checkStakingContractAddress = if (stakingContractAddressBytes.size() == ADDRESS_SIZE) then true else throw("Wrong staking contract address")
 
     strict checkElBridgeAddress = if (elBridgeAddressHex.size() == ETH_ADDRESS_STR_SIZE)
       then fromBase16String(elBridgeAddressHex)
@@ -776,7 +692,6 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, stakingContractA
       StringEntry(chainFirstBlockIdKey(0), genesisBlockHashHex),
       mkChainMetaEntry(0, 0, genesisBlockHashHex),
       IntegerEntry(minerRewardKey, minerRewardInGwei),
-      StringEntry(stakingContractAddressKey, stakingContractAddressB58),
       StringEntry(epochMetaKey(height), genesisMinerAddress.toString() + ",0," + genesisBlockHashHex),
       StringEntry(finalizedBlockKey, genesisBlockHashHex),
       issue,

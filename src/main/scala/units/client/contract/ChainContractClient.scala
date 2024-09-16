@@ -10,7 +10,6 @@ import com.wavesplatform.serialization.ByteBufferOps
 import com.wavesplatform.state.{BinaryDataEntry, Blockchain, DataEntry, EmptyDataEntry, IntegerDataEntry, StringDataEntry}
 import units.BlockHash
 import units.client.contract.ChainContractClient.*
-import units.client.staking.StakingContractClient
 import units.eth.{EthAddress, Gwei}
 import units.util.HexBytesConverter
 import units.util.HexBytesConverter.*
@@ -166,29 +165,23 @@ trait ChainContractClient {
       hitSource: Array[Byte],
       baseTarget: Long,
       miner: Address,
-      stakingContractAddress: Address,
       blockchain: Blockchain
   ): Option[(Address, Long)] = {
-    val hit = Global.blake2b256(hitSource ++ miner.bytes).take(PoSCalculator.HitSize)
-    val l2mpBalance = new StakingContractClient(blockchain.accountData(stakingContractAddress, _))
-      .getL2mpBalance(miner, blockchain.height)
-
-    if (blockchain.generatingBalance(miner) >= MinMinerBalance && l2mpBalance > 0) {
+    val hit               = Global.blake2b256(hitSource ++ miner.bytes).take(PoSCalculator.HitSize)
+    val generatingBalance = blockchain.generatingBalance(miner)
+    if (generatingBalance >= MinMinerBalance) {
       // See WavesEnvironment.calculateDelay
-      val delay = FairPoSCalculator(0, 0).calculateDelay(BigInt(1, hit), baseTarget, l2mpBalance)
+      val delay = FairPoSCalculator(0, 0).calculateDelay(BigInt(1, hit), baseTarget, generatingBalance)
       Some(miner -> delay)
     } else None
   }
 
   def calculateEpochMiner(header: BlockHeader, hitSource: ByteStr, epochNumber: Int, blockchain: Blockchain): Either[String, Address] =
-    for {
-      stakingContractAddress <- getStakingContractAddress.toRight("Staking contract address is not defined")
-      bestMiner <- getAllActualMiners
-        .flatMap(miner => calculateMinerDelay(hitSource.arr, header.baseTarget, miner, stakingContractAddress, blockchain))
-        .minByOption(_._2)
-        .map(_._1)
-        .toRight(s"No miner for epoch $epochNumber")
-    } yield bestMiner
+    getAllActualMiners
+      .flatMap(miner => calculateMinerDelay(hitSource.arr, header.baseTarget, miner, blockchain))
+      .minByOption(_._2)
+      .map(_._1)
+      .toRight(s"No miner for epoch $epochNumber")
 
   private def getBlockHash(key: String): Option[BlockHash] =
     extractData(key).collect {

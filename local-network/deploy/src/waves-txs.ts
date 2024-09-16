@@ -1,27 +1,6 @@
 import * as wt from '@waves/waves-transactions';
 import * as s from './common-settings';
 
-// 1. Set staking contract balances, sc - staking contract
-export const scSetBalances = wt.data(
-  {
-    chainId: s.chainId,
-    fee: 2_400_000,
-    data: [
-      {
-        key: `%s__${s.wavesMiner1.address}`,
-        type: "string",
-        value: "%d%d%d%d__1__50000000__8__10000001"
-      },
-      {
-        key: `%s__${s.wavesMiner2.address}`,
-        type: "string",
-        value: "%d%d%d%d__1__50000000__9__1000000"
-      }
-    ]
-  },
-  { privateKey: s.stakingContract.privateKey }
-)
-
 // cc - Chain contract
 // 2. Deploy chain contract script
 export function mkCcDeploy(script: string) {
@@ -56,11 +35,6 @@ export function ccSetup(elGenesisBlockHashHex: string) {
             // 2_000_000_000 Gwei = 2_000_000_000*10^9 Wei = 2*10^18 Wei = 2 UNIT0 for epoch, 
             // see bridge.sol for conversion details
             value: 2_000_000_000
-          },
-          {
-            // stakingContractAddressB58
-            type: "string",
-            value: s.stakingContract.address
           },
           {
             // elBridgeAddressHex

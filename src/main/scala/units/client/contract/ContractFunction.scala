@@ -24,13 +24,13 @@ abstract class ContractFunction(name: String, reference: BlockHash, extraArgs: E
 
 object ContractFunction {
   case class ExtendMainChain(reference: BlockHash, vrf: ByteStr)
-      extends ContractFunction("extendMainChain_v4", reference, CONST_BYTESTR(vrf).map(v => List(v)))
+      extends ContractFunction("extendMainChain", reference, CONST_BYTESTR(vrf).map(v => List(v)))
 
-  case class AppendBlock(reference: BlockHash) extends ContractFunction("appendBlock_v3", reference, Right(Nil))
+  case class AppendBlock(reference: BlockHash) extends ContractFunction("appendBlock", reference, Right(Nil))
 
   case class ExtendAltChain(reference: BlockHash, vrf: ByteStr, chainId: Long)
-      extends ContractFunction("extendAltChain_v4", reference, CONST_BYTESTR(vrf).map(v => List(v, CONST_LONG(chainId))))
+      extends ContractFunction("extendAltChain", reference, CONST_BYTESTR(vrf).map(v => List(v, CONST_LONG(chainId))))
 
   case class StartAltChain(reference: BlockHash, vrf: ByteStr)
-      extends ContractFunction("startAltChain_v4", reference, CONST_BYTESTR(vrf).map(v => List(v)))
+      extends ContractFunction("startAltChain", reference, CONST_BYTESTR(vrf).map(v => List(v)))
 }

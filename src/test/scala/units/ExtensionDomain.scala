@@ -65,8 +65,7 @@ class ExtensionDomain(
     with CustomMatchers
     with AutoCloseable
     with ScorexLogging { self =>
-  override val chainContractAccount: KeyPair   = KeyPair("chain-contract".getBytes(StandardCharsets.UTF_8))
-  override val stakingContractAccount: KeyPair = KeyPair("staking-contract".getBytes(StandardCharsets.UTF_8))
+  override val chainContractAccount: KeyPair = KeyPair("chain-contract".getBytes(StandardCharsets.UTF_8))
 
   val l2Config = settings.config.as[ClientConfig]("waves.l2")
   require(l2Config.chainContractAddress == chainContractAddress, "Check settings")
