@@ -57,6 +57,8 @@ a non-empty balance. So you can use them to issue transactions on EL.
     * wavesnode-1: http://127.0.0.1:16869/
     * wavesnode-2: http://127.0.0.1:26869/
 
+If you need a JWT token for authenticated APIs, use [generate.sh](configs/ec-common/generate.sh).
+
 # How to set up Metamask
 
 Settings:
