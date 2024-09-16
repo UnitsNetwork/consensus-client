@@ -5,7 +5,7 @@ import org.scalatest.freespec.AnyFreeSpec
 import org.web3j.abi.datatypes.generated.Uint256
 import play.api.libs.json.Json
 import units.BlockHash
-import units.client.http.model.EcBlock
+import units.client.engine.model.EcBlock
 import units.eth.EmptyL2Block.Params
 
 class EmptyL2BlockTestSuite extends AnyFreeSpec with BaseSuite {

@@ -5,13 +5,12 @@ import com.wavesplatform.account.PrivateKey
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.crypto
 import com.wavesplatform.crypto.{DigestLength, SignatureLength}
-import units.client.L2BlockLike
-import units.client.engine.model.Withdrawal
-import units.client.http.model.EcBlock
-import units.eth.EthAddress
-import units.util.HexBytesConverter.*
 import org.web3j.abi.datatypes.generated.Uint256
 import play.api.libs.json.{JsObject, Json}
+import units.client.L2BlockLike
+import units.client.engine.model.{EcBlock, Withdrawal}
+import units.eth.EthAddress
+import units.util.HexBytesConverter.*
 
 // TODO Refactor to eliminate a manual deserialization, e.g. (raw: JsonObject, parsed: ParsedBlockL2)
 class NetworkL2Block private (

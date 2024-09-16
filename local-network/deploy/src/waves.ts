@@ -9,8 +9,9 @@ import * as logger from './logger';
 import * as wavesTxs from './waves-txs';
 import * as wavesUtils from './waves-utils';
 import { ExtendedWavesApi } from './waves-utils';
-import { ec1Rpc } from './nodes';
+import { wavesApi1, wavesApi2, ec1Rpc } from './nodes';
 
+const wavesApis = [wavesApi1, wavesApi2];
 const chainContractAddress = s.chainContract.address;
 
 export interface SetupResult {
@@ -21,18 +22,8 @@ export interface SetupResult {
   utils: typeof wavesUtils;
 }
 
-function getWavesApiUrl(insideDocker: boolean, i: number): string {
-  return insideDocker ? `http://wavesnode-${i}:6869` : `http://127.0.0.1:${i}6869`;
-}
-
 export async function setup(force: boolean): Promise<SetupResult> {
   logger.info('Set up CL');
-
-  const insideDocker = await common.isInsideDocker();
-  const wavesApi1Url = getWavesApiUrl(insideDocker, 1);
-  const wavesApi2Url = getWavesApiUrl(insideDocker, 2);
-
-  logger.info(`Waves Node HTTP API: ${wavesApi1Url}, ${wavesApi2Url}`);
 
   const scSetBalances = async (): Promise<boolean> => {
     const tx = wavesTxs.scSetBalances;
@@ -79,8 +70,8 @@ export async function setup(force: boolean): Promise<SetupResult> {
     if (isContractSetupResponse.result.value) {
       logger.info('The contract is already set up.');
     } else {
-      const setupTxResult = await wavesApi1.transactions.broadcast(tx);
-      await wavesUtils.waitForTxn(wavesApi1, setupTxResult.id);
+      await wavesApi1.transactions.broadcast(tx);
+      await wavesUtils.waitForTxn(wavesApi1, tx.id);
     }
   };
 
@@ -95,11 +86,17 @@ export async function setup(force: boolean): Promise<SetupResult> {
     }
   };
 
-  let wavesApi1: ExtendedWavesApi = { ...waves.create(wavesApi1Url), base: wavesApi1Url };
-  let wavesApi2: ExtendedWavesApi = { ...waves.create(wavesApi2Url), base: wavesApi2Url };
-
   logger.info('Wait Waves 1 node');
   await wavesUtils.waitForUp(wavesApi1);
+
+  logger.info('Wait Waves node has at least one peer'); // Otherwise we can have problems with rollbacks
+  let connectedPeers = 0;
+  do {
+    await common.sleep(2000);
+    connectedPeers = (await wavesApi1.peers.fetchConnected()).peers.length;
+  } while (connectedPeers < 1);
+
+  logger.info(`Waves nodes peers: ${connectedPeers}`);
 
   logger.info('Set staking contract balances');
   const isNew = await scSetBalances();

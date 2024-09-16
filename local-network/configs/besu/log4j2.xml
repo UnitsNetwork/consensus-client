@@ -10,7 +10,7 @@
         <Console name="Console" target="SYSTEM_OUT">
             <PatternLayout alwaysWriteExceptions="false" pattern='${root.log.pattern}'/>
         </Console>
-        <RollingFile name="RollingFile" fileName="/opt/besu/logs/besu.log" filePattern="/opt/besu/logs/besu-%d{MM-dd-yyyy}-%i.log.gz" >
+        <RollingFile name="RollingFile" fileName="/opt/besu/logs/log" filePattern="/opt/besu/logs/%d{MM-dd-yyyy}-%i.log.gz" >
             <PatternLayout alwaysWriteExceptions="false" pattern='${root.log.pattern}'/>
             <Policies>
                 <TimeBasedTriggeringPolicy />

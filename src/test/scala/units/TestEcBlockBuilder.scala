@@ -2,8 +2,7 @@ package units
 
 import org.web3j.abi.datatypes.generated.Uint256
 import units.client.TestEcClients
-import units.client.engine.model.Withdrawal
-import units.client.http.model.{EcBlock, GetLogsResponseEntry}
+import units.client.engine.model.{EcBlock, GetLogsResponseEntry, Withdrawal}
 import units.eth.{EthAddress, EthereumConstants, Gwei}
 
 import java.nio.charset.StandardCharsets
@@ -11,6 +10,7 @@ import scala.concurrent.duration.FiniteDuration
 
 class TestEcBlockBuilder private (
     testEcClients: TestEcClients,
+    elBridgeAddress: EthAddress,
     elMinerDefaultReward: Gwei,
     private var block: EcBlock,
     parentBlock: EcBlock
@@ -29,7 +29,7 @@ class TestEcBlockBuilder private (
 
   def build(): EcBlock = block
   def buildAndSetLogs(logs: List[GetLogsResponseEntry] = Nil): EcBlock = {
-    testEcClients.setBlockLogs(block.hash, Bridge.ElSentNativeEventTopic, logs)
+    testEcClients.setBlockLogs(block.hash, elBridgeAddress, Bridge.ElSentNativeEventTopic, logs)
     block
   }
 }
@@ -37,12 +37,14 @@ class TestEcBlockBuilder private (
 object TestEcBlockBuilder {
   def apply(
       testEcClients: TestEcClients,
+      elBridgeAddress: EthAddress,
       elMinerDefaultReward: Gwei,
       blockDelay: FiniteDuration,
       parent: EcBlock
   ): TestEcBlockBuilder =
     new TestEcBlockBuilder(
       testEcClients,
+      elBridgeAddress,
       elMinerDefaultReward,
       EcBlock(
         hash = createBlockHash("???"),

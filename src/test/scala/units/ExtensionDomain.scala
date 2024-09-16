@@ -41,7 +41,7 @@ import units.ELUpdater.State.{ChainStatus, Working}
 import units.ExtensionDomain.*
 import units.client.contract.HasConsensusLayerDappTxHelpers
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
-import units.client.http.model.{EcBlock, TestEcBlocks}
+import units.client.engine.model.{EcBlock, TestEcBlocks}
 import units.client.{L2BlockLike, TestEcClients}
 import units.eth.{EthAddress, EthereumConstants, Gwei}
 import units.network.TestBlocksObserver
@@ -58,6 +58,7 @@ class ExtensionDomain(
     blockchainUpdater: BlockchainUpdaterImpl,
     rocksDBWriter: RocksDBWriter,
     settings: WavesSettings,
+    override val elBridgeAddress: EthAddress,
     elMinerDefaultReward: Gwei
 ) extends Domain(rdb, blockchainUpdater, rocksDBWriter, settings)
     with HasConsensusLayerDappTxHelpers
@@ -122,7 +123,6 @@ class ExtensionDomain(
     l2Config,
     extensionContext,
     ecClients.engineApi,
-    ecClients.ecApi,
     blockObserver,
     allChannels,
     globalScheduler,
@@ -346,7 +346,7 @@ class ExtensionDomain(
     createEcBlockBuilder(hashPath, miner.elRewardAddress, parent)
 
   def createEcBlockBuilder(hashPath: String, minerRewardL2Address: EthAddress, parent: EcBlock): TestEcBlockBuilder =
-    TestEcBlockBuilder(ecClients, elMinerDefaultReward, l2Config.blockDelay, parent = parent).updateBlock(
+    TestEcBlockBuilder(ecClients, elBridgeAddress, elMinerDefaultReward, l2Config.blockDelay, parent = parent).updateBlock(
       _.copy(
         hash = TestEcBlockBuilder.createBlockHash(hashPath),
         minerRewardL2Address = minerRewardL2Address

@@ -17,6 +17,8 @@ import units.eth.{EthAddress, EthereumConstants}
 import units.util.HexBytesConverter
 
 trait HasConsensusLayerDappTxHelpers {
+  def elBridgeAddress: EthAddress
+
   def currentHitSource: ByteStr
 
   def stakingContractAccount: KeyPair
@@ -44,7 +46,7 @@ trait HasConsensusLayerDappTxHelpers {
   object chainContract {
     def setScript(): SetScriptTransaction = TxHelpers.setScript(chainContractAccount, CompiledChainContract.script, fee = setScriptFee)
 
-    def setup(genesisBlock: L2BlockLike, elMinerReward: Long, elBridgeAddress: EthAddress): InvokeScriptTransaction = TxHelpers.invoke(
+    def setup(genesisBlock: L2BlockLike, elMinerReward: Long): InvokeScriptTransaction = TxHelpers.invoke(
       dApp = chainContractAddress,
       func = "setup".some,
       args = List(

@@ -9,10 +9,8 @@ import play.api.libs.json.JsObject
 import units.ELUpdater.calculateRandao
 import units.client.TestEcClients.*
 import units.client.engine.EngineApiClient.PayloadId
-import units.client.engine.model.Withdrawal
+import units.client.engine.model.*
 import units.client.engine.{EngineApiClient, LoggedEngineApiClient}
-import units.client.http.model.*
-import units.client.http.{EcApiClient, LoggedEcApiClient}
 import units.collections.ListOps.*
 import units.eth.{EthAddress, EthereumConstants}
 import units.{BlockHash, Job, NetworkL2Block}
@@ -64,8 +62,8 @@ class TestEcClients private (
     forgingBlocks.transform(ForgingBlock(mkTestEcBlock(ecBlock, epochNumber)) :: _)
 
   private val logs = Atomic(Map.empty[GetLogsRequest, List[GetLogsResponseEntry]])
-  def setBlockLogs(hash: BlockHash, topic: String, blockLogs: List[GetLogsResponseEntry]): Unit = {
-    val request = GetLogsRequest(hash, List(topic))
+  def setBlockLogs(hash: BlockHash, address: EthAddress, topic: String, blockLogs: List[GetLogsResponseEntry]): Unit = {
+    val request = GetLogsRequest(hash, address, List(topic))
     logs.transform(_.updated(request, blockLogs))
   }
 
@@ -75,7 +73,7 @@ class TestEcClients private (
     */
   def fullValidatedBlocks: Set[BlockHash] = getLogsCalls.get()
 
-  val engineApi = LoggedEngineApiClient {
+  val engineApi = new LoggedEngineApiClient(
     new EngineApiClient {
       override def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): Job[String] = {
         knownBlocks.get().get(blockHash) match {
@@ -143,12 +141,8 @@ class TestEcClients private (
       }.asRight
 
       override def getPayloadBodyByHash(hash: BlockHash): Job[Option[JsObject]] =
-        ecApi.getBlockByHashJson(hash)
-    }
-  }
+        getBlockByHashJson(hash)
 
-  val ecApi = LoggedEcApiClient {
-    new EcApiClient {
       override def getBlockByNumber(number: BlockNumber): Job[Option[EcBlock]] =
         number match {
           case BlockNumber.Latest    => currChain.headOption.asRight
@@ -163,20 +157,20 @@ class TestEcClients private (
         } yield b.ecBlock
       }.asRight
 
-      override def getBlockByHashJson(hash: BlockHash, fullTxs: Boolean): Job[Option[JsObject]] =
+      override def getBlockByHashJson(hash: BlockHash): Job[Option[JsObject]] =
         notImplementedMethodJob("getBlockByHashJson")
 
       override def getLastExecutionBlock: Job[EcBlock] = currChain.head.asRight
 
       override def blockExists(hash: BlockHash): Job[Boolean] = notImplementedMethodJob("blockExists")
 
-      override def getLogs(hash: BlockHash, topic: String): Job[List[GetLogsResponseEntry]] = {
-        val request = GetLogsRequest(hash, List(topic))
+      override def getLogs(hash: BlockHash, address: EthAddress, topic: String): Job[List[GetLogsResponseEntry]] = {
+        val request = GetLogsRequest(hash, address, List(topic))
         getLogsCalls.transform(_ + hash)
         logs.get().getOrElse(request, throw notImplementedCase("call setBlockLogs"))
       }.asRight
     }
-  }
+  )
 
   protected def notImplementedMethodJob[A](text: String): Job[A] = throw new NotImplementedMethod(text)
   protected def notImplementedCase(text: String): Throwable      = new NotImplementedCase(text)

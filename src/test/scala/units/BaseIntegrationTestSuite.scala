@@ -11,7 +11,7 @@ import com.wavesplatform.utils.ScorexLogging
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues}
 import units.Bridge.ElSentNativeEvent
-import units.client.http.model.GetLogsResponseEntry
+import units.client.engine.model.GetLogsResponseEntry
 import units.eth.{EthAddress, Gwei}
 import units.test.CustomMatchers
 import units.util.HexBytesConverter
@@ -37,7 +37,7 @@ trait BaseIntegrationTestSuite
       val txs =
         List(
           d.chainContract.setScript(),
-          d.chainContract.setup(d.ecGenesisBlock, elMinerDefaultReward.amount.longValue(), elBridgeAddress)
+          d.chainContract.setup(d.ecGenesisBlock, elMinerDefaultReward.amount.longValue())
         ) ++
           settings.initialMiners
             .flatMap { x =>
@@ -69,6 +69,7 @@ trait BaseIntegrationTestSuite
           blockchainUpdater = bcu,
           rocksDBWriter = blockchain,
           settings = settings.wavesSettings,
+          elBridgeAddress = elBridgeAddress,
           elMinerDefaultReward = elMinerDefaultReward
         )
 

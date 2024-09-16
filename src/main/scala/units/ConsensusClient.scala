@@ -15,9 +15,8 @@ import monix.execution.{CancelableFuture, Scheduler}
 import net.ceedubs.ficus.Ficus.*
 import org.slf4j.LoggerFactory
 import sttp.client3.HttpClientSyncBackend
-import units.client.engine.{EngineApiClient, HttpEngineApiClient}
-import units.client.http.{EcApiClient, HttpEcApiClient}
-import units.client.{JwtAuthenticationBackend, LoggingBackend}
+import units.client.JwtAuthenticationBackend
+import units.client.engine.{EngineApiClient, HttpEngineApiClient, LoggedEngineApiClient}
 import units.network.*
 
 import java.util.concurrent.ConcurrentHashMap
@@ -28,7 +27,6 @@ class ConsensusClient(
     config: ClientConfig,
     context: ExtensionContext,
     engineApiClient: EngineApiClient,
-    httpApiClient: EcApiClient,
     blockObserver: BlocksObserver,
     allChannels: DefaultChannelGroup,
     globalScheduler: Scheduler,
@@ -42,7 +40,6 @@ class ConsensusClient(
       deps.config,
       context,
       deps.engineApiClient,
-      deps.httpApiClient,
       deps.blockObserver,
       deps.allChannels,
       deps.globalScheduler,
@@ -54,7 +51,6 @@ class ConsensusClient(
 
   private[units] val elu =
     new ELUpdater(
-      httpApiClient,
       engineApiClient,
       context.blockchain,
       context.utx,
@@ -110,7 +106,7 @@ class ConsensusClientDependencies(context: ExtensionContext) extends AutoCloseab
   val globalScheduler: Scheduler     = monix.execution.Scheduler.global
   val eluScheduler: SchedulerService = Scheduler.singleThread("el-updater", reporter = { e => log.warn("Exception in ELUpdater", e) })
 
-  private val httpClientBackend = new LoggingBackend(HttpClientSyncBackend())
+  private val httpClientBackend = HttpClientSyncBackend()
   private val maybeAuthenticatedBackend = config.jwtSecretFile match {
     case Some(secretFile) =>
       val src = Source.fromFile(secretFile)
@@ -121,15 +117,14 @@ class ConsensusClientDependencies(context: ExtensionContext) extends AutoCloseab
       httpClientBackend
   }
 
-  val engineApiClient = new HttpEngineApiClient(config, maybeAuthenticatedBackend)
-  val httpApiClient = new HttpEcApiClient(config, maybeAuthenticatedBackend)
+  val engineApiClient = new LoggedEngineApiClient(new HttpEngineApiClient(config, maybeAuthenticatedBackend))
 
   val allChannels     = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE)
   val peerDatabase    = new PeerDatabaseImpl(config.network)
   val messageObserver = new MessageObserver()
   private val networkServer = NetworkServer(
     config,
-    new HistoryReplier(httpApiClient, engineApiClient)(globalScheduler),
+    new HistoryReplier(engineApiClient)(globalScheduler),
     peerDatabase,
     messageObserver,
     allChannels,

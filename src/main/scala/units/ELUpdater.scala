@@ -33,8 +33,6 @@ import units.client.engine.EngineApiClient
 import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.model.*
 import units.client.engine.model.Withdrawal.WithdrawalIndex
-import units.client.http.EcApiClient
-import units.client.http.model.EcBlock
 import units.eth.{EmptyL2Block, EthAddress, EthereumConstants}
 import units.network.BlocksObserverImpl.BlockWithChannel
 import units.util.HexBytesConverter
@@ -45,7 +43,6 @@ import scala.concurrent.duration.*
 import scala.util.*
 
 class ELUpdater(
-    httpApiClient: EcApiClient,
     engineApiClient: EngineApiClient,
     blockchain: Blockchain,
     utx: UtxPool,
@@ -265,7 +262,7 @@ class ELUpdater(
       fixedFinalizedBlock = if (finalizedBlock.height > rollbackBlock.parentBlock.height) rollbackBlock.parentBlock else finalizedBlock
       _           <- confirmBlock(rollbackBlock.hash, fixedFinalizedBlock.hash)
       _           <- confirmBlock(target, fixedFinalizedBlock)
-      lastEcBlock <- httpApiClient.getLastExecutionBlock
+      lastEcBlock <- engineApiClient.getLastExecutionBlock
       _ <- Either.cond(
         targetHash == lastEcBlock.hash,
         (),
@@ -451,14 +448,14 @@ class ELUpdater(
     else {
       val finalizedBlock = chainContractClient.getFinalizedBlock
       logger.debug(s"Finalized block is ${finalizedBlock.hash}")
-      httpApiClient.getBlockByHash(finalizedBlock.hash) match {
+      engineApiClient.getBlockByHash(finalizedBlock.hash) match {
         case Left(error) => logger.error(s"Could not load finalized block", error)
         case Right(Some(finalizedEcBlock)) =>
           logger.trace(s"Finalized block ${finalizedBlock.hash} is at height ${finalizedEcBlock.height}")
           (for {
             newEpochInfo  <- calculateEpochInfo
             mainChainInfo <- chainContractClient.getMainChainInfo.toRight("Can't get main chain info")
-            lastEcBlock   <- httpApiClient.getLastExecutionBlock.leftMap(_.message)
+            lastEcBlock   <- engineApiClient.getLastExecutionBlock.leftMap(_.message)
           } yield {
             logger.trace(s"Following main chain ${mainChainInfo.id}")
             val fullValidationStatus = FullValidationStatus(
@@ -620,7 +617,7 @@ class ELUpdater(
     val finalizedBlock = chainContractClient.getFinalizedBlock
     val options        = chainContractClient.getOptions
     logger.debug(s"Finalized block is ${finalizedBlock.hash}")
-    httpApiClient.getBlockByHash(finalizedBlock.hash) match {
+    engineApiClient.getBlockByHash(finalizedBlock.hash) match {
       case Left(error) => logger.error(s"Could not load finalized block", error)
       case Right(Some(finalizedEcBlock)) =>
         logger.trace(s"Finalized block ${finalizedBlock.hash} is at height ${finalizedEcBlock.height}")
@@ -722,7 +719,7 @@ class ELUpdater(
 
   private def requestBlock(hash: BlockHash): BlockRequestResult = {
     logger.debug(s"Requesting block $hash")
-    httpApiClient.getBlockByHash(hash) match {
+    engineApiClient.getBlockByHash(hash) match {
       case Right(Some(block)) => BlockRequestResult.BlockExists(block)
       case Right(None) =>
         requestAndProcessBlock(hash)
@@ -788,7 +785,7 @@ class ELUpdater(
   ): Option[Working[FollowingChain]] = {
     @tailrec
     def findLastEcBlock(curBlock: ContractBlock): EcBlock = {
-      httpApiClient.getBlockByHash(curBlock.hash) match {
+      engineApiClient.getBlockByHash(curBlock.hash) match {
         case Right(Some(block)) => block
         case Right(_) =>
           chainContractClient.getBlock(curBlock.parentHash) match {
@@ -877,7 +874,7 @@ class ELUpdater(
   private def waitForSyncCompletion(target: ContractBlock): Unit = scheduler.scheduleOnce(5.seconds)(state match {
     case SyncingToFinalizedBlock(finalizedBlockHash) if finalizedBlockHash == target.hash =>
       logger.debug(s"Checking if EL has synced to ${target.hash} on height ${target.height}")
-      httpApiClient.getLastExecutionBlock match {
+      engineApiClient.getLastExecutionBlock match {
         case Left(error) =>
           logger.error(s"Sync to ${target.hash} was not completed, error=${error.message}")
           setState("23", Starting)
@@ -1209,11 +1206,11 @@ class ELUpdater(
   private def mkRollbackBlock(rollbackTargetBlockId: BlockHash): Job[RollbackBlock] = for {
     targetBlockFromContract <- Right(chainContractClient.getBlock(rollbackTargetBlockId))
     targetBlockOpt <- targetBlockFromContract match {
-      case None => httpApiClient.getBlockByHash(rollbackTargetBlockId)
+      case None => engineApiClient.getBlockByHash(rollbackTargetBlockId)
       case x    => Right(x)
     }
     targetBlock      <- Either.fromOption(targetBlockOpt, ClientError(s"Can't find block $rollbackTargetBlockId neither on a contract, nor in EC"))
-    parentBlock      <- httpApiClient.getBlockByHash(targetBlock.parentHash)
+    parentBlock      <- engineApiClient.getBlockByHash(targetBlock.parentHash)
     parentBlock      <- Either.fromOption(parentBlock, ClientError(s"Can't find parent block $rollbackTargetBlockId in execution client"))
     rollbackBlockOpt <- engineApiClient.applyNewPayload(EmptyL2Block.mkExecutionPayload(parentBlock))
     rollbackBlock    <- Either.fromOption(rollbackBlockOpt, ClientError("Rollback block hash is not defined as latest valid hash"))
@@ -1226,7 +1223,7 @@ class ELUpdater(
     }
 
   private def getLastWithdrawalIndex(hash: BlockHash): Job[WithdrawalIndex] =
-    httpApiClient.getBlockByHash(hash).flatMap {
+    engineApiClient.getBlockByHash(hash).flatMap {
       case None => Left(ClientError(s"Can't find $hash block on EC during withdrawal search"))
       case Some(ecBlock) =>
         ecBlock.withdrawals.lastOption match {
@@ -1239,7 +1236,7 @@ class ELUpdater(
 
   private def getElToClTransfersRootHash(hash: BlockHash, elBridgeAddress: EthAddress): Job[Digest] =
     for {
-      elRawLogs <- httpApiClient.getLogs(hash, Bridge.ElSentNativeEventTopic)
+      elRawLogs <- engineApiClient.getLogs(hash, elBridgeAddress, Bridge.ElSentNativeEventTopic)
       rootHash <- {
         val relatedElRawLogs = elRawLogs.filter(x => x.address == elBridgeAddress && x.topics.contains(Bridge.ElSentNativeEventTopic))
         Bridge
@@ -1413,7 +1410,7 @@ class ELUpdater(
       if (fullValidationStatus.validated.contains(lastContractBlock.hash)) Right(BlockForValidation.NotFound)
       else if (lastContractBlock.height <= finalizedBlock.height) Right(BlockForValidation.SkippedFinalized(lastContractBlock))
       else
-        httpApiClient
+        engineApiClient
           .getBlockByHash(lastContractBlock.hash)
           .map {
             case Some(ecBlock) => BlockForValidation.Found(lastContractBlock, ecBlock)

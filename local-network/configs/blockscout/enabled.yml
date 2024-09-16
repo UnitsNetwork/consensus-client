@@ -21,7 +21,7 @@ services:
     depends_on:
       - db
       - redis
-      - besu-1
+      - ec-1
     extends:
       file: ./backend/backend.yml
       service: backend
