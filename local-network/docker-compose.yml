@@ -1,6 +1,10 @@
 name: l2
 include:
   - ./configs/blockscout/${BS-enabled}.yml
+x-waves-common-environment: &waves-common-environment
+  JAVA_OPTS: -Dlogback.file.level=TRACE
+  WAVES_LOG_LEVEL: TRACE
+  WAVES_HEAP_SIZE: 2g
 services:
   ec-1:
     container_name: ec-1
@@ -38,10 +42,9 @@ services:
     ports:
       - "127.0.0.1:16869:6869"
     environment:
-      - JAVA_OPTS=-Dlogback.file.level=TRACE
-      - WAVES_HEAP_SIZE=2g
-      - NODE_NUMBER=1
-      - WAVES_WALLET_SEED=HnyGuCEnV1A # devnet-1, addr: 3FNraPMYcfuGREcxorNSEBHgNLjmYtaHy9e
+      <<: *waves-common-environment
+      NODE_NUMBER: 1
+      WAVES_WALLET_SEED: HnyGuCEnV1A # devnet-1, addr: 3FNraPMYcfuGREcxorNSEBHgNLjmYtaHy9e
     volumes:
       - ./configs/wavesnode:/etc/waves:ro
       - ./configs/ec-common/jwt-secret-1.hex:/etc/secrets/jwtsecret:ro
@@ -58,10 +61,9 @@ services:
     ports:
       - "127.0.0.1:26869:6869"
     environment:
-      - JAVA_OPTS=-Dlogback.file.level=TRACE
-      - WAVES_HEAP_SIZE=2g
-      - NODE_NUMBER=2
-      - WAVES_WALLET_SEED=HnyGuCEnV1B # devnet-2, addr: 3FSrRN8X7cDsLyYTScS8Yf8KSwZgJBwf1jU
+      <<: *waves-common-environment
+      NODE_NUMBER: 2
+      WAVES_WALLET_SEED: HnyGuCEnV1B # devnet-2, addr: 3FSrRN8X7cDsLyYTScS8Yf8KSwZgJBwf1jU
     volumes:
       - ./configs/wavesnode:/etc/waves:ro
       - ./configs/ec-common/jwt-secret-2.hex:/etc/secrets/jwtsecret:ro

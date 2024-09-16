@@ -7,20 +7,15 @@ fi
 
 hexsecret=$(echo -n "$1" | tr -d '\n')
 
-# Construct the header
-jwt_header=$(echo -n '{"alg":"HS256","typ":"JWT"}' | base64 | sed s/\+/-/g | sed 's/\//_/g' | sed -E s/=+$//)
+base64_url_encode() {
+  echo -n "$1" | base64 | sed s/\+/-/g | sed 's/\//_/g' | sed -E s/=+$//
+}
 
-# Get the current Unix timestamp (seconds since 1970-01-01)
-iat=$(date +%s)
+jwt_header=$(base64_url_encode '{"alg":"HS256","typ":"JWT"}')
 
-# Construct the payload with 'iat' claim
-payload=$(echo -n "{\"iat\":${iat}}" | base64 | sed s/\+/-/g | sed 's/\//_/g' |  sed -E s/=+$//)
+iat=$(date +%s) # Seconds since 1970-01-01
+payload=$(base64_url_encode "{\"iat\":${iat}}")
 
-# Calculate hmac signature -- note option to pass in the key as hex bytes
-hmac_signature=$(echo -n "${jwt_header}.${payload}" | openssl dgst -sha256 -mac HMAC -macopt hexkey:$hexsecret -binary | base64 | sed s/\+/-/g | sed 's/\//_/g' | sed -E s/=+$//)
+hmac_signature=$(echo -n "${jwt_header}.${payload}" | openssl dgst -sha256 -mac HMAC -macopt hexkey:"${hexsecret}" -binary | base64_url_encode)
 
-# Create the full token
-jwt="${jwt_header}.${payload}.${hmac_signature}"
-
-# Output the generated JWT token
-echo -n $jwt
+echo -n "${jwt_header}.${payload}.${hmac_signature}"
