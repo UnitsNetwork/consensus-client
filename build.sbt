@@ -13,7 +13,8 @@ name             := "consensus-client"
 maintainer       := "Units Network Team"
 resolvers ++= Resolver.sonatypeOssRepos("releases") ++ Resolver.sonatypeOssRepos("snapshots") ++ Seq(Resolver.mavenLocal)
 libraryDependencies ++= Seq(
-  "com.wavesplatform"              % "node"          % "1.5.7" % "provided",
+  "com.wavesplatform"              % "node-testkit"  % "1.5.7-3964-SNAPSHOT" % "test",
+  "com.wavesplatform"              % "node"          % "1.5.7-3964-SNAPSHOT" % "provided",
   "com.softwaremill.sttp.client3"  % "core_2.13"     % "3.9.8",
   "com.softwaremill.sttp.client3" %% "play-json"     % "3.9.8",
   "com.github.jwt-scala"          %% "jwt-play-json" % "10.0.1"
