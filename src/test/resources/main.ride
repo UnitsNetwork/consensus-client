@@ -16,7 +16,6 @@ let MAX_CL_TO_EL_TRANSFERS = 16
 # 1024 symbols
 let zeroesStr = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
 
-let thisEpochDataKey        = "thisEpochData"
 let allMinersKey            = "allMiners"
 let mainChainIdKey          = "mainChainId"
 let lastChainIdKey          = "lastChainId"
@@ -106,16 +105,9 @@ func epochMeta(epoch: Int) = match getString(epochMetaKey(epoch)) {
   case _ => unit
 }
 
-let (thisEpochMiner, thisEpochRef, thisEpochLastBlock) = match epochMeta(height) {
+let (thisEpochMiner, thisEpochRef) = match epochMeta(height) {
   case m: (Address, Int, String) => m
-  case _ =>
-    match getString(thisEpochDataKey) {
-      case rawThisEpochData: String =>
-        let thisEpochData = split(rawThisEpochData, SEP)
-        let thisEpoch     = parseIntValue(thisEpochData[0])
-        (if (thisEpoch == height) then addressFromStringValue(thisEpochData[1]) else unit, 0, "")
-      case _ => (unit, 0, "")
-    }
+  case _ => (unit, 0)
 }
 
 let allMinersStr = getString(allMinersKey).valueOrElse("")
@@ -168,13 +160,13 @@ func lastHeightBy(miner: Address, chainId: Int) = match getInteger(chainLastHeig
     blockMeta(blockHash)._1
 }
 
-let (computedDelay, computedGenerator, computedTotalBalance, filteredMiners) = {
+let (computedGenerator, computedTotalBalance) = {
   let hitSource = match lastBlock.vrf {
     case vrf: ByteVector => vrf
     case _               => lastBlock.generationSignature
   }
-  func processMiner(prev: (Int, String, Int, List[String]), miner: String) = {
-    let (prevDelay, prevMiner, prevTotalBalance, prevMiners) = prev
+  func processMiner(prev: (String, Int, Int, List[String]), miner: String) = {
+    let (prevMiner, prevTotalBalance, prevDelay, prevMiners) = prev
     let minerAddress = addressFromStringValue(miner)
     let wavesGenBalance = minerAddress.wavesBalance().generating
     let minerBalance = minerAddress.generatingBalance()
@@ -184,16 +176,14 @@ let (computedDelay, computedGenerator, computedTotalBalance, filteredMiners) = {
     else {
       let nextDelay = calculateDelay(minerAddress, minerBalance)
       if (nextDelay < prevDelay)
-      then (nextDelay, miner, prevTotalBalance + minerBalance, prevMiners :+ miner)
-      else (prevDelay, prevMiner, prevTotalBalance + minerBalance, prevMiners :+ miner)
+      then (miner, prevTotalBalance + minerBalance, nextDelay, prevMiners :+ miner)
+      else (prevMiner, prevTotalBalance + minerBalance, prevDelay, prevMiners :+ miner)
     }
   }
-  FOLD<50>(allMiners, (INT_MAX, "", 0, []), processMiner)
+  FOLD<50>(allMiners, ("", 0, INT_MAX, []), processMiner)
 }
 
-func getChainLastBlockId(chainId: Int) = chainMeta(chainId)._2
-
-let (mclbIgnored1, mainChainEpoch, mainChainParentHash) = blockMeta(mainChainLastBlock)
+let (mclbIgnored1, mainChainEpoch) = blockMeta(mainChainLastBlock)
 let (mainChainGenerator, mceIgnored1) = epochMeta(mainChainEpoch).valueOrErrorMessage("Can't find main chain epoch meta for epoch " + mainChainEpoch.toString())
 
 func calculateFinalizedBlockHash(curMiner: Address, curPrevEpoch: Int, curLastBlockHash: String) = {
@@ -201,28 +191,28 @@ func calculateFinalizedBlockHash(curMiner: Address, curPrevEpoch: Int, curLastBl
 
   let halfBalance = computedTotalBalance / 2
 
-  func step(prev: (Int, Int, String|Unit, List[Address]), next: String) = {
-    let (thisEpoch, totalBalance, maybeSafeEpoch, prevMiners) = prev
+  func step(prev: (Int, String|Unit, Int, List[Address]), next: String) = {
+    let (thisEpoch, maybeSafeEpoch, totalBalance, prevMiners) = prev
     match maybeSafeEpoch {
       case _: Unit =>
         let (miner, prevEpoch, lastBlockHash) = if (thisEpoch == height)
           then (curMiner, curPrevEpoch, curLastBlockHash)
           else epochMeta(thisEpoch).value()
         if (prevEpoch == 0 || height - thisEpoch >= 100)
-          then (thisEpoch, totalBalance, lastBlockHash, allMiners)
+          then (thisEpoch, lastBlockHash, totalBalance, allMiners)
           else {
             let (newTotalBalance, newMiners) = if (prevMiners.containsElement(miner))
               then (totalBalance, prevMiners)
               else (totalBalance + miner.generatingBalance(), miner :: prevMiners)
             if (newTotalBalance > halfBalance)
-              then (thisEpoch, newTotalBalance, lastBlockHash, allMiners)
-              else (prevEpoch, newTotalBalance, unit, newMiners)
+              then (thisEpoch, lastBlockHash, newTotalBalance, allMiners)
+              else (prevEpoch, unit, newTotalBalance, newMiners)
           }
       case _ => prev
     }
   }
 
-  let (fallbackEpoch, totalBalance, finalizedBlockHashOpt, miners) = FOLD<100>(offsets_100, (height, 0, unit, []), step)
+  let (fallbackEpoch, finalizedBlockHashOpt) = FOLD<100>(offsets_100, (height, unit, 0, []), step)
   match finalizedBlockHashOpt {
     case finalizedBlockHash: String => finalizedBlockHash
     case _ =>
@@ -324,7 +314,7 @@ func setOrFail(flags: String, index: Int) =
 
 func validateBlockHash(hexStr: String) = {
   let decodedBytes = hexStr.fromBase16String()
-  if (decodedBytes.size() != 32) then throw("invalid block id length")
+  if (decodedBytes.size() != BLOCK_HASH_SIZE) then throw("invalid block id length")
   else hexStr
 }
 
