@@ -349,7 +349,7 @@ func extendMainChain(
 
   let updateFinalizedBlock = getUpdateFinalizedBlockAction(i.originCaller, blockHashHex, mainChainEpoch)
 
-  let newChainHeight  = mainChainHeight + 1
+  let newChainHeight = mainChainHeight + 1
   [
     mkBlockMetaEntry(blockHashHex, newChainHeight, mainChainLastBlock, mainChainId, elToClTransfersRootHashHex, lastClToElTransferIndex),
     mkChainMetaEntry(mainChainId, newChainHeight, blockHashHex),
@@ -369,7 +369,7 @@ func startAltChain(
 ) = {
   strict checkBlockHash = validateBlockHash(blockHashHex)
   strict checkEpoch     = ensureCorrectEpoch(vrf)
-  let (refChainHeight, refEpoch, refRef, refIgnored5, refIgnored6, refTransferIndex) = blockMeta(referenceHex)
+  let (refChainHeight, refEpoch, refIgnored1, refIgnored2, refIgnored3, refTransferIndex) = blockMeta(referenceHex)
   let finalizedEpoch = blockMeta(getStringValue(finalizedBlockKey))._2
   let epochRef = if (refEpoch >= finalizedEpoch)
     then refEpoch
