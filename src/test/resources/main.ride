@@ -7,7 +7,6 @@ let WAVES                = 100_000_000
 let MIN_BALANCE          = 20_000 * WAVES
 let SEP                  = ","
 let BLOCK_HASH_SIZE      = 32
-let ADDRESS_SIZE         = 26
 let PUBLIC_KEY_HASH_SIZE = 20
 let ROOT_HASH_SIZE       = 32
 let WITHDRAW_PROOFS_SIZE = 10
@@ -17,17 +16,17 @@ let MAX_CL_TO_EL_TRANSFERS = 16
 # 1024 symbols
 let zeroesStr = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
 
-let thisEpochDataKey          = "thisEpochData"
-let allMinersKey              = "allMiners"
-let mainChainIdKey            = "mainChainId"
-let lastChainIdKey            = "lastChainId"
-let firstValidAltChainIdKey   = "firstValidAltChainId"
-let minerRewardKey            = "minerReward" # In Gwei. Changing the value is unexpected and isn't held by code
-let blockMetaK                = "block_0x"
-let finalizedBlockKey         = "finalizedBlock"
-let tokenIdKey                = "tokenId"
-let elBridgeAddressKey        = "elBridgeAddress"
-let nativeTransfersCountKey   = "nativeTransfersCount"
+let thisEpochDataKey        = "thisEpochData"
+let allMinersKey            = "allMiners"
+let mainChainIdKey          = "mainChainId"
+let lastChainIdKey          = "lastChainId"
+let firstValidAltChainIdKey = "firstValidAltChainId"
+let minerRewardKey          = "minerReward" # In Gwei. Changing the value is unexpected and isn't held by code
+let blockMetaK              = "block_0x"
+let finalizedBlockKey       = "finalizedBlock"
+let tokenIdKey              = "tokenId"
+let elBridgeAddressKey      = "elBridgeAddress"
+let nativeTransfersCountKey = "nativeTransfersCount"
 
 func pad(i: Int) = {
   let s = i.toString()
