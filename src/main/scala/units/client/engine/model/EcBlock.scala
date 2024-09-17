@@ -24,6 +24,7 @@ case class EcBlock(
     baseFeePerGas: Uint256,
     gasLimit: Long,
     gasUsed: Long,
+    prevRandao: String,
     withdrawals: Vector[Withdrawal]
 ) extends L2BlockLike {
   override def toString: String =
@@ -34,13 +35,14 @@ object EcBlock {
   implicit val reads: Reads[EcBlock] = (
     (JsPath \ "hash").read[BlockHash] and
       (JsPath \ "parentHash").read[BlockHash] and
-      (JsPath \ "stateRoot").read[BlockHash] and
+      (JsPath \ "stateRoot").read[String] and
       (JsPath \ "number").read[String].map(toLong) and
       (JsPath \ "timestamp").read[String].map(toLong) and
       (JsPath \ "miner").read[EthAddress] and
       (JsPath \ "baseFeePerGas").read[String].map(toUint256) and
       (JsPath \ "gasLimit").read[String].map(toLong) and
       (JsPath \ "gasUsed").read[String].map(toLong) and
+      (JsPath \ "mixHash").read[String] and
       (JsPath \ "withdrawals").readWithDefault(Vector.empty[Withdrawal])
   )(EcBlock.apply _)
 }

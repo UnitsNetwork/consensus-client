@@ -71,7 +71,6 @@ class ConsensusClient(
 
   def shutdown(): Future[Unit] = Future {
     blocksStreamCancelable.cancel()
-    elu.close()
     ownedResources.close()
   }(globalScheduler)
 

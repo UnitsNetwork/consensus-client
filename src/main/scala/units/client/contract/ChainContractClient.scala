@@ -66,8 +66,8 @@ trait ChainContractClient {
         val clGenerator = ByteStr(bb.getByteArray(Address.AddressLength))
         val chainId     = if (bb.remaining() >= 8) bb.getLong() else 0L
 
-        val e2CTransfersRootHash =
-          if (bb.remaining() >= ContractBlock.ElToClTransfersRootHashLength) bb.getByteArray(ContractBlock.ElToClTransfersRootHashLength)
+        val e2cTransfersRootHash =
+          if (bb.remaining() >= ContractBlock.E2CTransfersRootHashLength) bb.getByteArray(ContractBlock.E2CTransfersRootHashLength)
           else Array.emptyByteArray
 
         val lastC2ETransferIndex = if (bb.remaining() >= 8) bb.getLong() else -1L
@@ -76,7 +76,7 @@ trait ChainContractClient {
           !bb.hasRemaining,
           s"Not parsed ${bb.remaining()} bytes from ${blockMeta.base64}, read data: " +
             s"chainHeight=$chainHeight, epoch=$epoch, parentHash=$parentHash, clGenerator=$clGenerator, chainId=$chainId, " +
-            s"e2CTransfersRootHash=${HexBytesConverter.toHex(e2CTransfersRootHash)}, lastC2ETransferIndex=$lastC2ETransferIndex"
+            s"e2cTransfersRootHash=${HexBytesConverter.toHex(e2cTransfersRootHash)}, lastC2ETransferIndex=$lastC2ETransferIndex"
         )
 
         val minerRewardElAddress =
@@ -91,7 +91,7 @@ trait ChainContractClient {
           clGenerator,
           minerRewardElAddress,
           chainId,
-          e2CTransfersRootHash,
+          e2cTransfersRootHash,
           lastC2ETransferIndex
         )
       } catch {
@@ -290,7 +290,7 @@ object ChainContractClient {
   private val BlockHashBytesSize        = 32
   private val Sep                       = ","
 
-  val MaxClToElTransfers = 16
+  val MaxC2ETransfers = 16
 
   private class InconsistentContractData(message: String, cause: Throwable = null)
       extends IllegalStateException(s"Probably, your have to upgrade your client. $message", cause)
