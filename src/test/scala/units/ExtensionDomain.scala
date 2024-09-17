@@ -81,6 +81,7 @@ class ExtensionDomain(
     baseFeePerGas = Uint256.DEFAULT,
     gasLimit = 0,
     gasUsed = 0,
+    prevRandao = EthereumConstants.EmptyPrevRandaoHex,
     withdrawals = Vector.empty
   )
 
@@ -345,13 +346,15 @@ class ExtensionDomain(
   def createEcBlockBuilder(hashPath: String, miner: ElMinerSettings, parent: EcBlock = ecGenesisBlock): TestEcBlockBuilder =
     createEcBlockBuilder(hashPath, miner.elRewardAddress, parent)
 
-  def createEcBlockBuilder(hashPath: String, minerRewardL2Address: EthAddress, parent: EcBlock): TestEcBlockBuilder =
+  def createEcBlockBuilder(hashPath: String, minerRewardL2Address: EthAddress, parent: EcBlock): TestEcBlockBuilder = {
     TestEcBlockBuilder(ecClients, elBridgeAddress, elMinerDefaultReward, l2Config.blockDelay, parent = parent).updateBlock(
       _.copy(
         hash = TestEcBlockBuilder.createBlockHash(hashPath),
-        minerRewardL2Address = minerRewardL2Address
+        minerRewardL2Address = minerRewardL2Address,
+        prevRandao = ELUpdater.calculateRandao(blockchain.vrf(blockchain.height).get, parent.hash)
       )
     )
+  }
 
   override def currentHitSource: BlockId =
     blockchain.hitSource(blockchain.height).getOrElse(throw new RuntimeException(s"Can't get hit source for ${blockchain.height}"))

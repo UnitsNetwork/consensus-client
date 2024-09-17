@@ -11,12 +11,12 @@ import java.util.concurrent.ConcurrentHashMap
 object NetworkServer {
 
   def apply(
-             settings: ClientConfig,
-             historyReplier: HistoryReplier,
-             peerDatabase: PeerDatabase,
-             messageObserver: MessageObserver,
-             allChannels: ChannelGroup,
-             peerInfo: ConcurrentHashMap[Channel, PeerInfo]
+      settings: ClientConfig,
+      historyReplier: HistoryReplier,
+      peerDatabase: PeerDatabase,
+      messageObserver: MessageObserver,
+      allChannels: ChannelGroup,
+      peerInfo: ConcurrentHashMap[Channel, PeerInfo]
   ): NS = {
     val applicationName = s"${Constants.ApplicationName}l2-${settings.chainContract.take(8)}"
 

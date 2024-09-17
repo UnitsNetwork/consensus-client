@@ -56,6 +56,7 @@ object TestEcBlockBuilder {
         baseFeePerGas = Uint256.DEFAULT,
         gasLimit = 0,
         gasUsed = 0,
+        prevRandao = EthereumConstants.EmptyPrevRandaoHex,
         withdrawals = Vector.empty
       ),
       parent

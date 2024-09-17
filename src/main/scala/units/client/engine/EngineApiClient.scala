@@ -4,10 +4,10 @@ import play.api.libs.json.*
 import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.model.*
 import units.eth.EthAddress
-import units.{BlockHash, Job}
+import units.{BlockHash, JobResult}
 
 trait EngineApiClient {
-  def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): Job[String] // TODO Replace String with an appropriate type
+  def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[String] // TODO Replace String with an appropriate type
 
   def forkChoiceUpdateWithPayloadId(
       lastBlockHash: BlockHash,
@@ -16,25 +16,25 @@ trait EngineApiClient {
       suggestedFeeRecipient: EthAddress,
       prevRandao: String,
       withdrawals: Vector[Withdrawal] = Vector.empty
-  ): Job[PayloadId]
+  ): JobResult[PayloadId]
 
-  def getPayload(payloadId: PayloadId): Job[JsObject]
+  def getPayload(payloadId: PayloadId): JobResult[JsObject]
 
-  def applyNewPayload(payload: JsObject): Job[Option[BlockHash]]
+  def applyNewPayload(payload: JsObject): JobResult[Option[BlockHash]]
 
-  def getPayloadBodyByHash(hash: BlockHash): Job[Option[JsObject]]
+  def getPayloadBodyByHash(hash: BlockHash): JobResult[Option[JsObject]]
 
-  def getBlockByNumber(number: BlockNumber): Job[Option[EcBlock]]
+  def getBlockByNumber(number: BlockNumber): JobResult[Option[EcBlock]]
 
-  def getBlockByHash(hash: BlockHash): Job[Option[EcBlock]]
+  def getBlockByHash(hash: BlockHash): JobResult[Option[EcBlock]]
 
-  def getBlockByHashJson(hash: BlockHash): Job[Option[JsObject]]
+  def getBlockByHashJson(hash: BlockHash): JobResult[Option[JsObject]]
 
-  def getLastExecutionBlock: Job[EcBlock]
+  def getLastExecutionBlock: JobResult[EcBlock]
 
-  def blockExists(hash: BlockHash): Job[Boolean]
+  def blockExists(hash: BlockHash): JobResult[Boolean]
 
-  def getLogs(hash: BlockHash, address: EthAddress, topic: String): Job[List[GetLogsResponseEntry]]
+  def getLogs(hash: BlockHash, address: EthAddress, topic: String): JobResult[List[GetLogsResponseEntry]]
 }
 
 object EngineApiClient {
