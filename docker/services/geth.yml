@@ -1,12 +1,4 @@
 services:
-  geth-init:
-    container_name: geth-init
-    image: ethereum/client-go:stable
-    entrypoint: /tmp/init-geth.sh
-    volumes:
-      - ../genesis-${NETWORK}.json:/tmp/genesis.json
-      - ../data/geth:/root/.ethereum
-      - ../init-geth.sh:/tmp/init-geth.sh
   geth:
     container_name: geth
     image: ethereum/client-go:stable
@@ -27,9 +19,10 @@ services:
       - --authrpc.addr=0.0.0.0
       - --authrpc.vhosts=*
       - --discovery.dns=enrtree://AIRIZFFZSCSIVHXTKA44WYZQJMR75FLTGWJ5TUNEW5IP7QKZDLBRK@${NETWORK}-nodes.unit0.dev
-      - --networkid=88817
+      - --networkid=${NETWORK_ID}
       - --authrpc.jwtsecret=/etc/secrets/jwtsecret
       - --nodekey=/etc/secrets/p2p-key
+      - --miner.gaslimit=15000000
     logging:
       driver: local
       options:

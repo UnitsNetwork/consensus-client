@@ -21,6 +21,7 @@ services:
       - --genesis-file=/etc/besu/genesis.json
       - --data-storage-format=BONSAI
       - --network-id=${NETWORK_ID}
+      - --target-gas-limit=15000000
     volumes:
       - ../genesis-${NETWORK}.json:/etc/besu/genesis.json
       - ../data/secrets:/etc/secrets:ro
