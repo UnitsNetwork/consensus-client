@@ -2,7 +2,7 @@ import * as wt from '@waves/waves-transactions';
 import * as s from './common-settings';
 
 // cc - Chain contract
-// 2. Deploy chain contract script
+// 1. Deploy chain contract script
 export function mkCcDeploy(script: string) {
   return wt.setScript(
     {
@@ -14,7 +14,7 @@ export function mkCcDeploy(script: string) {
   )
 }
 
-// 3. Setup chain contract
+// 2. Setup chain contract
 export function ccSetup(elGenesisBlockHashHex: string) {
   return wt.invokeScript(
     {
@@ -43,7 +43,7 @@ export function ccSetup(elGenesisBlockHashHex: string) {
   )
 }
 
-// 4 & 5. Join EL miners on CL
+// 3 & 4. Join EL miners on CL
 export const ccMinerJoin1 = wt.invokeScript(
   {
     chainId: s.chainId,

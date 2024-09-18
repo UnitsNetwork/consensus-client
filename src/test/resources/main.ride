@@ -184,7 +184,6 @@ let (computedGenerator, computedTotalBalance) = {
 }
 
 let (mclbIgnored1, mainChainEpoch) = blockMeta(mainChainLastBlock)
-let (mainChainGenerator, mceIgnored1) = epochMeta(mainChainEpoch).valueOrErrorMessage("Can't find main chain epoch meta for epoch " + mainChainEpoch.toString())
 
 func calculateFinalizedBlockHash(curMiner: Address, curPrevEpoch: Int, curLastBlockHash: String) = {
   let offsets_100 = "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::".split_4C("")
