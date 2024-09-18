@@ -38,10 +38,11 @@ class NetworkL2Block private (
     height = height,
     timestamp = timestamp,
     minerRewardL2Address = minerRewardL2Address,
+    baseFeePerGas = baseFeePerGas,
     gasLimit = gasLimit,
     gasUsed = gasUsed,
-    withdrawals = withdrawals,
-    baseFeePerGas = baseFeePerGas
+    prevRandao = prevRandao,
+    withdrawals = withdrawals
   )
 
   override def toString: String = s"NetworkL2Block($hash)"

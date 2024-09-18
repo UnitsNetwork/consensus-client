@@ -8,17 +8,17 @@ import com.wavesplatform.lang.v1.FunctionHeader
 import com.wavesplatform.lang.v1.compiler.Terms.{CONST_BYTESTR, CONST_LONG, CONST_STRING, EVALUATED, FUNCTION_CALL}
 import org.web3j.utils.Numeric.cleanHexPrefix
 import units.util.HexBytesConverter.toHexNoPrefix
-import units.{BlockHash, ClientError, Job}
+import units.{BlockHash, ClientError, JobResult}
 
 abstract class ContractFunction(name: String, reference: BlockHash, extraArgs: Either[CommonError, List[EVALUATED]]) {
-  def toFunctionCall(blockHash: BlockHash, transfersRootHash: Digest, lastClToElTransferIndex: Long): Job[FUNCTION_CALL] = (for {
+  def toFunctionCall(blockHash: BlockHash, transfersRootHash: Digest, lastC2ETransferIndex: Long): JobResult[FUNCTION_CALL] = (for {
     hash <- CONST_STRING(cleanHexPrefix(blockHash))
     ref  <- CONST_STRING(cleanHexPrefix(reference))
     trh  <- CONST_STRING(toHexNoPrefix(transfersRootHash))
     xtra <- extraArgs
   } yield FUNCTION_CALL(
     FunctionHeader.User(name),
-    List(hash, ref) ++ xtra ++ List(trh, CONST_LONG(lastClToElTransferIndex))
+    List(hash, ref) ++ xtra ++ List(trh, CONST_LONG(lastC2ETransferIndex))
   )).leftMap(e => ClientError(s"Error building function call for $name: $e"))
 }
 

@@ -22,10 +22,9 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
 
   "Full validation when the block is available on EL and CL" - {
     "doesn't happen for finalized blocks" in withExtensionDomain(defaultSettings.copy(initialMiners = List(reliable))) { d =>
-      val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
-
       step("Start new epoch for ecBlock")
       d.advanceNewBlocks(reliable.address)
+      val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
       d.advanceConsensusLayerChanged()
 
       step(s"Receive ecBlock ${ecBlock.hash} from a peer")
@@ -42,7 +41,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
 
       d.waitForWorking("Block considered validated and following") { s =>
         val vs = s.fullValidationStatus
-        vs.validated should contain(ecBlock.hash)
+        vs.lastValidatedBlock.hash shouldBe ecBlock.hash
         vs.lastElWithdrawalIndex shouldBe empty
 
         is[FollowingChain](s.chainStatus)
@@ -51,10 +50,9 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
 
     "happens for not finalized blocks" - {
       "successful validation updates the chain information" in withExtensionDomain() { d =>
-        val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
-
         step("Start new epoch for ecBlock")
         d.advanceNewBlocks(reliable.address)
+        val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
         d.advanceConsensusLayerChanged()
 
         step(s"Receive ecBlock ${ecBlock.hash} from a peer")
@@ -73,7 +71,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
 
         d.waitForWorking("Block considered validated") { s =>
           val vs = s.fullValidationStatus
-          vs.validated should contain(ecBlock.hash)
+          vs.lastValidatedBlock.hash shouldBe ecBlock.hash
           vs.lastElWithdrawalIndex.value shouldBe -1L
         }
       }
@@ -107,12 +105,8 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
           d.receiveNetworkBlock(ecBlock2, malfunction.account)
           d.triggerScheduledTasks()
 
-          d.waitForWorking("Block considered validated and forking") { s =>
-            val vs = s.fullValidationStatus
-            vs.validated should contain(ecBlock2.hash)
-            vs.lastElWithdrawalIndex shouldBe empty
-
-            is[WaitForNewChain](s.chainStatus)
+          d.waitForCS[WaitForNewChain]("Forking") { cs =>
+            cs.chainSwitchInfo.referenceBlock.hash shouldBe ecBlock1.hash
           }
         }
 

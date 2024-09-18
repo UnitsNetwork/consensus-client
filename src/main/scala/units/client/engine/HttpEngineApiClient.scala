@@ -11,7 +11,7 @@ import units.client.engine.HttpEngineApiClient.*
 import units.client.engine.model.*
 import units.client.engine.model.ForkChoiceUpdatedRequest.ForkChoiceAttributes
 import units.eth.EthAddress
-import units.{BlockHash, ClientConfig, ClientError, Job}
+import units.{BlockHash, ClientConfig, ClientError, JobResult}
 
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 
@@ -19,7 +19,7 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
 
   val apiUrl: Uri = uri"${config.executionClientAddress}"
 
-  def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): Job[String] = {
+  def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[String] = {
     sendEngineRequest[ForkChoiceUpdatedRequest, ForkChoiceUpdatedResponse](
       ForkChoiceUpdatedRequest(blockHash, finalizedBlockHash, None),
       BlockExecutionTimeout
@@ -39,7 +39,7 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
       suggestedFeeRecipient: EthAddress,
       prevRandao: String,
       withdrawals: Vector[Withdrawal]
-  ): Job[PayloadId] = {
+  ): JobResult[PayloadId] = {
     sendEngineRequest[ForkChoiceUpdatedRequest, ForkChoiceUpdatedResponse](
       ForkChoiceUpdatedRequest(
         lastBlockHash,
@@ -59,11 +59,11 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
     }
   }
 
-  def getPayload(payloadId: PayloadId): Job[JsObject] = {
+  def getPayload(payloadId: PayloadId): JobResult[JsObject] = {
     sendEngineRequest[GetPayloadRequest, GetPayloadResponse](GetPayloadRequest(payloadId), NonBlockExecutionTimeout).map(_.executionPayload)
   }
 
-  def applyNewPayload(payload: JsObject): Job[Option[BlockHash]] = {
+  def applyNewPayload(payload: JsObject): JobResult[Option[BlockHash]] = {
     sendEngineRequest[NewPayloadRequest, PayloadStatus](NewPayloadRequest(payload), BlockExecutionTimeout).flatMap {
       case PayloadStatus(_, _, Some(validationError))                           => Left(ClientError(s"Payload validation error: $validationError"))
       case PayloadStatus(status, Some(latestValidHash), _) if status == "VALID" => Right(Some(latestValidHash))
@@ -73,47 +73,47 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
     }
   }
 
-  def getPayloadBodyByHash(hash: BlockHash): Job[Option[JsObject]] = {
+  def getPayloadBodyByHash(hash: BlockHash): JobResult[Option[JsObject]] = {
     sendEngineRequest[GetPayloadBodyByHash, JsArray](GetPayloadBodyByHash(hash), NonBlockExecutionTimeout)
       .map(_.value.headOption.flatMap(_.asOpt[JsObject]))
   }
 
-  def getBlockByNumber(number: BlockNumber): Job[Option[EcBlock]] = {
+  def getBlockByNumber(number: BlockNumber): JobResult[Option[EcBlock]] = {
     for {
       json      <- getBlockByNumberJson(number.str)
       blockMeta <- json.traverse(parseJson[EcBlock](_))
     } yield blockMeta
   }
 
-  def getBlockByHash(hash: BlockHash): Job[Option[EcBlock]] = {
+  def getBlockByHash(hash: BlockHash): JobResult[Option[EcBlock]] = {
     sendRequest[GetBlockByHashRequest, EcBlock](GetBlockByHashRequest(hash))
       .leftMap(err => ClientError(s"Error getting block by hash $hash: $err"))
   }
 
-  def getBlockByHashJson(hash: BlockHash): Job[Option[JsObject]] = {
+  def getBlockByHashJson(hash: BlockHash): JobResult[Option[JsObject]] = {
     sendRequest[GetBlockByHashRequest, JsObject](GetBlockByHashRequest(hash))
       .leftMap(err => ClientError(s"Error getting block json by hash $hash: $err"))
   }
 
-  def getLastExecutionBlock: Job[EcBlock] = for {
+  def getLastExecutionBlock: JobResult[EcBlock] = for {
     lastEcBlockOpt <- getBlockByNumber(BlockNumber.Latest)
     lastEcBlock    <- Either.fromOption(lastEcBlockOpt, ClientError("Impossible: EC doesn't have blocks"))
   } yield lastEcBlock
 
-  def blockExists(hash: BlockHash): Job[Boolean] =
+  def blockExists(hash: BlockHash): JobResult[Boolean] =
     getBlockByHash(hash).map(_.isDefined)
 
-  private def getBlockByNumberJson(number: String): Job[Option[JsObject]] = {
+  private def getBlockByNumberJson(number: String): JobResult[Option[JsObject]] = {
     sendRequest[GetBlockByNumberRequest, JsObject](GetBlockByNumberRequest(number))
       .leftMap(err => ClientError(s"Error getting block by number $number: $err"))
   }
 
-  override def getLogs(hash: BlockHash, address: EthAddress, topic: String): Job[List[GetLogsResponseEntry]] =
+  override def getLogs(hash: BlockHash, address: EthAddress, topic: String): JobResult[List[GetLogsResponseEntry]] =
     sendRequest[GetLogsRequest, List[GetLogsResponseEntry]](GetLogsRequest(hash, address, List(topic)))
       .leftMap(err => ClientError(s"Error getting block logs by hash $hash: $err"))
       .map(_.getOrElse(List.empty))
 
-  private def sendEngineRequest[A: Writes, B: Reads](request: A, timeout: FiniteDuration): Job[B] = {
+  private def sendEngineRequest[A: Writes, B: Reads](request: A, timeout: FiniteDuration): JobResult[B] = {
     sendRequest(request, timeout) match {
       case Right(response) => response.toRight(ClientError(s"Unexpected engine API empty response"))
       case Left(err)       => Left(ClientError(s"Engine API request error: $err"))
