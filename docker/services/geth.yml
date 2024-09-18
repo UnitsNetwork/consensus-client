@@ -1,12 +1,4 @@
 services:
-  geth-init:
-    container_name: geth-init
-    image: ethereum/client-go:stable
-    entrypoint: /tmp/init-geth.sh
-    volumes:
-      - ../genesis-${NETWORK}.json:/tmp/genesis.json
-      - ../data/geth:/root/.ethereum
-      - ../init-geth.sh:/tmp/init-geth.sh
   geth:
     container_name: geth
     image: ethereum/client-go:stable

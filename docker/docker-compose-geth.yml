@@ -1,17 +1,8 @@
 services:
-  geth-init:
-    extends:
-      file: ./services/geth.yml
-      service: geth-init
-
   geth:
     extends:
       file: ./services/geth.yml
       service: geth
-    depends_on:
-      geth-init:
-        condition: service_completed_successfully
-
   waves-node:
     extends:
       file: ./services/waves-node.yml
