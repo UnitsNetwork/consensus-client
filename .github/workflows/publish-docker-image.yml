@@ -7,6 +7,11 @@ on:
        description: 'Docker tag'
        required: true
        type: string
+     baseImage:
+       description: 'Base image'
+       required: true
+       default: 'wavesplatform/wavesnode:1.5.7'
+       type: string
 
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}
@@ -39,6 +44,7 @@ jobs:
           images: ${{ env.IMAGE_NAME }}
           flavor: latest=false
           tags: type=raw,value=${{ inputs.dockerTag }}
+          build-args: baseImage=${{ inputs.baseImage }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.licenses=MIT
