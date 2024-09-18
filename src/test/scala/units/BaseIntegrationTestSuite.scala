@@ -29,7 +29,7 @@ trait BaseIntegrationTestSuite
     with CustomMatchers {
   protected def defaultSettings      = TestSettings.Default
   protected val elMinerDefaultReward = Gwei.ofRawGwei(2_000_000_000L)
-  protected val elBridgeAddress      = EthAddress.unsafeFrom("0x189643C45cC2782DFd42185d0cD86B71943D6315")
+  protected val elBridgeAddress      = EthAddress.unsafeFrom("0x0000000000000000000000000000000000006a7e")
 
   protected def withExtensionDomain[R](settings: TestSettings = defaultSettings)(f: ExtensionDomain => R): R =
     withExtensionDomainUninitialized(settings) { d =>
@@ -39,13 +39,7 @@ trait BaseIntegrationTestSuite
           d.chainContract.setScript(),
           d.chainContract.setup(d.ecGenesisBlock, elMinerDefaultReward.amount.longValue())
         ) ++
-          settings.initialMiners
-            .flatMap { x =>
-              List(
-                d.stakingContract.stakingBalance(x.address, 0, x.stakingBalance, 1, x.stakingBalance),
-                d.chainContract.join(x.account, x.elRewardAddress)
-              )
-            }
+          settings.initialMiners.map { x => d.chainContract.join(x.account, x.elRewardAddress) }
 
       d.appendBlock(txs*)
       d.advanceConsensusLayerChanged()
@@ -77,7 +71,6 @@ trait BaseIntegrationTestSuite
 
         val balances = List(
           AddrWithBalance(TxHelpers.defaultAddress, 1_000_000.waves),
-          AddrWithBalance(d.stakingContractAddress, 10.waves),
           AddrWithBalance(d.chainContractAddress, 10.waves)
         ) ++ settings.finalAdditionalBalances
 

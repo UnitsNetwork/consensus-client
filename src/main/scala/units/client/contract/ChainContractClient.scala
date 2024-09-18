@@ -10,10 +10,8 @@ import com.wavesplatform.serialization.ByteBufferOps
 import com.wavesplatform.state.{BinaryDataEntry, Blockchain, DataEntry, EmptyDataEntry, IntegerDataEntry, StringDataEntry}
 import units.BlockHash
 import units.client.contract.ChainContractClient.*
-import units.client.staking.StakingContractClient
 import units.eth.{EthAddress, Gwei}
 import units.util.HexBytesConverter
-import units.util.HexBytesConverter.*
 
 import java.nio.ByteBuffer
 import scala.reflect.ClassTag
@@ -47,7 +45,7 @@ trait ChainContractClient {
       .flatMap(_.split(Sep))
       .flatMap(Address.fromString(_).toOption)
 
-  def getL2RewardAddress(miner: Address): Option[EthAddress] = getElRewardAddress(ByteStr(miner.bytes))
+  def getElRewardAddress(miner: Address): Option[EthAddress] = getElRewardAddress(ByteStr(miner.bytes))
   private def getElRewardAddress(minerAddress: ByteStr): Option[EthAddress] =
     extractData(s"miner_${minerAddress}_RewardAddress")
       .orElse(extractData(s"miner${minerAddress}RewardAddress"))
@@ -63,7 +61,6 @@ trait ChainContractClient {
         val chainHeight = bb.getLong()
         val epoch       = bb.getLong().toInt // blockMeta is set up in a chain contract and RIDE numbers are Longs
         val parentHash  = BlockHash(bb.getByteArray(BlockHashBytesSize))
-        val clGenerator = ByteStr(bb.getByteArray(Address.AddressLength))
         val chainId     = if (bb.remaining() >= 8) bb.getLong() else 0L
 
         val e2cTransfersRootHash =
@@ -75,20 +72,21 @@ trait ChainContractClient {
         require(
           !bb.hasRemaining,
           s"Not parsed ${bb.remaining()} bytes from ${blockMeta.base64}, read data: " +
-            s"chainHeight=$chainHeight, epoch=$epoch, parentHash=$parentHash, clGenerator=$clGenerator, chainId=$chainId, " +
+            s"chainHeight=$chainHeight, epoch=$epoch, parentHash=$parentHash, chainId=$chainId, " +
             s"e2cTransfersRootHash=${HexBytesConverter.toHex(e2cTransfersRootHash)}, lastC2ETransferIndex=$lastC2ETransferIndex"
         )
 
+        val epochMeta = getEpochMeta(epoch).getOrElse(fail(s"Can't find epoch meta for epoch $epoch"))
+
         val minerRewardElAddress =
           if (chainHeight == 0) EthAddress.empty
-          else getElRewardAddress(clGenerator).getOrElse(fail(s"Can't find a reward address for generator $clGenerator"))
+          else getElRewardAddress(epochMeta.miner).getOrElse(fail(s"Can't find a reward address for generator ${epochMeta.miner}"))
 
         ContractBlock(
           hash,
           parentHash,
           epoch,
           chainHeight,
-          clGenerator,
           minerRewardElAddress,
           chainId,
           e2cTransfersRootHash,
@@ -105,22 +103,11 @@ trait ChainContractClient {
   def getFirstValidAltChainId: Long =
     getLongData("firstValidAltChainId").getOrElse(DefaultMainChainId)
 
-  def getStakingContractAddress: Option[Address] =
-    extractData(StakingContractAddressKey)
-      .collect {
-        case StringDataEntry(_, v)  => Address.fromString(v)
-        case BinaryDataEntry(_, bs) => Address.fromBytes(bs.arr)
-      }
-      .flatMap(_.toOption)
-
   def getMainChainIdOpt: Option[Long] =
     getLongData(MainChainIdKey)
 
   def getMainChainId: Long =
     getMainChainIdOpt.getOrElse(DefaultMainChainId)
-
-  def getGeneratorChainId(generator: ByteStr): Long =
-    getLongData(s"chainIdOf${toHex(generator)}").getOrElse(DefaultMainChainId)
 
   def getEpochMeta(epoch: Int): Option[EpochContractMeta] = getStringData(f"epoch_$epoch%08d").flatMap { s =>
     val items = s.split(Sep)
@@ -166,29 +153,23 @@ trait ChainContractClient {
       hitSource: Array[Byte],
       baseTarget: Long,
       miner: Address,
-      stakingContractAddress: Address,
       blockchain: Blockchain
   ): Option[(Address, Long)] = {
-    val hit = Global.blake2b256(hitSource ++ miner.bytes).take(PoSCalculator.HitSize)
-    val l2mpBalance = new StakingContractClient(blockchain.accountData(stakingContractAddress, _))
-      .getL2mpBalance(miner, blockchain.height)
-
-    if (blockchain.generatingBalance(miner) >= MinMinerBalance && l2mpBalance > 0) {
+    val hit               = Global.blake2b256(hitSource ++ miner.bytes).take(PoSCalculator.HitSize)
+    val generatingBalance = blockchain.generatingBalance(miner)
+    if (generatingBalance >= MinMinerBalance) {
       // See WavesEnvironment.calculateDelay
-      val delay = FairPoSCalculator(0, 0).calculateDelay(BigInt(1, hit), baseTarget, l2mpBalance)
+      val delay = FairPoSCalculator(0, 0).calculateDelay(BigInt(1, hit), baseTarget, generatingBalance)
       Some(miner -> delay)
     } else None
   }
 
   def calculateEpochMiner(header: BlockHeader, hitSource: ByteStr, epochNumber: Int, blockchain: Blockchain): Either[String, Address] =
-    for {
-      stakingContractAddress <- getStakingContractAddress.toRight("Staking contract address is not defined")
-      bestMiner <- getAllActualMiners
-        .flatMap(miner => calculateMinerDelay(hitSource.arr, header.baseTarget, miner, stakingContractAddress, blockchain))
-        .minByOption(_._2)
-        .map(_._1)
-        .toRight(s"No miner for epoch $epochNumber")
-    } yield bestMiner
+    getAllActualMiners
+      .flatMap(miner => calculateMinerDelay(hitSource.arr, header.baseTarget, miner, blockchain))
+      .minByOption(_._2)
+      .map(_._1)
+      .toRight(s"No miner for epoch $epochNumber")
 
   private def getBlockHash(key: String): Option[BlockHash] =
     extractData(key).collect {
@@ -284,11 +265,10 @@ object ChainContractClient {
   val MinMinerBalance: Long = 20000_00000000L
   val DefaultMainChainId    = 0
 
-  private val AllMinersKey              = "allMiners"
-  private val MainChainIdKey            = "mainChainId"
-  private val StakingContractAddressKey = "stakingContractAddress"
-  private val BlockHashBytesSize        = 32
-  private val Sep                       = ","
+  private val AllMinersKey       = "allMiners"
+  private val MainChainIdKey     = "mainChainId"
+  private val BlockHashBytesSize = 32
+  private val Sep                = ","
 
   val MaxC2ETransfers = 16
 

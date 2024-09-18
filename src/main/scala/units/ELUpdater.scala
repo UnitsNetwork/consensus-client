@@ -117,7 +117,7 @@ class ELUpdater(
       header                 <- blockchain.blockHeader(epochNumber).toRight(s"No header at epoch $epochNumber")
       hitSource              <- blockchain.hitSource(epochNumber).toRight(s"No hit source at epoch $epochNumber")
       miner                  <- chainContractClient.calculateEpochMiner(header.header, hitSource, epochNumber, blockchain)
-      rewardAddress          <- chainContractClient.getL2RewardAddress(miner).toRight(s"No reward address for $miner")
+      rewardAddress          <- chainContractClient.getElRewardAddress(miner).toRight(s"No reward address for $miner")
       prevEpochLastBlockHash <- getPrevEpochLastBlockHash(epochNumber)
     } yield EpochInfo(epochNumber, miner, rewardAddress, hitSource, prevEpochLastBlockHash)
   }
@@ -1276,7 +1276,7 @@ class ELUpdater(
 
     val isEpochFirstBlock        = contractBlock.parentHash == blockPrevEpoch.lastBlockHash
     val expectMiningReward       = isEpochFirstBlock && !contractBlock.referencesGenesis
-    val prevMinerElRewardAddress = if (expectMiningReward) chainContractClient.getL2RewardAddress(blockPrevEpoch.miner) else None
+    val prevMinerElRewardAddress = if (expectMiningReward) chainContractClient.getElRewardAddress(blockPrevEpoch.miner) else None
 
     for {
       elWithdrawalIndexBefore <- fullValidationStatus.checkedLastElWithdrawalIndex(ecBlock.parentHash) match {

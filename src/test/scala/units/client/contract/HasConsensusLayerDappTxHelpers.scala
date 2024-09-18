@@ -6,10 +6,9 @@ import com.wavesplatform.common.merkle.Digest
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.lang.v1.compiler.Terms
-import com.wavesplatform.state.StringDataEntry
 import com.wavesplatform.test.NumericExt
 import com.wavesplatform.transaction.smart.{InvokeScriptTransaction, SetScriptTransaction}
-import com.wavesplatform.transaction.{Asset, DataTransaction, TxHelpers}
+import com.wavesplatform.transaction.{Asset, TxHelpers}
 import units.client.L2BlockLike
 import units.client.contract.HasConsensusLayerDappTxHelpers.*
 import units.client.contract.HasConsensusLayerDappTxHelpers.defaultFees.chainContract.*
@@ -17,31 +16,10 @@ import units.eth.{EthAddress, EthereumConstants}
 import units.util.HexBytesConverter
 
 trait HasConsensusLayerDappTxHelpers {
-  def elBridgeAddress: EthAddress
-
   def currentHitSource: ByteStr
-
-  def stakingContractAccount: KeyPair
-  lazy val stakingContractAddress: Address = stakingContractAccount.toAddress
 
   def chainContractAccount: KeyPair
   lazy val chainContractAddress: Address = chainContractAccount.toAddress
-
-  object stakingContract {
-    def stakingBalance(
-        minerAddress: Address,
-        prevHeight: Int = 0,
-        prevBalance: Long = 50_000_000L,
-        nextHeight: Int = 1,
-        nextBalance: Long = 10_700_000L
-    ): DataTransaction = {
-      require(prevHeight < nextHeight)
-      TxHelpers.dataWithMultipleEntries(
-        stakingContractAccount,
-        List(StringDataEntry(s"%s__$minerAddress", s"%d%d%d%d__${prevHeight}__${prevBalance}__${nextHeight}__$nextBalance"))
-      )
-    }
-  }
 
   object chainContract {
     def setScript(): SetScriptTransaction = TxHelpers.setScript(chainContractAccount, CompiledChainContract.script, fee = setScriptFee)
@@ -51,9 +29,7 @@ trait HasConsensusLayerDappTxHelpers {
       func = "setup".some,
       args = List(
         Terms.CONST_STRING(genesisBlock.hash.drop(2)).explicitGet(),
-        Terms.CONST_LONG(elMinerReward),
-        Terms.CONST_STRING(s"$stakingContractAddress").explicitGet(),
-        Terms.CONST_STRING(elBridgeAddress.hexNoPrefix).explicitGet()
+        Terms.CONST_LONG(elMinerReward)
       ),
       fee = setupFee
     )
@@ -83,7 +59,7 @@ trait HasConsensusLayerDappTxHelpers {
       TxHelpers.invoke(
         invoker = minerAccount,
         dApp = chainContractAddress,
-        func = "extendMainChain_v4".some,
+        func = "extendMainChain".some,
         args = List(
           Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
           Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
@@ -103,7 +79,7 @@ trait HasConsensusLayerDappTxHelpers {
       TxHelpers.invoke(
         invoker = minerAccount,
         dApp = chainContractAddress,
-        func = "appendBlock_v3".some,
+        func = "appendBlock".some,
         args = List(
           Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
           Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
@@ -123,7 +99,7 @@ trait HasConsensusLayerDappTxHelpers {
       TxHelpers.invoke(
         invoker = minerAccount,
         dApp = chainContractAddress,
-        func = "startAltChain_v4".some,
+        func = "startAltChain".some,
         args = List(
           Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
           Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
@@ -145,7 +121,7 @@ trait HasConsensusLayerDappTxHelpers {
       TxHelpers.invoke(
         invoker = minerAccount,
         dApp = chainContractAddress,
-        func = "extendAltChain_v4".some,
+        func = "extendAltChain".some,
         args = List(
           Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
           Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
