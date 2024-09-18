@@ -10,6 +10,7 @@ import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.HttpEngineApiClient.*
 import units.client.engine.model.*
 import units.client.engine.model.ForkChoiceUpdatedRequest.ForkChoiceAttributes
+import units.client.engine.model.PayloadStatus.{Syncing, Valid}
 import units.eth.EthAddress
 import units.{BlockHash, ClientConfig, ClientError, JobResult}
 
@@ -19,16 +20,16 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
 
   val apiUrl: Uri = uri"${config.executionClientAddress}"
 
-  def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[String] = {
+  def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus] = {
     sendEngineRequest[ForkChoiceUpdatedRequest, ForkChoiceUpdatedResponse](
       ForkChoiceUpdatedRequest(blockHash, finalizedBlockHash, None),
       BlockExecutionTimeout
     )
       .flatMap {
-        case ForkChoiceUpdatedResponse(PayloadStatus(status, _, _), None) if status == "SYNCING" || status == "VALID" => Right(status)
-        case ForkChoiceUpdatedResponse(PayloadStatus(_, _, Some(validationError)), _) =>
+        case ForkChoiceUpdatedResponse(ps @ PayloadState(Valid | Syncing, _, _), None) => Right(ps.status)
+        case ForkChoiceUpdatedResponse(PayloadState(_, _, Some(validationError)), _) =>
           Left(ClientError(s"Payload validation error: $validationError"))
-        case ForkChoiceUpdatedResponse(payloadStatus, _) => Left(ClientError(s"Unexpected payload status ${payloadStatus.status}"))
+        case ForkChoiceUpdatedResponse(payloadState, _) => Left(ClientError(s"Unexpected payload status ${payloadState.status}"))
       }
   }
 
@@ -48,14 +49,14 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
       ),
       BlockExecutionTimeout
     ).flatMap {
-      case ForkChoiceUpdatedResponse(payloadStatus, Some(payloadId)) if payloadStatus.status == "VALID" =>
+      case ForkChoiceUpdatedResponse(PayloadState(Valid, _, _), Some(payloadId)) =>
         Right(payloadId)
       case ForkChoiceUpdatedResponse(_, None) =>
         Left(ClientError(s"Payload id for $lastBlockHash is not defined"))
-      case ForkChoiceUpdatedResponse(PayloadStatus(_, _, Some(validationError)), _) =>
+      case ForkChoiceUpdatedResponse(PayloadState(_, _, Some(validationError)), _) =>
         Left(ClientError(s"Payload validation error for $lastBlockHash: $validationError"))
-      case ForkChoiceUpdatedResponse(payloadStatus, _) =>
-        Left(ClientError(s"Unexpected payload status for $lastBlockHash: ${payloadStatus.status}"))
+      case ForkChoiceUpdatedResponse(payloadState, _) =>
+        Left(ClientError(s"Unexpected payload status for $lastBlockHash: ${payloadState.status}"))
     }
   }
 
@@ -64,12 +65,12 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
   }
 
   def applyNewPayload(payload: JsObject): JobResult[Option[BlockHash]] = {
-    sendEngineRequest[NewPayloadRequest, PayloadStatus](NewPayloadRequest(payload), BlockExecutionTimeout).flatMap {
-      case PayloadStatus(_, _, Some(validationError))                           => Left(ClientError(s"Payload validation error: $validationError"))
-      case PayloadStatus(status, Some(latestValidHash), _) if status == "VALID" => Right(Some(latestValidHash))
-      case PayloadStatus(status, latestValidHash, _) if status == "SYNCING"     => Right(latestValidHash)
-      case PayloadStatus(status, None, _) => Left(ClientError(s"Latest valid hash is not defined at status $status"))
-      case PayloadStatus(status, _, _)    => Left(ClientError(s"Unexpected payload status: $status"))
+    sendEngineRequest[NewPayloadRequest, PayloadState](NewPayloadRequest(payload), BlockExecutionTimeout).flatMap {
+      case PayloadState(_, _, Some(validationError))     => Left(ClientError(s"Payload validation error: $validationError"))
+      case PayloadState(Valid, Some(latestValidHash), _) => Right(Some(latestValidHash))
+      case PayloadState(Syncing, latestValidHash, _)     => Right(latestValidHash)
+      case PayloadState(status, None, _)                 => Left(ClientError(s"Latest valid hash is not defined at status $status"))
+      case PayloadState(status, _, _)                    => Left(ClientError(s"Unexpected payload status: $status"))
     }
   }
 

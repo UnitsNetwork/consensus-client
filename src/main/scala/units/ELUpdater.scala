@@ -1471,12 +1471,12 @@ class ELUpdater(
       }
       .map(_ => ())
 
-  private def confirmBlock(block: L2BlockLike, finalizedBlock: L2BlockLike): JobResult[String] = {
+  private def confirmBlock(block: L2BlockLike, finalizedBlock: L2BlockLike): JobResult[PayloadStatus] = {
     val finalizedBlockHash = if (finalizedBlock.height > block.height) block.hash else finalizedBlock.hash
     engineApiClient.forkChoiceUpdate(block.hash, finalizedBlockHash)
   }
 
-  private def confirmBlock(hash: BlockHash, finalizedBlockHash: BlockHash): JobResult[String] =
+  private def confirmBlock(hash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus] =
     engineApiClient.forkChoiceUpdate(hash, finalizedBlockHash)
 
   private def confirmBlockAndStartMining(
@@ -1486,7 +1486,7 @@ class ELUpdater(
       suggestedFeeRecipient: EthAddress,
       prevRandao: String,
       withdrawals: Vector[Withdrawal]
-  ): JobResult[String] = {
+  ): JobResult[PayloadId] = {
     val finalizedBlockHash = if (finalizedBlock.height > lastBlock.height) lastBlock.hash else finalizedBlock.hash
     engineApiClient
       .forkChoiceUpdateWithPayloadId(
