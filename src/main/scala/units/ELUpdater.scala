@@ -835,10 +835,10 @@ class ELUpdater(
     }
 
     def rollbackAndFollowChain(
-                                target: CommonBlockData,
-                                nodeChainInfo: ChainInfo,
-                                mainChainInfo: ChainInfo,
-                                returnToMainChainInfo: Option[ReturnToMainChainInfo]
+        target: CommonBlockData,
+        nodeChainInfo: ChainInfo,
+        mainChainInfo: ChainInfo,
+        returnToMainChainInfo: Option[ReturnToMainChainInfo]
     ): Option[Working[FollowingChain]] = {
       rollbackTo(prevState, target, finalizedContractBlock) match {
         case Right(updatedState) =>
@@ -978,9 +978,9 @@ class ELUpdater(
   }
 
   private def preValidateBlock(
-                                block: NetworkBlock,
-                                parentPayload: ExecutionPayload,
-                                epochInfo: Option[EpochInfo]
+      block: NetworkBlock,
+      parentPayload: ExecutionPayload,
+      epochInfo: Option[EpochInfo]
   ): JobResult[Unit] = {
     for {
       _ <- validateTimestamp(block, parentPayload)
@@ -1018,12 +1018,12 @@ class ELUpdater(
   }
 
   private def validateAndApplyMissedBlock(
-                                           block: NetworkBlock,
-                                           ch: Channel,
-                                           prevState: Working[ChainStatus],
-                                           contractBlock: ContractBlock,
-                                           parentPayload: ExecutionPayload,
-                                           nodeChainInfo: ChainInfo
+      block: NetworkBlock,
+      ch: Channel,
+      prevState: Working[ChainStatus],
+      contractBlock: ContractBlock,
+      parentPayload: ExecutionPayload,
+      nodeChainInfo: ChainInfo
   ): Unit = {
     validateBlockFull(block, contractBlock, parentPayload, prevState) match {
       case Right(updatedState) =>
@@ -1035,12 +1035,12 @@ class ELUpdater(
   }
 
   private def validateAndApply(
-                                block: NetworkBlock,
-                                ch: Channel,
-                                prevState: Working[ChainStatus],
-                                parentPayload: ExecutionPayload,
-                                nodeChainInfo: ChainInfo,
-                                returnToMainChainInfo: Option[ReturnToMainChainInfo]
+      block: NetworkBlock,
+      ch: Channel,
+      prevState: Working[ChainStatus],
+      parentPayload: ExecutionPayload,
+      nodeChainInfo: ChainInfo,
+      returnToMainChainInfo: Option[ReturnToMainChainInfo]
   ): Unit = {
     chainContractClient.getBlock(block.hash) match {
       case Some(contractBlock) if prevState.fullValidationStatus.lastValidatedBlock.hash == parentPayload.hash =>
@@ -1095,11 +1095,11 @@ class ELUpdater(
   }
 
   private def broadcastAndConfirmBlock(
-                                        block: NetworkBlock,
-                                        ch: Channel,
-                                        prevState: Working[ChainStatus],
-                                        nodeChainInfo: ChainInfo,
-                                        returnToMainChainInfo: Option[ReturnToMainChainInfo]
+      block: NetworkBlock,
+      ch: Channel,
+      prevState: Working[ChainStatus],
+      nodeChainInfo: ChainInfo,
+      returnToMainChainInfo: Option[ReturnToMainChainInfo]
   ): Unit = {
     Try(allChannels.broadcast(block, Some(ch))).recover { err =>
       logger.error(s"Failed to broadcast block ${block.hash}: ${err.getMessage}")
@@ -1293,10 +1293,10 @@ class ELUpdater(
   }
 
   private def validateBlockFull(
-                                 block: NetworkBlock,
-                                 contractBlock: ContractBlock,
-                                 parentPayload: ExecutionPayload,
-                                 prevState: Working[ChainStatus]
+      block: NetworkBlock,
+      contractBlock: ContractBlock,
+      parentPayload: ExecutionPayload,
+      prevState: Working[ChainStatus]
   ): JobResult[Working[ChainStatus]] = {
     logger.debug(s"Trying to do full validation of block ${block.hash}")
     for {
