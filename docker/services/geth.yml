@@ -1,4 +1,12 @@
 services:
+  geth-init:
+    container_name: geth-init
+    image: ethereum/client-go:stable
+    entrypoint: /tmp/init-geth.sh
+    volumes:
+      - ../genesis-${NETWORK}.json:/tmp/genesis.json
+      - ../data/geth:/root/.ethereum
+      - ../init-geth.sh:/tmp/init-geth.sh
   geth:
     container_name: geth
     image: ethereum/client-go:stable
@@ -34,6 +42,7 @@ services:
     ports:
       - '30303:30303/tcp'
       - '30303:30303/udp'
+      - '8551:8551'
     healthcheck:
       test: 'wget -qO /dev/null --header "content-type: application/json" --post-data {\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}  http://127.0.0.1:8545'
       interval: 5s
