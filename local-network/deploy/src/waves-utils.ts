@@ -8,7 +8,7 @@ export type LibraryWavesApi = ReturnType<typeof waves.create>;
 export type ExtendedWavesApi = LibraryWavesApi & { base: string };
 export type WavesSignedTransaction = SignedTransaction<any> & { id: string };
 
-export interface EcBlockContractInfo {
+export interface BlockContractInfo {
   chainHeight: number,
   epochNumber: number
 }
@@ -126,7 +126,7 @@ export async function signAndBroadcast(wavesApi: ExtendedWavesApi, name: string,
   if (options.wait) await waitForTxn(wavesApi, id).then(x => logger.debug(`Sent %O result: %O`, unsignedTxJson, x));
 }
 
-function parseBlockMeta(response: object): EcBlockContractInfo {
+function parseBlockMeta(response: object): BlockContractInfo {
   // @ts-ignore: Property 'value' does not exist on type 'object'.
   const rawMeta = response.result.value;
   return {
@@ -135,7 +135,7 @@ function parseBlockMeta(response: object): EcBlockContractInfo {
   };
 }
 
-export async function waitForEcBlock(wavesApi: LibraryWavesApi, chainContractAddress: string, blockHash: string): Promise<EcBlockContractInfo> {
+export async function waitForBlock(wavesApi: LibraryWavesApi, chainContractAddress: string, blockHash: string): Promise<BlockContractInfo> {
   const getBlockData = async () => {
     try {
       return parseBlockMeta(await wavesApi.utils.fetchEvaluate(chainContractAddress, `blockMeta("${blockHash.slice(2)}")`));
@@ -168,7 +168,7 @@ export function prepareE2CWithdrawTxnJson(
   };
 }
 
-export async function chainContractCurrFinalizedBlock(wavesApi: LibraryWavesApi, chainContractAddress: string): Promise<EcBlockContractInfo> {
+export async function chainContractCurrFinalizedBlock(wavesApi: LibraryWavesApi, chainContractAddress: string): Promise<BlockContractInfo> {
   // @ts-ignore: Property 'value' does not exist on type 'object'.
   return parseBlockMeta(await wavesApi.utils.fetchEvaluate(chainContractAddress, `blockMeta(getStringValue("finalizedBlock"))`));
 }

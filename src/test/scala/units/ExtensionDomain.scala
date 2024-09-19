@@ -41,8 +41,8 @@ import units.ELUpdater.State.{ChainStatus, Working}
 import units.ExtensionDomain.*
 import units.client.contract.HasConsensusLayerDappTxHelpers
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
-import units.client.engine.model.{EcBlock, TestEcBlocks}
-import units.client.{L2BlockLike, TestEcClients}
+import units.client.engine.model.{ExecutionPayload, TestPayloads}
+import units.client.{CommonBlockData, TestEcClients}
 import units.eth.{EthAddress, EthereumConstants, Gwei}
 import units.network.TestBlocksObserver
 import units.test.CustomMatchers
@@ -67,16 +67,16 @@ class ExtensionDomain(
     with ScorexLogging { self =>
   override val chainContractAccount: KeyPair = KeyPair("chain-contract".getBytes(StandardCharsets.UTF_8))
 
-  val l2Config = settings.config.as[ClientConfig]("waves.l2")
+  val l2Config: ClientConfig = settings.config.as[ClientConfig]("waves.l2")
   require(l2Config.chainContractAddress == chainContractAddress, "Check settings")
 
-  val ecGenesisBlock = EcBlock(
-    hash = TestEcBlockBuilder.createBlockHash(""),
+  val genesisBlockPayload: ExecutionPayload = ExecutionPayload(
+    hash = TestPayloadBuilder.createBlockHash(""),
     parentHash = BlockHash(EthereumConstants.EmptyBlockHashHex), // see main.ride
     stateRoot = EthereumConstants.EmptyRootHashHex,
     height = 0,
     timestamp = testTime.getTimestamp() / 1000 - l2Config.blockDelay.toSeconds,
-    minerRewardL2Address = EthAddress.empty,
+    minerRewardAddress = EthAddress.empty,
     baseFeePerGas = Uint256.DEFAULT,
     gasLimit = 0,
     gasUsed = 0,
@@ -84,23 +84,23 @@ class ExtensionDomain(
     withdrawals = Vector.empty
   )
 
-  val ecClients = new TestEcClients(ecGenesisBlock, blockchain)
+  val ecClients = new TestEcClients(genesisBlockPayload, blockchain)
 
-  val globalScheduler = TestScheduler(ExecutionModel.AlwaysAsyncExecution)
-  val eluScheduler    = TestScheduler(ExecutionModel.AlwaysAsyncExecution)
+  val globalScheduler: TestScheduler = TestScheduler(ExecutionModel.AlwaysAsyncExecution)
+  val eluScheduler: TestScheduler    = TestScheduler(ExecutionModel.AlwaysAsyncExecution)
 
-  val elBlockStream = PublishSubject[(Channel, NetworkL2Block)]()
-  val blockObserver = new TestBlocksObserver(elBlockStream)
+  val elBlockStream: PublishSubject[(Channel, NetworkBlock)] = PublishSubject[(Channel, NetworkBlock)]()
+  val blockObserver: TestBlocksObserver                        = new TestBlocksObserver(elBlockStream)
 
   val neighbourChannel = new EmbeddedChannel()
   val allChannels      = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE)
   allChannels.add(neighbourChannel)
-  def pollSentNetworkBlock(): Option[NetworkL2Block] = Option(neighbourChannel.readOutbound[NetworkL2Block])
-  def receiveNetworkBlock(ecBlock: EcBlock, miner: SeedKeyPair, epochNumber: Int = blockchain.height): Unit =
-    receiveNetworkBlock(toNetworkBlock(ecBlock, miner, epochNumber))
-  def receiveNetworkBlock(incomingNetworkBlock: NetworkL2Block): Unit = elBlockStream.onNext((new EmbeddedChannel(), incomingNetworkBlock))
+  def pollSentNetworkBlock(): Option[NetworkBlock] = Option(neighbourChannel.readOutbound[NetworkBlock])
+  def receiveNetworkBlock(payload: ExecutionPayload, miner: SeedKeyPair, epochNumber: Int = blockchain.height): Unit =
+    receiveNetworkBlock(toNetworkBlock(payload, miner, epochNumber))
+  def receiveNetworkBlock(incomingNetworkBlock: NetworkBlock): Unit = elBlockStream.onNext((new EmbeddedChannel(), incomingNetworkBlock))
 
-  val extensionContext = new Context {
+  val extensionContext: Context = new Context {
     override def settings: WavesSettings = self.settings
     override def blockchain: Blockchain  = self.blockchain
 
@@ -131,9 +131,9 @@ class ExtensionDomain(
   )
   triggers = triggers.appended(consensusClient)
 
-  val defaultMaxTimeout =
+  val defaultMaxTimeout: FiniteDuration =
     List(WaitForReferenceConfirmInterval, ClChangedProcessingDelay, MiningRetryInterval, WaitRequestedBlockTimeout).max + 1.millis
-  val defaultInterval = ClChangedProcessingDelay
+  val defaultInterval: FiniteDuration = ClChangedProcessingDelay
 
   def waitForWorking(
       title: String = "",
@@ -169,14 +169,14 @@ class ExtensionDomain(
     f(is[CS](s.chainStatus))
   }
 
-  def toNetworkBlock(ecBlock: EcBlock, miner: SeedKeyPair, epochNumber: Int): NetworkL2Block =
-    NetworkL2Block
+  def toNetworkBlock(payload: ExecutionPayload, miner: SeedKeyPair, epochNumber: Int): NetworkBlock =
+    NetworkBlock
       .signed(
-        TestEcBlocks.toPayload(
-          ecBlock,
+        TestPayloads.toPayloadJson(
+          payload,
           calculateRandao(
             blockchain.vrf(epochNumber).getOrElse(throw new RuntimeException(s"VRF is empty for epoch $epochNumber")),
-            ecBlock.parentHash
+            payload.parentHash
           )
         ),
         miner.privateKey
@@ -232,11 +232,11 @@ class ExtensionDomain(
 
   // Useful for debugging purposes
   def evaluateExtendAltChain(
-      minerAccount: KeyPair,
-      chainId: Long,
-      block: L2BlockLike,
-      epoch: Long,
-      e2CTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex
+                              minerAccount: KeyPair,
+                              chainId: Long,
+                              blockData: CommonBlockData,
+                              epoch: Long,
+                              e2CTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex
   ): Either[String, JsObject] = {
     val r = evaluate(
       chainContractAddress,
@@ -244,8 +244,8 @@ class ExtensionDomain(
         "extendAltChain",
         List[Terms.EVALUATED](
           Terms.CONST_LONG(chainId),
-          Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
-          Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(blockData.hash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(blockData.parentHash.drop(2)).explicitGet(),
           Terms.CONST_LONG(epoch),
           Terms.CONST_STRING(e2CTransfersRootHashHex.drop(2)).explicitGet()
         )
@@ -342,15 +342,15 @@ class ExtensionDomain(
     utxPool.close()
   }
 
-  def createEcBlockBuilder(hashPath: String, miner: ElMinerSettings, parent: EcBlock = ecGenesisBlock): TestEcBlockBuilder =
-    createEcBlockBuilder(hashPath, miner.elRewardAddress, parent)
+  def createPayloadBuilder(hashPath: String, miner: ElMinerSettings, parentPayload: ExecutionPayload = genesisBlockPayload): TestPayloadBuilder =
+    createPayloadBuilder(hashPath, miner.elRewardAddress, parentPayload)
 
-  def createEcBlockBuilder(hashPath: String, minerRewardL2Address: EthAddress, parent: EcBlock): TestEcBlockBuilder = {
-    TestEcBlockBuilder(ecClients, elBridgeAddress, elMinerDefaultReward, l2Config.blockDelay, parent = parent).updateBlock(
+  def createPayloadBuilder(hashPath: String, minerRewardAddress: EthAddress, parentPayload: ExecutionPayload): TestPayloadBuilder = {
+    TestPayloadBuilder(ecClients, elBridgeAddress, elMinerDefaultReward, l2Config.blockDelay, parentPayload = parentPayload).updatePayload(
       _.copy(
-        hash = TestEcBlockBuilder.createBlockHash(hashPath),
-        minerRewardL2Address = minerRewardL2Address,
-        prevRandao = ELUpdater.calculateRandao(blockchain.vrf(blockchain.height).get, parent.hash)
+        hash = TestPayloadBuilder.createBlockHash(hashPath),
+        minerRewardAddress = minerRewardAddress,
+        prevRandao = ELUpdater.calculateRandao(blockchain.vrf(blockchain.height).get, parentPayload.hash)
       )
     )
   }

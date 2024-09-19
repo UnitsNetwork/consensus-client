@@ -31,29 +31,34 @@ class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient
     underlying.forkChoiceUpdateWithPayloadId(lastBlockHash, finalizedBlockHash, unixEpochSeconds, suggestedFeeRecipient, prevRandao, withdrawals)
   )
 
-  override def getPayload(payloadId: PayloadId): JobResult[JsObject] =
-    wrap(s"getPayload($payloadId)", underlying.getPayload(payloadId), filteredJson)
+  override def getPayloadJson(payloadId: PayloadId): JobResult[JsObject] =
+    wrap(s"getPayloadJson($payloadId)", underlying.getPayloadJson(payloadId), filteredJsonStr)
 
-  override def applyNewPayload(payload: JsObject): JobResult[Option[BlockHash]] =
-    wrap(s"applyNewPayload(${filteredJson(payload)})", underlying.applyNewPayload(payload), _.fold("None")(_.toString))
+  override def applyNewPayload(payloadJson: JsObject): JobResult[Option[BlockHash]] =
+    wrap(s"applyNewPayload(${filteredJsonStr(payloadJson)})", underlying.applyNewPayload(payloadJson), _.fold("None")(identity))
 
-  override def getPayloadBodyByHash(hash: BlockHash): JobResult[Option[JsObject]] =
-    wrap(s"getPayloadBodyByHash($hash)", underlying.getPayloadBodyByHash(hash), _.fold("None")(filteredJson))
+  override def getPayloadBodyJsonByHash(hash: BlockHash): JobResult[Option[JsObject]] =
+    wrap(s"getPayloadBodyJsonByHash($hash)", underlying.getPayloadBodyJsonByHash(hash), _.fold("None")(filteredJsonStr))
 
-  override def getBlockByNumber(number: BlockNumber): JobResult[Option[EcBlock]] =
-    wrap(s"getBlockByNumber($number)", underlying.getBlockByNumber(number), _.fold("None")(_.toString))
+  override def getPayloadByNumber(number: BlockNumber): JobResult[Option[ExecutionPayload]] =
+    wrap(s"getPayloadByNumber($number)", underlying.getPayloadByNumber(number), _.fold("None")(_.toString))
 
-  override def getBlockByHash(hash: BlockHash): JobResult[Option[EcBlock]] =
-    wrap(s"getBlockByHash($hash)", underlying.getBlockByHash(hash), _.fold("None")(_.toString))
+  override def getPayloadByHash(hash: BlockHash): JobResult[Option[ExecutionPayload]] =
+    wrap(s"getPayloadByHash($hash)", underlying.getPayloadByHash(hash), _.fold("None")(_.toString))
 
-  override def getBlockByHashJson(hash: BlockHash): JobResult[Option[JsObject]] =
-    wrap(s"getBlockByHashJson($hash)", underlying.getBlockByHashJson(hash), _.fold("None")(filteredJson))
+  override def getLastPayload: JobResult[ExecutionPayload] =
+    wrap("getLastPayload", underlying.getLastPayload)
 
-  override def getLastExecutionBlock: JobResult[EcBlock] =
-    wrap("getLastExecutionBlock", underlying.getLastExecutionBlock)
+  override def getBlockJsonByHash(hash: BlockHash): JobResult[Option[JsObject]] =
+    wrap(s"getBlockByHashJson($hash)", underlying.getBlockJsonByHash(hash), _.fold("None")(filteredJsonStr))
 
-  override def blockExists(hash: BlockHash): JobResult[Boolean] =
-    wrap(s"blockExists($hash)", underlying.blockExists(hash))
+  override def getPayloadJsonDataByHash(hash: BlockHash): JobResult[PayloadJsonData] = {
+    wrap(
+      s"getPayloadJsonDataByHash($hash)",
+      underlying.getPayloadJsonDataByHash(hash),
+      pjd => PayloadJsonData(filteredJson(pjd.blockJson), filteredJson(pjd.bodyJson)).toString
+    )
+  }
 
   override def getLogs(hash: BlockHash, address: EthAddress, topic: String): JobResult[List[GetLogsResponseEntry]] =
     wrap(s"getLogs($hash, a=$address, t=$topic)", underlying.getLogs(hash, address, topic), _.view.map(_.data).mkString("{", ", ", "}"))
@@ -68,9 +73,12 @@ class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient
     }
   }
 
-  private def filteredJson(jsObject: JsObject): String = JsObject(
+  private def filteredJson(jsObject: JsObject): JsObject = JsObject(
     jsObject.fields.filterNot { case (k, _) => excludedJsonFields.contains(k) }
-  ).toString()
+  )
+
+  private def filteredJsonStr(jsObject: JsObject): String =
+    filteredJson(jsObject).toString
 }
 
 object LoggedEngineApiClient {

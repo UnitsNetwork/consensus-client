@@ -12,43 +12,43 @@ import units.client.engine.model.*
 import units.client.engine.{EngineApiClient, LoggedEngineApiClient}
 import units.collections.ListOps.*
 import units.eth.EthAddress
-import units.{BlockHash, JobResult, NetworkL2Block}
+import units.{BlockHash, JobResult, NetworkBlock}
 
 class TestEcClients private (
     knownBlocks: Atomic[Map[BlockHash, ChainId]],
-    chains: Atomic[Map[ChainId, List[EcBlock]]],
+    chains: Atomic[Map[ChainId, List[ExecutionPayload]]],
     currChainIdValue: AtomicInt,
     blockchain: Blockchain
 ) extends ScorexLogging {
-  def this(genesis: EcBlock, blockchain: Blockchain) = this(
-    knownBlocks = Atomic(Map(genesis.hash -> 0)),
-    chains = Atomic(Map(0 -> List(genesis))),
+  def this(genesisPayload: ExecutionPayload, blockchain: Blockchain) = this(
+    knownBlocks = Atomic(Map(genesisPayload.hash -> 0)),
+    chains = Atomic(Map(0 -> List(genesisPayload))),
     currChainIdValue = AtomicInt(0),
     blockchain = blockchain
   )
 
   private def currChainId: ChainId = currChainIdValue.get()
 
-  def addKnown(ecBlock: EcBlock): EcBlock = {
-    knownBlocks.transform(_.updated(ecBlock.hash, currChainId))
-    prependToCurrentChain(ecBlock)
-    ecBlock
+  def addKnown(payload: ExecutionPayload): ExecutionPayload = {
+    knownBlocks.transform(_.updated(payload.hash, currChainId))
+    prependToCurrentChain(payload)
+    payload
   }
 
-  private def prependToCurrentChain(b: EcBlock): Unit =
-    prependToChain(currChainId, b)
+  private def prependToCurrentChain(payload: ExecutionPayload): Unit =
+    prependToChain(currChainId, payload)
 
-  private def prependToChain(chainId: ChainId, b: EcBlock): Unit =
+  private def prependToChain(chainId: ChainId, payload: ExecutionPayload): Unit =
     chains.transform { chains =>
-      chains.updated(chainId, b :: chains(chainId))
+      chains.updated(chainId, payload :: chains(chainId))
     }
 
-  private def currChain: List[EcBlock] =
+  private def currChain: List[ExecutionPayload] =
     chains.get().getOrElse(currChainId, throw new RuntimeException(s"Unknown chain $currChainId"))
 
   private val forgingBlocks = Atomic(List.empty[ForgingBlock])
-  def willForge(ecBlock: EcBlock): Unit =
-    forgingBlocks.transform(ForgingBlock(ecBlock) :: _)
+  def willForge(payload: ExecutionPayload): Unit =
+    forgingBlocks.transform(ForgingBlock(payload) :: _)
 
   private val logs = Atomic(Map.empty[GetLogsRequest, List[GetLogsResponseEntry]])
   def setBlockLogs(hash: BlockHash, address: EthAddress, topic: String, blockLogs: List[GetLogsResponseEntry]): Unit = {
@@ -89,55 +89,55 @@ class TestEcClients private (
       ): JobResult[PayloadId] =
         forgingBlocks
           .get()
-          .collectFirst { case fb if fb.testBlock.parentHash == lastBlockHash => fb } match {
+          .collectFirst { case fb if fb.testPayload.parentHash == lastBlockHash => fb } match {
           case None =>
             throw new RuntimeException(
-              s"Can't find a suitable block among: ${forgingBlocks.get().map(_.testBlock.hash).mkString(", ")}. Call willForge"
+              s"Can't find a suitable block among: ${forgingBlocks.get().map(_.testPayload.hash).mkString(", ")}. Call willForge"
             )
           case Some(fb) =>
             fb.payloadId.asRight
         }
 
-      override def getPayload(payloadId: PayloadId): JobResult[JsObject] =
+      override def getPayloadJson(payloadId: PayloadId): JobResult[JsObject] =
         forgingBlocks.transformAndExtract(_.withoutFirst { fb => fb.payloadId == payloadId }) match {
-          case Some(fb) => TestEcBlocks.toPayload(fb.testBlock, fb.testBlock.prevRandao).asRight
+          case Some(fb) => TestPayloads.toPayloadJson(fb.testPayload, fb.testPayload.prevRandao).asRight
           case None =>
             throw new RuntimeException(
-              s"Can't find payload $payloadId among: ${forgingBlocks.get().map(_.testBlock.hash).mkString(", ")}. Call willForge"
+              s"Can't find payload $payloadId among: ${forgingBlocks.get().map(_.testPayload.hash).mkString(", ")}. Call willForge"
             )
         }
 
-      override def applyNewPayload(payload: JsObject): JobResult[Option[BlockHash]] = {
-        val newBlock = NetworkL2Block(payload).explicitGet().toEcBlock
-        knownBlocks.get().get(newBlock.parentHash) match {
+      override def applyNewPayload(payloadJson: JsObject): JobResult[Option[BlockHash]] = {
+        val newPayload = NetworkBlock(payloadJson).explicitGet().toPayload
+        knownBlocks.get().get(newPayload.parentHash) match {
           case Some(cid) =>
             val chain = chains.get()(cid)
-            if (newBlock.parentHash == chain.head.hash) {
-              prependToChain(cid, newBlock)
-              knownBlocks.transform(_.updated(newBlock.hash, cid))
+            if (newPayload.parentHash == chain.head.hash) {
+              prependToChain(cid, newPayload)
+              knownBlocks.transform(_.updated(newPayload.hash, cid))
             } else { // Rollback
-              log.debug(s"A rollback using ${newBlock.hash} detected")
+              log.debug(s"A rollback using ${newPayload.hash} detected")
               val newCid   = currChainIdValue.incrementAndGet()
-              val newChain = newBlock :: chain.dropWhile(_.hash != newBlock.parentHash)
+              val newChain = newPayload :: chain.dropWhile(_.hash != newPayload.parentHash)
               chains.transform(_.updated(newCid, newChain))
-              knownBlocks.transform(_.updated(newBlock.hash, newCid))
+              knownBlocks.transform(_.updated(newPayload.hash, newCid))
             }
 
-          case None => throw notImplementedCase(s"Can't find a parent block ${newBlock.parentHash} for ${newBlock.hash}")
+          case None => throw notImplementedCase(s"Can't find a parent block ${newPayload.parentHash} for ${newPayload.hash}")
         }
-        Some(newBlock.hash)
+        Some(newPayload.hash)
       }.asRight
 
-      override def getPayloadBodyByHash(hash: BlockHash): JobResult[Option[JsObject]] =
-        getBlockByHashJson(hash)
+      override def getPayloadBodyJsonByHash(hash: BlockHash): JobResult[Option[JsObject]] =
+        notImplementedMethodJob("getPayloadBodyJsonByHash")
 
-      override def getBlockByNumber(number: BlockNumber): JobResult[Option[EcBlock]] =
+      override def getPayloadByNumber(number: BlockNumber): JobResult[Option[ExecutionPayload]] =
         number match {
           case BlockNumber.Latest    => currChain.headOption.asRight
           case BlockNumber.Number(n) => currChain.find(_.height == n).asRight
         }
 
-      override def getBlockByHash(hash: BlockHash): JobResult[Option[EcBlock]] = {
+      override def getPayloadByHash(hash: BlockHash): JobResult[Option[ExecutionPayload]] = {
         for {
           cid <- knownBlocks.get().get(hash)
           c   <- chains.get().get(cid)
@@ -145,18 +145,19 @@ class TestEcClients private (
         } yield b
       }.asRight
 
-      override def getBlockByHashJson(hash: BlockHash): JobResult[Option[JsObject]] =
-        notImplementedMethodJob("getBlockByHashJson")
+      override def getBlockJsonByHash(hash: BlockHash): JobResult[Option[JsObject]] =
+        notImplementedMethodJob("getBlockJsonByHash")
 
-      override def getLastExecutionBlock: JobResult[EcBlock] = currChain.head.asRight
-
-      override def blockExists(hash: BlockHash): JobResult[Boolean] = notImplementedMethodJob("blockExists")
+      override def getLastPayload: JobResult[ExecutionPayload] = currChain.head.asRight
 
       override def getLogs(hash: BlockHash, address: EthAddress, topic: String): JobResult[List[GetLogsResponseEntry]] = {
         val request = GetLogsRequest(hash, address, List(topic))
         getLogsCalls.transform(_ + hash)
         logs.get().getOrElse(request, throw notImplementedCase("call setBlockLogs"))
       }.asRight
+
+      override def getPayloadJsonDataByHash(hash: BlockHash): JobResult[PayloadJsonData] =
+        notImplementedMethodJob("getPayloadJsonDataByHash")
     }
   )
 
@@ -170,9 +171,9 @@ object TestEcClients {
 
   private type ChainId = Int
 
-  private case class ForgingBlock(payloadId: String, testBlock: EcBlock)
+  private case class ForgingBlock(payloadId: String, testPayload: ExecutionPayload)
   private object ForgingBlock {
-    def apply(testBlock: EcBlock): ForgingBlock =
-      new ForgingBlock(testBlock.hash.take(16), testBlock)
+    def apply(testPayload: ExecutionPayload): ForgingBlock =
+      new ForgingBlock(testPayload.hash.take(16), testPayload)
   }
 }

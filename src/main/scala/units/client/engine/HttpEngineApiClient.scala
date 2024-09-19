@@ -60,12 +60,12 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
     }
   }
 
-  def getPayload(payloadId: PayloadId): JobResult[JsObject] = {
+  def getPayloadJson(payloadId: PayloadId): JobResult[JsObject] = {
     sendEngineRequest[GetPayloadRequest, GetPayloadResponse](GetPayloadRequest(payloadId), NonBlockExecutionTimeout).map(_.executionPayload)
   }
 
-  def applyNewPayload(payload: JsObject): JobResult[Option[BlockHash]] = {
-    sendEngineRequest[NewPayloadRequest, PayloadState](NewPayloadRequest(payload), BlockExecutionTimeout).flatMap {
+  def applyNewPayload(payloadJson: JsObject): JobResult[Option[BlockHash]] = {
+    sendEngineRequest[NewPayloadRequest, PayloadState](NewPayloadRequest(payloadJson), BlockExecutionTimeout).flatMap {
       case PayloadState(_, _, Some(validationError))     => Left(ClientError(s"Payload validation error: $validationError"))
       case PayloadState(Valid, Some(latestValidHash), _) => Right(Some(latestValidHash))
       case PayloadState(Syncing, latestValidHash, _)     => Right(latestValidHash)
@@ -74,42 +74,44 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
     }
   }
 
-  def getPayloadBodyByHash(hash: BlockHash): JobResult[Option[JsObject]] = {
+  def getPayloadBodyJsonByHash(hash: BlockHash): JobResult[Option[JsObject]] = {
     sendEngineRequest[GetPayloadBodyByHash, JsArray](GetPayloadBodyByHash(hash), NonBlockExecutionTimeout)
       .map(_.value.headOption.flatMap(_.asOpt[JsObject]))
   }
 
-  def getBlockByNumber(number: BlockNumber): JobResult[Option[EcBlock]] = {
+  def getPayloadByNumber(number: BlockNumber): JobResult[Option[ExecutionPayload]] = {
     for {
-      json      <- getBlockByNumberJson(number.str)
-      blockMeta <- json.traverse(parseJson[EcBlock](_))
+      json <- sendRequest[GetBlockByNumberRequest, JsObject](GetBlockByNumberRequest(number.str))
+        .leftMap(err => ClientError(s"Error getting payload by number $number: $err"))
+      blockMeta <- json.traverse(parseJson[ExecutionPayload](_))
     } yield blockMeta
   }
 
-  def getBlockByHash(hash: BlockHash): JobResult[Option[EcBlock]] = {
-    sendRequest[GetBlockByHashRequest, EcBlock](GetBlockByHashRequest(hash))
-      .leftMap(err => ClientError(s"Error getting block by hash $hash: $err"))
+  def getPayloadByHash(hash: BlockHash): JobResult[Option[ExecutionPayload]] = {
+    sendRequest[GetBlockByHashRequest, ExecutionPayload](GetBlockByHashRequest(hash))
+      .leftMap(err => ClientError(s"Error getting payload by hash $hash: $err"))
   }
 
-  def getBlockByHashJson(hash: BlockHash): JobResult[Option[JsObject]] = {
+  def getLastPayload: JobResult[ExecutionPayload] = for {
+    lastPayloadOpt <- getPayloadByNumber(BlockNumber.Latest)
+    lastPayload    <- Either.fromOption(lastPayloadOpt, ClientError("Impossible: EC doesn't have payloads"))
+  } yield lastPayload
+
+  def getBlockJsonByHash(hash: BlockHash): JobResult[Option[JsObject]] = {
     sendRequest[GetBlockByHashRequest, JsObject](GetBlockByHashRequest(hash))
       .leftMap(err => ClientError(s"Error getting block json by hash $hash: $err"))
   }
 
-  def getLastExecutionBlock: JobResult[EcBlock] = for {
-    lastEcBlockOpt <- getBlockByNumber(BlockNumber.Latest)
-    lastEcBlock    <- Either.fromOption(lastEcBlockOpt, ClientError("Impossible: EC doesn't have blocks"))
-  } yield lastEcBlock
-
-  def blockExists(hash: BlockHash): JobResult[Boolean] =
-    getBlockByHash(hash).map(_.isDefined)
-
-  private def getBlockByNumberJson(number: String): JobResult[Option[JsObject]] = {
-    sendRequest[GetBlockByNumberRequest, JsObject](GetBlockByNumberRequest(number))
-      .leftMap(err => ClientError(s"Error getting block by number $number: $err"))
+  def getPayloadJsonDataByHash(hash: BlockHash): JobResult[PayloadJsonData] = {
+    for {
+      blockJsonOpt       <- getBlockJsonByHash(hash)
+      blockJson          <- Either.fromOption(blockJsonOpt, ClientError("block not found"))
+      payloadBodyJsonOpt <- getPayloadBodyJsonByHash(hash)
+      payloadBodyJson    <- Either.fromOption(payloadBodyJsonOpt, ClientError("payload body not found"))
+    } yield PayloadJsonData(blockJson, payloadBodyJson)
   }
 
-  override def getLogs(hash: BlockHash, address: EthAddress, topic: String): JobResult[List[GetLogsResponseEntry]] =
+  def getLogs(hash: BlockHash, address: EthAddress, topic: String): JobResult[List[GetLogsResponseEntry]] =
     sendRequest[GetLogsRequest, List[GetLogsResponseEntry]](GetLogsRequest(hash, address, List(topic)))
       .leftMap(err => ClientError(s"Error getting block logs by hash $hash: $err"))
       .map(_.getOrElse(List.empty))

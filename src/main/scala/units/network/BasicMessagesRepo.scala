@@ -6,7 +6,7 @@ import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.crypto
 import com.wavesplatform.crypto.SignatureLength
 import units.util.HexBytesConverter.*
-import units.{BlockHash, NetworkL2Block}
+import units.{BlockHash, NetworkBlock}
 import com.wavesplatform.network.message.Message.MessageCode
 import com.wavesplatform.network.message.{Message, MessageSpec}
 import com.wavesplatform.network.{InetSocketAddressSeqSpec, NetworkServer}
@@ -45,31 +45,31 @@ object GetBlockL2Spec extends MessageSpec[GetBlock] {
 
   override def deserializeData(bytes: Array[Byte]): Try[GetBlock] = Try {
     require(
-      NetworkL2Block.validateReferenceLength(bytes.length),
+      NetworkBlock.validateReferenceLength(bytes.length),
       s"Invalid hash length ${bytes.length} in GetBlock message, expecting ${crypto.DigestLength}"
     )
     GetBlock(BlockHash(bytes))
   }
 }
 
-object BlockSpec extends MessageSpec[NetworkL2Block] {
+object BlockSpec extends MessageSpec[NetworkBlock] {
   override val messageCode: MessageCode = 4: Byte
 
   override val maxLength: Int = NetworkServer.MaxFrameLength
 
-  override def serializeData(block: NetworkL2Block): Array[Byte] = {
+  override def serializeData(block: NetworkBlock): Array[Byte] = {
     val signatureBytes = block.signature.map(sig => Bytes.concat(Array(1.toByte), sig.arr)).getOrElse(Array(0.toByte))
     Bytes.concat(signatureBytes, block.payloadBytes)
   }
 
-  override def deserializeData(bytes: Array[Byte]): Try[NetworkL2Block] = {
+  override def deserializeData(bytes: Array[Byte]): Try[NetworkBlock] = {
     // We need a signature only for blocks those are not confirmed on the chain contract
     val isWithSignature = bytes.headOption.contains(1.toByte)
     val signature       = if (isWithSignature) Some(ByteStr(bytes.slice(1, SignatureLength + 1))) else None
     val payloadOffset   = if (isWithSignature) SignatureLength + 1 else 1
     for {
       _     <- Either.cond(signature.forall(_.size == SignatureLength), (), new RuntimeException("Invalid block signature size")).toTry
-      block <- NetworkL2Block(bytes.drop(payloadOffset), signature).leftMap(err => new RuntimeException(err.message)).toTry
+      block <- NetworkBlock(bytes.drop(payloadOffset), signature).leftMap(err => new RuntimeException(err.message)).toTry
     } yield block
   }
 }

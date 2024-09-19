@@ -1,14 +1,12 @@
 package units.network
 
-import cats.syntax.either.*
 import com.wavesplatform.network.id
 import com.wavesplatform.utils.ScorexLogging
 import io.netty.channel.ChannelHandler.Sharable
 import io.netty.channel.{ChannelHandlerContext, ChannelInboundHandlerAdapter}
 import monix.execution.Scheduler
 import units.client.engine.EngineApiClient
-import units.util.BlockToPayloadMapper
-import units.{BlockHash, ClientError, NetworkL2Block}
+import units.{BlockHash, ClientError, NetworkBlock}
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
@@ -30,24 +28,19 @@ class HistoryReplier(engineApiClient: EngineApiClient)(implicit sc: Scheduler) e
     case GetBlock(hash) =>
       respondWith(
         ctx,
-        loadBlockL2(hash)
+        loadBlock(hash)
           .map {
-            case Right(blockL2) =>
-              RawBytes(BlockSpec.messageCode, BlockSpec.serializeData(blockL2))
+            case Right(block) =>
+              RawBytes(BlockSpec.messageCode, BlockSpec.serializeData(block))
             case Left(err) => throw new NoSuchElementException(s"Error loading block $hash: $err")
           }
       )
     case _ => super.channelRead(ctx, msg)
   }
 
-  private def loadBlockL2(hash: BlockHash): Future[Either[ClientError, NetworkL2Block]] = Future {
-    for {
-      blockJsonOpt       <- engineApiClient.getBlockByHashJson(hash)
-      blockJson          <- Either.fromOption(blockJsonOpt, ClientError("block not found"))
-      payloadBodyJsonOpt <- engineApiClient.getPayloadBodyByHash(hash)
-      payloadBodyJson    <- Either.fromOption(payloadBodyJsonOpt, ClientError("payload body not found"))
-      payload = BlockToPayloadMapper.toPayloadJson(blockJson, payloadBodyJson)
-      blockL2 <- NetworkL2Block(payload)
-    } yield blockL2
+  private def loadBlock(hash: BlockHash): Future[Either[ClientError, NetworkBlock]] = Future {
+    engineApiClient.getPayloadJsonDataByHash(hash).flatMap { payloadJsonData =>
+      NetworkBlock(payloadJsonData.toPayloadJson)
+    }
   }
 }

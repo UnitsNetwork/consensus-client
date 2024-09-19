@@ -57,7 +57,7 @@ if (rawLogsInBlock.length == 0) throw new Error(`Can't find logs in ${blockHash}
 const logsInBlock = rawLogsInBlock as Exclude<typeof rawLogsInBlock[number], string>[];
 
 logger.info(`Waiting EL block ${blockHash} confirmation on CL`);
-const withdrawBlockMeta = await waves.utils.waitForEcBlock(waves.wavesApi1, waves.chainContractAddress, blockHash);
+const withdrawBlockMeta = await waves.utils.waitForBlock(waves.wavesApi1, waves.chainContractAddress, blockHash);
 logger.info(`Withdraw block meta: %O`, withdrawBlockMeta);
 
 let rawData: string[] = [];

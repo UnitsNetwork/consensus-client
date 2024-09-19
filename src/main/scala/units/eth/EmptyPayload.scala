@@ -4,10 +4,10 @@ import org.web3j.abi.datatypes.generated.Uint256
 import org.web3j.rlp.{RlpEncoder, RlpList, RlpString}
 import play.api.libs.json.{JsObject, Json}
 import units.BlockHash
-import units.client.engine.model.EcBlock
+import units.client.engine.model.ExecutionPayload
 import units.util.HexBytesConverter
 
-object EmptyL2Block {
+object EmptyPayload {
   case class Params(
       parentHash: BlockHash,
       parentStateRoot: String,
@@ -20,24 +20,24 @@ object EmptyL2Block {
 
   private val InternalBlockTimestampDiff = 1 // seconds
 
-  def mkExecutionPayload(parent: EcBlock, feeRecipient: EthAddress = EthAddress.empty): JsObject =
-    mkExecutionPayload(
+  def mkExecutionPayloadJson(parentPayload: ExecutionPayload, feeRecipient: EthAddress = EthAddress.empty): JsObject =
+    mkExecutionPayloadJson(
       Params(
-        parentHash = parent.hash,
-        parentStateRoot = parent.stateRoot,
-        parentGasLimit = parent.gasLimit,
-        newBlockTimestamp = parent.timestamp + InternalBlockTimestampDiff,
-        newBlockNumber = parent.height + 1,
+        parentHash = parentPayload.hash,
+        parentStateRoot = parentPayload.stateRoot,
+        parentGasLimit = parentPayload.gasLimit,
+        newBlockTimestamp = parentPayload.timestamp + InternalBlockTimestampDiff,
+        newBlockNumber = parentPayload.height + 1,
         baseFee = calculateGasFee(
-          parentGasLimit = parent.gasLimit,
-          parentBaseFeePerGas = parent.baseFeePerGas,
-          parentGasUsed = parent.gasUsed
+          parentGasLimit = parentPayload.gasLimit,
+          parentBaseFeePerGas = parentPayload.baseFeePerGas,
+          parentGasUsed = parentPayload.gasUsed
         ),
         feeRecipient = feeRecipient
       )
     )
 
-  def mkExecutionPayload(params: Params): JsObject = Json.obj(
+  def mkExecutionPayloadJson(params: Params): JsObject = Json.obj(
     "parentHash"    -> params.parentHash,
     "feeRecipient"  -> params.feeRecipient,
     "stateRoot"     -> params.parentStateRoot,

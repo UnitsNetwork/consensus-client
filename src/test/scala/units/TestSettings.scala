@@ -1,7 +1,7 @@
 package units
 
 import com.typesafe.config.ConfigFactory
-import com.wavesplatform.account.SeedKeyPair
+import com.wavesplatform.account.{Address, SeedKeyPair}
 import com.wavesplatform.db.WithState.AddrWithBalance
 import com.wavesplatform.settings.WavesSettings
 import com.wavesplatform.test.{DomainPresets, NumericExt}
@@ -23,11 +23,11 @@ case class TestSettings(
 }
 
 object TestSettings {
-  val Default = TestSettings()
+  val Default: TestSettings = TestSettings()
 
   private object Waves {
-    val Default    = DomainPresets.TransactionStateSnapshot
-    val WithMining = Default.copy(config = ConfigFactory.parseString("waves.l2.mining-enable = true").withFallback(Default.config))
+    val Default: WavesSettings    = DomainPresets.TransactionStateSnapshot
+    val WithMining: WavesSettings = Default.copy(config = ConfigFactory.parseString("waves.l2.mining-enable = true").withFallback(Default.config))
   }
 }
 
@@ -36,6 +36,6 @@ case class ElMinerSettings(
     wavesBalance: Long = 20_100.waves,
     stakingBalance: Long = 50_000_000L
 ) {
-  val address         = account.toAddress
-  val elRewardAddress = EthAddress.unsafeFrom(address.toEthAddress)
+  val address: Address            = account.toAddress
+  val elRewardAddress: EthAddress = EthAddress.unsafeFrom(address.toEthAddress)
 }

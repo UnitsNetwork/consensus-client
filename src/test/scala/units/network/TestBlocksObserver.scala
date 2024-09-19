@@ -6,10 +6,10 @@ import io.netty.channel.Channel
 import monix.eval.Task
 import monix.execution.CancelableFuture
 import units.network.BlocksObserverImpl.BlockWithChannel
-import units.{BlockHash, NetworkL2Block}
+import units.{BlockHash, NetworkBlock}
 
-class TestBlocksObserver(override val getBlockStream: ChannelObservable[NetworkL2Block]) extends BlocksObserver with ScorexLogging {
-  override def loadBlock(req: BlockHash): CancelableFuture[(Channel, NetworkL2Block)] = {
+class TestBlocksObserver(override val getBlockStream: ChannelObservable[NetworkBlock]) extends BlocksObserver with ScorexLogging {
+  override def loadBlock(req: BlockHash): CancelableFuture[(Channel, NetworkBlock)] = {
     log.debug(s"loadBlock($req)")
     CancelableFuture.never
   }

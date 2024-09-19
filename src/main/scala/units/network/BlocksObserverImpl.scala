@@ -9,15 +9,15 @@ import monix.eval.Task
 import monix.execution.{Cancelable, CancelableFuture, CancelablePromise, Scheduler}
 import monix.reactive.subjects.ConcurrentSubject
 import units.network.BlocksObserverImpl.{BlockWithChannel, State}
-import units.{BlockHash, NetworkL2Block}
+import units.{BlockHash, NetworkBlock}
 
 import java.time.Duration
 import scala.concurrent.duration.FiniteDuration
 import scala.jdk.CollectionConverters.*
 import scala.util.{Failure, Success}
 
-class BlocksObserverImpl(allChannels: DefaultChannelGroup, blocks: ChannelObservable[NetworkL2Block], syncTimeout: FiniteDuration)(implicit
-                                                                                                                                   sc: Scheduler
+class BlocksObserverImpl(allChannels: DefaultChannelGroup, blocks: ChannelObservable[NetworkBlock], syncTimeout: FiniteDuration)(implicit
+                                                                                                                                 sc: Scheduler
 ) extends BlocksObserver
   with ScorexLogging {
 
@@ -63,7 +63,7 @@ class BlocksObserverImpl(allChannels: DefaultChannelGroup, blocks: ChannelObserv
       blocksResult.onNext(v)
     }
 
-  def getBlockStream: ChannelObservable[NetworkL2Block] = blocksResult
+  def getBlockStream: ChannelObservable[NetworkBlock] = blocksResult
 
   def requestBlock(req: BlockHash): Task[BlockWithChannel] = Task
     .defer {
@@ -113,7 +113,7 @@ class BlocksObserverImpl(allChannels: DefaultChannelGroup, blocks: ChannelObserv
 
 object BlocksObserverImpl {
 
-  type BlockWithChannel = (Channel, NetworkL2Block)
+  type BlockWithChannel = (Channel, NetworkBlock)
 
   sealed trait State
 

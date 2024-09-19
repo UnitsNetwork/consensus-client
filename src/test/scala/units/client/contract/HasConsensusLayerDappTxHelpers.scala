@@ -9,7 +9,7 @@ import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.test.NumericExt
 import com.wavesplatform.transaction.smart.{InvokeScriptTransaction, SetScriptTransaction}
 import com.wavesplatform.transaction.{Asset, TxHelpers}
-import units.client.L2BlockLike
+import units.client.CommonBlockData
 import units.client.contract.HasConsensusLayerDappTxHelpers.*
 import units.client.contract.HasConsensusLayerDappTxHelpers.defaultFees.chainContract.*
 import units.eth.{EthAddress, EthereumConstants}
@@ -24,11 +24,11 @@ trait HasConsensusLayerDappTxHelpers {
   object chainContract {
     def setScript(): SetScriptTransaction = TxHelpers.setScript(chainContractAccount, CompiledChainContract.script, fee = setScriptFee)
 
-    def setup(genesisBlock: L2BlockLike, elMinerReward: Long): InvokeScriptTransaction = TxHelpers.invoke(
+    def setup(genesisBlockData: CommonBlockData, elMinerReward: Long): InvokeScriptTransaction = TxHelpers.invoke(
       dApp = chainContractAddress,
       func = "setup".some,
       args = List(
-        Terms.CONST_STRING(genesisBlock.hash.drop(2)).explicitGet(),
+        Terms.CONST_STRING(genesisBlockData.hash.drop(2)).explicitGet(),
         Terms.CONST_LONG(elMinerReward)
       ),
       fee = setupFee
@@ -50,19 +50,19 @@ trait HasConsensusLayerDappTxHelpers {
     )
 
     def extendMainChain(
-        minerAccount: KeyPair,
-        block: L2BlockLike,
-        e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
-        lastC2ETransferIndex: Long = -1,
-        vrf: ByteStr = currentHitSource
+                         minerAccount: KeyPair,
+                         blockData: CommonBlockData,
+                         e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
+                         lastC2ETransferIndex: Long = -1,
+                         vrf: ByteStr = currentHitSource
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = minerAccount,
         dApp = chainContractAddress,
         func = "extendMainChain".some,
         args = List(
-          Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
-          Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(blockData.hash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(blockData.parentHash.drop(2)).explicitGet(),
           Terms.CONST_BYTESTR(vrf).explicitGet(),
           Terms.CONST_STRING(e2cTransfersRootHashHex.drop(2)).explicitGet(),
           Terms.CONST_LONG(lastC2ETransferIndex)
@@ -71,18 +71,18 @@ trait HasConsensusLayerDappTxHelpers {
       )
 
     def appendBlock(
-        minerAccount: KeyPair,
-        block: L2BlockLike,
-        e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
-        lastC2ETransferIndex: Long = -1
+                     minerAccount: KeyPair,
+                     blockData: CommonBlockData,
+                     e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
+                     lastC2ETransferIndex: Long = -1
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = minerAccount,
         dApp = chainContractAddress,
         func = "appendBlock".some,
         args = List(
-          Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
-          Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(blockData.hash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(blockData.parentHash.drop(2)).explicitGet(),
           Terms.CONST_STRING(e2cTransfersRootHashHex.drop(2)).explicitGet(),
           Terms.CONST_LONG(lastC2ETransferIndex)
         ),
@@ -90,19 +90,19 @@ trait HasConsensusLayerDappTxHelpers {
       )
 
     def startAltChain(
-        minerAccount: KeyPair,
-        block: L2BlockLike,
-        e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
-        lastC2ETransferIndex: Long = -1,
-        vrf: ByteStr = currentHitSource
+                       minerAccount: KeyPair,
+                       blockData: CommonBlockData,
+                       e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
+                       lastC2ETransferIndex: Long = -1,
+                       vrf: ByteStr = currentHitSource
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = minerAccount,
         dApp = chainContractAddress,
         func = "startAltChain".some,
         args = List(
-          Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
-          Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(blockData.hash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(blockData.parentHash.drop(2)).explicitGet(),
           Terms.CONST_BYTESTR(vrf).explicitGet(),
           Terms.CONST_STRING(e2cTransfersRootHashHex.drop(2)).explicitGet(),
           Terms.CONST_LONG(lastC2ETransferIndex)
@@ -111,20 +111,20 @@ trait HasConsensusLayerDappTxHelpers {
       )
 
     def extendAltChain(
-        minerAccount: KeyPair,
-        block: L2BlockLike,
-        chainId: Long,
-        e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
-        lastC2ETransferIndex: Long = -1,
-        vrf: ByteStr = currentHitSource
+                        minerAccount: KeyPair,
+                        blockData: CommonBlockData,
+                        chainId: Long,
+                        e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
+                        lastC2ETransferIndex: Long = -1,
+                        vrf: ByteStr = currentHitSource
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = minerAccount,
         dApp = chainContractAddress,
         func = "extendAltChain".some,
         args = List(
-          Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
-          Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(blockData.hash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(blockData.parentHash.drop(2)).explicitGet(),
           Terms.CONST_BYTESTR(vrf).explicitGet(),
           Terms.CONST_LONG(chainId),
           Terms.CONST_STRING(e2cTransfersRootHashHex.drop(2)).explicitGet(),
@@ -165,18 +165,18 @@ trait HasConsensusLayerDappTxHelpers {
       )
 
     def withdraw(
-        sender: KeyPair,
-        block: L2BlockLike,
-        merkleProof: Seq[Digest],
-        transferIndexInBlock: Int,
-        amount: Long
+                  sender: KeyPair,
+                  blockData: CommonBlockData,
+                  merkleProof: Seq[Digest],
+                  transferIndexInBlock: Int,
+                  amount: Long
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = sender,
         dApp = chainContractAddress,
         func = "withdraw".some,
         args = List(
-          Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(blockData.hash.drop(2)).explicitGet(),
           Terms.ARR(merkleProof.map[Terms.EVALUATED](x => Terms.CONST_BYTESTR(ByteStr(x)).explicitGet()).toVector, limited = false).explicitGet(),
           Terms.CONST_LONG(transferIndexInBlock),
           Terms.CONST_LONG(amount)
