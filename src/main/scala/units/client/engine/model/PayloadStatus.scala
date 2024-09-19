@@ -1,10 +1,19 @@
 package units.client.engine.model
 
-import units.BlockHash
-import play.api.libs.json.{Json, Reads}
+import play.api.libs.json.Reads
 
-case class PayloadStatus(status: String, latestValidHash: Option[BlockHash], validationError: Option[String])
+sealed abstract class PayloadStatus(val value: String) {
+  override def toString: String = value
+}
 
 object PayloadStatus {
-  implicit val reads: Reads[PayloadStatus] = Json.reads
+  case object Valid                                 extends PayloadStatus("VALID")
+  case object Syncing                               extends PayloadStatus("SYNCING")
+  case class Unexpected(override val value: String) extends PayloadStatus(value)
+
+  implicit val reads: Reads[PayloadStatus] = Reads.of[String].map {
+    case "VALID"   => Valid
+    case "SYNCING" => Syncing
+    case other     => Unexpected(other)
+  }
 }

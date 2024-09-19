@@ -7,7 +7,7 @@ import units.eth.EthAddress
 import units.{BlockHash, JobResult}
 
 trait EngineApiClient {
-  def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[String] // TODO Replace String with an appropriate type
+  def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus]
 
   def forkChoiceUpdateWithPayloadId(
       lastBlockHash: BlockHash,

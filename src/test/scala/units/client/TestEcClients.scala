@@ -64,7 +64,7 @@ class TestEcClients private (
 
   val engineApi = new LoggedEngineApiClient(
     new EngineApiClient {
-      override def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[String] = {
+      override def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus] = {
         knownBlocks.get().get(blockHash) match {
           case Some(cid) =>
             currChainIdValue.set(cid)
@@ -72,10 +72,10 @@ class TestEcClients private (
               chains.updated(cid, chains(cid).dropWhile(_.hash != blockHash))
             }
             log.debug(s"Curr chain: ${currChain.map(_.hash).mkString(" <- ")}")
-            "VALID"
+            PayloadStatus.Valid
           case None =>
             log.warn(s"Can't find a block $blockHash during forkChoiceUpdate call")
-            "INVALID" // Generally this is wrong, but enough for now
+            PayloadStatus.Unexpected("INVALID") // Generally this is wrong, but enough for now
         }
       }.asRight
 
@@ -161,7 +161,7 @@ class TestEcClients private (
   )
 
   protected def notImplementedMethodJob[A](text: String): JobResult[A] = throw new NotImplementedMethod(text)
-  protected def notImplementedCase(text: String): Throwable      = new NotImplementedCase(text)
+  protected def notImplementedCase(text: String): Throwable            = new NotImplementedCase(text)
 }
 
 object TestEcClients {

@@ -13,9 +13,9 @@ import java.util.concurrent.ThreadLocalRandom
 import scala.util.chaining.scalaUtilChainingOps
 
 class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient {
-  protected val log = LoggerFacade(LoggerFactory.getLogger(underlying.getClass))
+  protected val log: LoggerFacade = LoggerFacade(LoggerFactory.getLogger(underlying.getClass))
 
-  override def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[String] =
+  override def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus] =
     wrap(s"forkChoiceUpdate($blockHash, f=$finalizedBlockHash)", underlying.forkChoiceUpdate(blockHash, finalizedBlockHash))
 
   override def forkChoiceUpdateWithPayloadId(
