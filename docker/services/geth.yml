@@ -42,7 +42,6 @@ services:
     ports:
       - '30303:30303/tcp'
       - '30303:30303/udp'
-      - '8551:8551'
     healthcheck:
       test: 'wget -qO /dev/null --header "content-type: application/json" --post-data {\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}  http://127.0.0.1:8545'
       interval: 5s

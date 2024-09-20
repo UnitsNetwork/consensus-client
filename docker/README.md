@@ -3,7 +3,7 @@ Units Network node consists of Waves blockchain node, Consensus Client extension
 
 ## Prerequisites
 * Install [Docker Compose](https://docs.docker.com/compose/install/).
-* Generate JWT secret and execution client keys by running `./gen-keys.sh`. This script requires `openssl` and `xxd`.
+* Generate JWT secret and execution client keys by running `./gen-keys.sh`. This script requires `openssl`.
 * Optional: get waves node [state](https://docs.waves.tech/en/waves-node/options-for-getting-actual-blockchain/state-downloading-and-applying) and place it inside the `./data/waves` directory.
 * Optional: get execution client state.
 
