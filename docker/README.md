@@ -6,6 +6,10 @@ Units Network node consists of Waves blockchain node, Consensus Client extension
 * Generate JWT secret and execution client keys by running `./gen-keys.sh`. This script requires `openssl`.
 * Optional: get waves node [state](https://docs.waves.tech/en/waves-node/options-for-getting-actual-blockchain/state-downloading-and-applying) and place it inside the `./data/waves` directory.
 * Optional: get execution client state.
+* To run besu on Linux, you need to manually create data & log directories and set appropriate permissions:
+```
+install -d -o 1000 -g 1000 data/besu logs/besu
+```
 
 ## Configuring Waves Node
 * Create `./secrets.env` file with the base58-encoded [seed and password](https://docs.waves.tech/en/waves-node/how-to-work-with-node-wallet):
@@ -17,19 +21,17 @@ Units Network node consists of Waves blockchain node, Consensus Client extension
 * Specify the proper declared addresses in the environment file (`testnet.env` for testnet, etc.). Make sure these declared addresses have distinct ports, otherwise your node will be banned from the network!
 
 ## Launching
-To run besu on Linux, you need to manually create data & log directories and set appropriate permissions:
-```
-install -d -o 1000 -g 1000 data/besu logs/besu
-```
+There are two profiles in the compose file: `besu` and `geth`, each starting a respective execution client. You can choose which one to run by specifying either `--profile besu` or `--profile geth` on the command line.
+
 Running, stopping and updating with besu in testnet:
 ```
-docker compose --env-file=testnet.env up -d
-docker compose --env-file=testnet.env down
-docker compose --env-file=testnet.env pull
+docker compose --profile besu --env-file=testnet.env up -d
+docker compose --profile besu --env-file=testnet.env down
+docker compose --profile besu --env-file=testnet.env pull
 ```
 Running, stopping and updating with geth in testnet:
 ```
-docker compose -f docker-compose-geth.yml --env-file=testnet.env up -d
-docker compose -f docker-compose-geth.yml --env-file=testnet.env down
-docker compose -f docker-compose-geth.yml --env-file=testnet.env pull
+docker compose --profile geth --env-file=testnet.env up -d
+docker compose --profile geth --env-file=testnet.env down
+docker compose --profile geth --env-file=testnet.env pull
 ```
