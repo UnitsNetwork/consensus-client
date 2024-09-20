@@ -90,7 +90,7 @@ class ExtensionDomain(
   val eluScheduler: TestScheduler    = TestScheduler(ExecutionModel.AlwaysAsyncExecution)
 
   val elBlockStream: PublishSubject[(Channel, NetworkBlock)] = PublishSubject[(Channel, NetworkBlock)]()
-  val blockObserver: TestBlocksObserver                        = new TestBlocksObserver(elBlockStream)
+  val blockObserver: TestBlocksObserver                      = new TestBlocksObserver(elBlockStream)
 
   val neighbourChannel = new EmbeddedChannel()
   val allChannels      = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE)
@@ -232,11 +232,11 @@ class ExtensionDomain(
 
   // Useful for debugging purposes
   def evaluateExtendAltChain(
-                              minerAccount: KeyPair,
-                              chainId: Long,
-                              blockData: CommonBlockData,
-                              epoch: Long,
-                              e2CTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex
+      minerAccount: KeyPair,
+      chainId: Long,
+      blockData: CommonBlockData,
+      epoch: Long,
+      e2CTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex
   ): Either[String, JsObject] = {
     val r = evaluate(
       chainContractAddress,

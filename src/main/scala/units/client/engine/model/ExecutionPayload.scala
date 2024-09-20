@@ -14,17 +14,17 @@ import units.util.HexBytesConverter.*
   *   https://besu.hyperledger.org/stable/public-networks/reference/engine-api/objects#execution-payload-object tells about milliseconds
   */
 case class ExecutionPayload(
-                             hash: BlockHash,
-                             parentHash: BlockHash,
-                             stateRoot: String,
-                             height: Long,
-                             timestamp: Long,
-                             minerRewardAddress: EthAddress,
-                             baseFeePerGas: Uint256,
-                             gasLimit: Long,
-                             gasUsed: Long,
-                             prevRandao: String,
-                             withdrawals: Vector[Withdrawal]
+    hash: BlockHash,
+    parentHash: BlockHash,
+    stateRoot: String,
+    height: Long,
+    timestamp: Long,
+    minerRewardAddress: EthAddress,
+    baseFeePerGas: Uint256,
+    gasLimit: Long,
+    gasUsed: Long,
+    prevRandao: String,
+    withdrawals: Vector[Withdrawal]
 ) extends CommonBlockData {
   override def toString: String =
     s"ExecutionPayload($hash, p=$parentHash, h=$height, t=$timestamp, m=$minerRewardAddress, w={${withdrawals.mkString(", ")}})"

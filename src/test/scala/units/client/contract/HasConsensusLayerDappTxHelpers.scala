@@ -50,11 +50,11 @@ trait HasConsensusLayerDappTxHelpers {
     )
 
     def extendMainChain(
-                         minerAccount: KeyPair,
-                         blockData: CommonBlockData,
-                         e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
-                         lastC2ETransferIndex: Long = -1,
-                         vrf: ByteStr = currentHitSource
+        minerAccount: KeyPair,
+        blockData: CommonBlockData,
+        e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
+        lastC2ETransferIndex: Long = -1,
+        vrf: ByteStr = currentHitSource
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = minerAccount,
@@ -71,10 +71,10 @@ trait HasConsensusLayerDappTxHelpers {
       )
 
     def appendBlock(
-                     minerAccount: KeyPair,
-                     blockData: CommonBlockData,
-                     e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
-                     lastC2ETransferIndex: Long = -1
+        minerAccount: KeyPair,
+        blockData: CommonBlockData,
+        e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
+        lastC2ETransferIndex: Long = -1
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = minerAccount,
@@ -90,11 +90,11 @@ trait HasConsensusLayerDappTxHelpers {
       )
 
     def startAltChain(
-                       minerAccount: KeyPair,
-                       blockData: CommonBlockData,
-                       e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
-                       lastC2ETransferIndex: Long = -1,
-                       vrf: ByteStr = currentHitSource
+        minerAccount: KeyPair,
+        blockData: CommonBlockData,
+        e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
+        lastC2ETransferIndex: Long = -1,
+        vrf: ByteStr = currentHitSource
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = minerAccount,
@@ -111,12 +111,12 @@ trait HasConsensusLayerDappTxHelpers {
       )
 
     def extendAltChain(
-                        minerAccount: KeyPair,
-                        blockData: CommonBlockData,
-                        chainId: Long,
-                        e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
-                        lastC2ETransferIndex: Long = -1,
-                        vrf: ByteStr = currentHitSource
+        minerAccount: KeyPair,
+        blockData: CommonBlockData,
+        chainId: Long,
+        e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
+        lastC2ETransferIndex: Long = -1,
+        vrf: ByteStr = currentHitSource
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = minerAccount,
@@ -165,11 +165,11 @@ trait HasConsensusLayerDappTxHelpers {
       )
 
     def withdraw(
-                  sender: KeyPair,
-                  blockData: CommonBlockData,
-                  merkleProof: Seq[Digest],
-                  transferIndexInBlock: Int,
-                  amount: Long
+        sender: KeyPair,
+        blockData: CommonBlockData,
+        merkleProof: Seq[Digest],
+        transferIndexInBlock: Int,
+        amount: Long
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = sender,
