@@ -21,7 +21,7 @@ class TrafficLogger(settings: TL.Settings) extends TL(settings) {
   }
 
   protected def stringify(msg: Any): String = msg match {
-    case pm: PayloadMessage   => s"${pm.hash}"
+    case pm: PayloadMessage   => s"PayloadMessage(hash=${pm.hash})"
     case RawBytes(code, data) => s"RawBytes(${specsByCodes(code).messageName}, ${data.length} bytes)"
     case other                => other.toString
   }

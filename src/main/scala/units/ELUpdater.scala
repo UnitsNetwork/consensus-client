@@ -34,7 +34,7 @@ import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.model.*
 import units.client.engine.model.Withdrawal.WithdrawalIndex
 import units.eth.{EmptyPayload, EthAddress, EthereumConstants}
-import units.network.PayloadObserverImpl.PayloadWithChannel
+import units.network.PayloadObserverImpl.PayloadInfoWithChannel
 import units.util.HexBytesConverter
 import units.util.HexBytesConverter.toHexNoPrefix
 
@@ -43,17 +43,17 @@ import scala.concurrent.duration.*
 import scala.util.*
 
 class ELUpdater(
-    engineApiClient: EngineApiClient,
-    blockchain: Blockchain,
-    utx: UtxPool,
-    allChannels: DefaultChannelGroup,
-    config: ClientConfig,
-    time: Time,
-    wallet: Wallet,
-    requestPayloadFromPeers: BlockHash => CancelableFuture[PayloadWithChannel],
-    broadcastTx: Transaction => TracedResult[ValidationError, Boolean],
-    scheduler: Scheduler,
-    globalScheduler: Scheduler
+                 engineApiClient: EngineApiClient,
+                 blockchain: Blockchain,
+                 utx: UtxPool,
+                 allChannels: DefaultChannelGroup,
+                 config: ClientConfig,
+                 time: Time,
+                 wallet: Wallet,
+                 requestPayloadFromPeers: BlockHash => CancelableFuture[PayloadInfoWithChannel],
+                 broadcastTx: Transaction => TracedResult[ValidationError, Boolean],
+                 scheduler: Scheduler,
+                 globalScheduler: Scheduler
 ) extends StrictLogging {
   import ELUpdater.*
 
@@ -1561,8 +1561,8 @@ object ELUpdater {
       }
     }
 
-    case class WaitingForSyncHead(target: ContractBlock, task: CancelableFuture[PayloadWithChannel]) extends State
-    case class SyncingToFinalizedBlock(target: BlockHash)                                            extends State
+    case class WaitingForSyncHead(target: ContractBlock, task: CancelableFuture[PayloadInfoWithChannel]) extends State
+    case class SyncingToFinalizedBlock(target: BlockHash)                                                   extends State
   }
 
   private case class RollbackBlock(hash: BlockHash, parentPayload: ExecutionPayload)

@@ -8,93 +8,67 @@ import io.netty.channel.group.DefaultChannelGroup
 import monix.eval.Task
 import monix.execution.{Cancelable, CancelableFuture, CancelablePromise, Scheduler}
 import monix.reactive.subjects.ConcurrentSubject
-import units.network.PayloadObserverImpl.{PayloadWithChannel, State}
-import units.BlockHash
+import units.network.PayloadObserverImpl.{PayloadInfoWithChannel, State}
+import units.{BlockHash, ExecutionPayloadInfo}
 
 import java.time.Duration
 import scala.concurrent.duration.FiniteDuration
 import scala.jdk.CollectionConverters.*
 import scala.util.{Failure, Success}
 
-class PayloadObserverImpl(allChannels: DefaultChannelGroup, payloads: ChannelObservable[PayloadMessage], syncTimeout: FiniteDuration)(implicit
+class PayloadObserverImpl(allChannels: DefaultChannelGroup, payloads: ChannelObservable[ExecutionPayloadInfo], syncTimeout: FiniteDuration)(implicit
     sc: Scheduler
 ) extends PayloadObserver
     with ScorexLogging {
 
   private var state: State = State.Idle(None)
-  private val payloadsResult: ConcurrentSubject[PayloadWithChannel, PayloadWithChannel] =
-    ConcurrentSubject.publish[PayloadWithChannel]
+  private val payloadsResult: ConcurrentSubject[PayloadInfoWithChannel, PayloadInfoWithChannel] =
+    ConcurrentSubject.publish[PayloadInfoWithChannel]
 
   private val knownPayloadCache = CacheBuilder
     .newBuilder()
     .expireAfterWrite(Duration.ofMinutes(10))
     .maximumSize(100)
-    .build[BlockHash, PayloadWithChannel]()
+    .build[BlockHash, PayloadInfoWithChannel]()
 
   payloads
-    .foreach { case v @ (ch, pm) =>
+    .foreach { case v @ (ch, epi) =>
       state = state match {
-        case State.LoadingPayload(expectedHash, nextAttempt, p) if expectedHash == pm.hash =>
+        case State.LoadingPayload(expectedHash, nextAttempt, p) if expectedHash == epi.payload.hash =>
           nextAttempt.cancel()
-          p.complete(Success(ch -> pm))
+          p.complete(Success(ch -> epi))
           State.Idle(Some(ch))
         case other => other
       }
 
-      knownPayloadCache.put(pm.hash, v)
+      knownPayloadCache.put(epi.payload.hash, v)
       payloadsResult.onNext(v)
     }
 
-  def loadPayload(req: BlockHash): CancelableFuture[PayloadWithChannel] = knownPayloadCache.getIfPresent(req) match {
-    case null =>
-      val p = CancelablePromise[PayloadWithChannel]()
-      sc.execute { () =>
-        val candidate = state match {
-          case State.LoadingPayload(_, nextAttempt, promise) =>
-            nextAttempt.cancel()
-            promise.complete(Failure(new NoSuchElementException("Loading was canceled")))
-            None
-          case State.Idle(candidate) => candidate
+  def loadPayload(req: BlockHash): CancelableFuture[PayloadInfoWithChannel] = {
+    log.info(s"Loading payload $req")
+    knownPayloadCache.getIfPresent(req) match {
+      case null =>
+        val p = CancelablePromise[PayloadInfoWithChannel]()
+        sc.execute { () =>
+          val candidate = state match {
+            case State.LoadingPayload(_, nextAttempt, promise) =>
+              nextAttempt.cancel()
+              promise.complete(Failure(new NoSuchElementException("Loading was canceled")))
+              None
+            case State.Idle(candidate) => candidate
+          }
+          state = State.LoadingPayload(req, requestFromNextChannel(req, candidate, Set.empty).runToFuture, p)
         }
-        state = State.LoadingPayload(req, requestFromNextChannel(req, candidate, Set.empty).runToFuture, p)
-      }
-      p.future
-    case (ch, pm) =>
-      CancelablePromise.successful(ch -> pm).future
+        p.future
+      case (ch, pm) =>
+        CancelablePromise.successful(ch -> pm).future
+    }
   }
 
-  def getPayloadStream: ChannelObservable[PayloadMessage] = payloadsResult
+  def getPayloadStream: ChannelObservable[ExecutionPayloadInfo] = payloadsResult
 
-  def requestPayload(req: BlockHash): Task[PayloadWithChannel] = Task
-    .defer {
-      log.info(s"Loading payload $req")
-      knownPayloadCache.getIfPresent(req) match {
-        case null =>
-          val p = CancelablePromise[PayloadWithChannel]()
-
-          val candidate = state match {
-            case l: State.LoadingPayload =>
-              log.trace(s"No longer waiting for payload ${l.blockHash}, will load $req instead")
-              l.nextAttempt.cancel()
-              l.promise.future.cancel()
-              None
-            case State.Idle(candidate) =>
-              candidate
-          }
-
-          state = State.LoadingPayload(
-            req,
-            requestFromNextChannel(req, candidate, Set.empty).runToFuture,
-            p
-          )
-
-          Task.fromCancelablePromise(p)
-        case (ch, pm) =>
-          Task.pure(ch -> pm)
-      }
-    }
-    .executeOn(sc)
-
+  // TODO: remove Task
   private def requestFromNextChannel(req: BlockHash, candidate: Option[Channel], excluded: Set[Channel]): Task[Unit] = Task {
     candidate.filterNot(excluded).orElse(nextOpenChannel(excluded)) match {
       case None =>
@@ -113,12 +87,12 @@ class PayloadObserverImpl(allChannels: DefaultChannelGroup, payloads: ChannelObs
 
 object PayloadObserverImpl {
 
-  type PayloadWithChannel = (Channel, PayloadMessage)
+  type PayloadInfoWithChannel = (Channel, ExecutionPayloadInfo)
 
   sealed trait State
 
   object State {
-    case class LoadingPayload(blockHash: BlockHash, nextAttempt: Cancelable, promise: CancelablePromise[PayloadWithChannel]) extends State
+    case class LoadingPayload(blockHash: BlockHash, nextAttempt: Cancelable, promise: CancelablePromise[PayloadInfoWithChannel]) extends State
 
     case class Idle(pinnedChannel: Option[Channel]) extends State
   }

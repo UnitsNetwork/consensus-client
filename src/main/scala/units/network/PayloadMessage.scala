@@ -17,7 +17,7 @@ class PayloadMessage private (
     val hash: BlockHash,
     val signature: Option[ByteStr]
 ) {
-  lazy val payload: Either[String, ExecutionPayloadInfo] = {
+  lazy val payloadInfo: Either[String, ExecutionPayloadInfo] = {
     (for {
       timestamp     <- (payloadJson \ "timestamp").asOpt[String].map(toLong).toRight("timestamp not defined")
       height        <- (payloadJson \ "blockNumber").asOpt[String].map(toLong).toRight("height not defined")
@@ -46,7 +46,7 @@ class PayloadMessage private (
         ),
         payloadJson
       )
-    }).leftMap(err => s"Error creating payload for block $hash: $err")
+    }).leftMap(err => s"Error creating payload info for block $hash: $err")
   }
 
   def toBytes: Array[Byte] = {
@@ -65,7 +65,7 @@ object PayloadMessage {
   def apply(payloadJson: JsObject, signature: Option[ByteStr]): Either[String, PayloadMessage] =
     (payloadJson \ "blockHash")
       .asOpt[BlockHash]
-      .toRight("Error creating payload: block hash not defined")
+      .toRight("Error creating payload message: block hash not defined")
       .map(PayloadMessage(payloadJson, _, signature))
 
   def apply(payloadBytes: Array[Byte], signature: Option[ByteStr]): Either[String, PayloadMessage] = for {
