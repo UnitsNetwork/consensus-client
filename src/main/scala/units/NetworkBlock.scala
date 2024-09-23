@@ -4,7 +4,7 @@ import cats.syntax.either.*
 import com.wavesplatform.account.PrivateKey
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.crypto
-import com.wavesplatform.crypto.{DigestLength, SignatureLength}
+import com.wavesplatform.crypto.SignatureLength
 import org.web3j.abi.datatypes.generated.Uint256
 import play.api.libs.json.{JsObject, Json}
 import units.client.CommonBlockData
@@ -93,7 +93,4 @@ object NetworkBlock {
   }
 
   def apply(payload: JsObject): Either[ClientError, NetworkBlock] = apply(payload, Json.toBytes(payload), None)
-
-  def validateReferenceLength(length: Int): Boolean =
-    length == DigestLength
 }

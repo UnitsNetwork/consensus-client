@@ -5,16 +5,16 @@ import com.wavesplatform.utils.ScorexLogging
 import io.netty.channel.Channel
 import monix.eval.Task
 import monix.execution.CancelableFuture
-import units.network.BlocksObserverImpl.BlockWithChannel
+import units.network.PayloadObserverImpl.PayloadWithChannel
 import units.{BlockHash, NetworkBlock}
 
-class TestBlocksObserver(override val getBlockStream: ChannelObservable[NetworkBlock]) extends BlocksObserver with ScorexLogging {
-  override def loadBlock(req: BlockHash): CancelableFuture[(Channel, NetworkBlock)] = {
+class TestPayloadObserver(override val getPayloadStream: ChannelObservable[NetworkBlock]) extends PayloadObserver with ScorexLogging {
+  override def loadPayload(req: BlockHash): CancelableFuture[(Channel, NetworkBlock)] = {
     log.debug(s"loadBlock($req)")
     CancelableFuture.never
   }
 
-  def requestBlock(req: BlockHash): Task[BlockWithChannel] = {
+  def requestPayload(req: BlockHash): Task[PayloadWithChannel] = {
     log.debug(s"requestBlock($req)")
     Task.never
   }

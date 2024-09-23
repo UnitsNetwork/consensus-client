@@ -27,7 +27,7 @@ class ConsensusClient(
     config: ClientConfig,
     context: ExtensionContext,
     engineApiClient: EngineApiClient,
-    blockObserver: BlocksObserver,
+    payloadObserver: PayloadObserver,
     allChannels: DefaultChannelGroup,
     globalScheduler: Scheduler,
     eluScheduler: Scheduler,
@@ -40,7 +40,7 @@ class ConsensusClient(
       deps.config,
       context,
       deps.engineApiClient,
-      deps.blockObserver,
+      deps.payloadObserver,
       deps.allChannels,
       deps.globalScheduler,
       deps.eluScheduler,
@@ -58,19 +58,19 @@ class ConsensusClient(
       config,
       context.time,
       context.wallet,
-      blockObserver.loadBlock,
+      payloadObserver.loadPayload,
       context.broadcastTransaction,
       eluScheduler,
       globalScheduler
     )
 
-  private val blocksStreamCancelable: CancelableFuture[Unit] =
-    blockObserver.getBlockStream.foreach { case (ch, block) => elu.executionBlockReceived(block, ch) }(globalScheduler)
+  private val payloadsStreamCancelable: CancelableFuture[Unit] =
+    payloadObserver.getPayloadStream.foreach { case (ch, ep) => elu.executionPayloadReceived(ep, ch) }(globalScheduler)
 
   override def start(): Unit = {}
 
   def shutdown(): Future[Unit] = Future {
-    blocksStreamCancelable.cancel()
+    payloadsStreamCancelable.cancel()
     ownedResources.close()
   }(globalScheduler)
 
@@ -101,9 +101,9 @@ class ConsensusClientDependencies(context: ExtensionContext) extends AutoCloseab
 
   val config: ClientConfig = context.settings.config.as[ClientConfig]("waves.l2")
 
-  private val blockObserverScheduler = Schedulers.singleThread("block-observer-l2", reporter = { e => log.warn("Error in BlockObserver", e) })
-  val globalScheduler: Scheduler     = monix.execution.Scheduler.global
-  val eluScheduler: SchedulerService = Scheduler.singleThread("el-updater", reporter = { e => log.warn("Exception in ELUpdater", e) })
+  private val payloadObserverScheduler = Schedulers.singleThread("block-observer-l2", reporter = { e => log.warn("Error in BlockObserver", e) })
+  val globalScheduler: Scheduler       = monix.execution.Scheduler.global
+  val eluScheduler: SchedulerService   = Scheduler.singleThread("el-updater", reporter = { e => log.warn("Exception in ELUpdater", e) })
 
   private val httpClientBackend = HttpClientSyncBackend()
   private val maybeAuthenticatedBackend = config.jwtSecretFile match {
@@ -130,7 +130,7 @@ class ConsensusClientDependencies(context: ExtensionContext) extends AutoCloseab
     new ConcurrentHashMap[Channel, PeerInfo]
   )
 
-  val blockObserver = new BlocksObserverImpl(allChannels, messageObserver.blocks, config.blockSyncRequestTimeout)(blockObserverScheduler)
+  val payloadObserver = new PayloadObserverImpl(allChannels, messageObserver.payloads, config.blockSyncRequestTimeout)(payloadObserverScheduler)
 
   override def close(): Unit = {
     log.info("Closing HTTP/Engine API")
@@ -144,7 +144,7 @@ class ConsensusClientDependencies(context: ExtensionContext) extends AutoCloseab
     messageObserver.shutdown()
 
     log.info("Closing schedulers")
-    blockObserverScheduler.shutdown()
+    payloadObserverScheduler.shutdown()
     eluScheduler.shutdown()
   }
 }

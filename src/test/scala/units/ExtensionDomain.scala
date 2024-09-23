@@ -44,7 +44,7 @@ import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRoo
 import units.client.engine.model.{ExecutionPayload, TestPayloads}
 import units.client.{CommonBlockData, TestEcClients}
 import units.eth.{EthAddress, EthereumConstants, Gwei}
-import units.network.TestBlocksObserver
+import units.network.TestPayloadObserver
 import units.test.CustomMatchers
 
 import java.nio.charset.StandardCharsets
@@ -90,7 +90,7 @@ class ExtensionDomain(
   val eluScheduler: TestScheduler    = TestScheduler(ExecutionModel.AlwaysAsyncExecution)
 
   val elBlockStream: PublishSubject[(Channel, NetworkBlock)] = PublishSubject[(Channel, NetworkBlock)]()
-  val blockObserver: TestBlocksObserver                      = new TestBlocksObserver(elBlockStream)
+  val blockObserver: TestPayloadObserver                      = new TestPayloadObserver(elBlockStream)
 
   val neighbourChannel = new EmbeddedChannel()
   val allChannels      = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE)

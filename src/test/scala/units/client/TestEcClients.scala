@@ -64,7 +64,7 @@ class TestEcClients private (
 
   val engineApi = new LoggedEngineApiClient(
     new EngineApiClient {
-      override def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus] = {
+      override def forkChoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus] = {
         knownBlocks.get().get(blockHash) match {
           case Some(cid) =>
             currChainIdValue.set(cid)
@@ -79,7 +79,7 @@ class TestEcClients private (
         }
       }.asRight
 
-      override def forkChoiceUpdateWithPayloadId(
+      override def forkChoiceUpdatedWithPayloadId(
           lastBlockHash: BlockHash,
           finalizedBlockHash: BlockHash,
           unixEpochSeconds: Long,
@@ -98,7 +98,7 @@ class TestEcClients private (
             fb.payloadId.asRight
         }
 
-      override def getPayloadJson(payloadId: PayloadId): JobResult[JsObject] =
+      override def getPayload(payloadId: PayloadId): JobResult[JsObject] =
         forgingBlocks.transformAndExtract(_.withoutFirst { fb => fb.payloadId == payloadId }) match {
           case Some(fb) => TestPayloads.toPayloadJson(fb.testPayload, fb.testPayload.prevRandao).asRight
           case None =>
@@ -128,16 +128,16 @@ class TestEcClients private (
         Some(newPayload.hash)
       }.asRight
 
-      override def getPayloadBodyJsonByHash(hash: BlockHash): JobResult[Option[JsObject]] =
+      override def getPayloadBodyByHash(hash: BlockHash): JobResult[Option[JsObject]] =
         notImplementedMethodJob("getPayloadBodyJsonByHash")
 
-      override def getPayloadByNumber(number: BlockNumber): JobResult[Option[ExecutionPayload]] =
+      override def getBlockByNumber(number: BlockNumber): JobResult[Option[ExecutionPayload]] =
         number match {
           case BlockNumber.Latest    => currChain.headOption.asRight
           case BlockNumber.Number(n) => currChain.find(_.height == n).asRight
         }
 
-      override def getPayloadByHash(hash: BlockHash): JobResult[Option[ExecutionPayload]] = {
+      override def getBlockByHash(hash: BlockHash): JobResult[Option[ExecutionPayload]] = {
         for {
           cid <- knownBlocks.get().get(hash)
           c   <- chains.get().get(cid)
@@ -148,7 +148,7 @@ class TestEcClients private (
       override def getBlockJsonByHash(hash: BlockHash): JobResult[Option[JsObject]] =
         notImplementedMethodJob("getBlockJsonByHash")
 
-      override def getLastPayload: JobResult[ExecutionPayload] = currChain.head.asRight
+      override def getLatestBlock: JobResult[ExecutionPayload] = currChain.head.asRight
 
       override def getLogs(hash: BlockHash, address: EthAddress, topic: String): JobResult[List[GetLogsResponseEntry]] = {
         val request = GetLogsRequest(hash, address, List(topic))

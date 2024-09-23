@@ -1,6 +1,5 @@
 package units.network
 
-import units.NetworkBlock
 import com.wavesplatform.network.BasicMessagesRepo.Spec
 import com.wavesplatform.network.LegacyFrameCodec.MessageRawData
 import com.wavesplatform.network.message.Message.MessageCode
@@ -13,8 +12,8 @@ class LegacyFrameCodec(peerDatabase: PeerDatabase) extends LFC(peerDatabase) {
 
   override protected def messageToRawData(msg: Any): MessageRawData = {
     val rawBytes = (msg: @unchecked) match {
-      case rb: RawBytes        => rb
-      case block: NetworkBlock => RawBytes.from(BlockSpec, block)
+      case rb: RawBytes               => rb
+      case payloadMsg: PayloadMessage => RawBytes.from(PayloadSpec, payloadMsg)
     }
 
     MessageRawData(rawBytes.code, rawBytes.data)

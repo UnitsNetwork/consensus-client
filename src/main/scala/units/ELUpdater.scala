@@ -34,7 +34,7 @@ import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.model.*
 import units.client.engine.model.Withdrawal.WithdrawalIndex
 import units.eth.{EmptyPayload, EthAddress, EthereumConstants}
-import units.network.BlocksObserverImpl.BlockWithChannel
+import units.network.PayloadObserverImpl.PayloadWithChannel
 import units.util.HexBytesConverter
 import units.util.HexBytesConverter.toHexNoPrefix
 
@@ -50,7 +50,7 @@ class ELUpdater(
     config: ClientConfig,
     time: Time,
     wallet: Wallet,
-    requestBlockFromPeers: BlockHash => CancelableFuture[BlockWithChannel],
+    requestPayloadFromPeers: BlockHash => CancelableFuture[PayloadWithChannel],
     broadcastTx: Transaction => TracedResult[ValidationError, Boolean],
     scheduler: Scheduler,
     globalScheduler: Scheduler
@@ -66,7 +66,7 @@ class ELUpdater(
   def consensusLayerChanged(): Unit =
     handleNextUpdate := scheduler.scheduleOnce(ClChangedProcessingDelay)(handleConsensusLayerChanged())
 
-  def executionBlockReceived(block: NetworkBlock, ch: Channel): Unit = scheduler.execute { () =>
+  def executionPayloadReceived(block: NetworkBlock, ch: Channel): Unit = scheduler.execute { () =>
     logger.debug(s"New block ${block.hash}->${block.parentHash} (timestamp=${block.timestamp}, height=${block.height}) appeared")
 
     val now = time.correctedTime() / 1000
@@ -226,7 +226,7 @@ class ELUpdater(
             )
           case _ =>
             (for {
-              payloadJson <- engineApiClient.getPayloadJson(payloadId)
+              payloadJson <- engineApiClient.getPayload(payloadId)
               _ = logger.info(s"Forged payload $payloadId")
               latestValidHashOpt <- engineApiClient.applyNewPayload(payloadJson)
               latestValidHash    <- Either.fromOption(latestValidHashOpt, ClientError("Latest valid hash not defined"))
@@ -261,7 +261,7 @@ class ELUpdater(
       fixedFinalizedBlock = if (finalizedBlock.height > rollbackBlock.parentPayload.height) rollbackBlock.parentPayload else finalizedBlock
       _           <- confirmBlock(rollbackBlock.hash, fixedFinalizedBlock.hash)
       _           <- confirmBlock(target, fixedFinalizedBlock)
-      lastPayload <- engineApiClient.getLastPayload
+      lastPayload <- engineApiClient.getLatestBlock
       _ <- Either.cond(
         targetHash == lastPayload.hash,
         (),
@@ -444,14 +444,14 @@ class ELUpdater(
     else {
       val finalizedBlock = chainContractClient.getFinalizedBlock
       logger.debug(s"Finalized block is ${finalizedBlock.hash}")
-      engineApiClient.getPayloadByHash(finalizedBlock.hash) match {
+      engineApiClient.getBlockByHash(finalizedBlock.hash) match {
         case Left(error) => logger.error(s"Could not load finalized block payload", error)
         case Right(Some(finalizedBlockPayload)) =>
           logger.trace(s"Finalized block ${finalizedBlock.hash} is at height ${finalizedBlockPayload.height}")
           (for {
             newEpochInfo  <- calculateEpochInfo
             mainChainInfo <- chainContractClient.getMainChainInfo.toRight("Can't get main chain info")
-            lastPayload   <- engineApiClient.getLastPayload.leftMap(_.message)
+            lastPayload   <- engineApiClient.getLatestBlock.leftMap(_.message)
           } yield {
             logger.trace(s"Following main chain ${mainChainInfo.id}")
             val fullValidationStatus = FullValidationStatus(
@@ -475,7 +475,7 @@ class ELUpdater(
           )
         case Right(None) =>
           logger.trace(s"Finalized block ${finalizedBlock.hash} payload is not in EC, requesting block from peers")
-          setState("15", WaitingForSyncHead(finalizedBlock, requestAndProcessBlock(finalizedBlock.hash)))
+          setState("15", WaitingForSyncHead(finalizedBlock, requestAndProcessPayload(finalizedBlock.hash)))
       }
     }
   }
@@ -531,7 +531,7 @@ class ELUpdater(
 
             findAltChain(fc.nodeChainInfo.id, lastValidBlock.hash) match {
               case Some(altChainInfo) =>
-                engineApiClient.getPayloadByHash(finalizedBlock.hash) match {
+                engineApiClient.getBlockByHash(finalizedBlock.hash) match {
                   case Right(Some(finalizedBlockPayload)) =>
                     followChainAndStartMining(
                       updatedState.copy(chainStatus = FollowingChain(altChainInfo, None), returnToMainChainInfo = updatedReturnToMainChainInfo),
@@ -639,7 +639,7 @@ class ELUpdater(
     val finalizedBlock = chainContractClient.getFinalizedBlock
     val options        = chainContractClient.getOptions
     logger.debug(s"Finalized block is ${finalizedBlock.hash}")
-    engineApiClient.getPayloadByHash(finalizedBlock.hash) match {
+    engineApiClient.getBlockByHash(finalizedBlock.hash) match {
       case Left(error) => logger.error(s"Could not load finalized block payload", error)
       case Right(Some(finalizedBlockPayload)) =>
         logger.trace(s"Finalized block ${finalizedBlock.hash} is at height ${finalizedBlockPayload.height}")
@@ -711,7 +711,7 @@ class ELUpdater(
         requestMainChainBlock()
       case Right(None) =>
         logger.trace(s"Finalized block ${finalizedBlock.hash} payload is not in EC, requesting block from peers")
-        setState("19", WaitingForSyncHead(finalizedBlock, requestAndProcessBlock(finalizedBlock.hash)))
+        setState("19", WaitingForSyncHead(finalizedBlock, requestAndProcessPayload(finalizedBlock.hash)))
     }
   }
 
@@ -739,17 +739,17 @@ class ELUpdater(
     maybeRequestNextBlock(newState, finalizedBlock)
   }
 
-  private def requestBlock(contractBlock: ContractBlock): BlockRequestResult = {
-    logger.debug(s"Requesting block ${contractBlock.hash}")
-    engineApiClient.getPayloadByHash(contractBlock.hash) match {
-      case Right(Some(payload)) => BlockRequestResult.PayloadExists(payload)
+  private def requestPayload(contractBlock: ContractBlock): PayloadRequestResult = {
+    logger.debug(s"Requesting payload for block ${contractBlock.hash}")
+    engineApiClient.getBlockByHash(contractBlock.hash) match {
+      case Right(Some(payload)) => PayloadRequestResult.Exists(payload)
       case Right(None) =>
-        requestAndProcessBlock(contractBlock.hash)
-        BlockRequestResult.Requested(contractBlock)
+        requestAndProcessPayload(contractBlock.hash)
+        PayloadRequestResult.Requested(contractBlock)
       case Left(err) =>
-        logger.warn(s"Failed to get block ${contractBlock.hash} by hash: ${err.message}")
-        requestAndProcessBlock(contractBlock.hash)
-        BlockRequestResult.Requested(contractBlock)
+        logger.warn(s"Failed to get block ${contractBlock.hash} payload by hash: ${err.message}")
+        requestAndProcessPayload(contractBlock.hash)
+        PayloadRequestResult.Requested(contractBlock)
     }
   }
 
@@ -758,8 +758,8 @@ class ELUpdater(
       case w: Working[ChainStatus] =>
         w.returnToMainChainInfo.foreach { returnToMainChainInfo =>
           if (w.mainChainInfo.id == returnToMainChainInfo.chainId) {
-            requestBlock(returnToMainChainInfo.missedBlock) match {
-              case BlockRequestResult.PayloadExists(payload) =>
+            requestPayload(returnToMainChainInfo.missedBlock) match {
+              case PayloadRequestResult.Exists(payload) =>
                 logger.debug(s"Block ${returnToMainChainInfo.missedBlock.hash} payload exists at execution chain, trying to validate")
                 validateAppliedBlock(returnToMainChainInfo.missedBlock, payload, w) match {
                   case Right(updatedState) =>
@@ -773,7 +773,7 @@ class ELUpdater(
                   case Left(err) =>
                     logger.debug(s"Missed block ${payload.hash} of main chain ${returnToMainChainInfo.chainId} validation error: ${err.message}")
                 }
-              case BlockRequestResult.Requested(_) =>
+              case PayloadRequestResult.Requested(_) =>
             }
           }
         }
@@ -781,10 +781,10 @@ class ELUpdater(
     }
   }
 
-  private def requestAndProcessBlock(hash: BlockHash): CancelableFuture[(Channel, NetworkBlock)] = {
-    requestBlockFromPeers(hash).andThen {
-      case Success((ch, block)) => executionBlockReceived(block, ch)
-      case Failure(exception)   => logger.error(s"Error loading block $hash", exception)
+  private def requestAndProcessPayload(hash: BlockHash): CancelableFuture[(Channel, NetworkBlock)] = {
+    requestPayloadFromPeers(hash).andThen {
+      case Success((ch, payload)) => executionPayloadReceived(payload, ch)
+      case Failure(exception)     => logger.error(s"Error loading block $hash", exception)
     }(globalScheduler)
   }
 
@@ -798,7 +798,7 @@ class ELUpdater(
   ): Option[Working[FollowingChain]] = {
     @tailrec
     def findLastPayload(curBlock: ContractBlock): ExecutionPayload = {
-      engineApiClient.getPayloadByHash(curBlock.hash) match {
+      engineApiClient.getBlockByHash(curBlock.hash) match {
         case Right(Some(payload)) => payload
         case Right(_) =>
           chainContractClient.getBlock(curBlock.parentHash) match {
@@ -887,7 +887,7 @@ class ELUpdater(
   private def waitForSyncCompletion(target: ContractBlock): Unit = scheduler.scheduleOnce(5.seconds)(state match {
     case SyncingToFinalizedBlock(finalizedBlockHash) if finalizedBlockHash == target.hash =>
       logger.debug(s"Checking if EL has synced to ${target.hash} on height ${target.height}")
-      engineApiClient.getLastPayload match {
+      engineApiClient.getLatestBlock match {
         case Left(error) =>
           logger.error(s"Sync to ${target.hash} was not completed, error=${error.message}")
           setState("23", Starting)
@@ -1129,8 +1129,8 @@ class ELUpdater(
           logger.error(s"Could not find child of ${prevState.lastPayload.hash} on contract: $error")
           prevState
         case Right(contractBlock) =>
-          requestBlock(contractBlock) match {
-            case BlockRequestResult.PayloadExists(payload) =>
+          requestPayload(contractBlock) match {
+            case PayloadRequestResult.Exists(payload) =>
               logger.debug(s"Block ${contractBlock.hash} payload exists at EC chain, trying to confirm")
               confirmBlock(payload, finalizedBlock) match {
                 case Right(_) =>
@@ -1144,7 +1144,7 @@ class ELUpdater(
                   logger.error(s"Failed to confirm next block ${payload.hash}: ${err.message}")
                   prevState
               }
-            case BlockRequestResult.Requested(contractBlock) =>
+            case PayloadRequestResult.Requested(contractBlock) =>
               val newState = prevState.copy(chainStatus = prevState.chainStatus.copy(nextExpectedBlock = Some(contractBlock)))
               setState("8", newState)
               newState
@@ -1158,11 +1158,11 @@ class ELUpdater(
 
   private def mkRollbackBlock(rollbackTargetBlockId: BlockHash): JobResult[RollbackBlock] = for {
     targetBlockDataOpt <- chainContractClient.getBlock(rollbackTargetBlockId) match {
-      case None => engineApiClient.getPayloadByHash(rollbackTargetBlockId)
+      case None => engineApiClient.getBlockByHash(rollbackTargetBlockId)
       case x    => Right(x)
     }
     targetBlockData <- Either.fromOption(targetBlockDataOpt, ClientError(s"Can't find block $rollbackTargetBlockId neither on a contract, nor in EC"))
-    parentPayloadOpt <- engineApiClient.getPayloadByHash(targetBlockData.parentHash)
+    parentPayloadOpt <- engineApiClient.getBlockByHash(targetBlockData.parentHash)
     parentPayload <- Either.fromOption(parentPayloadOpt, ClientError(s"Can't find block $rollbackTargetBlockId parent payload in execution client"))
     rollbackBlockOpt <- engineApiClient.applyNewPayload(EmptyPayload.mkExecutionPayloadJson(parentPayload))
     rollbackBlock    <- Either.fromOption(rollbackBlockOpt, ClientError("Rollback block hash is not defined as latest valid hash"))
@@ -1175,7 +1175,7 @@ class ELUpdater(
     }
 
   private def getLastWithdrawalIndex(hash: BlockHash): JobResult[WithdrawalIndex] =
-    engineApiClient.getPayloadByHash(hash).flatMap {
+    engineApiClient.getBlockByHash(hash).flatMap {
       case None => Left(ClientError(s"Can't find block $hash payload on EC during withdrawal search"))
       case Some(payload) =>
         payload.withdrawals.lastOption match {
@@ -1390,7 +1390,7 @@ class ELUpdater(
             if (curBlock.height > curState.lastPayload.height) {
               loop(parentBlock, acc)
             } else {
-              engineApiClient.getPayloadByHash(curBlock.hash) match {
+              engineApiClient.getBlockByHash(curBlock.hash) match {
                 case Right(Some(payload)) =>
                   loop(parentBlock, BlockForValidation(curBlock, payload) :: acc)
                 case Right(None) =>
@@ -1471,11 +1471,11 @@ class ELUpdater(
 
   private def confirmBlock(blockData: CommonBlockData, finalizedBlockData: CommonBlockData): JobResult[PayloadStatus] = {
     val finalizedBlockHash = if (finalizedBlockData.height > blockData.height) blockData.hash else finalizedBlockData.hash
-    engineApiClient.forkChoiceUpdate(blockData.hash, finalizedBlockHash)
+    engineApiClient.forkChoiceUpdated(blockData.hash, finalizedBlockHash)
   }
 
   private def confirmBlock(hash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus] =
-    engineApiClient.forkChoiceUpdate(hash, finalizedBlockHash)
+    engineApiClient.forkChoiceUpdated(hash, finalizedBlockHash)
 
   private def confirmBlockAndStartMining(
       lastPayload: ExecutionPayload,
@@ -1487,7 +1487,7 @@ class ELUpdater(
   ): JobResult[PayloadId] = {
     val finalizedBlockHash = if (finalizedBlock.height > lastPayload.height) lastPayload.hash else finalizedBlock.hash
     engineApiClient
-      .forkChoiceUpdateWithPayloadId(
+      .forkChoiceUpdatedWithPayloadId(
         lastPayload.hash,
         finalizedBlockHash,
         unixEpochSeconds,
@@ -1561,8 +1561,8 @@ object ELUpdater {
       }
     }
 
-    case class WaitingForSyncHead(target: ContractBlock, task: CancelableFuture[BlockWithChannel]) extends State
-    case class SyncingToFinalizedBlock(target: BlockHash)                                          extends State
+    case class WaitingForSyncHead(target: ContractBlock, task: CancelableFuture[PayloadWithChannel]) extends State
+    case class SyncingToFinalizedBlock(target: BlockHash)                                            extends State
   }
 
   private case class RollbackBlock(hash: BlockHash, parentPayload: ExecutionPayload)
@@ -1574,10 +1574,10 @@ object ELUpdater {
     */
   case class ReturnToMainChainInfo(missedBlock: ContractBlock, missedBlockParentPayload: ExecutionPayload, chainId: Long)
 
-  sealed trait BlockRequestResult
-  private object BlockRequestResult {
-    case class PayloadExists(payload: ExecutionPayload) extends BlockRequestResult
-    case class Requested(contractBlock: ContractBlock)  extends BlockRequestResult
+  sealed trait PayloadRequestResult
+  private object PayloadRequestResult {
+    case class Exists(payload: ExecutionPayload)       extends PayloadRequestResult
+    case class Requested(contractBlock: ContractBlock) extends PayloadRequestResult
   }
 
   private case class MiningData(payloadId: PayloadId, nextBlockUnixTs: Long, lastC2ETransferIndex: Long, lastElWithdrawalIndex: WithdrawalIndex)

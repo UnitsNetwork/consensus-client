@@ -1,12 +1,13 @@
 package units.network
 
+import cats.syntax.either.*
 import com.wavesplatform.network.id
 import com.wavesplatform.utils.ScorexLogging
 import io.netty.channel.ChannelHandler.Sharable
 import io.netty.channel.{ChannelHandlerContext, ChannelInboundHandlerAdapter}
 import monix.execution.Scheduler
 import units.client.engine.EngineApiClient
-import units.{BlockHash, ClientError, NetworkBlock}
+import units.{BlockHash, ClientError}
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
@@ -25,22 +26,22 @@ class HistoryReplier(engineApiClient: EngineApiClient)(implicit sc: Scheduler) e
     }
 
   override def channelRead(ctx: ChannelHandlerContext, msg: AnyRef): Unit = msg match {
-    case GetBlock(hash) =>
+    case GetPayload(hash) =>
       respondWith(
         ctx,
-        loadBlock(hash)
+        loadPayload(hash)
           .map {
             case Right(block) =>
-              RawBytes(BlockSpec.messageCode, BlockSpec.serializeData(block))
+              RawBytes(PayloadSpec.messageCode, PayloadSpec.serializeData(block))
             case Left(err) => throw new NoSuchElementException(s"Error loading block $hash: $err")
           }
       )
     case _ => super.channelRead(ctx, msg)
   }
 
-  private def loadBlock(hash: BlockHash): Future[Either[ClientError, NetworkBlock]] = Future {
+  private def loadPayload(hash: BlockHash): Future[Either[ClientError, PayloadMessage]] = Future {
     engineApiClient.getPayloadJsonDataByHash(hash).flatMap { payloadJsonData =>
-      NetworkBlock(payloadJsonData.toPayloadJson)
+      PayloadMessage(payloadJsonData.toPayloadJson).leftMap(ClientError.apply)
     }
   }
 }

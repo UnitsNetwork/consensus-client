@@ -20,7 +20,7 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
 
   val apiUrl: Uri = uri"${config.executionClientAddress}"
 
-  def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus] = {
+  def forkChoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus] = {
     sendEngineRequest[ForkChoiceUpdatedRequest, ForkChoiceUpdatedResponse](
       ForkChoiceUpdatedRequest(blockHash, finalizedBlockHash, None),
       BlockExecutionTimeout
@@ -33,7 +33,7 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
       }
   }
 
-  def forkChoiceUpdateWithPayloadId(
+  def forkChoiceUpdatedWithPayloadId(
       lastBlockHash: BlockHash,
       finalizedBlockHash: BlockHash,
       unixEpochSeconds: Long,
@@ -60,7 +60,7 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
     }
   }
 
-  def getPayloadJson(payloadId: PayloadId): JobResult[JsObject] = {
+  def getPayload(payloadId: PayloadId): JobResult[JsObject] = {
     sendEngineRequest[GetPayloadRequest, GetPayloadResponse](GetPayloadRequest(payloadId), NonBlockExecutionTimeout).map(_.executionPayload)
   }
 
@@ -74,12 +74,12 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
     }
   }
 
-  def getPayloadBodyJsonByHash(hash: BlockHash): JobResult[Option[JsObject]] = {
+  def getPayloadBodyByHash(hash: BlockHash): JobResult[Option[JsObject]] = {
     sendEngineRequest[GetPayloadBodyByHash, JsArray](GetPayloadBodyByHash(hash), NonBlockExecutionTimeout)
       .map(_.value.headOption.flatMap(_.asOpt[JsObject]))
   }
 
-  def getPayloadByNumber(number: BlockNumber): JobResult[Option[ExecutionPayload]] = {
+  def getBlockByNumber(number: BlockNumber): JobResult[Option[ExecutionPayload]] = {
     for {
       json <- sendRequest[GetBlockByNumberRequest, JsObject](GetBlockByNumberRequest(number.str))
         .leftMap(err => ClientError(s"Error getting payload by number $number: $err"))
@@ -87,13 +87,13 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
     } yield blockMeta
   }
 
-  def getPayloadByHash(hash: BlockHash): JobResult[Option[ExecutionPayload]] = {
+  def getBlockByHash(hash: BlockHash): JobResult[Option[ExecutionPayload]] = {
     sendRequest[GetBlockByHashRequest, ExecutionPayload](GetBlockByHashRequest(hash))
       .leftMap(err => ClientError(s"Error getting payload by hash $hash: $err"))
   }
 
-  def getLastPayload: JobResult[ExecutionPayload] = for {
-    lastPayloadOpt <- getPayloadByNumber(BlockNumber.Latest)
+  def getLatestBlock: JobResult[ExecutionPayload] = for {
+    lastPayloadOpt <- getBlockByNumber(BlockNumber.Latest)
     lastPayload    <- Either.fromOption(lastPayloadOpt, ClientError("Impossible: EC doesn't have payloads"))
   } yield lastPayload
 
@@ -106,7 +106,7 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
     for {
       blockJsonOpt       <- getBlockJsonByHash(hash)
       blockJson          <- Either.fromOption(blockJsonOpt, ClientError("block not found"))
-      payloadBodyJsonOpt <- getPayloadBodyJsonByHash(hash)
+      payloadBodyJsonOpt <- getPayloadBodyByHash(hash)
       payloadBodyJson    <- Either.fromOption(payloadBodyJsonOpt, ClientError("payload body not found"))
     } yield PayloadJsonData(blockJson, payloadBodyJson)
   }

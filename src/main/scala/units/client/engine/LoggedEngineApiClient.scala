@@ -15,10 +15,10 @@ import scala.util.chaining.scalaUtilChainingOps
 class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient {
   protected val log: LoggerFacade = LoggerFacade(LoggerFactory.getLogger(underlying.getClass))
 
-  override def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus] =
-    wrap(s"forkChoiceUpdate($blockHash, f=$finalizedBlockHash)", underlying.forkChoiceUpdate(blockHash, finalizedBlockHash))
+  override def forkChoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus] =
+    wrap(s"forkChoiceUpdated($blockHash, f=$finalizedBlockHash)", underlying.forkChoiceUpdated(blockHash, finalizedBlockHash))
 
-  override def forkChoiceUpdateWithPayloadId(
+  override def forkChoiceUpdatedWithPayloadId(
       lastBlockHash: BlockHash,
       finalizedBlockHash: BlockHash,
       unixEpochSeconds: Long,
@@ -26,31 +26,31 @@ class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient
       prevRandao: String,
       withdrawals: Vector[Withdrawal]
   ): JobResult[PayloadId] = wrap(
-    s"forkChoiceUpdateWithPayloadId(l=$lastBlockHash, f=$finalizedBlockHash, ts=$unixEpochSeconds, m=$suggestedFeeRecipient, " +
+    s"forkChoiceUpdatedWithPayloadId(l=$lastBlockHash, f=$finalizedBlockHash, ts=$unixEpochSeconds, m=$suggestedFeeRecipient, " +
       s"r=$prevRandao, w={${withdrawals.mkString(", ")}}",
-    underlying.forkChoiceUpdateWithPayloadId(lastBlockHash, finalizedBlockHash, unixEpochSeconds, suggestedFeeRecipient, prevRandao, withdrawals)
+    underlying.forkChoiceUpdatedWithPayloadId(lastBlockHash, finalizedBlockHash, unixEpochSeconds, suggestedFeeRecipient, prevRandao, withdrawals)
   )
 
-  override def getPayloadJson(payloadId: PayloadId): JobResult[JsObject] =
-    wrap(s"getPayloadJson($payloadId)", underlying.getPayloadJson(payloadId), filteredJsonStr)
+  override def getPayload(payloadId: PayloadId): JobResult[JsObject] =
+    wrap(s"getPayload($payloadId)", underlying.getPayload(payloadId), filteredJsonStr)
 
   override def applyNewPayload(payloadJson: JsObject): JobResult[Option[BlockHash]] =
     wrap(s"applyNewPayload(${filteredJsonStr(payloadJson)})", underlying.applyNewPayload(payloadJson), _.fold("None")(identity))
 
-  override def getPayloadBodyJsonByHash(hash: BlockHash): JobResult[Option[JsObject]] =
-    wrap(s"getPayloadBodyJsonByHash($hash)", underlying.getPayloadBodyJsonByHash(hash), _.fold("None")(filteredJsonStr))
+  override def getPayloadBodyByHash(hash: BlockHash): JobResult[Option[JsObject]] =
+    wrap(s"getPayloadBodyByHash($hash)", underlying.getPayloadBodyByHash(hash), _.fold("None")(filteredJsonStr))
 
-  override def getPayloadByNumber(number: BlockNumber): JobResult[Option[ExecutionPayload]] =
-    wrap(s"getPayloadByNumber($number)", underlying.getPayloadByNumber(number), _.fold("None")(_.toString))
+  override def getBlockByNumber(number: BlockNumber): JobResult[Option[ExecutionPayload]] =
+    wrap(s"getBlockByNumber($number)", underlying.getBlockByNumber(number), _.fold("None")(_.toString))
 
-  override def getPayloadByHash(hash: BlockHash): JobResult[Option[ExecutionPayload]] =
-    wrap(s"getPayloadByHash($hash)", underlying.getPayloadByHash(hash), _.fold("None")(_.toString))
+  override def getBlockByHash(hash: BlockHash): JobResult[Option[ExecutionPayload]] =
+    wrap(s"getBlockByHash($hash)", underlying.getBlockByHash(hash), _.fold("None")(_.toString))
 
-  override def getLastPayload: JobResult[ExecutionPayload] =
-    wrap("getLastPayload", underlying.getLastPayload)
+  override def getLatestBlock: JobResult[ExecutionPayload] =
+    wrap("getLatestBlock", underlying.getLatestBlock)
 
   override def getBlockJsonByHash(hash: BlockHash): JobResult[Option[JsObject]] =
-    wrap(s"getBlockByHashJson($hash)", underlying.getBlockJsonByHash(hash), _.fold("None")(filteredJsonStr))
+    wrap(s"getBlockJsonByHash($hash)", underlying.getBlockJsonByHash(hash), _.fold("None")(filteredJsonStr))
 
   override def getPayloadJsonDataByHash(hash: BlockHash): JobResult[PayloadJsonData] = {
     wrap(

@@ -7,9 +7,9 @@ import units.eth.EthAddress
 import units.{BlockHash, JobResult}
 
 trait EngineApiClient {
-  def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus]
+  def forkChoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus]
 
-  def forkChoiceUpdateWithPayloadId(
+  def forkChoiceUpdatedWithPayloadId(
       lastBlockHash: BlockHash,
       finalizedBlockHash: BlockHash,
       unixEpochSeconds: Long,
@@ -18,17 +18,17 @@ trait EngineApiClient {
       withdrawals: Vector[Withdrawal] = Vector.empty
   ): JobResult[PayloadId]
 
-  def getPayloadJson(payloadId: PayloadId): JobResult[JsObject]
+  def getPayload(payloadId: PayloadId): JobResult[JsObject]
 
   def applyNewPayload(payloadJson: JsObject): JobResult[Option[BlockHash]]
 
-  def getPayloadBodyJsonByHash(hash: BlockHash): JobResult[Option[JsObject]]
+  def getPayloadBodyByHash(hash: BlockHash): JobResult[Option[JsObject]]
 
-  def getPayloadByNumber(number: BlockNumber): JobResult[Option[ExecutionPayload]]
+  def getBlockByNumber(number: BlockNumber): JobResult[Option[ExecutionPayload]]
 
-  def getPayloadByHash(hash: BlockHash): JobResult[Option[ExecutionPayload]]
+  def getBlockByHash(hash: BlockHash): JobResult[Option[ExecutionPayload]]
 
-  def getLastPayload: JobResult[ExecutionPayload]
+  def getLatestBlock: JobResult[ExecutionPayload]
 
   def getBlockJsonByHash(hash: BlockHash): JobResult[Option[JsObject]]
 

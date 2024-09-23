@@ -12,7 +12,7 @@ case object GetPeers extends Message
 
 case class KnownPeers(peers: Seq[InetSocketAddress]) extends Message
 
-case class GetBlock(hash: BlockHash) extends Message
+case class GetPayload(hash: BlockHash) extends Message
 
 case class RawBytes(code: Byte, data: Array[Byte]) extends Message {
   override def toString: String = s"RawBytes($code, ${data.length} bytes)"

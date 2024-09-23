@@ -6,16 +6,20 @@ import play.api.libs.json.{Format, Reads, Writes}
 import supertagged.TaggedType
 
 object BlockHash extends TaggedType[String] {
+
+  val BytesSize: Int = 32
+  val HexSize: Int   = 66
+
   def apply(hex: String): BlockHash = {
     require(hex.startsWith("0x"), "Expected hash to start with 0x")
-    require(hex.length == 66, s"Expected hash size of 66, got: ${hex.length}. Hex: $hex") // "0x" + 32 bytes
+    require(hex.length == HexSize, s"Expected hash size of $HexSize, got: ${hex.length}. Hex: $hex") // "0x" + 32 bytes
     BlockHash @@ hex
   }
 
   def apply(xs: ByteStr): BlockHash = BlockHash @@ HexBytesConverter.toHex(xs)
 
   def apply(xs: Array[Byte]): BlockHash = {
-    require(xs.length == 32, "Block hash size must be 32 bytes")
+    require(xs.length == BytesSize, s"Block hash size must be $BytesSize bytes")
     BlockHash @@ HexBytesConverter.toHex(xs)
   }
 

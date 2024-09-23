@@ -1,12 +1,9 @@
 package units.network
 
 import cats.syntax.either.*
-import com.google.common.primitives.Bytes
-import com.wavesplatform.common.state.ByteStr
-import com.wavesplatform.crypto
 import com.wavesplatform.crypto.SignatureLength
 import units.util.HexBytesConverter.*
-import units.{BlockHash, NetworkBlock}
+import units.BlockHash
 import com.wavesplatform.network.message.Message.MessageCode
 import com.wavesplatform.network.message.{Message, MessageSpec}
 import com.wavesplatform.network.{InetSocketAddressSeqSpec, NetworkServer}
@@ -36,42 +33,28 @@ object PeersSpec extends InetSocketAddressSeqSpec[KnownPeers] {
   override protected def wrap(addresses: Seq[InetSocketAddress]): KnownPeers = KnownPeers(addresses)
 }
 
-object GetBlockL2Spec extends MessageSpec[GetBlock] {
+object GetPayloadSpec extends MessageSpec[GetPayload] {
   override val messageCode: MessageCode = 3: Byte
 
   override val maxLength: Int = SignatureLength
 
-  override def serializeData(msg: GetBlock): Array[Byte] = toBytes(msg.hash)
+  override def serializeData(msg: GetPayload): Array[Byte] =
+    toBytes(msg.hash)
 
-  override def deserializeData(bytes: Array[Byte]): Try[GetBlock] = Try {
-    require(
-      NetworkBlock.validateReferenceLength(bytes.length),
-      s"Invalid hash length ${bytes.length} in GetBlock message, expecting ${crypto.DigestLength}"
-    )
-    GetBlock(BlockHash(bytes))
-  }
+  override def deserializeData(bytes: Array[Byte]): Try[GetPayload] =
+    Try(GetPayload(BlockHash(bytes)))
 }
 
-object BlockSpec extends MessageSpec[NetworkBlock] {
+object PayloadSpec extends MessageSpec[PayloadMessage] {
   override val messageCode: MessageCode = 4: Byte
 
   override val maxLength: Int = NetworkServer.MaxFrameLength
 
-  override def serializeData(block: NetworkBlock): Array[Byte] = {
-    val signatureBytes = block.signature.map(sig => Bytes.concat(Array(1.toByte), sig.arr)).getOrElse(Array(0.toByte))
-    Bytes.concat(signatureBytes, block.payloadBytes)
-  }
+  override def serializeData(payloadMsg: PayloadMessage): Array[Byte] =
+    payloadMsg.toBytes
 
-  override def deserializeData(bytes: Array[Byte]): Try[NetworkBlock] = {
-    // We need a signature only for blocks those are not confirmed on the chain contract
-    val isWithSignature = bytes.headOption.contains(1.toByte)
-    val signature       = if (isWithSignature) Some(ByteStr(bytes.slice(1, SignatureLength + 1))) else None
-    val payloadOffset   = if (isWithSignature) SignatureLength + 1 else 1
-    for {
-      _     <- Either.cond(signature.forall(_.size == SignatureLength), (), new RuntimeException("Invalid block signature size")).toTry
-      block <- NetworkBlock(bytes.drop(payloadOffset), signature).leftMap(err => new RuntimeException(err.message)).toTry
-    } yield block
-  }
+  override def deserializeData(bytes: Array[Byte]): Try[PayloadMessage] =
+    PayloadMessage.fromBytes(bytes).leftMap(err => new IllegalArgumentException(err)).toTry
 }
 
 object BasicMessagesRepo {
@@ -80,8 +63,8 @@ object BasicMessagesRepo {
   val specs: Seq[Spec] = Seq(
     GetPeersSpec,
     PeersSpec,
-    GetBlockL2Spec,
-    BlockSpec
+    GetPayloadSpec,
+    PayloadSpec
   )
 
   val specsByCodes: Map[Byte, Spec]       = specs.map(s => s.messageCode -> s).toMap
