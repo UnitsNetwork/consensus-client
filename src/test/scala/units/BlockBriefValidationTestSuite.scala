@@ -16,10 +16,10 @@ class BlockBriefValidationTestSuite extends BaseIntegrationTestSuite {
       val payload = d.createPayloadBuilder("0", miner).build()
 
       step(s"Receive network block ${payload.hash} with payload from a peer")
-      d.receiveNetworkBlock(payload, miner.account)
+      d.receivePayload(payload, miner.account)
       withClue("Brief block validation:") {
         d.triggerScheduledTasks()
-        d.pollSentNetworkBlock() match {
+        d.pollSentPayloadMessage() match {
           case Some(sent) => sent.hash shouldBe payload.hash
           case None       => fail(s"${payload.hash} should not be ignored")
         }
@@ -30,10 +30,10 @@ class BlockBriefValidationTestSuite extends BaseIntegrationTestSuite {
       val payload = d.createPayloadBuilder("0", minerRewardAddress = EthAddress.empty, parentPayload = d.genesisBlockPayload).build()
 
       step(s"Receive network block ${payload.hash} with payload from a peer")
-      d.receiveNetworkBlock(payload, miner.account)
+      d.receivePayload(payload, miner.account)
       withClue("Brief block validation:") {
         d.triggerScheduledTasks()
-        if (d.pollSentNetworkBlock().nonEmpty) fail(s"${payload.hash} should be ignored, because it is invalid by brief validation rules")
+        if (d.pollSentPayloadMessage().nonEmpty) fail(s"${payload.hash} should be ignored, because it is invalid by brief validation rules")
       }
     }
   }

@@ -59,7 +59,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       }
 
       step(s"Receive network block ${payload2.hash} with payload2")
-      d.receiveNetworkBlock(payload2, otherMiner1.account, block2Epoch)
+      d.receivePayload(payload2, otherMiner1.account, block2Epoch)
       d.triggerScheduledTasks()
 
       d.ecClients.willForge(d.createPayloadBuilder("0-0-0", otherMiner1, payload2).rewardPrevMiner().build())
@@ -113,7 +113,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
         s.nextExpectedBlock.map(_.hash).value shouldBe payload2.hash
       }
 
-      d.receiveNetworkBlock(payload2, otherMiner2.account, d.blockchain.height)
+      d.receivePayload(payload2, otherMiner2.account, d.blockchain.height)
       d.waitForCS[FollowingChain]() { s =>
         s.nodeChainInfo.isMain shouldBe false
         s.nodeChainInfo.lastBlock.hash shouldBe payload2.hash
@@ -144,7 +144,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       }
 
       step(s"Receive network block ${payload3.hash} with payload3")
-      d.receiveNetworkBlock(payload3, thisMiner.account, block3Epoch)
+      d.receivePayload(payload3, thisMiner.account, block3Epoch)
 
       d.ecClients.willForge(d.createPayloadBuilder("0-1-1-1", thisMiner, payload3).rewardPrevMiner(2).build())
       d.waitForCS[Mining]() { s =>
@@ -257,7 +257,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
           s.nextExpectedBlock.map(_.hash).value shouldBe payload2.hash
         }
 
-        d.receiveNetworkBlock(payload2, otherMiner2.account, d.blockchain.height)
+        d.receivePayload(payload2, otherMiner2.account, d.blockchain.height)
         d.waitForCS[FollowingChain]() { s =>
           s.nodeChainInfo.isMain shouldBe false
           s.nodeChainInfo.lastBlock.hash shouldBe payload2.hash

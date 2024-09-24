@@ -2,7 +2,9 @@ package units.network
 
 import cats.syntax.either.*
 import com.google.common.primitives.Bytes
+import com.wavesplatform.account.PrivateKey
 import com.wavesplatform.common.state.ByteStr
+import com.wavesplatform.crypto
 import com.wavesplatform.crypto.SignatureLength
 import play.api.libs.json.{JsObject, Json}
 import units.client.engine.model.{ExecutionPayload, Withdrawal}
@@ -44,7 +46,8 @@ class PayloadMessage private (
           prevRandao,
           withdrawals
         ),
-        payloadJson
+        payloadJson,
+        signature
       )
     }).leftMap(err => s"Error creating payload info for block $hash: $err")
   }
@@ -72,6 +75,11 @@ object PayloadMessage {
     payload <- Try(Json.parse(payloadBytes).as[JsObject]).toEither.leftMap(err => s"Payload bytes are not a valid JSON object: ${err.getMessage}")
     block   <- apply(payload, signature)
   } yield block
+
+  def signed(payloadJson: JsObject, signer: PrivateKey): Either[String, PayloadMessage] = {
+    val signature = crypto.sign(signer, Json.toBytes(payloadJson))
+    PayloadMessage(payloadJson, Some(signature))
+  }
 
   def fromBytes(bytes: Array[Byte]): Either[String, PayloadMessage] = {
     val isWithSignature = bytes.headOption.contains(1.toByte)

@@ -14,20 +14,20 @@ import units.util.HexBytesConverter.*
 
 // TODO Refactor to eliminate a manual deserialization, e.g. (raw: JsonObject, parsed: ParsedBlockL2)
 class NetworkBlock private (
-    val hash: BlockHash,
-    val timestamp: Long, // UNIX epoch seconds
-    val height: Long,
-    val parentHash: BlockHash,
-    val stateRoot: String,
-    val minerRewardAddress: EthAddress,
-    val baseFeePerGas: Uint256,
-    val gasLimit: Long,
-    val gasUsed: Long,
-    val prevRandao: String,
-    val withdrawals: Vector[Withdrawal],
-    val payloadBytes: Array[Byte],
-    val payloadJson: JsObject,
-    val signature: Option[ByteStr]
+                             val hash: BlockHash,
+                             val timestamp: Long, // UNIX epoch seconds
+                             val height: Long,
+                             val parentHash: BlockHash,
+                             val stateRoot: String,
+                             val feeRecipient: EthAddress,
+                             val baseFeePerGas: Uint256,
+                             val gasLimit: Long,
+                             val gasUsed: Long,
+                             val prevRandao: String,
+                             val withdrawals: Vector[Withdrawal],
+                             val payloadBytes: Array[Byte],
+                             val payloadJson: JsObject,
+                             val signature: Option[ByteStr]
 ) extends CommonBlockData {
   def isEpochFirstBlock: Boolean = withdrawals.nonEmpty
 
@@ -37,7 +37,7 @@ class NetworkBlock private (
     stateRoot = stateRoot,
     height = height,
     timestamp = timestamp,
-    minerRewardAddress = minerRewardAddress,
+    feeRecipient = feeRecipient,
     baseFeePerGas = baseFeePerGas,
     gasLimit = gasLimit,
     gasUsed = gasUsed,

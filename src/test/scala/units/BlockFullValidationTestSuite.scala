@@ -28,7 +28,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
       d.advanceConsensusLayerChanged()
 
       step(s"Receive network block ${payload.hash} with payload from a peer")
-      d.receiveNetworkBlock(payload, reliable.account)
+      d.receivePayload(payload, reliable.account)
       d.triggerScheduledTasks()
 
       step(s"Append a CL micro block with payload ${payload.hash} confirmation")
@@ -56,7 +56,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
         d.advanceConsensusLayerChanged()
 
         step(s"Receive network block ${payload.hash} with payload from a peer")
-        d.receiveNetworkBlock(payload, reliable.account)
+        d.receivePayload(payload, reliable.account)
         d.triggerScheduledTasks()
 
         step(s"Append a CL micro block with payload ${payload.hash} confirmation")
@@ -103,7 +103,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
           d.advanceConsensusLayerChanged()
 
           step(s"Receive network block ${payload2.hash} with payload2 from a peer")
-          d.receiveNetworkBlock(payload2, malfunction.account)
+          d.receivePayload(payload2, malfunction.account)
           d.triggerScheduledTasks()
 
           d.waitForCS[WaitForNewChain]("Forking") { cs =>
@@ -128,7 +128,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
         "Different miners in CL and EL" in e2CTest(
           blockLogs = blockLogs,
           e2CTransfersRootHashHex = e2CTransfersRootHashHex,
-          badBlockPayloadPostProcessing = _.copy(minerRewardAddress = reliable.elRewardAddress)
+          badBlockPayloadPostProcessing = _.copy(feeRecipient = reliable.elRewardAddress)
         )
       }
     }

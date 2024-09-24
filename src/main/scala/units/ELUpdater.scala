@@ -34,6 +34,7 @@ import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.model.*
 import units.client.engine.model.Withdrawal.WithdrawalIndex
 import units.eth.{EmptyPayload, EthAddress, EthereumConstants}
+import units.network.PayloadMessage
 import units.network.PayloadObserverImpl.PayloadInfoWithChannel
 import units.util.HexBytesConverter
 import units.util.HexBytesConverter.toHexNoPrefix
@@ -43,17 +44,17 @@ import scala.concurrent.duration.*
 import scala.util.*
 
 class ELUpdater(
-                 engineApiClient: EngineApiClient,
-                 blockchain: Blockchain,
-                 utx: UtxPool,
-                 allChannels: DefaultChannelGroup,
-                 config: ClientConfig,
-                 time: Time,
-                 wallet: Wallet,
-                 requestPayloadFromPeers: BlockHash => CancelableFuture[PayloadInfoWithChannel],
-                 broadcastTx: Transaction => TracedResult[ValidationError, Boolean],
-                 scheduler: Scheduler,
-                 globalScheduler: Scheduler
+    engineApiClient: EngineApiClient,
+    blockchain: Blockchain,
+    utx: UtxPool,
+    allChannels: DefaultChannelGroup,
+    config: ClientConfig,
+    time: Time,
+    wallet: Wallet,
+    requestPayloadFromPeers: BlockHash => CancelableFuture[PayloadInfoWithChannel],
+    broadcastTx: Transaction => TracedResult[ValidationError, Boolean],
+    scheduler: Scheduler,
+    globalScheduler: Scheduler
 ) extends StrictLogging {
   import ELUpdater.*
 
@@ -66,15 +67,16 @@ class ELUpdater(
   def consensusLayerChanged(): Unit =
     handleNextUpdate := scheduler.scheduleOnce(ClChangedProcessingDelay)(handleConsensusLayerChanged())
 
-  def executionPayloadReceived(block: NetworkBlock, ch: Channel): Unit = scheduler.execute { () =>
-    logger.debug(s"New block ${block.hash}->${block.parentHash} (timestamp=${block.timestamp}, height=${block.height}) appeared")
+  def executionPayloadReceived(epi: ExecutionPayloadInfo, ch: Channel): Unit = scheduler.execute { () =>
+    val payload = epi.payload
+    logger.debug(s"New block ${payload.hash}->${payload.parentHash} (timestamp=${payload.timestamp}, height=${payload.height}) appeared")
 
     val now = time.correctedTime() / 1000
-    if (block.timestamp - now <= MaxTimeDrift) {
+    if (payload.timestamp - now <= MaxTimeDrift) {
       state match {
-        case WaitingForSyncHead(target, _) if block.hash == target.hash =>
+        case WaitingForSyncHead(target, _) if payload.hash == target.hash =>
           val syncStarted = for {
-            _         <- engineApiClient.applyNewPayload(block.payloadJson)
+            _         <- engineApiClient.applyNewPayload(epi.payloadJson)
             fcuStatus <- confirmBlock(target, target)
           } yield fcuStatus
 
@@ -88,26 +90,26 @@ class ELUpdater(
               waitForSyncCompletion(target)
           }
         case w @ Working(_, lastPayload, _, _, _, FollowingChain(nodeChainInfo, _), _, returnToMainChainInfo)
-            if block.parentHash == lastPayload.hash =>
-          validateAndApply(block, ch, w, lastPayload, nodeChainInfo, returnToMainChainInfo)
+            if payload.parentHash == lastPayload.hash =>
+          validateAndApply(epi, ch, w, lastPayload, nodeChainInfo, returnToMainChainInfo)
         case w: Working[ChainStatus] =>
           w.returnToMainChainInfo match {
-            case Some(rInfo) if rInfo.missedBlock.hash == block.hash =>
+            case Some(rInfo) if rInfo.missedBlock.hash == payload.hash =>
               chainContractClient.getChainInfo(rInfo.chainId) match {
                 case Some(chainInfo) if chainInfo.isMain =>
-                  validateAndApplyMissedBlock(block, ch, w, rInfo.missedBlock, rInfo.missedBlockParentPayload, chainInfo)
+                  validateAndApplyMissedBlock(epi, ch, w, rInfo.missedBlock, rInfo.missedBlockParentPayload, chainInfo)
                 case Some(_) =>
-                  logger.debug(s"Chain ${rInfo.chainId} is not main anymore, ignoring ${block.hash}")
+                  logger.debug(s"Chain ${rInfo.chainId} is not main anymore, ignoring ${payload.hash}")
                 case _ =>
-                  logger.error(s"Failed to get chain ${rInfo.chainId} info, ignoring ${block.hash}")
+                  logger.error(s"Failed to get chain ${rInfo.chainId} info, ignoring ${payload.hash}")
               }
-            case _ => logger.debug(s"Expecting ${w.returnToMainChainInfo.fold("no block")(_.toString)}, ignoring unexpected ${block.hash}")
+            case _ => logger.debug(s"Expecting ${w.returnToMainChainInfo.fold("no block")(_.toString)}, ignoring unexpected ${payload.hash}")
           }
         case other =>
-          logger.debug(s"$other: ignoring ${block.hash}")
+          logger.debug(s"$other: ignoring ${payload.hash}")
       }
     } else {
-      logger.debug(s"Block ${block.hash} is from future: timestamp=${block.timestamp}, now=$now, Δ${block.timestamp - now}s")
+      logger.debug(s"Block ${payload.hash} is from future: timestamp=${payload.timestamp}, now=$now, Δ${payload.timestamp - now}s")
     }
   }
 
@@ -359,7 +361,7 @@ class ELUpdater(
             lastC2ETransferIndex,
             elWithdrawalIndexBefore,
             prevState.options,
-            Option.unless(parentPayload.height == EthereumConstants.GenesisBlockHeight)(parentPayload.minerRewardAddress)
+            Option.unless(parentPayload.height == EthereumConstants.GenesisBlockHeight)(parentPayload.feeRecipient)
           )
         } yield {
           val newState = prevState.copy(
@@ -781,10 +783,10 @@ class ELUpdater(
     }
   }
 
-  private def requestAndProcessPayload(hash: BlockHash): CancelableFuture[(Channel, NetworkBlock)] = {
+  private def requestAndProcessPayload(hash: BlockHash): CancelableFuture[(Channel, ExecutionPayloadInfo)] = {
     requestPayloadFromPeers(hash).andThen {
-      case Success((ch, payload)) => executionPayloadReceived(payload, ch)
-      case Failure(exception)     => logger.error(s"Error loading block $hash", exception)
+      case Success((ch, epi)) => executionPayloadReceived(epi, ch)
+      case Failure(exception) => logger.error(s"Error loading block $hash payload", exception)
     }(globalScheduler)
   }
 
@@ -941,22 +943,23 @@ class ELUpdater(
         )
     }
 
-  private def validateMiner(block: NetworkBlock, epochInfo: Option[EpochInfo]): JobResult[Unit] = {
+  private def validateMiner(epi: ExecutionPayloadInfo, epochInfo: Option[EpochInfo]): JobResult[Unit] = {
+    val payload = epi.payload
     epochInfo match {
       case Some(epochMeta) =>
         for {
           _ <- Either.cond(
-            block.minerRewardAddress == epochMeta.rewardAddress,
+            payload.feeRecipient == epochMeta.rewardAddress,
             (),
-            ClientError(s"block miner ${block.minerRewardAddress} doesn't equal to ${epochMeta.rewardAddress}")
+            ClientError(s"block miner ${payload.feeRecipient} doesn't equal to ${epochMeta.rewardAddress}")
           )
-          signature <- Either.fromOption(block.signature, ClientError(s"signature not found"))
+          signature <- Either.fromOption(epi.signature, ClientError(s"signature not found"))
           publicKey <- Either.fromOption(
-            chainContractClient.getMinerPublicKey(block.minerRewardAddress),
-            ClientError(s"public key for block miner ${block.minerRewardAddress} not found")
+            chainContractClient.getMinerPublicKey(payload.feeRecipient),
+            ClientError(s"public key for block miner ${payload.feeRecipient} not found")
           )
           _ <- Either.cond(
-            crypto.verify(signature, Json.toBytes(block.payloadJson), publicKey, checkWeakPk = true),
+            crypto.verify(signature, Json.toBytes(epi.payloadJson), publicKey, checkWeakPk = true),
             (),
             ClientError(s"invalid signature")
           )
@@ -965,27 +968,27 @@ class ELUpdater(
     }
   }
 
-  private def validateTimestamp(block: NetworkBlock, parentPayload: ExecutionPayload): JobResult[Unit] = {
+  private def validateTimestamp(payload: ExecutionPayload, parentPayload: ExecutionPayload): JobResult[Unit] = {
     val minAppendTs = parentPayload.timestamp + config.blockDelay.toSeconds
     Either.cond(
-      block.timestamp >= minAppendTs,
+      payload.timestamp >= minAppendTs,
       (),
       ClientError(
-        s"timestamp (${block.timestamp}) of appended block must be greater or equal $minAppendTs, " +
-          s"Δ${minAppendTs - block.timestamp}s"
+        s"timestamp (${payload.timestamp}) of appended block must be greater or equal $minAppendTs, " +
+          s"Δ${minAppendTs - payload.timestamp}s"
       )
     )
   }
 
   private def preValidateBlock(
-      block: NetworkBlock,
+      epi: ExecutionPayloadInfo,
       parentPayload: ExecutionPayload,
       epochInfo: Option[EpochInfo]
   ): JobResult[Unit] = {
     for {
-      _ <- validateTimestamp(block, parentPayload)
-      _ <- validateMiner(block, epochInfo)
-      _ <- engineApiClient.applyNewPayload(block.payloadJson)
+      _ <- validateTimestamp(epi.payload, parentPayload)
+      _ <- validateMiner(epi, epochInfo)
+      _ <- engineApiClient.applyNewPayload(epi.payloadJson)
     } yield ()
   }
 
@@ -1018,51 +1021,53 @@ class ELUpdater(
   }
 
   private def validateAndApplyMissedBlock(
-      block: NetworkBlock,
+      epi: ExecutionPayloadInfo,
       ch: Channel,
       prevState: Working[ChainStatus],
       contractBlock: ContractBlock,
       parentPayload: ExecutionPayload,
       nodeChainInfo: ChainInfo
   ): Unit = {
-    validateBlockFull(block, contractBlock, parentPayload, prevState) match {
+    val payload = epi.payload
+    validateBlockFull(epi, contractBlock, parentPayload, prevState) match {
       case Right(updatedState) =>
-        logger.debug(s"Missed block ${block.hash} of main chain ${nodeChainInfo.id} was successfully validated")
-        broadcastAndConfirmBlock(block, ch, updatedState, nodeChainInfo, None)
+        logger.debug(s"Missed block ${payload.hash} of main chain ${nodeChainInfo.id} was successfully validated")
+        broadcastAndConfirmBlock(epi, ch, updatedState, nodeChainInfo, None)
       case Left(err) =>
-        logger.debug(s"Missed block ${block.hash} of main chain ${nodeChainInfo.id} validation error: ${err.message}, ignoring block")
+        logger.debug(s"Missed block ${payload.hash} of main chain ${nodeChainInfo.id} validation error: ${err.message}, ignoring block")
     }
   }
 
   private def validateAndApply(
-      block: NetworkBlock,
+      epi: ExecutionPayloadInfo,
       ch: Channel,
       prevState: Working[ChainStatus],
       parentPayload: ExecutionPayload,
       nodeChainInfo: ChainInfo,
       returnToMainChainInfo: Option[ReturnToMainChainInfo]
   ): Unit = {
-    chainContractClient.getBlock(block.hash) match {
+    val payload = epi.payload
+    chainContractClient.getBlock(payload.hash) match {
       case Some(contractBlock) if prevState.fullValidationStatus.lastValidatedBlock.hash == parentPayload.hash =>
         // all blocks before current was fully validated, so we can perform full validation of this block
-        validateBlockFull(block, contractBlock, parentPayload, prevState) match {
+        validateBlockFull(epi, contractBlock, parentPayload, prevState) match {
           case Right(updatedState) =>
-            logger.debug(s"Block ${block.hash} was successfully validated")
-            broadcastAndConfirmBlock(block, ch, updatedState, nodeChainInfo, returnToMainChainInfo)
+            logger.debug(s"Block ${payload.hash} was successfully validated")
+            broadcastAndConfirmBlock(epi, ch, updatedState, nodeChainInfo, returnToMainChainInfo)
           case Left(err) =>
-            logger.debug(s"Block ${block.hash} validation error: ${err.message}")
+            logger.debug(s"Block ${payload.hash} validation error: ${err.message}")
             processInvalidBlock(contractBlock, prevState, Some(nodeChainInfo))
         }
       case contractBlock =>
         // we should check block miner based on epochInfo if block is not at contract yet
         val epochInfo = if (contractBlock.isEmpty) Some(prevState.epochInfo) else None
 
-        preValidateBlock(block, parentPayload, epochInfo) match {
+        preValidateBlock(epi, parentPayload, epochInfo) match {
           case Right(_) =>
-            logger.debug(s"Block ${block.hash} was successfully partially validated")
-            broadcastAndConfirmBlock(block, ch, prevState, nodeChainInfo, returnToMainChainInfo)
+            logger.debug(s"Block ${payload.hash} was successfully partially validated")
+            broadcastAndConfirmBlock(epi, ch, prevState, nodeChainInfo, returnToMainChainInfo)
           case Left(err) =>
-            logger.error(s"Block ${block.hash} prevalidation error: ${err.message}, ignoring block")
+            logger.error(s"Block ${payload.hash} prevalidation error: ${err.message}, ignoring block")
         }
     }
   }
@@ -1095,17 +1100,18 @@ class ELUpdater(
   }
 
   private def broadcastAndConfirmBlock(
-      block: NetworkBlock,
+      epi: ExecutionPayloadInfo,
       ch: Channel,
       prevState: Working[ChainStatus],
       nodeChainInfo: ChainInfo,
       returnToMainChainInfo: Option[ReturnToMainChainInfo]
   ): Unit = {
-    Try(allChannels.broadcast(block, Some(ch))).recover { err =>
-      logger.error(s"Failed to broadcast block ${block.hash}: ${err.getMessage}")
+    val payload = epi.payload
+    Try(allChannels.broadcast(PayloadMessage(epi.payloadJson, epi.signature), Some(ch))).recover { err =>
+      logger.error(s"Failed to broadcast block ${payload.hash} payload: ${err.getMessage}")
     }
 
-    confirmBlockAndFollowChain(block.toPayload, prevState, nodeChainInfo, returnToMainChainInfo)
+    confirmBlockAndFollowChain(payload, prevState, nodeChainInfo, returnToMainChainInfo)
   }
 
   private def findBlockChild(parent: BlockHash, lastBlockHash: BlockHash): Either[String, ContractBlock] = {
@@ -1293,15 +1299,15 @@ class ELUpdater(
   }
 
   private def validateBlockFull(
-      block: NetworkBlock,
+      epi: ExecutionPayloadInfo,
       contractBlock: ContractBlock,
       parentPayload: ExecutionPayload,
       prevState: Working[ChainStatus]
   ): JobResult[Working[ChainStatus]] = {
-    logger.debug(s"Trying to do full validation of block ${block.hash}")
+    val payload = epi.payload
+    logger.debug(s"Trying to do full validation of block ${payload.hash}")
     for {
-      _ <- preValidateBlock(block, parentPayload, None)
-      payload = block.toPayload
+      _            <- preValidateBlock(epi, parentPayload, None)
       updatedState <- validateAppliedBlock(contractBlock, payload, prevState)
     } yield updatedState
   }
@@ -1315,10 +1321,10 @@ class ELUpdater(
     val validationResult =
       for {
         _ <- Either.cond(
-          contractBlock.minerRewardAddress == payload.minerRewardAddress,
+          contractBlock.feeRecipient == payload.feeRecipient,
           (),
           ClientError(
-            s"Miner in block payload (${payload.minerRewardAddress}) should be equal to miner on contract (${contractBlock.minerRewardAddress})"
+            s"Miner in block payload (${payload.feeRecipient}) should be equal to miner on contract (${contractBlock.feeRecipient})"
           )
         )
         _                            <- validateE2CTransfers(contractBlock, prevState.options.elBridgeAddress)
@@ -1562,7 +1568,7 @@ object ELUpdater {
     }
 
     case class WaitingForSyncHead(target: ContractBlock, task: CancelableFuture[PayloadInfoWithChannel]) extends State
-    case class SyncingToFinalizedBlock(target: BlockHash)                                                   extends State
+    case class SyncingToFinalizedBlock(target: BlockHash)                                                extends State
   }
 
   private case class RollbackBlock(hash: BlockHash, parentPayload: ExecutionPayload)

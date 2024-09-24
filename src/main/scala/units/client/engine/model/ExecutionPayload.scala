@@ -19,7 +19,7 @@ case class ExecutionPayload(
     stateRoot: String,
     height: Long,
     timestamp: Long,
-    minerRewardAddress: EthAddress,
+    feeRecipient: EthAddress,
     baseFeePerGas: Uint256,
     gasLimit: Long,
     gasUsed: Long,
@@ -27,7 +27,7 @@ case class ExecutionPayload(
     withdrawals: Vector[Withdrawal]
 ) extends CommonBlockData {
   override def toString: String =
-    s"ExecutionPayload($hash, p=$parentHash, h=$height, t=$timestamp, m=$minerRewardAddress, w={${withdrawals.mkString(", ")}})"
+    s"ExecutionPayload($hash, p=$parentHash, h=$height, t=$timestamp, m=$feeRecipient, w={${withdrawals.mkString(", ")}})"
 }
 
 object ExecutionPayload {

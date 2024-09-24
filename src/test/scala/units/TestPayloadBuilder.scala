@@ -20,7 +20,7 @@ class TestPayloadBuilder private (
     this
   }
 
-  def rewardPrevMiner(elWithdrawalIndex: Int = 0): TestPayloadBuilder = rewardMiner(parentPayload.minerRewardAddress, elWithdrawalIndex)
+  def rewardPrevMiner(elWithdrawalIndex: Int = 0): TestPayloadBuilder = rewardMiner(parentPayload.feeRecipient, elWithdrawalIndex)
 
   def rewardMiner(minerRewardAddress: EthAddress, elWithdrawalIndex: Int = 0): TestPayloadBuilder = {
     payload = payload.copy(withdrawals = Vector(Withdrawal(elWithdrawalIndex, minerRewardAddress, elMinerDefaultReward)))
@@ -52,7 +52,7 @@ object TestPayloadBuilder {
         stateRoot = EthereumConstants.EmptyRootHashHex,
         height = parentPayload.height + 1,
         timestamp = parentPayload.timestamp + blockDelay.toSeconds,
-        minerRewardAddress = EthAddress.empty,
+        feeRecipient = EthAddress.empty,
         baseFeePerGas = Uint256.DEFAULT,
         gasLimit = 0,
         gasUsed = 0,

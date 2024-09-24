@@ -240,7 +240,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
 
       // No root hash in extendMainChain tx
       d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(malfunction.account, badPayload2)) // No root hash
-      d.receiveNetworkBlock(badPayload2, malfunction.account)
+      d.receivePayload(badPayload2, malfunction.account)
       d.advanceConsensusLayerChanged()
 
       d.waitForCS[WaitForNewChain]("State is expected") { s =>

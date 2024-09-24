@@ -16,7 +16,7 @@ object TestPayloads {
     "blockNumber"   -> toHex(payload.height),
     "parentHash"    -> payload.parentHash,
     "stateRoot"     -> payload.stateRoot,
-    "feeRecipient"  -> payload.minerRewardAddress,
+    "feeRecipient"  -> payload.feeRecipient,
     "prevRandao"    -> prevRandao,
     "baseFeePerGas" -> toHex(payload.baseFeePerGas),
     "gasLimit"      -> toHex(payload.gasLimit),

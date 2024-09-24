@@ -44,7 +44,7 @@ import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRoo
 import units.client.engine.model.{ExecutionPayload, TestPayloads}
 import units.client.{CommonBlockData, TestEcClients}
 import units.eth.{EthAddress, EthereumConstants, Gwei}
-import units.network.TestPayloadObserver
+import units.network.{PayloadMessage, TestPayloadObserver}
 import units.test.CustomMatchers
 
 import java.nio.charset.StandardCharsets
@@ -76,7 +76,7 @@ class ExtensionDomain(
     stateRoot = EthereumConstants.EmptyRootHashHex,
     height = 0,
     timestamp = testTime.getTimestamp() / 1000 - l2Config.blockDelay.toSeconds,
-    minerRewardAddress = EthAddress.empty,
+    feeRecipient = EthAddress.empty,
     baseFeePerGas = Uint256.DEFAULT,
     gasLimit = 0,
     gasUsed = 0,
@@ -89,16 +89,16 @@ class ExtensionDomain(
   val globalScheduler: TestScheduler = TestScheduler(ExecutionModel.AlwaysAsyncExecution)
   val eluScheduler: TestScheduler    = TestScheduler(ExecutionModel.AlwaysAsyncExecution)
 
-  val elBlockStream: PublishSubject[(Channel, NetworkBlock)] = PublishSubject[(Channel, NetworkBlock)]()
-  val blockObserver: TestPayloadObserver                      = new TestPayloadObserver(elBlockStream)
+  val payloadStream: PublishSubject[(Channel, ExecutionPayloadInfo)] = PublishSubject[(Channel, ExecutionPayloadInfo)]()
+  val blockObserver: TestPayloadObserver                             = new TestPayloadObserver(payloadStream)
 
   val neighbourChannel = new EmbeddedChannel()
   val allChannels      = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE)
   allChannels.add(neighbourChannel)
-  def pollSentNetworkBlock(): Option[NetworkBlock] = Option(neighbourChannel.readOutbound[NetworkBlock])
-  def receiveNetworkBlock(payload: ExecutionPayload, miner: SeedKeyPair, epochNumber: Int = blockchain.height): Unit =
-    receiveNetworkBlock(toNetworkBlock(payload, miner, epochNumber))
-  def receiveNetworkBlock(incomingNetworkBlock: NetworkBlock): Unit = elBlockStream.onNext((new EmbeddedChannel(), incomingNetworkBlock))
+  def pollSentPayloadMessage(): Option[PayloadMessage] = Option(neighbourChannel.readOutbound[PayloadMessage])
+  def receivePayload(payload: ExecutionPayload, miner: SeedKeyPair, epochNumber: Int = blockchain.height): Unit =
+    receivePayload(toExecutionPayloadInfo(payload, miner, epochNumber))
+  def receivePayload(incomingPayload: ExecutionPayloadInfo): Unit = payloadStream.onNext((new EmbeddedChannel(), incomingPayload))
 
   val extensionContext: Context = new Context {
     override def settings: WavesSettings = self.settings
@@ -169,19 +169,17 @@ class ExtensionDomain(
     f(is[CS](s.chainStatus))
   }
 
-  def toNetworkBlock(payload: ExecutionPayload, miner: SeedKeyPair, epochNumber: Int): NetworkBlock =
-    NetworkBlock
-      .signed(
-        TestPayloads.toPayloadJson(
-          payload,
-          calculateRandao(
-            blockchain.vrf(epochNumber).getOrElse(throw new RuntimeException(s"VRF is empty for epoch $epochNumber")),
-            payload.parentHash
-          )
-        ),
-        miner.privateKey
+  def toExecutionPayloadInfo(payload: ExecutionPayload, miner: SeedKeyPair, epochNumber: Int): ExecutionPayloadInfo = {
+    val payloadJson = TestPayloads.toPayloadJson(
+      payload,
+      calculateRandao(
+        blockchain.vrf(epochNumber).getOrElse(throw new RuntimeException(s"VRF is empty for epoch $epochNumber")),
+        payload.parentHash
       )
-      .explicitGet()
+    )
+
+    PayloadMessage.signed(payloadJson, miner.privateKey).flatMap(_.payloadInfo).explicitGet()
+  }
 
   def forgeFromUtxPool(): Unit = {
     val (txsOpt, _, _) = utxPool.packUnconfirmed(MultiDimensionalMiningConstraint.Unlimited, None)
@@ -349,7 +347,7 @@ class ExtensionDomain(
     TestPayloadBuilder(ecClients, elBridgeAddress, elMinerDefaultReward, l2Config.blockDelay, parentPayload = parentPayload).updatePayload(
       _.copy(
         hash = TestPayloadBuilder.createBlockHash(hashPath),
-        minerRewardAddress = minerRewardAddress,
+        feeRecipient = minerRewardAddress,
         prevRandao = ELUpdater.calculateRandao(blockchain.vrf(blockchain.height).get, parentPayload.hash)
       )
     )
