@@ -1,4 +1,4 @@
-node_modules
-logs
+.venv/
 .solc-select
-**/*.js
+__pycache__
+

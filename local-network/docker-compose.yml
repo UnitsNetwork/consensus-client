@@ -76,9 +76,10 @@ services:
     environment:
       DEPLOY_LOG_DIR: /home/node/logs
     volumes:
-      - ./deploy:/home/node/app
-      - ./logs/deploy:/home/node/logs
-      - /home/node/app/node_modules # Ignore this subdirectory
+      - ./deploy:/usr/src/app
+      # - ./logs/deploy:/home/node/logs
     depends_on:
-      - wavesnode-1
-      - ec-1
+      wavesnode-1:
+        condition: service_healthy
+      ec-1:
+        condition: service_healthy
