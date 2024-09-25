@@ -1107,8 +1107,12 @@ class ELUpdater(
       returnToMainChainInfo: Option[ReturnToMainChainInfo]
   ): Unit = {
     val payload = epi.payload
-    Try(allChannels.broadcast(PayloadMessage(epi.payloadJson, epi.signature), Some(ch))).recover { err =>
-      logger.error(s"Failed to broadcast block ${payload.hash} payload: ${err.getMessage}")
+
+    (for {
+      pm <- PayloadMessage(epi.payloadJson, epi.signature)
+      _  <- Try(allChannels.broadcast(pm, Some(ch))).toEither.leftMap(_.getMessage)
+    } yield ()).recover { err =>
+      logger.error(s"Failed to broadcast block ${payload.hash} payload: $err")
     }
 
     confirmBlockAndFollowChain(payload, prevState, nodeChainInfo, returnToMainChainInfo)
