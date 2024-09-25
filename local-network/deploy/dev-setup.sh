@@ -5,7 +5,7 @@ if [ ! -d "$PWD/.venv" ]; then
   python3 -m venv .venv --prompt local-network
   source .venv/bin/activate
 
-  if [[ "$(uname)" == "Darwin" ]]; then
+  if [[ "$(uname)" == "Darwin" && "$(uname -m)" == "arm64" ]]; then
     # Otherwise python-axolotl-curve25519 won't compile
     export CC=gcc
   fi
