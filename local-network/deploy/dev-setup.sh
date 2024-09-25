@@ -11,7 +11,7 @@ if [ ! -d "$PWD/.venv" ]; then
   fi
 
   echo "Install dependencies"
-  pip install -e .
+  pip install --editable .
 fi
 
 echo "Done."
