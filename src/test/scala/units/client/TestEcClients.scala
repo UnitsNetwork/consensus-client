@@ -12,7 +12,8 @@ import units.client.engine.model.*
 import units.client.engine.{EngineApiClient, LoggedEngineApiClient}
 import units.collections.ListOps.*
 import units.eth.EthAddress
-import units.{BlockHash, JobResult, NetworkBlock}
+import units.network.PayloadMessage
+import units.{BlockHash, JobResult}
 
 class TestEcClients private (
     knownBlocks: Atomic[Map[BlockHash, ChainId]],
@@ -108,7 +109,7 @@ class TestEcClients private (
         }
 
       override def applyNewPayload(payloadJson: JsObject): JobResult[Option[BlockHash]] = {
-        val newPayload = NetworkBlock(payloadJson).explicitGet().toPayload
+        val newPayload = PayloadMessage(payloadJson).flatMap(_.payloadInfo).explicitGet().payload
         knownBlocks.get().get(newPayload.parentHash) match {
           case Some(cid) =>
             val chain = chains.get()(cid)
