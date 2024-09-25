@@ -22,7 +22,7 @@ def main():
         "0xae6ae8e5ccbfb04590405997ee2d52d2b330726137b875053c36d94e974d162f"
     )
 
-    raw_amount = common_utils.get_argument_value("--amount") or "0.01"
+    raw_amount = "0.01"
     amount = Web3.to_wei(raw_amount, "ether")
     log.info(
         f"Sending {raw_amount} Unit0 ({amount} Wei) from {el_account.address} (E) to {cl_account.address} (C) using Bridge on {network.el_bridge.address} (E)"
@@ -52,7 +52,10 @@ def main():
     log.info(f"[C] Withdraw block meta: {withdraw_block_meta}, wait for finalization")
     network.cl_chain_contract.waitForFinalized(withdraw_block_meta)
 
-    balance_before = network.
+    cl_token_id = network.cl_chain_contract.getToken()
+    balance_before = cl_account.balance(cl_token_id.assetId)
+    log.info(f"[C] Balance before: {balance_before}")
+
     withdraw_result = network.cl_chain_contract.withdraw(
         cl_account,
         proofs["block_with_transfer_hash"].hex(),
@@ -64,6 +67,11 @@ def main():
         log, withdraw_result, "Can not send the chain_contract.withdraw transaction"
     )
     log.info(f"[C] Withdraw result: {withdraw_result}")
+
+    balance_after = cl_account.balance(cl_token_id.assetId)
+    log.info(f"[C] Balance after: {balance_after}")
+
+    assert balance_after == (balance_before + int(float(raw_amount) * 10**8))
     log.info("Done")
 
 

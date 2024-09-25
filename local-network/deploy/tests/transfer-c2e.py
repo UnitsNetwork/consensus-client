@@ -27,12 +27,12 @@ def main():
     balance_before = network.w3.eth.get_balance(el_account.address)
     log.info(f"Balance before: {balance_before / 10**18} UNIT0")
 
-    user_amount = "0.01"
+    raw_amount = "0.01"
     # Issued token has 8 decimals, we need to calculate amount in atomic units https://docs.waves.tech/en/blockchain/token/#atomic-unit
-    atomic_amount = int(float(user_amount) * 10**8)
+    atomic_amount = int(float(raw_amount) * 10**8)
 
     log.info(
-        f"Sending {user_amount} Unit0 ({atomic_amount} in atomic units) from {cl_account.address} (C) to {el_account.address} (E)"
+        f"Sending {raw_amount} Unit0 ({atomic_amount} in atomic units) from {cl_account.address} (C) to {el_account.address} (E)"
     )
 
     token = network.cl_chain_contract.getToken()
@@ -76,7 +76,7 @@ def main():
     balance_after = network.w3.eth.get_balance(el_account.address)
     log.info(f"Balance after: {balance_after / 10**18} UNIT0")
 
-    assert balance_after == (balance_before + int(float(user_amount) * 10**18))
+    assert balance_after == (balance_before + int(float(raw_amount) * 10**18))
     log.info("Done")
 
 
