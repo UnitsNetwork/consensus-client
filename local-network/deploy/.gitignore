@@ -2,4 +2,5 @@
 .solc-select/
 __pycache__/
 build/
+setup/
 *.egg-info/
