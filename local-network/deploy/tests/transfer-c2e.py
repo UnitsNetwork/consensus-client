@@ -58,7 +58,7 @@ def main():
                 if curr_block:
                     withdrawals = curr_block.get("withdrawals", [])
                     log.info(
-                        f"Found block #{curr_block['number']}: 0x{curr_block['hash'].hex()} with withdrawals: {Web3.to_json(withdrawals)}"
+                        f"Found block #{curr_block['number']}: 0x{curr_block['hash'].hex()} with withdrawals: {Web3.to_json(withdrawals)}"  # type: ignore
                     )
                     for w in withdrawals:
                         if (

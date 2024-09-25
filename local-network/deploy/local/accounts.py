@@ -3,7 +3,9 @@ from functools import cached_property
 from typing import List
 
 import requests
+from eth_account.signers.local import LocalAccount
 from pywaves import pw
+from web3 import Account
 
 # Prevent of aliases lookup
 pw.setOffline()
@@ -50,6 +52,21 @@ class Accounts(object):
                     nonce=0,
                 ),
                 el_reward_address_hex="0xcf0b9e13fdd593f4ca26d36afcaa44dd3fdccbed",
+            ),
+        ]
+
+    @cached_property
+    def cl_rich_accounts(self) -> List[pw.Address]:
+        return [pw.Address(seed="devnet-0", nonce=n) for n in range(0, 2)]
+
+    @cached_property
+    def el_rich_accounts(self) -> List[LocalAccount]:
+        return [
+            Account.from_key(
+                "0x8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63"
+            ),
+            Account.from_key(
+                "0xae6ae8e5ccbfb04590405997ee2d52d2b330726137b875053c36d94e974d162f"
             ),
         ]
 
