@@ -233,16 +233,17 @@ class ELUpdater(
               latestValidHashOpt <- engineApiClient.applyNewPayload(payloadJson)
               latestValidHash    <- Either.fromOption(latestValidHashOpt, ClientError("Latest valid hash not defined"))
               _ = logger.info(s"Applied payload $payloadId, block hash is $latestValidHash, timestamp = $timestamp")
-              newBlock <- NetworkBlock.signed(payloadJson, m.keyPair.privateKey)
-              _ = logger.debug(s"Broadcasting block ${newBlock.hash}")
-              _ <- Try(allChannels.broadcast(newBlock)).toEither.leftMap(err =>
-                ClientError(s"Failed to broadcast block ${newBlock.hash}: ${err.toString}")
+              newPm <- PayloadMessage.signed(payloadJson, m.keyPair.privateKey).leftMap(ClientError.apply)
+              _ = logger.debug(s"Broadcasting block ${newPm.hash} payload")
+              _ <- Try(allChannels.broadcast(newPm)).toEither.leftMap(err =>
+                ClientError(s"Failed to broadcast block ${newPm.hash} payload: ${err.toString}")
               )
-              executionPayload = newBlock.toPayload
-              transfersRootHash <- getE2CTransfersRootHash(executionPayload.hash, chainContractOptions.elBridgeAddress)
-              funcCall          <- contractFunction.toFunctionCall(executionPayload.hash, transfersRootHash, m.lastC2ETransferIndex)
-              _                 <- callContract(funcCall, executionPayload, m.keyPair)
-            } yield executionPayload).fold(
+              payloadInfo <- newPm.payloadInfo.leftMap(ClientError.apply)
+              payload = payloadInfo.payload
+              transfersRootHash <- getE2CTransfersRootHash(payload.hash, chainContractOptions.elBridgeAddress)
+              funcCall          <- contractFunction.toFunctionCall(payload.hash, transfersRootHash, m.lastC2ETransferIndex)
+              _                 <- callContract(funcCall, payload, m.keyPair)
+            } yield payload).fold(
               err => logger.error(s"Failed to forge block for payloadId $payloadId at epoch ${epochInfo.number}: ${err.message}"),
               newPayload => scheduler.execute { () => tryToForgeNextBlock(epochInfo.number, newPayload, chainContractOptions) }
             )
