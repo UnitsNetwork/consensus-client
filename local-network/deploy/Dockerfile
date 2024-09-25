@@ -9,7 +9,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /usr/src/app
 
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+COPY local/__init__.py ./local/
+COPY setup.py ./
+
+RUN pip install --no-cache-dir --editable .
 
 CMD ["/bin/bash", "deploy-run.sh"]

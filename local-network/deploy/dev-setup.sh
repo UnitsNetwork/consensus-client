@@ -11,7 +11,7 @@ if [ ! -d "$PWD/.venv" ]; then
   fi
 
   echo "Install dependencies"
-  pip install -r requirements.txt
+  pip install -e .
 fi
 
 echo "Done."

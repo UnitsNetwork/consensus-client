@@ -6,13 +6,13 @@ from pywaves import Address, pw
 import requests
 from units_network.networks import Network, NetworkSettings
 from units_network import common_utils
-from network import get_network
+from local.network import get_network
 
 log = common_utils.configure_script_logger("main")
 n = get_network()
 
-import waves_txs
-from accounts import accounts
+from local import waves_txs
+from local.accounts import accounts
 
 
 class Node(object):

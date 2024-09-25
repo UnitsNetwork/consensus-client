@@ -1,4 +1,4 @@
 .venv/
-.solc-select
-__pycache__
-
+.solc-select/
+__pycache__/
+*.egg-info/

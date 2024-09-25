@@ -1,2 +1,0 @@
-solc-select
-git+https://github.com/UnitsNetwork/examples.git@python

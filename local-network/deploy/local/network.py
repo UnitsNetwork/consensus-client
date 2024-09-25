@@ -1,6 +1,6 @@
 from units_network.networks import Network, NetworkSettings
-from common import in_docker
-from accounts import accounts
+
+from local.common import in_docker
 
 
 def get_waves_api_url(n: int) -> str:

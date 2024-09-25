@@ -2,7 +2,6 @@
 
 from pywaves import pw
 from units_network.common_utils import hex_to_base64
-from accounts import accounts
 
 
 def clean_hex_prefix(hex: str) -> str:

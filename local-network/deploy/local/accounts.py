@@ -1,8 +1,9 @@
 from dataclasses import dataclass
-from typing import List, TypedDict
-from pywaves import address, pw
-import requests
 from functools import cached_property
+from typing import List
+
+import requests
+from pywaves import pw
 
 # Prevent of aliases lookup
 pw.setOffline()
@@ -11,7 +12,6 @@ pw.setOffline()
 class ExtendedAddress(pw.Address):
     def scriptInfo(self):
         url = f"{self.pywaves.NODE}/addresses/scriptInfo/{self.address}"
-        print(url)
         response = requests.get(url)
 
         if response.status_code == 200:
@@ -29,7 +29,6 @@ class Miner:
 class Accounts(object):
     @cached_property
     def chain_contract(self) -> ExtendedAddress:
-        print("chain_contract")
         return ExtendedAddress(
             seed="devnet-1",
             nonce=2,
