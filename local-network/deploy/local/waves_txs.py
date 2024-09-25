@@ -1,7 +1,26 @@
 # TODO move to classes
 
+import sys
+from logging import Logger
+from time import sleep
+
 from pywaves import pw
 from units_network.common_utils import hex_to_base64
+
+
+def force_success(log: Logger, r, text, wait=True, pw=pw):
+    if not r or "error" in r:
+        log.error(f"{text}: {r}")
+        sys.exit(1)
+
+    if wait:
+        id = r["id"]
+        while True:
+            tx = pw.tx(id)
+            if "id" in tx:
+                break
+            sleep(2)
+        log.info(f"{id} mined")
 
 
 def clean_hex_prefix(hex: str) -> str:

@@ -1,11 +1,9 @@
-from os.path import join
-import sys
 from time import sleep
-from eth_account import account
-from pywaves import Address, pw
+
 import requests
-from units_network.networks import Network, NetworkSettings
+from pywaves import pw
 from units_network import common_utils
+
 from local.network import get_network
 
 log = common_utils.configure_script_logger("main")
@@ -31,21 +29,6 @@ class Node(object):
             raise Exception(f"Error: {response.status_code}, {response.text}")
 
 
-def force_success(waves_txn_result, text, wait=True):
-    if not r or "error" in r:
-        log.error(f"{text}: {r}")
-        sys.exit(1)
-
-    if wait:
-        id = waves_txn_result["id"]
-        while True:
-            tx = pw.tx(id)
-            if "id" in tx:
-                break
-            sleep(2)
-        log.info(f"{id} mined")
-
-
 node = Node(pw)
 min_peers = len(accounts.waves_miners) - 1
 while True:
@@ -62,7 +45,7 @@ if script_info["script"] is None:
     with open("setup/waves/main.ride", "r", encoding="utf-8") as file:
         source = file.read()
     r = waves_txs.cc_set_script(accounts.chain_contract, source)
-    force_success(r, "Can not set the chain contract script")
+    waves_txs.force_success(log, r, "Can not set the chain contract script")
 
 if not n.cl_chain_contract.isContractSetup():
     log.info(f"Setup chain contract on {accounts.chain_contract.address}")
@@ -74,7 +57,7 @@ if not n.cl_chain_contract.isContractSetup():
     log.info(f"Genesis block hash: 0x{el_genesis_block_hash}")
 
     r = waves_txs.cc_setup(accounts.chain_contract, el_genesis_block_hash)
-    force_success(r, "Can not setup the chain contract")
+    waves_txs.force_success(log, r, "Can not setup the chain contract")
 
 
 r = n.cl_chain_contract.evaluate("allMiners")
@@ -89,8 +72,11 @@ for miner in accounts.waves_miners:
         r = waves_txs.cc_join(
             accounts.chain_contract.address, miner.account, miner.el_reward_address_hex
         )
-        force_success(
-            r, f"{miner.account.address} can not join the chain contract", wait=False
+        waves_txs.force_success(
+            log,
+            r,
+            f"{miner.account.address} can not join the chain contract",
+            wait=False,
         )
 
 while True:

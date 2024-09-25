@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# One E2C transfer
 import os
 
 from units_network import common_utils
@@ -13,6 +14,8 @@ def main():
     log = common_utils.configure_script_logger(os.path.basename(__file__))
 
     network = get_network()
+
+    from local import waves_txs
 
     cl_account = accounts.waves_miners[0].account
     el_account = network.w3.eth.account.from_key(
@@ -49,12 +52,16 @@ def main():
     log.info(f"[C] Withdraw block meta: {withdraw_block_meta}, wait for finalization")
     network.cl_chain_contract.waitForFinalized(withdraw_block_meta)
 
+    balance_before = network.
     withdraw_result = network.cl_chain_contract.withdraw(
         cl_account,
         proofs["block_with_transfer_hash"].hex(),
         proofs["merkle_proofs"],
         proofs["transfer_index_in_block"],
         amount,
+    )
+    waves_txs.force_success(
+        log, withdraw_result, "Can not send the chain_contract.withdraw transaction"
     )
     log.info(f"[C] Withdraw result: {withdraw_result}")
     log.info("Done")
