@@ -9,7 +9,7 @@ from web3.types import Wei
 
 
 @dataclass()
-class C2ETransfer:
+class BaseTransfer:
     el_account: LocalAccount
     cl_account: pw.Address
     raw_amount: float
@@ -21,26 +21,17 @@ class C2ETransfer:
     @cached_property
     def waves_atomic_amount(self) -> int:
         # Issued token has 8 decimals, we need to calculate amount in atomic units https://docs.waves.tech/en/blockchain/token/#atomic-unit
-        return int(float(self.raw_amount) * 10**8)
+        return int(self.raw_amount * 10**8)
 
+
+@dataclass()
+class C2ETransfer(BaseTransfer):
     def __repr__(self) -> str:
         return f"C2E(from={self.cl_account.address}, to={self.el_account.address}, {self.raw_amount} UNIT0)"
 
 
 @dataclass()
-class E2CTransfer:
-    el_account: LocalAccount
-    cl_account: pw.Address
-    raw_amount: float
-
-    @cached_property
-    def wei_amount(self) -> Wei:
-        return Web3.to_wei(self.raw_amount, "ether")
-
-    @cached_property
-    def waves_atomic_amount(self) -> int:
-        return int(float(self.raw_amount) * 10**8)
-
+class E2CTransfer(BaseTransfer):
     def __repr__(self) -> str:
         return f"E2C(from={self.el_account.address}, to={self.cl_account.address}, {self.raw_amount} UNIT0)"
 
