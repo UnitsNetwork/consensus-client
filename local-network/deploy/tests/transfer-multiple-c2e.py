@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # Multiple C2E transfers
 import os
-from dataclasses import dataclass
 
 from eth_typing import ChecksumAddress
 from local.accounts import accounts
@@ -10,12 +9,6 @@ from local.el import el_wait_for_withdraw
 from local.network import get_network
 from units_network import common_utils
 from web3.types import Wei
-
-
-@dataclass()
-class ExpectedBalance:
-    balance_before: Wei
-    expected_transfer: Wei
 
 
 def main():
@@ -52,17 +45,16 @@ def main():
     token = network.cl_chain_contract.getToken()
     log.info(f"[C] Token id: {token.assetId}")
 
-    expected_balances: dict[ChecksumAddress, ExpectedBalance] = {}
+    expected_balances: dict[ChecksumAddress, Wei] = {}
     for i, t in enumerate(transfers):
         el_address = t.el_account.address
         if el_address in expected_balances:
-            x = expected_balances[el_address]
-            x.expected_transfer = Wei(x.expected_transfer + t.wei_amount)
+            expected_balances[el_address] = Wei(
+                expected_balances[el_address] + t.wei_amount
+            )
         else:
             balance_before = network.w3.eth.get_balance(el_address)
-            expected_balances[el_address] = ExpectedBalance(
-                balance_before=balance_before, expected_transfer=t.wei_amount
-            )
+            expected_balances[el_address] = Wei(balance_before + t.wei_amount)
             log.info(
                 f"[E] {el_address} balance before: {balance_before / 10**18} UNIT0"
             )
@@ -78,11 +70,11 @@ def main():
 
     el_wait_for_withdraw(log, network.w3, el_curr_height, transfers)
 
-    for el_address, x in expected_balances.items():
+    for el_address, expected_balance in expected_balances.items():
         balance_after = network.w3.eth.get_balance(el_address)
         log.info(f"[E] {el_address} balance after: {balance_after / 10**18} UNIT0")
 
-        assert balance_after == Wei(x.balance_before + x.expected_transfer)
+        assert balance_after == expected_balance
 
     log.info("Done")
 

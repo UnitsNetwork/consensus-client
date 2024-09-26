@@ -15,12 +15,16 @@ def force_success(log: Logger, r, text, wait=True, pw=pw):
 
     if wait:
         id = r["id"]
-        while True:
-            tx = pw.tx(id)
-            if "id" in tx:
-                break
-            sleep(2)
+        wait_for_txn(id, pw)
         log.info(f"{id} confirmed")
+
+
+def wait_for_txn(id, pw=pw):
+    while True:
+        tx = pw.tx(id)
+        if "id" in tx:
+            return tx
+        sleep(2)
 
 
 def clean_hex_prefix(hex: str) -> str:
