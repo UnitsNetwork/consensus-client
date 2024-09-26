@@ -5,10 +5,8 @@ from typing import List
 import requests
 from eth_account.signers.local import LocalAccount
 from pywaves import pw
+from units_network.networks import Network
 from web3 import Account
-
-# Prevent of aliases lookup
-pw.setOffline()
 
 
 class ExtendedAddress(pw.Address):
@@ -29,6 +27,10 @@ class Miner:
 
 
 class Accounts(object):
+    # Force Network here, because pywaves uses a global chain id
+    def __init__(self, network: Network) -> None:
+        pass
+
     @cached_property
     def chain_contract(self) -> ExtendedAddress:
         return ExtendedAddress(
@@ -69,8 +71,3 @@ class Accounts(object):
                 "0xae6ae8e5ccbfb04590405997ee2d52d2b330726137b875053c36d94e974d162f"
             ),
         ]
-
-
-accounts = Accounts()
-
-pw.setOnline()

@@ -71,4 +71,4 @@ def configure_script_logger(name: str):
     file = None
     if in_docker():
         file = "/var/log/deploy/deploy.log"
-    return common_utils.configure_script_logger(os.path.basename(__file__), file)
+    return common_utils.configure_script_logger(name, file)

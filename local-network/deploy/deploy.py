@@ -3,14 +3,12 @@ from time import sleep
 import requests
 from pywaves import pw
 
+from local import waves_txs
 from local.common import configure_script_logger
-from local.network import get_network
+from local.network import get_local
 
 log = configure_script_logger("main")
-n = get_network()
-
-from local import waves_txs
-from local.accounts import accounts
+(network, accounts) = get_local()
 
 
 # TODO: Move
@@ -49,9 +47,9 @@ if script_info["script"] is None:
     r = waves_txs.cc_set_script(accounts.chain_contract, source)
     waves_txs.force_success(log, r, "Can not set the chain contract script")
 
-if not n.cl_chain_contract.isContractSetup():
+if not network.cl_chain_contract.isContractSetup():
     log.info(f"Setup chain contract on {accounts.chain_contract.address}")
-    el_genesis_block = n.w3.eth.get_block(0)
+    el_genesis_block = network.w3.eth.get_block(0)
 
     assert "hash" in el_genesis_block
     el_genesis_block_hash = el_genesis_block["hash"].hex()
@@ -62,7 +60,7 @@ if not n.cl_chain_contract.isContractSetup():
     waves_txs.force_success(log, r, "Can not setup the chain contract")
 
 
-r = n.cl_chain_contract.evaluate("allMiners")
+r = network.cl_chain_contract.evaluate("allMiners")
 joined_miners = []
 for entry in r["result"]["value"]:
     joined_miners.append(entry["value"])
@@ -82,7 +80,7 @@ for miner in accounts.waves_miners:
         )
 
 while True:
-    r = n.w3.eth.get_block("latest")
+    r = network.w3.eth.get_block("latest")
     if "number" in r and r["number"] >= 1:
         break
     log.info("Wait for at least one block on EL")

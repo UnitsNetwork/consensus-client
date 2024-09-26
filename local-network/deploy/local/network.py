@@ -1,5 +1,8 @@
+from typing import Optional, Tuple
+
 from units_network.networks import Network, NetworkSettings
 
+from local.accounts import Accounts
 from local.common import in_docker
 
 
@@ -19,11 +22,15 @@ local_net = NetworkSettings(
     chain_contract_address="3FdaanzgX4roVgHevhq8L8q42E7EZL9XTQr",  # TODO: do it after pw.setNode accounts.chain_contract.address,
 )
 
-_NETWORK = None
+
+_NETWORK_WITH_ACCOUNTS: Optional[Tuple[Network, Accounts]] = None
 
 
-def get_network() -> Network:
-    global _NETWORK
-    if _NETWORK is None:
-        _NETWORK = Network.create_manual(local_net)
-    return _NETWORK
+def get_local() -> Tuple[Network, Accounts]:
+    global _NETWORK_WITH_ACCOUNTS
+    if _NETWORK_WITH_ACCOUNTS is None:
+        n = Network.create_manual(local_net)
+        a = Accounts(n)
+        _NETWORK_WITH_ACCOUNTS = (n, a)
+
+    return _NETWORK_WITH_ACCOUNTS

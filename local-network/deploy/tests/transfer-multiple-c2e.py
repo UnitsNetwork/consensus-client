@@ -3,17 +3,16 @@
 import os
 
 from eth_typing import ChecksumAddress
-from local.accounts import accounts
+from local import waves_txs
 from local.common import C2ETransfer, configure_script_logger
 from local.el import el_wait_for_withdraw
-from local.network import get_network
+from local.network import get_local
 from web3.types import Wei
 
 
 def main():
     log = configure_script_logger(os.path.basename(__file__))
-    network = get_network()
-    from local import waves_txs
+    (network, accounts) = get_local()
 
     transfers = [
         C2ETransfer(
