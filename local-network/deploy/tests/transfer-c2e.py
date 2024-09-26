@@ -48,7 +48,7 @@ def main():
     log.info(f"[C] Transfer result: {transfer_result}")
 
     def el_wait_for_withdraw(
-        from_height: BlockNumber, address: HexAddress, min_amount: int
+        from_height: BlockNumber, address: HexAddress, expected_amount: int
     ):
         while True:
             try:
@@ -63,7 +63,7 @@ def main():
                     for w in withdrawals:
                         if (
                             w["address"].lower() == address.lower()
-                            and w["amount"] >= min_amount
+                            and w["amount"] == expected_amount
                         ):
                             return
                     from_height = BlockNumber(from_height + 1)

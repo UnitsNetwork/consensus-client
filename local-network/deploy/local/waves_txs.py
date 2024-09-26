@@ -20,7 +20,7 @@ def force_success(log: Logger, r, text, wait=True, pw=pw):
             if "id" in tx:
                 break
             sleep(2)
-        log.info(f"{id} mined")
+        log.info(f"{id} confirmed")
 
 
 def clean_hex_prefix(hex: str) -> str:
