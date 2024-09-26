@@ -4,7 +4,8 @@ from functools import cached_property
 
 from eth_account.signers.local import LocalAccount
 from pywaves import pw
-from web3 import Web3
+
+from units_network import units
 from web3.types import Wei
 
 
@@ -16,12 +17,11 @@ class BaseTransfer:
 
     @cached_property
     def wei_amount(self) -> Wei:
-        return Web3.to_wei(self.raw_amount, "ether")
+        return units.raw_to_wei_amount(self.raw_amount)
 
     @cached_property
     def waves_atomic_amount(self) -> int:
-        # Issued token has 8 decimals, we need to calculate amount in atomic units https://docs.waves.tech/en/blockchain/token/#atomic-unit
-        return int(self.raw_amount * 10**8)
+        return units.raw_to_waves_atomic_amount(self.raw_amount)
 
 
 @dataclass()
