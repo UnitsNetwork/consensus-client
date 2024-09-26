@@ -6,6 +6,7 @@ from eth_account.signers.local import LocalAccount
 from pywaves import pw
 
 from units_network import units
+from units_network.chain_contract import common_utils
 from web3.types import Wei
 
 
@@ -64,3 +65,10 @@ def in_docker() -> bool:
         except FileNotFoundError:
             _INSIDE_DOCKER = False
     return _INSIDE_DOCKER
+
+
+def configure_script_logger(name: str):
+    file = None
+    if in_docker():
+        file = "/var/log/deploy/deploy.log"
+    return common_utils.configure_script_logger(os.path.basename(__file__), file)

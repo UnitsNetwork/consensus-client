@@ -5,7 +5,7 @@ from typing import List, Tuple
 
 from hexbytes import HexBytes
 from local.accounts import accounts
-from local.common import E2CTransfer
+from local.common import E2CTransfer, configure_script_logger
 from local.network import get_network
 from pywaves import pw
 from units_network import common_utils
@@ -14,7 +14,7 @@ from web3.types import Nonce, TxReceipt
 
 
 def main():
-    log = common_utils.configure_script_logger(os.path.basename(__file__))
+    log = configure_script_logger(os.path.basename(__file__))
     network = get_network()
     from local import waves_txs
 

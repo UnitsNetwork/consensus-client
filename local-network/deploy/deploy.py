@@ -2,17 +2,18 @@ from time import sleep
 
 import requests
 from pywaves import pw
-from units_network import common_utils
 
+from local.common import configure_script_logger
 from local.network import get_network
 
-log = common_utils.configure_script_logger("main")
+log = configure_script_logger("main")
 n = get_network()
 
 from local import waves_txs
 from local.accounts import accounts
 
 
+# TODO: Move
 class Node(object):
     def __init__(
         self,
@@ -37,6 +38,7 @@ while True:
         break
 
     log.info(f"Wait for {min_peers} peers, now: {r}")
+    sleep(2)
 
 script_info = accounts.chain_contract.scriptInfo()
 if script_info["script"] is None:

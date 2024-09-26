@@ -11,7 +11,8 @@ if [ ! -d "$PWD/.venv" ]; then
   fi
 
   echo "Install dependencies"
-  pip install --editable .
+  # --no-cache-dir is useful during development and local units-network in dependencies
+  pip install --no-cache-dir --editable .
 fi
 
 echo "Done."

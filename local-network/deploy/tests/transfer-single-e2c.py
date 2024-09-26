@@ -3,7 +3,7 @@
 import os
 
 from local.accounts import accounts
-from local.common import E2CTransfer
+from local.common import E2CTransfer, configure_script_logger
 from local.network import get_network
 from units_network import common_utils
 from web3 import Web3
@@ -11,10 +11,8 @@ from web3.types import TxReceipt
 
 
 def main():
-    log = common_utils.configure_script_logger(os.path.basename(__file__))
-
+    log = configure_script_logger(os.path.basename(__file__))
     network = get_network()
-
     from local import waves_txs
 
     transfer = E2CTransfer(

@@ -77,7 +77,7 @@ services:
       DEPLOY_LOG_DIR: /home/node/logs
     volumes:
       - ./deploy:/usr/src/app
-      # - ./logs/deploy:/home/node/logs
+      - ./logs/deploy:/var/log/deploy
     depends_on:
       wavesnode-1:
         condition: service_healthy

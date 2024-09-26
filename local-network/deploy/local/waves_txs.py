@@ -5,7 +5,7 @@ from logging import Logger
 from time import sleep
 
 from pywaves import pw
-from units_network.common_utils import hex_to_base64
+from units_network.common_utils import clean_hex_prefix, hex_to_base64
 
 
 def force_success(log: Logger, r, text, wait=True, pw=pw):
@@ -25,10 +25,6 @@ def wait_for_txn(id, pw=pw):
         if "id" in tx:
             return tx
         sleep(2)
-
-
-def clean_hex_prefix(hex: str) -> str:
-    return hex[2:] if hex.startswith("0x") else hex
 
 
 # cc - Chain contract
