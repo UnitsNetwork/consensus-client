@@ -1,5 +1,6 @@
 from typing import Optional, Tuple
 
+from units_network import networks
 from units_network.networks import Network, NetworkSettings
 
 from local.accounts import Accounts
@@ -29,7 +30,7 @@ _NETWORK_WITH_ACCOUNTS: Optional[Tuple[Network, Accounts]] = None
 def get_local() -> Tuple[Network, Accounts]:
     global _NETWORK_WITH_ACCOUNTS
     if _NETWORK_WITH_ACCOUNTS is None:
-        n = Network.create_manual(local_net)
+        n = networks.create_manual(local_net)
         a = Accounts(n)
         _NETWORK_WITH_ACCOUNTS = (n, a)
 

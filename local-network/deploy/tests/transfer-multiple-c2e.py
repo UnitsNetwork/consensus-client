@@ -58,7 +58,7 @@ def main():
 
         log.info(f"[C] #{i} Call chain_contract.transfer for {t}")
         transfer_result = network.cl_chain_contract.transfer(
-            t.from_account, t.to_account, token, t.waves_atomic_amount
+            t.from_account, t.to_account.address, token, t.waves_atomic_amount
         )
         waves_txs.force_success(
             log, transfer_result, "Can not send the chain_contract.transfer transaction"

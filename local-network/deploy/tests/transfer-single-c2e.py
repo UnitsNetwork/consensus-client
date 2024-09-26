@@ -30,7 +30,10 @@ def main():
 
     el_curr_height = network.w3.eth.block_number
     transfer_result = network.cl_chain_contract.transfer(
-        transfer.from_account, transfer.to_account, token, transfer.waves_atomic_amount
+        transfer.from_account,
+        transfer.to_account.address,
+        token,
+        transfer.waves_atomic_amount,
     )
     waves_txs.force_success(
         log, transfer_result, "Can not send the chain_contract.transfer transaction"
