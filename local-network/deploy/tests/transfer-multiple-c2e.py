@@ -2,39 +2,14 @@
 # Multiple C2E transfers
 import os
 from dataclasses import dataclass
-from functools import cached_property
-from time import sleep
-from typing import List
 
-from eth_account.signers.local import LocalAccount
-from eth_typing import BlockNumber, ChecksumAddress
-from pywaves import pw
-from units_network import common_utils
-from web3 import Web3
-from web3.exceptions import BlockNotFound
-from web3.types import Wei
-
+from eth_typing import ChecksumAddress
 from local.accounts import accounts
+from local.common import C2ETransfer
+from local.el import el_wait_for_withdraw
 from local.network import get_network
-
-
-@dataclass()
-class C2ETransfer:
-    el_account: LocalAccount
-    cl_account: pw.Address
-    raw_amount: float
-
-    @cached_property
-    def wei_amount(self) -> Wei:
-        return Web3.to_wei(self.raw_amount, "ether")
-
-    @cached_property
-    def waves_atomic_amount(self) -> int:
-        # Issued token has 8 decimals, we need to calculate amount in atomic units https://docs.waves.tech/en/blockchain/token/#atomic-unit
-        return int(float(self.raw_amount) * 10**8)
-
-    def __repr__(self) -> str:
-        return f"C2E(from={self.cl_account.address}, to={self.el_account.address}, {self.raw_amount} UNIT0)"
+from units_network import common_utils
+from web3.types import Wei
 
 
 @dataclass()
@@ -101,43 +76,7 @@ def main():
         )
         log.info(f"[C] #{i} Transfer result: {transfer_result}")
 
-    def el_wait_for_withdraw(
-        from_height: BlockNumber,
-        transfers: List[C2ETransfer],
-    ):
-        missing_transfers = len(transfers)
-        while True:
-            try:
-                curr_block = network.w3.eth.get_block(from_height)
-                assert "number" in curr_block and "hash" in curr_block
-
-                if curr_block:
-                    withdrawals = curr_block.get("withdrawals", [])
-                    log.info(
-                        f"[E] Found block #{curr_block['number']}: 0x{curr_block['hash'].hex()} with withdrawals: {Web3.to_json(withdrawals)}"  # type: ignore
-                    )
-                    for w in withdrawals:
-                        withdrawal_address = w["address"].lower()
-                        withdrawal_amount = Web3.to_wei(w["amount"], "gwei")
-                        for t in transfers:
-                            if (
-                                withdrawal_address == t.el_account.address.lower()
-                                and withdrawal_amount == t.wei_amount
-                            ):
-                                log.info(f"[E] Found transfer {t}: {w}")
-                                missing_transfers -= 1
-
-                    if missing_transfers <= 0:
-                        log.info("[E] Found all transfers")
-                        break
-
-                    from_height = BlockNumber(from_height + 1)
-            except BlockNotFound:
-                pass
-
-            sleep(2)
-
-    el_wait_for_withdraw(el_curr_height, transfers)
+    el_wait_for_withdraw(log, network.w3, el_curr_height, transfers)
 
     for el_address, x in expected_balances.items():
         balance_after = network.w3.eth.get_balance(el_address)

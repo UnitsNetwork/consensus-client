@@ -1,37 +1,15 @@
 #!/usr/bin/env python
 # Multiple E2C transfers
 import os
-from dataclasses import dataclass
-from functools import cached_property
 from typing import List, Tuple
 
-from eth_account.signers.local import LocalAccount
 from hexbytes import HexBytes
-from pywaves import pw
+from local.accounts import accounts
+from local.common import E2CTransfer
+from local.network import get_network
 from units_network import common_utils
 from web3 import Web3
-from web3.types import Nonce, TxReceipt, Wei
-
-from local.accounts import accounts
-from local.network import get_network
-
-
-@dataclass()
-class E2CTransfer:
-    el_account: LocalAccount
-    cl_account: pw.Address
-    raw_amount: float
-
-    @cached_property
-    def wei_amount(self) -> Wei:
-        return Web3.to_wei(self.raw_amount, "ether")
-
-    @cached_property
-    def waves_atomic_amount(self) -> int:
-        return int(float(self.raw_amount) * 10**8)
-
-    def __repr__(self) -> str:
-        return f"E2C(from={self.el_account.address}, to={self.cl_account.address}, {self.raw_amount} UNIT0)"
+from web3.types import Nonce, TxReceipt
 
 
 def main():
