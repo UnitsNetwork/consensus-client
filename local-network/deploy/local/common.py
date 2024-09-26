@@ -26,12 +26,28 @@ class BaseTransfer:
 
 @dataclass()
 class C2ETransfer(BaseTransfer):
+    @property
+    def from_account(self) -> pw.Address:
+        return self.cl_account
+
+    @property
+    def to_account(self) -> LocalAccount:
+        return self.el_account
+
     def __repr__(self) -> str:
         return f"C2E(from={self.cl_account.address}, to={self.el_account.address}, {self.raw_amount} UNIT0)"
 
 
 @dataclass()
 class E2CTransfer(BaseTransfer):
+    @property
+    def from_account(self) -> LocalAccount:
+        return self.el_account
+
+    @property
+    def to_account(self) -> pw.Address:
+        return self.cl_account
+
     def __repr__(self) -> str:
         return f"E2C(from={self.el_account.address}, to={self.cl_account.address}, {self.raw_amount} UNIT0)"
 

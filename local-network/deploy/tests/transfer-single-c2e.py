@@ -25,7 +25,7 @@ def main():
     )
     log.info(f"Sending {transfer}")
 
-    balance_before = network.w3.eth.get_balance(transfer.el_account.address)
+    balance_before = network.w3.eth.get_balance(transfer.to_account.address)
     log.info(f"[C] Balance before: {balance_before / 10**18} UNIT0")
 
     token = network.cl_chain_contract.getToken()
@@ -33,7 +33,7 @@ def main():
 
     el_curr_height = network.w3.eth.block_number
     transfer_result = network.cl_chain_contract.transfer(
-        transfer.cl_account, transfer.el_account, token, transfer.waves_atomic_amount
+        transfer.from_account, transfer.to_account, token, transfer.waves_atomic_amount
     )
     waves_txs.force_success(
         log, transfer_result, "Can not send the chain_contract.transfer transaction"
@@ -46,7 +46,7 @@ def main():
         el_curr_height,
         [transfer],
     )
-    balance_after = network.w3.eth.get_balance(transfer.el_account.address)
+    balance_after = network.w3.eth.get_balance(transfer.to_account.address)
     log.info(f"Balance after: {balance_after / 10**18} UNIT0")
 
     assert balance_after == Wei(balance_before + transfer.wei_amount)

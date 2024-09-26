@@ -29,9 +29,9 @@ def main():
 
     log.info("[E] Call Bridge sendNative")
     send_native_result = network.el_bridge.sendNative(
-        from_eth_account=transfer.el_account,
+        from_eth_account=transfer.from_account,
         to_waves_pk_hash=common_utils.waves_public_key_hash_bytes(
-            transfer.cl_account.address
+            transfer.to_account.address
         ),
         amount=transfer.wei_amount,
     )
@@ -54,11 +54,11 @@ def main():
     network.cl_chain_contract.waitForFinalized(withdraw_block_meta)
 
     cl_token_id = network.cl_chain_contract.getToken()
-    balance_before = transfer.cl_account.balance(cl_token_id.assetId)
+    balance_before = transfer.to_account.balance(cl_token_id.assetId)
     log.info(f"[C] Balance before: {balance_before}")
 
     withdraw_result = network.cl_chain_contract.withdraw(
-        transfer.cl_account,
+        transfer.to_account,
         transfer_params.block_with_transfer_hash.hex(),
         transfer_params.merkle_proofs,
         transfer_params.transfer_index_in_block,
@@ -69,7 +69,7 @@ def main():
     )
     log.info(f"[C] Withdraw result: {withdraw_result}")
 
-    balance_after = transfer.cl_account.balance(cl_token_id.assetId)
+    balance_after = transfer.to_account.balance(cl_token_id.assetId)
     log.info(f"[C] Balance after: {balance_after}")
 
     assert balance_after == (balance_before + transfer.waves_atomic_amount)

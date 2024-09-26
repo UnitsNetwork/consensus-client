@@ -47,21 +47,21 @@ def main():
 
     expected_balances: dict[ChecksumAddress, Wei] = {}
     for i, t in enumerate(transfers):
-        el_address = t.el_account.address
-        if el_address in expected_balances:
-            expected_balances[el_address] = Wei(
-                expected_balances[el_address] + t.wei_amount
+        to_address = t.to_account.address
+        if to_address in expected_balances:
+            expected_balances[to_address] = Wei(
+                expected_balances[to_address] + t.wei_amount
             )
         else:
-            balance_before = network.w3.eth.get_balance(el_address)
-            expected_balances[el_address] = Wei(balance_before + t.wei_amount)
+            balance_before = network.w3.eth.get_balance(to_address)
+            expected_balances[to_address] = Wei(balance_before + t.wei_amount)
             log.info(
-                f"[E] {el_address} balance before: {balance_before / 10**18} UNIT0"
+                f"[E] {to_address} balance before: {balance_before / 10**18} UNIT0"
             )
 
         log.info(f"[C] #{i} Call chain_contract.transfer for {t}")
         transfer_result = network.cl_chain_contract.transfer(
-            t.cl_account, t.el_account, token, t.waves_atomic_amount
+            t.from_account, t.to_account, token, t.waves_atomic_amount
         )
         waves_txs.force_success(
             log, transfer_result, "Can not send the chain_contract.transfer transaction"
@@ -70,9 +70,9 @@ def main():
 
     el_wait_for_withdraw(log, network.w3, el_curr_height, transfers)
 
-    for el_address, expected_balance in expected_balances.items():
-        balance_after = network.w3.eth.get_balance(el_address)
-        log.info(f"[E] {el_address} balance after: {balance_after / 10**18} UNIT0")
+    for to_address, expected_balance in expected_balances.items():
+        balance_after = network.w3.eth.get_balance(to_address)
+        log.info(f"[E] {to_address} balance after: {balance_after / 10**18} UNIT0")
 
         assert balance_after == expected_balance
 

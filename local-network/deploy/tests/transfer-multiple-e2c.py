@@ -49,16 +49,16 @@ def main():
     }
     for i, t in enumerate(transfers):
         log.info(f"[E] #{i} Call Bridge.sendNative for {t}")
-        nonce = nonces[t.el_account.address]
+        nonce = nonces[t.from_account.address]
         txn_hash = network.el_bridge.sendNative(
-            from_eth_account=t.el_account,
+            from_eth_account=t.from_account,
             to_waves_pk_hash=common_utils.waves_public_key_hash_bytes(
-                t.cl_account.address
+                t.to_account.address
             ),
             amount=t.wei_amount,
             nonce=nonce,
         )
-        nonces[t.el_account.address] = Nonce(nonce + 1)
+        nonces[t.from_account.address] = Nonce(nonce + 1)
         send_native_txn_hashes.append((t, txn_hash))
 
     cl_token_id = network.cl_chain_contract.getToken()
@@ -66,13 +66,13 @@ def main():
     expected_balances: dict[pw.Address, int] = {}
     withdraw_txn_ids: List[Tuple[E2CTransfer, str]] = []
     for i, (t, txn_hash) in enumerate(send_native_txn_hashes):
-        cl_account = t.cl_account
-        if cl_account in expected_balances:
-            expected_balances[cl_account] += t.waves_atomic_amount
+        to_account = t.to_account
+        if to_account in expected_balances:
+            expected_balances[to_account] += t.waves_atomic_amount
         else:
-            balance_before = t.cl_account.balance(cl_token_id.assetId)
-            expected_balances[cl_account] = balance_before + t.waves_atomic_amount
-            log.info(f"[C] {cl_account.address} balance before: {balance_before}")
+            balance_before = to_account.balance(cl_token_id.assetId)
+            expected_balances[to_account] = balance_before + t.waves_atomic_amount
+            log.info(f"[C] {to_account.address} balance before: {balance_before}")
 
         receipt: TxReceipt = network.w3.eth.wait_for_transaction_receipt(txn_hash)
         log.info(f"[E] #{i} Bridge.sendNative receipt: {Web3.to_json(receipt)}")  # type: ignore
@@ -92,7 +92,7 @@ def main():
         network.cl_chain_contract.waitForFinalized(withdraw_block_meta)
 
         withdraw_result = network.cl_chain_contract.withdraw(
-            t.cl_account,
+            t.to_account,
             transfer_params.block_with_transfer_hash.hex(),
             transfer_params.merkle_proofs,
             transfer_params.transfer_index_in_block,
@@ -110,9 +110,9 @@ def main():
         withdraw_result = waves_txs.wait_for_txn(txn_id)
         log.info(f"[C] #{i} Withdraw result: {withdraw_result}")
 
-    for cl_account, expected_balance in expected_balances.items():
-        balance_after = cl_account.balance(cl_token_id.assetId)
-        log.info(f"[C] {cl_account.address} balance after: {balance_after}")
+    for to_account, expected_balance in expected_balances.items():
+        balance_after = to_account.balance(cl_token_id.assetId)
+        log.info(f"[C] {to_account.address} balance after: {balance_after}")
 
         assert balance_after == expected_balance
 
