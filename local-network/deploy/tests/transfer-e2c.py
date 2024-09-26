@@ -2,12 +2,12 @@
 # One E2C transfer
 import os
 
+from local.accounts import accounts
+from local.common import E2CTransfer
+from local.network import get_network
 from units_network import common_utils
 from web3 import Web3
 from web3.types import TxReceipt
-
-from local.accounts import accounts
-from local.network import get_network
 
 
 def main():
@@ -17,22 +17,23 @@ def main():
 
     from local import waves_txs
 
-    cl_account = accounts.waves_miners[0].account
-    el_account = network.w3.eth.account.from_key(
-        "0xae6ae8e5ccbfb04590405997ee2d52d2b330726137b875053c36d94e974d162f"
+    transfer = E2CTransfer(
+        el_account=network.w3.eth.account.from_key(
+            "0xae6ae8e5ccbfb04590405997ee2d52d2b330726137b875053c36d94e974d162f"
+        ),
+        cl_account=accounts.waves_miners[0].account,
+        raw_amount=0.01,
     )
 
-    raw_amount = "0.01"
-    amount = Web3.to_wei(raw_amount, "ether")
-    log.info(
-        f"Sending {raw_amount} Unit0 ({amount} Wei) from {el_account.address} (E) to {cl_account.address} (C) using Bridge on {network.el_bridge.address} (E)"
-    )
+    log.info(f"Sending {transfer}")
 
     log.info("[E] Call Bridge sendNative")
     send_native_result = network.el_bridge.sendNative(
-        from_eth_account=el_account,
-        to_waves_pk_hash=common_utils.waves_public_key_hash_bytes(cl_account.address),
-        amount=amount,
+        from_eth_account=transfer.el_account,
+        to_waves_pk_hash=common_utils.waves_public_key_hash_bytes(
+            transfer.cl_account.address
+        ),
+        amount=transfer.wei_amount,
     )
 
     send_native_receipt: TxReceipt = network.w3.eth.wait_for_transaction_receipt(
@@ -53,25 +54,25 @@ def main():
     network.cl_chain_contract.waitForFinalized(withdraw_block_meta)
 
     cl_token_id = network.cl_chain_contract.getToken()
-    balance_before = cl_account.balance(cl_token_id.assetId)
+    balance_before = transfer.cl_account.balance(cl_token_id.assetId)
     log.info(f"[C] Balance before: {balance_before}")
 
     withdraw_result = network.cl_chain_contract.withdraw(
-        cl_account,
+        transfer.cl_account,
         transfer_params.block_with_transfer_hash.hex(),
         transfer_params.merkle_proofs,
         transfer_params.transfer_index_in_block,
-        amount,
+        transfer.wei_amount,
     )
     waves_txs.force_success(
         log, withdraw_result, "Can not send the chain_contract.withdraw transaction"
     )
     log.info(f"[C] Withdraw result: {withdraw_result}")
 
-    balance_after = cl_account.balance(cl_token_id.assetId)
+    balance_after = transfer.cl_account.balance(cl_token_id.assetId)
     log.info(f"[C] Balance after: {balance_after}")
 
-    assert balance_after == (balance_before + int(float(raw_amount) * 10**8))
+    assert balance_after == (balance_before + transfer.waves_atomic_amount)
     log.info("Done")
 
 
