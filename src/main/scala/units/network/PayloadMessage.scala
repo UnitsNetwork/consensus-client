@@ -2,7 +2,7 @@ package units.network
 
 import cats.syntax.either.*
 import com.google.common.primitives.Bytes
-import com.wavesplatform.account.PrivateKey
+import com.wavesplatform.account.{PrivateKey, PublicKey}
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.crypto
 import com.wavesplatform.crypto.SignatureLength
@@ -17,8 +17,11 @@ import scala.util.Try
 class PayloadMessage private (
     payloadJson: JsObject,
     val hash: BlockHash,
+    val feeRecipient: EthAddress,
     val signature: Option[ByteStr]
 ) {
+  lazy val jsonBytes: Array[Byte] = Json.toBytes(payloadJson)
+
   lazy val payloadInfo: Either[String, ExecutionPayloadInfo] = {
     (for {
       timestamp     <- (payloadJson \ "timestamp").asOpt[String].map(toLong).toRight("timestamp not defined")
@@ -54,22 +57,26 @@ class PayloadMessage private (
 
   def toBytes: Array[Byte] = {
     val signatureBytes = signature.map(sig => Bytes.concat(Array(1.toByte), sig.arr)).getOrElse(Array(0.toByte))
-    Bytes.concat(signatureBytes, Json.toBytes(payloadJson))
+    Bytes.concat(signatureBytes, jsonBytes)
   }
+
+  def isSignatureValid(pk: PublicKey): Boolean =
+    signature.exists(crypto.verify(_, jsonBytes, pk, checkWeakPk = true))
 }
 
 object PayloadMessage {
   def apply(payloadJson: JsObject): Either[String, PayloadMessage] =
     apply(payloadJson, None)
 
-  def apply(payloadJson: JsObject, hash: BlockHash, signature: Option[ByteStr]): PayloadMessage =
-    new PayloadMessage(payloadJson, hash, signature)
+  def apply(payloadJson: JsObject, hash: BlockHash, feeRecipient: EthAddress, signature: Option[ByteStr]): PayloadMessage =
+    new PayloadMessage(payloadJson, hash, feeRecipient, signature)
 
   def apply(payloadJson: JsObject, signature: Option[ByteStr]): Either[String, PayloadMessage] =
-    (payloadJson \ "blockHash")
-      .asOpt[BlockHash]
-      .toRight("Error creating payload message: block hash not defined")
-      .map(PayloadMessage(payloadJson, _, signature))
+    (for {
+      hash         <- (payloadJson \ "blockHash").asOpt[BlockHash].toRight("block hash not defined")
+      feeRecipient <- (payloadJson \ "feeRecipient").asOpt[EthAddress].toRight("fee recipient not defined")
+    } yield PayloadMessage(payloadJson, hash, feeRecipient, signature))
+      .leftMap(err => s"Error creating payload message: $err")
 
   def apply(payloadBytes: Array[Byte], signature: Option[ByteStr]): Either[String, PayloadMessage] = for {
     payload <- Try(Json.parse(payloadBytes).as[JsObject]).toEither.leftMap(err => s"Payload bytes are not a valid JSON object: ${err.getMessage}")

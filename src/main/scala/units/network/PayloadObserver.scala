@@ -1,12 +1,17 @@
 package units.network
 
-import units.network.PayloadObserverImpl.PayloadInfoWithChannel
-import com.wavesplatform.network.ChannelObservable
+import com.wavesplatform.account.PrivateKey
 import monix.execution.CancelableFuture
+import monix.reactive.Observable
+import play.api.libs.json.JsObject
 import units.{BlockHash, ExecutionPayloadInfo}
 
 trait PayloadObserver {
-  def getPayloadStream: ChannelObservable[ExecutionPayloadInfo]
+  def getPayloadStream: Observable[ExecutionPayloadInfo]
 
-  def loadPayload(req: BlockHash): CancelableFuture[PayloadInfoWithChannel]
+  def loadPayload(req: BlockHash): CancelableFuture[ExecutionPayloadInfo]
+
+  def broadcastSigned(payloadJson: JsObject, signer: PrivateKey): Either[String, PayloadMessage]
+
+  def broadcast(hash: BlockHash): Unit
 }

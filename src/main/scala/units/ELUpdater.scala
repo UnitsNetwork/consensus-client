@@ -9,7 +9,6 @@ import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.crypto
 import com.wavesplatform.lang.ValidationError
 import com.wavesplatform.lang.v1.compiler.Terms.FUNCTION_CALL
-import com.wavesplatform.network.ChannelGroupExt
 import com.wavesplatform.state.Blockchain
 import com.wavesplatform.state.diffs.FeeValidation.{FeeConstants, FeeUnit, ScriptExtraFee}
 import com.wavesplatform.state.diffs.TransactionDiffer.TransactionValidationError
@@ -21,7 +20,6 @@ import com.wavesplatform.utils.{EthEncoding, Time, UnsupportedFeature, forceStop
 import com.wavesplatform.utx.UtxPool
 import com.wavesplatform.wallet.Wallet
 import io.netty.channel.Channel
-import io.netty.channel.group.DefaultChannelGroup
 import monix.execution.cancelables.SerialCancelable
 import monix.execution.{CancelableFuture, Scheduler}
 import play.api.libs.json.*
@@ -34,7 +32,7 @@ import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.model.*
 import units.client.engine.model.Withdrawal.WithdrawalIndex
 import units.eth.{EmptyPayload, EthAddress, EthereumConstants}
-import units.network.PayloadMessage
+import units.network.PayloadObserver
 import units.network.PayloadObserverImpl.PayloadInfoWithChannel
 import units.util.HexBytesConverter
 import units.util.HexBytesConverter.toHexNoPrefix
@@ -47,11 +45,10 @@ class ELUpdater(
     engineApiClient: EngineApiClient,
     blockchain: Blockchain,
     utx: UtxPool,
-    allChannels: DefaultChannelGroup,
+    payloadObserver: PayloadObserver,
     config: ClientConfig,
     time: Time,
     wallet: Wallet,
-    requestPayloadFromPeers: BlockHash => CancelableFuture[PayloadInfoWithChannel],
     broadcastTx: Transaction => TracedResult[ValidationError, Boolean],
     scheduler: Scheduler,
     globalScheduler: Scheduler
@@ -67,7 +64,7 @@ class ELUpdater(
   def consensusLayerChanged(): Unit =
     handleNextUpdate := scheduler.scheduleOnce(ClChangedProcessingDelay)(handleConsensusLayerChanged())
 
-  def executionPayloadReceived(epi: ExecutionPayloadInfo, ch: Channel): Unit = scheduler.execute { () =>
+  def executionPayloadReceived(epi: ExecutionPayloadInfo): Unit = scheduler.execute { () =>
     val payload = epi.payload
     logger.debug(s"New block ${payload.hash}->${payload.parentHash} (timestamp=${payload.timestamp}, height=${payload.height}) appeared")
 
@@ -91,13 +88,13 @@ class ELUpdater(
           }
         case w @ Working(_, lastPayload, _, _, _, FollowingChain(nodeChainInfo, _), _, returnToMainChainInfo)
             if payload.parentHash == lastPayload.hash =>
-          validateAndApply(epi, ch, w, lastPayload, nodeChainInfo, returnToMainChainInfo)
+          validateAndApply(epi, w, lastPayload, nodeChainInfo, returnToMainChainInfo)
         case w: Working[ChainStatus] =>
           w.returnToMainChainInfo match {
             case Some(rInfo) if rInfo.missedBlock.hash == payload.hash =>
               chainContractClient.getChainInfo(rInfo.chainId) match {
                 case Some(chainInfo) if chainInfo.isMain =>
-                  validateAndApplyMissedBlock(epi, ch, w, rInfo.missedBlock, rInfo.missedBlockParentPayload, chainInfo)
+                  validateAndApplyMissedBlock(epi, w, rInfo.missedBlock, rInfo.missedBlockParentPayload, chainInfo)
                 case Some(_) =>
                   logger.debug(s"Chain ${rInfo.chainId} is not main anymore, ignoring ${payload.hash}")
                 case _ =>
@@ -233,11 +230,7 @@ class ELUpdater(
               latestValidHashOpt <- engineApiClient.applyNewPayload(payloadJson)
               latestValidHash    <- Either.fromOption(latestValidHashOpt, ClientError("Latest valid hash not defined"))
               _ = logger.info(s"Applied payload $payloadId, block hash is $latestValidHash, timestamp = $timestamp")
-              newPm <- PayloadMessage.signed(payloadJson, m.keyPair.privateKey).leftMap(ClientError.apply)
-              _ = logger.debug(s"Broadcasting block ${newPm.hash} payload")
-              _ <- Try(allChannels.broadcast(newPm)).toEither.leftMap(err =>
-                ClientError(s"Failed to broadcast block ${newPm.hash} payload: ${err.toString}")
-              )
+              newPm       <- payloadObserver.broadcastSigned(payloadJson, m.keyPair.privateKey).leftMap(ClientError.apply)
               payloadInfo <- newPm.payloadInfo.leftMap(ClientError.apply)
               payload = payloadInfo.payload
               transfersRootHash <- getE2CTransfersRootHash(payload.hash, chainContractOptions.elBridgeAddress)
@@ -785,10 +778,12 @@ class ELUpdater(
   }
 
   private def requestAndProcessPayload(hash: BlockHash): CancelableFuture[(Channel, ExecutionPayloadInfo)] = {
-    requestPayloadFromPeers(hash).andThen {
-      case Success((ch, epi)) => executionPayloadReceived(epi, ch)
-      case Failure(exception) => logger.error(s"Error loading block $hash payload", exception)
-    }(globalScheduler)
+    payloadObserver
+      .loadPayload(hash)
+      .andThen {
+        case Success((ch, epi)) => executionPayloadReceived(epi)
+        case Failure(exception) => logger.error(s"Error loading block $hash payload", exception)
+      }(globalScheduler)
   }
 
   private def updateToFollowChain(
@@ -1023,7 +1018,6 @@ class ELUpdater(
 
   private def validateAndApplyMissedBlock(
       epi: ExecutionPayloadInfo,
-      ch: Channel,
       prevState: Working[ChainStatus],
       contractBlock: ContractBlock,
       parentPayload: ExecutionPayload,
@@ -1033,7 +1027,7 @@ class ELUpdater(
     validateBlockFull(epi, contractBlock, parentPayload, prevState) match {
       case Right(updatedState) =>
         logger.debug(s"Missed block ${payload.hash} of main chain ${nodeChainInfo.id} was successfully validated")
-        broadcastAndConfirmBlock(epi, ch, updatedState, nodeChainInfo, None)
+        broadcastAndConfirmBlock(epi, updatedState, nodeChainInfo, None)
       case Left(err) =>
         logger.debug(s"Missed block ${payload.hash} of main chain ${nodeChainInfo.id} validation error: ${err.message}, ignoring block")
     }
@@ -1041,7 +1035,6 @@ class ELUpdater(
 
   private def validateAndApply(
       epi: ExecutionPayloadInfo,
-      ch: Channel,
       prevState: Working[ChainStatus],
       parentPayload: ExecutionPayload,
       nodeChainInfo: ChainInfo,
@@ -1054,7 +1047,7 @@ class ELUpdater(
         validateBlockFull(epi, contractBlock, parentPayload, prevState) match {
           case Right(updatedState) =>
             logger.debug(s"Block ${payload.hash} was successfully validated")
-            broadcastAndConfirmBlock(epi, ch, updatedState, nodeChainInfo, returnToMainChainInfo)
+            broadcastAndConfirmBlock(epi, updatedState, nodeChainInfo, returnToMainChainInfo)
           case Left(err) =>
             logger.debug(s"Block ${payload.hash} validation error: ${err.message}")
             processInvalidBlock(contractBlock, prevState, Some(nodeChainInfo))
@@ -1066,7 +1059,7 @@ class ELUpdater(
         preValidateBlock(epi, parentPayload, epochInfo) match {
           case Right(_) =>
             logger.debug(s"Block ${payload.hash} was successfully partially validated")
-            broadcastAndConfirmBlock(epi, ch, prevState, nodeChainInfo, returnToMainChainInfo)
+            broadcastAndConfirmBlock(epi, prevState, nodeChainInfo, returnToMainChainInfo)
           case Left(err) =>
             logger.error(s"Block ${payload.hash} prevalidation error: ${err.message}, ignoring block")
         }
@@ -1102,21 +1095,12 @@ class ELUpdater(
 
   private def broadcastAndConfirmBlock(
       epi: ExecutionPayloadInfo,
-      ch: Channel,
       prevState: Working[ChainStatus],
       nodeChainInfo: ChainInfo,
       returnToMainChainInfo: Option[ReturnToMainChainInfo]
   ): Unit = {
-    val payload = epi.payload
-
-    (for {
-      pm <- PayloadMessage(epi.payloadJson, epi.signature)
-      _  <- Try(allChannels.broadcast(pm, Some(ch))).toEither.leftMap(_.getMessage)
-    } yield ()).recover { err =>
-      logger.error(s"Failed to broadcast block ${payload.hash} payload: $err")
-    }
-
-    confirmBlockAndFollowChain(payload, prevState, nodeChainInfo, returnToMainChainInfo)
+    payloadObserver.broadcast(epi.payload.hash)
+    confirmBlockAndFollowChain(epi.payload, prevState, nodeChainInfo, returnToMainChainInfo)
   }
 
   private def findBlockChild(parent: BlockHash, lastBlockHash: BlockHash): Either[String, ContractBlock] = {

@@ -28,7 +28,6 @@ class ConsensusClient(
     context: ExtensionContext,
     engineApiClient: EngineApiClient,
     payloadObserver: PayloadObserver,
-    allChannels: DefaultChannelGroup,
     globalScheduler: Scheduler,
     eluScheduler: Scheduler,
     ownedResources: AutoCloseable
@@ -41,7 +40,6 @@ class ConsensusClient(
       context,
       deps.engineApiClient,
       deps.payloadObserver,
-      deps.allChannels,
       deps.globalScheduler,
       deps.eluScheduler,
       deps
@@ -54,18 +52,17 @@ class ConsensusClient(
       engineApiClient,
       context.blockchain,
       context.utx,
-      allChannels,
+      payloadObserver,
       config,
       context.time,
       context.wallet,
-      payloadObserver.loadPayload,
       context.broadcastTransaction,
       eluScheduler,
       globalScheduler
     )
 
   private val payloadsStreamCancelable: CancelableFuture[Unit] =
-    payloadObserver.getPayloadStream.foreach { case (ch, ep) => elu.executionPayloadReceived(ep, ch) }(globalScheduler)
+    payloadObserver.getPayloadStream.foreach(elu.executionPayloadReceived)(globalScheduler)
 
   override def start(): Unit = {}
 

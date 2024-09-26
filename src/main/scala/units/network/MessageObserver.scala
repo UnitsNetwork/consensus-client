@@ -12,15 +12,11 @@ class MessageObserver extends ChannelInboundHandlerAdapter with ScorexLogging {
 
   private implicit val scheduler: SchedulerService = Schedulers.fixedPool(2, "message-observer-l2")
 
-  val payloads: Subject[(Channel, ExecutionPayloadInfo), (Channel, ExecutionPayloadInfo)] = ConcurrentSubject.publish[(Channel, ExecutionPayloadInfo)]
+  val payloads: Subject[PayloadMessageWithChannel, PayloadMessageWithChannel] = ConcurrentSubject.publish[PayloadMessageWithChannel]
 
   override def channelRead(ctx: ChannelHandlerContext, msg: AnyRef): Unit = msg match {
-    case pm: PayloadMessage =>
-      pm.payloadInfo match {
-        case Right(epi) => payloads.onNext((ctx.channel(), epi))
-        case Left(err)  => log.warn(err)
-      }
-    case _ => super.channelRead(ctx, msg)
+    case pm: PayloadMessage => payloads.onNext(PayloadMessageWithChannel(pm, ctx.channel()))
+    case _                  => super.channelRead(ctx, msg)
   }
 
   def shutdown(): Unit = {
