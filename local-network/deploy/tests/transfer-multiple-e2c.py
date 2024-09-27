@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 import os
+from decimal import Decimal
 from typing import List, Tuple
 
 from hexbytes import HexBytes
 from pywaves import pw
-from units_network import common_utils, waves
+from units_network import common_utils, units, waves
 from web3 import Web3
 from web3.types import Nonce, TxReceipt
 
@@ -20,23 +21,23 @@ def main():
         E2CTransfer(
             el_account=network.el_rich_accounts[0],
             cl_account=network.cl_rich_accounts[0],
-            raw_amount=0.01,
+            raw_amount=Decimal("0.01"),
         ),
         E2CTransfer(
-            el_account=network.el_rich_accounts[0],
+            el_account=network.el_rich_accounts[1],
             cl_account=network.cl_rich_accounts[0],
-            raw_amount=0.02,
+            raw_amount=Decimal("0.02"),
         ),
         # Same as first
         E2CTransfer(
             el_account=network.el_rich_accounts[0],
-            cl_account=network.cl_rich_accounts[1],
-            raw_amount=0.01,
+            cl_account=network.cl_rich_accounts[0],
+            raw_amount=Decimal("0.01"),
         ),
         E2CTransfer(
             el_account=network.el_rich_accounts[1],
             cl_account=network.cl_rich_accounts[1],
-            raw_amount=0.03,
+            raw_amount=Decimal("0.03"),
         ),
     ]
 
@@ -70,7 +71,9 @@ def main():
         else:
             balance_before = to_account.balance(cl_token_id.assetId)
             expected_balances[to_account] = balance_before + t.waves_atomic_amount
-            log.info(f"[C] {to_account.address} balance before: {balance_before}")
+            log.info(
+                f"[C] {to_account.address} balance before: {units.waves_atomic_to_raw(balance_before)}"
+            )
 
         receipt: TxReceipt = network.w3.eth.wait_for_transaction_receipt(txn_hash)
         log.info(f"[E] #{i} Bridge.sendNative receipt: {Web3.to_json(receipt)}")  # type: ignore
@@ -110,7 +113,10 @@ def main():
 
     for to_account, expected_balance in expected_balances.items():
         balance_after = to_account.balance(cl_token_id.assetId)
-        log.info(f"[C] {to_account.address} balance after: {balance_after}")
+
+        log.info(
+            f"[C] {to_account.address} balance after: {units.waves_atomic_to_raw(balance_after)}"
+        )
 
         assert balance_after == expected_balance
 

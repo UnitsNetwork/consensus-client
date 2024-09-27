@@ -1,10 +1,10 @@
 import os
 from dataclasses import dataclass
+from decimal import Decimal
 from functools import cached_property
 
 from eth_account.signers.local import LocalAccount
 from pywaves import pw
-
 from units_network import units
 from units_network.chain_contract import common_utils
 from web3.types import Wei
@@ -14,15 +14,15 @@ from web3.types import Wei
 class BaseTransfer:
     el_account: LocalAccount
     cl_account: pw.Address
-    raw_amount: float
+    raw_amount: Decimal
 
     @cached_property
     def wei_amount(self) -> Wei:
-        return units.raw_to_wei_amount(self.raw_amount)
+        return units.raw_to_wei(self.raw_amount)
 
     @cached_property
     def waves_atomic_amount(self) -> int:
-        return units.raw_to_waves_atomic_amount(self.raw_amount)
+        return units.raw_to_waves_atomic(self.raw_amount)
 
 
 @dataclass()

@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 import os
+from decimal import Decimal
 
 from eth_typing import ChecksumAddress
-from units_network import waves
+from units_network import units, waves
 from web3.types import Wei
 
 from local.common import C2ETransfer, configure_script_logger
@@ -17,23 +18,23 @@ def main():
         C2ETransfer(
             cl_account=network.cl_rich_accounts[0],
             el_account=network.el_rich_accounts[0],
-            raw_amount=0.01,
+            raw_amount=Decimal("0.01"),
         ),
         C2ETransfer(
             cl_account=network.cl_rich_accounts[0],
-            el_account=network.el_rich_accounts[0],
-            raw_amount=0.02,
+            el_account=network.el_rich_accounts[1],
+            raw_amount=Decimal("0.02"),
         ),
         # Same as first
         C2ETransfer(
-            cl_account=network.cl_rich_accounts[1],
+            cl_account=network.cl_rich_accounts[0],
             el_account=network.el_rich_accounts[0],
-            raw_amount=0.01,
+            raw_amount=Decimal("0.01"),
         ),
         C2ETransfer(
             cl_account=network.cl_rich_accounts[1],
             el_account=network.el_rich_accounts[1],
-            raw_amount=0.03,
+            raw_amount=Decimal("0.03"),
         ),
     ]
 
@@ -52,7 +53,7 @@ def main():
             balance_before = network.w3.eth.get_balance(to_address)
             expected_balances[to_address] = Wei(balance_before + t.wei_amount)
             log.info(
-                f"[E] {to_address} balance before: {balance_before / 10**18} UNIT0"
+                f"[E] {to_address} balance before: {units.wei_to_raw(balance_before)} UNIT0"
             )
 
         log.info(f"[C] #{i} Call ChainContract.transfer for {t}")
@@ -70,7 +71,9 @@ def main():
 
     for to_address, expected_balance in expected_balances.items():
         balance_after = network.w3.eth.get_balance(to_address)
-        log.info(f"[E] {to_address} balance after: {balance_after / 10**18} UNIT0")
+        log.info(
+            f"[E] {to_address} balance after: {units.wei_to_raw(balance_after)} UNIT0"
+        )
 
         assert balance_after == expected_balance
 

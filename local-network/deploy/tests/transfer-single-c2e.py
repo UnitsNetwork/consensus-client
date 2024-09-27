@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 import os
+from decimal import Decimal
 
-from units_network import waves
+from units_network import units, waves
 from web3.types import Wei
 
 from local.common import C2ETransfer, configure_script_logger
@@ -15,12 +16,14 @@ def main():
     transfer = C2ETransfer(
         cl_account=network.cl_rich_accounts[0],
         el_account=network.el_rich_accounts[0],
-        raw_amount=0.01,
+        raw_amount=Decimal("0.01"),
     )
     log.info(f"Sending {transfer}")
 
     balance_before = network.w3.eth.get_balance(transfer.to_account.address)
-    log.info(f"[C] Balance before: {balance_before / 10**18} UNIT0")
+    log.info(
+        f"[E] {transfer.to_account.address} balance before: {units.wei_to_raw(balance_before)} UNIT0"
+    )
 
     token = network.cl_chain_contract.getToken()
     log.info(f"[C] Token id: {token.assetId}")
@@ -42,7 +45,9 @@ def main():
         [(transfer.to_account, transfer.wei_amount)],
     )
     balance_after = network.w3.eth.get_balance(transfer.to_account.address)
-    log.info(f"Balance after: {balance_after / 10**18} UNIT0")
+    log.info(
+        f"[E] {transfer.to_account.address} balance after: {units.wei_to_raw(balance_after)} UNIT0, Δ {units.wei_to_raw(Wei(balance_after - balance_before))} UNIT0"
+    )
 
     assert balance_after == Wei(balance_before + transfer.wei_amount)
     log.info("Done")
