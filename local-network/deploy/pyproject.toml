@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=75.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "local"
+version = "0.1"
+description = "Scripts and tests for a locally deployed Unit network"
+dependencies = [
+  "solc-select",
+  "units-network @ git+https://github.com/UnitsNetwork/examples.git@python",
+]
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT License" }
+keywords = ["units network", "blockchain", "waves"]
+
+[project.urls]
+Homepage = "https://github.com/UnitsNetwork/consensus-client"
+
+[tool.setuptools.packages.find]
+where = ["."]

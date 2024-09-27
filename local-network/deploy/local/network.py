@@ -20,7 +20,7 @@ local_net = NetworkSettings(
     chain_id_str="D",
     cl_node_api_url=get_waves_api_url(1),
     el_node_api_url=get_ec_api_url(1),
-    chain_contract_address="3FdaanzgX4roVgHevhq8L8q42E7EZL9XTQr",  # TODO: do it after pw.setNode accounts.chain_contract.address,
+    chain_contract_address="3FdaanzgX4roVgHevhq8L8q42E7EZL9XTQr",
 )
 
 

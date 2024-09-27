@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /usr/src/app
 
 COPY local/__init__.py ./local/
-COPY setup.py ./
+COPY pyproject.toml ./
 
 RUN pip install --no-cache-dir --editable .
 
