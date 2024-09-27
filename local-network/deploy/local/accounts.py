@@ -2,28 +2,18 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import List
 
-import requests
 from eth_account.signers.local import LocalAccount
 from pywaves import pw
+from units_network.chain_contract import HexStr
+from units_network.extended_address import ExtendedAddress
 from units_network.networks import Network
 from web3 import Account
-
-
-class ExtendedAddress(pw.Address):
-    def scriptInfo(self):
-        url = f"{self.pywaves.NODE}/addresses/scriptInfo/{self.address}"
-        response = requests.get(url)
-
-        if response.status_code == 200:
-            return response.json()
-        else:
-            raise Exception(f"Error: {response.status_code}, {response.text}")
 
 
 @dataclass
 class Miner:
     account: pw.Address
-    el_reward_address_hex: str
+    el_reward_address_hex: HexStr
 
 
 class Accounts(object):
@@ -46,14 +36,18 @@ class Accounts(object):
                     seed="devnet-1",
                     nonce=0,
                 ),
-                el_reward_address_hex="0x7dbcf9c6c3583b76669100f9be3caf6d722bc9f9",
+                el_reward_address_hex=HexStr(
+                    "0x7dbcf9c6c3583b76669100f9be3caf6d722bc9f9"
+                ),
             ),
             Miner(
                 account=pw.Address(
                     seed="devnet-2",
                     nonce=0,
                 ),
-                el_reward_address_hex="0xcf0b9e13fdd593f4ca26d36afcaa44dd3fdccbed",
+                el_reward_address_hex=HexStr(
+                    "0xcf0b9e13fdd593f4ca26d36afcaa44dd3fdccbed"
+                ),
             ),
         ]
 

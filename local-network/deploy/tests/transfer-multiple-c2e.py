@@ -1,13 +1,12 @@
 #!/usr/bin/env python
-# Multiple C2E transfers
 import os
 
 from eth_typing import ChecksumAddress
-from local import waves_txs
-from local.common import C2ETransfer, configure_script_logger
-from local.el import el_wait_for_withdraw
-from local.network import get_local
+from units_network import waves
 from web3.types import Wei
+
+from local.common import C2ETransfer, configure_script_logger
+from local.network import get_local
 
 
 def main():
@@ -56,16 +55,18 @@ def main():
                 f"[E] {to_address} balance before: {balance_before / 10**18} UNIT0"
             )
 
-        log.info(f"[C] #{i} Call chain_contract.transfer for {t}")
+        log.info(f"[C] #{i} Call ChainContract.transfer for {t}")
         transfer_result = network.cl_chain_contract.transfer(
             t.from_account, t.to_account.address, token, t.waves_atomic_amount
         )
-        waves_txs.force_success(
+        waves.force_success(
             log, transfer_result, "Can not send the chain_contract.transfer transaction"
         )
-        log.info(f"[C] #{i} Transfer result: {transfer_result}")
+        log.info(f"[C] #{i} ChainContract.transfer result: {transfer_result}")
 
-    el_wait_for_withdraw(log, network.w3, el_curr_height, transfers)
+    network.el_bridge.waitForWithdrawals(
+        el_curr_height, [(t.to_account, t.wei_amount) for t in transfers]
+    )
 
     for to_address, expected_balance in expected_balances.items():
         balance_after = network.w3.eth.get_balance(to_address)

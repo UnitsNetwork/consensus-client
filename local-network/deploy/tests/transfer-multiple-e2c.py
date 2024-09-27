@@ -1,16 +1,15 @@
 #!/usr/bin/env python
-# Multiple E2C transfers
 import os
 from typing import List, Tuple
 
 from hexbytes import HexBytes
-from local import waves_txs
-from local.common import E2CTransfer, configure_script_logger
-from local.network import get_local
 from pywaves import pw
-from units_network import common_utils
+from units_network import common_utils, waves
 from web3 import Web3
 from web3.types import Nonce, TxReceipt
+
+from local.common import E2CTransfer, configure_script_logger
+from local.network import get_local
 
 
 def main():
@@ -86,7 +85,7 @@ def main():
             transfer_params.block_with_transfer_hash.hex()
         )
         log.info(
-            f"[C] #{i} Withdraw block meta: {withdraw_block_meta}, wait for finalization"
+            f"[C] #{i} ChainContract.withdraw block meta: {withdraw_block_meta}, wait for finalization"
         )
         network.cl_chain_contract.waitForFinalized(withdraw_block_meta)
 
@@ -97,17 +96,17 @@ def main():
             transfer_params.transfer_index_in_block,
             t.wei_amount,
         )
-        waves_txs.force_success(
+        waves.force_success(
             log,
             withdraw_result,
-            "Can not send the chain_contract.withdraw transaction",
+            "Can not send the ChainContract.Withdraw transaction",
             wait=False,
         )
         withdraw_txn_ids.append((t, withdraw_result["id"]))  # type: ignore
 
     for i, (t, txn_id) in enumerate(withdraw_txn_ids):
-        withdraw_result = waves_txs.wait_for_txn(txn_id)
-        log.info(f"[C] #{i} Withdraw result: {withdraw_result}")
+        withdraw_result = waves.wait_for(txn_id)
+        log.info(f"[C] #{i} ChainContract.withdraw result: {withdraw_result}")
 
     for to_account, expected_balance in expected_balances.items():
         balance_after = to_account.balance(cl_token_id.assetId)

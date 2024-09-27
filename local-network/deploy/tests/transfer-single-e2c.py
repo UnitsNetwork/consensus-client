@@ -1,13 +1,12 @@
 #!/usr/bin/env python
-# One E2C transfer
 import os
 
-from local import waves_txs
-from local.common import E2CTransfer, configure_script_logger
-from local.network import get_local
-from units_network import common_utils
+from units_network import common_utils, waves
 from web3 import Web3
 from web3.types import TxReceipt
+
+from local.common import E2CTransfer, configure_script_logger
+from local.network import get_local
 
 
 def main():
@@ -22,7 +21,7 @@ def main():
 
     log.info(f"Sending {transfer}")
 
-    log.info("[E] Call Bridge sendNative")
+    log.info("[E] Call Bridge.sendNative")
     send_native_result = network.el_bridge.sendNative(
         from_eth_account=transfer.from_account,
         to_waves_pk_hash=common_utils.waves_public_key_hash_bytes(
@@ -34,7 +33,7 @@ def main():
     send_native_receipt: TxReceipt = network.w3.eth.wait_for_transaction_receipt(
         send_native_result
     )
-    log.info(f"[E] sendNative receipt: {Web3.to_json(send_native_receipt)}")  # type: ignore
+    log.info(f"[E] Bridge.sendNative receipt: {Web3.to_json(send_native_receipt)}")  # type: ignore
 
     transfer_params = network.el_bridge.getTransferParams(
         send_native_receipt["blockHash"], send_native_receipt["transactionHash"]
@@ -45,7 +44,9 @@ def main():
     withdraw_block_meta = network.cl_chain_contract.waitForBlock(
         transfer_params.block_with_transfer_hash.hex()
     )
-    log.info(f"[C] Withdraw block meta: {withdraw_block_meta}, wait for finalization")
+    log.info(
+        f"[C] ChainContract.withdraw block meta: {withdraw_block_meta}, wait for finalization"
+    )
     network.cl_chain_contract.waitForFinalized(withdraw_block_meta)
 
     cl_token_id = network.cl_chain_contract.getToken()
@@ -59,10 +60,10 @@ def main():
         transfer_params.transfer_index_in_block,
         transfer.wei_amount,
     )
-    waves_txs.force_success(
+    waves.force_success(
         log, withdraw_result, "Can not send the chain_contract.withdraw transaction"
     )
-    log.info(f"[C] Withdraw result: {withdraw_result}")
+    log.info(f"[C] ChainContract.withdraw result: {withdraw_result}")
 
     balance_after = transfer.to_account.balance(cl_token_id.assetId)
     log.info(f"[C] Balance after: {balance_after}")

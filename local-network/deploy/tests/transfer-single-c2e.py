@@ -1,12 +1,11 @@
 #!/usr/bin/env python
-# One C2E transfer
 import os
 
-from local import waves_txs
-from local.common import C2ETransfer, configure_script_logger
-from local.el import el_wait_for_withdraw
-from local.network import get_local
+from units_network import waves
 from web3.types import Wei
+
+from local.common import C2ETransfer, configure_script_logger
+from local.network import get_local
 
 
 def main():
@@ -33,16 +32,14 @@ def main():
         token,
         transfer.waves_atomic_amount,
     )
-    waves_txs.force_success(
+    waves.force_success(
         log, transfer_result, "Can not send the chain_contract.transfer transaction"
     )
-    log.info(f"[C] Transfer result: {transfer_result}")
+    log.info(f"[C] ChainContract.transfer result: {transfer_result}")
 
-    el_wait_for_withdraw(
-        log,
-        network.w3,
+    network.el_bridge.waitForWithdrawals(
         el_curr_height,
-        [transfer],
+        [(transfer.to_account, transfer.wei_amount)],
     )
     balance_after = network.w3.eth.get_balance(transfer.to_account.address)
     log.info(f"Balance after: {balance_after / 10**18} UNIT0")
