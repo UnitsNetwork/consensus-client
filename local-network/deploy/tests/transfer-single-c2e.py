@@ -14,10 +14,8 @@ def main():
     (network, accounts) = get_local()
 
     transfer = C2ETransfer(
-        cl_account=accounts.waves_miners[0].account,
-        el_account=network.w3.eth.account.from_key(
-            "0x6f077b245cb0e1ec59796366ebd3a254e604cf5686b64b7878ae730eb9ad9570"
-        ),
+        cl_account=accounts.cl_rich_accounts[0],
+        el_account=accounts.el_rich_accounts[0],
         raw_amount=0.01,
     )
     log.info(f"Sending {transfer}")

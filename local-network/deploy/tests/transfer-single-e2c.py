@@ -15,10 +15,8 @@ def main():
     (network, accounts) = get_local()
 
     transfer = E2CTransfer(
-        el_account=network.w3.eth.account.from_key(
-            "0xae6ae8e5ccbfb04590405997ee2d52d2b330726137b875053c36d94e974d162f"
-        ),
-        cl_account=accounts.waves_miners[0].account,
+        el_account=accounts.el_rich_accounts[0],
+        cl_account=accounts.cl_rich_accounts[0],
         raw_amount=0.01,
     )
 
