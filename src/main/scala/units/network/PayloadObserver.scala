@@ -1,9 +1,10 @@
 package units.network
 
-import com.wavesplatform.account.PrivateKey
+import com.wavesplatform.account.{PrivateKey, PublicKey}
 import monix.execution.CancelableFuture
 import monix.reactive.Observable
 import play.api.libs.json.JsObject
+import units.eth.EthAddress
 import units.{BlockHash, ExecutionPayloadInfo}
 
 trait PayloadObserver {
@@ -14,4 +15,6 @@ trait PayloadObserver {
   def broadcastSigned(payloadJson: JsObject, signer: PrivateKey): Either[String, PayloadMessage]
 
   def broadcast(hash: BlockHash): Unit
+
+  def updateMinerPublicKeys(newKeys: Map[EthAddress, PublicKey]): Unit
 }

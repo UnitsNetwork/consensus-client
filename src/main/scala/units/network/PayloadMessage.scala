@@ -49,8 +49,7 @@ class PayloadMessage private (
           prevRandao,
           withdrawals
         ),
-        payloadJson,
-        signature
+        payloadJson
       )
     }).leftMap(err => s"Error creating payload info for block $hash: $err")
   }

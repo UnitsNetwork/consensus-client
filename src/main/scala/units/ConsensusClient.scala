@@ -16,6 +16,7 @@ import net.ceedubs.ficus.Ficus.*
 import org.slf4j.LoggerFactory
 import sttp.client3.HttpClientSyncBackend
 import units.client.JwtAuthenticationBackend
+import units.client.contract.{ChainContractClient, ChainContractStateClient}
 import units.client.engine.{EngineApiClient, HttpEngineApiClient, LoggedEngineApiClient}
 import units.network.*
 
@@ -27,6 +28,7 @@ class ConsensusClient(
     config: ClientConfig,
     context: ExtensionContext,
     engineApiClient: EngineApiClient,
+    chainContractClient: ChainContractClient,
     payloadObserver: PayloadObserver,
     globalScheduler: Scheduler,
     eluScheduler: Scheduler,
@@ -39,6 +41,7 @@ class ConsensusClient(
       deps.config,
       context,
       deps.engineApiClient,
+      deps.chainContractClient,
       deps.payloadObserver,
       deps.globalScheduler,
       deps.eluScheduler,
@@ -50,6 +53,7 @@ class ConsensusClient(
   private[units] val elu =
     new ELUpdater(
       engineApiClient,
+      chainContractClient,
       context.blockchain,
       context.utx,
       payloadObserver,
@@ -115,6 +119,9 @@ class ConsensusClientDependencies(context: ExtensionContext) extends AutoCloseab
 
   val engineApiClient = new LoggedEngineApiClient(new HttpEngineApiClient(config, maybeAuthenticatedBackend))
 
+  private val contractAddress = config.chainContractAddress
+  val chainContractClient     = new ChainContractStateClient(contractAddress, context.blockchain)
+
   val allChannels     = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE)
   val peerDatabase    = new PeerDatabaseImpl(config.network)
   val messageObserver = new MessageObserver()
@@ -127,7 +134,10 @@ class ConsensusClientDependencies(context: ExtensionContext) extends AutoCloseab
     new ConcurrentHashMap[Channel, PeerInfo]
   )
 
-  val payloadObserver = new PayloadObserverImpl(allChannels, messageObserver.payloads, config.blockSyncRequestTimeout)(payloadObserverScheduler)
+  val payloadObserver =
+    new PayloadObserverImpl(allChannels, messageObserver.payloads, chainContractClient.getMinersPks, config.blockSyncRequestTimeout)(
+      payloadObserverScheduler
+    )
 
   override def close(): Unit = {
     log.info("Closing HTTP/Engine API")

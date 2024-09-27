@@ -54,6 +54,10 @@ trait ChainContractClient {
         case BinaryDataEntry(_, v) => EthAddress.unsafeFrom(v.arr)
       }
 
+  def getPublicKey(rewardAddress: EthAddress): Option[PublicKey] = {
+    getBinaryData(s"miner_${rewardAddress}_PK").map(PublicKey(_))
+  }
+
   def getBlock(hash: BlockHash): Option[ContractBlock] =
     getBinaryData(s"block_$hash").orElse(getBinaryData(s"blockMeta${clean(hash)}")).map { blockMeta =>
       val bb = ByteBuffer.wrap(blockMeta.arr)
@@ -211,6 +215,15 @@ trait ChainContractClient {
 
   def getNativeTransfers(fromIndex: Long, maxItems: Long): Vector[ContractTransfer] =
     (fromIndex until math.min(fromIndex + maxItems, getNativeTransfersCount)).map(requireNativeTransfer).toVector
+
+  def getMinersPks: Map[EthAddress, PublicKey] = {
+    getAllActualMiners.flatMap { addr =>
+      for {
+        rewardAddress <- getElRewardAddress(addr)
+        publicKey     <- getPublicKey(rewardAddress)
+      } yield rewardAddress -> publicKey
+    }.toMap
+  }
 
   private def getNativeTransfersCount: Long = getLongData("nativeTransfersCount").getOrElse(0L)
 

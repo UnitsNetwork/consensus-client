@@ -19,10 +19,8 @@ import com.wavesplatform.transaction.{Asset, Proofs, Transaction, TransactionSig
 import com.wavesplatform.utils.{EthEncoding, Time, UnsupportedFeature, forceStopApplication}
 import com.wavesplatform.utx.UtxPool
 import com.wavesplatform.wallet.Wallet
-import io.netty.channel.Channel
 import monix.execution.cancelables.SerialCancelable
 import monix.execution.{CancelableFuture, Scheduler}
-import play.api.libs.json.*
 import units.ELUpdater.State.*
 import units.ELUpdater.State.ChainStatus.{FollowingChain, Mining, WaitForNewChain}
 import units.client.CommonBlockData
@@ -33,7 +31,6 @@ import units.client.engine.model.*
 import units.client.engine.model.Withdrawal.WithdrawalIndex
 import units.eth.{EmptyPayload, EthAddress, EthereumConstants}
 import units.network.PayloadObserver
-import units.network.PayloadObserverImpl.PayloadInfoWithChannel
 import units.util.HexBytesConverter
 import units.util.HexBytesConverter.toHexNoPrefix
 
@@ -43,6 +40,7 @@ import scala.util.*
 
 class ELUpdater(
     engineApiClient: EngineApiClient,
+    chainContractClient: ChainContractClient,
     blockchain: Blockchain,
     utx: UtxPool,
     payloadObserver: PayloadObserver,
@@ -55,9 +53,7 @@ class ELUpdater(
 ) extends StrictLogging {
   import ELUpdater.*
 
-  private val handleNextUpdate    = SerialCancelable()
-  private val contractAddress     = config.chainContractAddress
-  private val chainContractClient = new ChainContractStateClient(contractAddress, blockchain)
+  private val handleNextUpdate = SerialCancelable()
 
   private[units] var state: State = Starting
 
@@ -152,7 +148,7 @@ class ELUpdater(
     // Removing here, because we have these transactions in PP after the onProcessBlock trigger
     utx.getPriorityPool.foreach { pp =>
       val staleTxs = pp.priorityTransactions.filter {
-        case tx: InvokeScriptTransaction => tx.dApp == contractAddress
+        case tx: InvokeScriptTransaction => tx.dApp == config.chainContractAddress
         case _                           => false
       }
 
@@ -169,7 +165,7 @@ class ELUpdater(
     val tx = InvokeScriptTransaction(
       TxVersion.V2,
       invoker.publicKey,
-      contractAddress,
+      config.chainContractAddress,
       Some(fc),
       Seq.empty,
       TxPositiveAmount.unsafeFrom(FeeConstants(TransactionType.InvokeScript) * FeeUnit + extraFee),
@@ -178,7 +174,9 @@ class ELUpdater(
       Proofs.empty,
       blockchain.settings.addressSchemeCharacter.toByte
     ).signWith(invoker.privateKey)
-    logger.info(s"Invoking $contractAddress '${fc.function.funcName}' for block ${payload.hash}->${payload.parentHash}, txId=${tx.id()}")
+    logger.info(
+      s"Invoking ${config.chainContractAddress} '${fc.function.funcName}' for block ${payload.hash}->${payload.parentHash}, txId=${tx.id()}"
+    )
     cleanPriorityPool()
 
     broadcastTx(tx).resultE match {
@@ -477,6 +475,7 @@ class ELUpdater(
   }
 
   private def handleConsensusLayerChanged(): Unit = {
+    payloadObserver.updateMinerPublicKeys(chainContractClient.getMinersPks)
     state match {
       case Starting                => updateStartingState()
       case w: Working[ChainStatus] => updateWorkingState(w)
@@ -484,7 +483,7 @@ class ELUpdater(
     }
   }
 
-  private def findAltChain(prevChainId: Long, referenceBlock: BlockHash) = {
+  private def findAltChain(prevChainId: Long, referenceBlock: BlockHash): Option[ChainInfo] = {
     logger.debug(s"Trying to find alternative chain referencing $referenceBlock")
 
     val lastChainId          = chainContractClient.getLastChainId
@@ -777,11 +776,11 @@ class ELUpdater(
     }
   }
 
-  private def requestAndProcessPayload(hash: BlockHash): CancelableFuture[(Channel, ExecutionPayloadInfo)] = {
+  private def requestAndProcessPayload(hash: BlockHash): CancelableFuture[ExecutionPayloadInfo] = {
     payloadObserver
       .loadPayload(hash)
       .andThen {
-        case Success((ch, epi)) => executionPayloadReceived(epi)
+        case Success(epi)       => executionPayloadReceived(epi)
         case Failure(exception) => logger.error(s"Error loading block $hash payload", exception)
       }(globalScheduler)
   }
@@ -943,23 +942,11 @@ class ELUpdater(
     val payload = epi.payload
     epochInfo match {
       case Some(epochMeta) =>
-        for {
-          _ <- Either.cond(
-            payload.feeRecipient == epochMeta.rewardAddress,
-            (),
-            ClientError(s"block miner ${payload.feeRecipient} doesn't equal to ${epochMeta.rewardAddress}")
-          )
-          signature <- Either.fromOption(epi.signature, ClientError(s"signature not found"))
-          publicKey <- Either.fromOption(
-            chainContractClient.getMinerPublicKey(payload.feeRecipient),
-            ClientError(s"public key for block miner ${payload.feeRecipient} not found")
-          )
-          _ <- Either.cond(
-            crypto.verify(signature, Json.toBytes(epi.payloadJson), publicKey, checkWeakPk = true),
-            (),
-            ClientError(s"invalid signature")
-          )
-        } yield ()
+        Either.cond(
+          payload.feeRecipient == epochMeta.rewardAddress,
+          (),
+          ClientError(s"block miner ${payload.feeRecipient} doesn't equal to ${epochMeta.rewardAddress}")
+        )
       case _ => Either.unit
     }
   }
@@ -1556,8 +1543,8 @@ object ELUpdater {
       }
     }
 
-    case class WaitingForSyncHead(target: ContractBlock, task: CancelableFuture[PayloadInfoWithChannel]) extends State
-    case class SyncingToFinalizedBlock(target: BlockHash)                                                extends State
+    case class WaitingForSyncHead(target: ContractBlock, task: CancelableFuture[ExecutionPayloadInfo]) extends State
+    case class SyncingToFinalizedBlock(target: BlockHash)                                              extends State
   }
 
   private case class RollbackBlock(hash: BlockHash, parentPayload: ExecutionPayload)

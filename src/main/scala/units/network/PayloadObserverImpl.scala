@@ -31,8 +31,9 @@ class PayloadObserverImpl(
     extends PayloadObserver
     with ScorexLogging {
 
-  private var state: State                                          = State.Idle(None)
-  private var lastPayloadMessage: Option[PayloadMessageWithChannel] = None
+  private var state: State = State.Idle(None)
+  private val lastPayloadMessages: ConcurrentHashMap[BlockHash, PayloadMessageWithChannel] =
+    new ConcurrentHashMap[BlockHash, PayloadMessageWithChannel]()
 
   private val payloadsResult: ConcurrentSubject[ExecutionPayloadInfo, ExecutionPayloadInfo] =
     ConcurrentSubject.publish[ExecutionPayloadInfo]
@@ -45,23 +46,26 @@ class PayloadObserverImpl(
     .build[BlockHash, ExecutionPayloadInfo]()
 
   payloads
-    .foreach { case PayloadMessageWithChannel(pm, ch) =>
+    .foreach { case v @ PayloadMessageWithChannel(pm, ch) =>
       state = state match {
         case State.LoadingPayload(expectedHash, nextAttempt, p) if expectedHash == pm.hash =>
           pm.payloadInfo match {
             case Right(epi) =>
               nextAttempt.cancel()
               p.complete(Success(epi))
+              lastPayloadMessages.put(pm.hash, v)
               knownPayloadCache.put(pm.hash, epi)
               payloadsResult.onNext(epi)
-              State.Idle(Some(ch))
+            case Left(err) => log.debug(err)
           }
+          State.Idle(Some(ch))
         case other =>
           Option(addrToPK.get(pm.feeRecipient)) match {
             case Some(pk) =>
               if (pm.isSignatureValid(pk)) {
                 pm.payloadInfo match {
                   case Right(epi) =>
+                    lastPayloadMessages.put(pm.hash, v)
                     knownPayloadCache.put(pm.hash, epi)
                     payloadsResult.onNext(epi)
                   case Left(err) => log.debug(err)
@@ -107,7 +111,7 @@ class PayloadObserverImpl(
 
   override def broadcast(hash: BlockHash): Unit = {
     (for {
-      payloadWithChannel <- lastPayloadMessage.toRight("No prepared for broadcast payload")
+      payloadWithChannel <- Option(lastPayloadMessages.get(hash)).toRight(s"No prepared for broadcast payload $hash")
       _                  <- Either.cond(hash == payloadWithChannel.pm.hash, (), s"Payload for block $hash is not last received")
       _ = log.debug(s"Broadcasting block ${payloadWithChannel.pm.hash} payload")
       _ <- Try(allChannels.broadcast(payloadWithChannel.pm, Some(payloadWithChannel.ch))).toEither.leftMap(_.getMessage)
@@ -115,6 +119,13 @@ class PayloadObserverImpl(
       err => log.error(s"Failed to broadcast last received payload: $err"),
       identity
     )
+
+    lastPayloadMessages.remove(hash)
+  }
+
+  def updateMinerPublicKeys(newKeys: Map[EthAddress, PublicKey]): Unit = {
+    addrToPK.clear()
+    addrToPK.putAll(newKeys.asJava)
   }
 
   // TODO: remove Task
@@ -135,9 +146,6 @@ class PayloadObserverImpl(
 }
 
 object PayloadObserverImpl {
-
-  type PayloadInfoWithChannel = (Channel, ExecutionPayloadInfo)
-
   sealed trait State
 
   object State {

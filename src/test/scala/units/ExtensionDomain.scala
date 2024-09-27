@@ -23,7 +23,6 @@ import com.wavesplatform.transaction.{DiscardedBlocks, Transaction}
 import com.wavesplatform.utils.{ScorexLogging, Time}
 import com.wavesplatform.utx.UtxPool
 import com.wavesplatform.wallet.Wallet
-import io.netty.channel.Channel
 import io.netty.channel.embedded.EmbeddedChannel
 import io.netty.channel.group.DefaultChannelGroup
 import io.netty.util.concurrent.GlobalEventExecutor
@@ -39,7 +38,7 @@ import play.api.libs.json.*
 import units.ELUpdater.*
 import units.ELUpdater.State.{ChainStatus, Working}
 import units.ExtensionDomain.*
-import units.client.contract.HasConsensusLayerDappTxHelpers
+import units.client.contract.{ChainContractStateClient, HasConsensusLayerDappTxHelpers}
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.client.engine.model.{ExecutionPayload, TestPayloads}
 import units.client.{CommonBlockData, TestEcClients}
@@ -89,16 +88,17 @@ class ExtensionDomain(
   val globalScheduler: TestScheduler = TestScheduler(ExecutionModel.AlwaysAsyncExecution)
   val eluScheduler: TestScheduler    = TestScheduler(ExecutionModel.AlwaysAsyncExecution)
 
-  val payloadStream: PublishSubject[(Channel, ExecutionPayloadInfo)] = PublishSubject[(Channel, ExecutionPayloadInfo)]()
-  val blockObserver: TestPayloadObserver                             = new TestPayloadObserver(payloadStream)
-
   val neighbourChannel = new EmbeddedChannel()
   val allChannels      = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE)
   allChannels.add(neighbourChannel)
+
+  val payloadStream: PublishSubject[PayloadMessage] = PublishSubject[PayloadMessage]()
+  val payloadObserver: TestPayloadObserver          = new TestPayloadObserver(payloadStream, allChannels)
+
   def pollSentPayloadMessage(): Option[PayloadMessage] = Option(neighbourChannel.readOutbound[PayloadMessage])
   def receivePayload(payload: ExecutionPayload, miner: SeedKeyPair, epochNumber: Int = blockchain.height): Unit =
-    receivePayload(toExecutionPayloadInfo(payload, miner, epochNumber))
-  def receivePayload(incomingPayload: ExecutionPayloadInfo): Unit = payloadStream.onNext((new EmbeddedChannel(), incomingPayload))
+    receivePayload(toPayloadMessage(payload, miner, epochNumber))
+  def receivePayload(incomingPayload: PayloadMessage): Unit = payloadStream.onNext(incomingPayload)
 
   val extensionContext: Context = new Context {
     override def settings: WavesSettings = self.settings
@@ -119,12 +119,14 @@ class ExtensionDomain(
     override def utxEvents: Observable[UtxEvent] = Observable.empty
   }
 
+  val chainContractClient = new ChainContractStateClient(chainContractAddress, blockchain)
+
   val consensusClient: ConsensusClient = new ConsensusClient(
     l2Config,
     extensionContext,
     ecClients.engineApi,
-    blockObserver,
-    allChannels,
+    chainContractClient,
+    payloadObserver,
     globalScheduler,
     eluScheduler,
     () => {}
@@ -169,7 +171,7 @@ class ExtensionDomain(
     f(is[CS](s.chainStatus))
   }
 
-  def toExecutionPayloadInfo(payload: ExecutionPayload, miner: SeedKeyPair, epochNumber: Int): ExecutionPayloadInfo = {
+  def toPayloadMessage(payload: ExecutionPayload, miner: SeedKeyPair, epochNumber: Int): PayloadMessage = {
     val payloadJson = TestPayloads.toPayloadJson(
       payload,
       calculateRandao(
@@ -178,7 +180,7 @@ class ExtensionDomain(
       )
     )
 
-    PayloadMessage.signed(payloadJson, miner.privateKey).flatMap(_.payloadInfo).explicitGet()
+    PayloadMessage.signed(payloadJson, miner.privateKey).explicitGet()
   }
 
   def forgeFromUtxPool(): Unit = {

@@ -2,10 +2,9 @@ package units.network
 
 import com.wavesplatform.utils.{Schedulers, ScorexLogging}
 import io.netty.channel.ChannelHandler.Sharable
-import io.netty.channel.{Channel, ChannelHandlerContext, ChannelInboundHandlerAdapter}
+import io.netty.channel.{ChannelHandlerContext, ChannelInboundHandlerAdapter}
 import monix.execution.schedulers.SchedulerService
 import monix.reactive.subjects.{ConcurrentSubject, Subject}
-import units.ExecutionPayloadInfo
 
 @Sharable
 class MessageObserver extends ChannelInboundHandlerAdapter with ScorexLogging {
