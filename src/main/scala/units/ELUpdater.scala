@@ -862,7 +862,7 @@ class ELUpdater(
               logger.error(s"Failed to get block $targetBlockHash meta at contract")
               None
           }
-        } else if (isLastPayloadOnFork(prevChainInfo, prevState.lastPayload)) {
+        } else if (isLastBlockOnFork(prevChainInfo, prevState.lastPayload)) {
           val updatedLastPayload = findLastPayload(prevChainInfo.lastBlock)
           rollbackAndFollowChain(updatedLastPayload, prevChainInfo, mainChainInfo, prevState.returnToMainChainInfo)
         } else {
@@ -876,10 +876,10 @@ class ELUpdater(
     }
   }
 
-  private def isLastPayloadOnFork(chainInfo: ChainInfo, lastPayload: ExecutionPayload) =
-    chainInfo.lastBlock.height == lastPayload.height && chainInfo.lastBlock.hash != lastPayload.hash ||
-      chainInfo.lastBlock.height > lastPayload.height && !chainContractClient.blockExists(lastPayload.hash) ||
-      chainInfo.lastBlock.height < lastPayload.height
+  private def isLastBlockOnFork(chainInfo: ChainInfo, lastBlock: CommonBlockData) =
+    chainInfo.lastBlock.height == lastBlock.height && chainInfo.lastBlock.hash != lastBlock.hash ||
+      chainInfo.lastBlock.height > lastBlock.height && !chainContractClient.blockExists(lastBlock.hash) ||
+      chainInfo.lastBlock.height < lastBlock.height
 
   private def waitForSyncCompletion(target: ContractBlock): Unit = scheduler.scheduleOnce(5.seconds)(state match {
     case SyncingToFinalizedBlock(finalizedBlockHash) if finalizedBlockHash == target.hash =>
