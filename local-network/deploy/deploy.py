@@ -1,37 +1,19 @@
+#!/usr/bin/env python
 from time import sleep
 
-import requests
-from pywaves import pw
 from units_network import waves
 from units_network.chain_contract import HexStr
-from web3 import Web3
+from units_network.node import Node
 
 from local.common import configure_script_logger
 from local.network import get_local
 
 log = configure_script_logger("main")
-(network, accounts) = get_local()
+network = get_local()
 
 
-# TODO: Move
-class Node(object):
-    def __init__(
-        self,
-        pw=pw,
-    ):
-        self.pw = pw
-
-    def connected_peers(self):
-        url = f"{self.pw.NODE}/peers/connected"
-        response = requests.get(url)
-        if response.status_code == 200:
-            return response.json()["peers"]
-        else:
-            raise Exception(f"Error: {response.status_code}, {response.text}")
-
-
-node = Node(pw)
-min_peers = len(accounts.waves_miners) - 1
+node = Node()
+min_peers = len(network.cl_miners) - 1
 while True:
     r = node.connected_peers()
     if len(r) >= min_peers:
@@ -40,9 +22,10 @@ while True:
     log.info(f"Wait for {min_peers} peers, now: {r}")
     sleep(2)
 
-script_info = accounts.chain_contract.scriptInfo()
+log.info(f"Chain contract address: {network.cl_chain_contract.oracleAddress}")
+
+script_info = network.cl_chain_contract.oracleAcc.scriptInfo()
 if script_info["script"] is None:
-    log.info(f"Chain contract address: {accounts.chain_contract.address}")
     log.info("Set chain contract script")
 
     with open("setup/waves/main.ride", "r", encoding="utf-8") as file:
@@ -69,7 +52,7 @@ for entry in r["result"]["value"]:
     joined_miners.append(entry["value"])
 log.info(f"Miners: {joined_miners}")
 
-for miner in accounts.waves_miners:
+for miner in network.cl_miners:
     if miner.account.address not in joined_miners:
         log.info(f"Call ChainContract.join by miner f{miner.account.address}")
         r = network.cl_chain_contract.join(miner.account, miner.el_reward_address_hex)

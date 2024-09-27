@@ -11,28 +11,28 @@ from local.network import get_local
 
 def main():
     log = configure_script_logger(os.path.basename(__file__))
-    (network, accounts) = get_local()
+    network = get_local()
 
     transfers = [
         C2ETransfer(
-            cl_account=accounts.cl_rich_accounts[0],
-            el_account=accounts.el_rich_accounts[0],
+            cl_account=network.cl_rich_accounts[0],
+            el_account=network.el_rich_accounts[0],
             raw_amount=0.01,
         ),
         C2ETransfer(
-            cl_account=accounts.cl_rich_accounts[0],
-            el_account=accounts.el_rich_accounts[0],
+            cl_account=network.cl_rich_accounts[0],
+            el_account=network.el_rich_accounts[0],
             raw_amount=0.02,
         ),
         # Same as first
         C2ETransfer(
-            cl_account=accounts.cl_rich_accounts[1],
-            el_account=accounts.el_rich_accounts[0],
+            cl_account=network.cl_rich_accounts[1],
+            el_account=network.el_rich_accounts[0],
             raw_amount=0.01,
         ),
         C2ETransfer(
-            cl_account=accounts.cl_rich_accounts[1],
-            el_account=accounts.el_rich_accounts[1],
+            cl_account=network.cl_rich_accounts[1],
+            el_account=network.el_rich_accounts[1],
             raw_amount=0.03,
         ),
     ]
