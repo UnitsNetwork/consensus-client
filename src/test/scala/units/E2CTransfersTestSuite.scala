@@ -21,7 +21,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
   private val transferReceiver        = TxHelpers.secondSigner
   private val transfer                = Bridge.ElSentNativeEvent(transferReceiver.toAddress, 1)
   private val transferEvent           = getLogsResponseEntry(transfer)
-  private val blockLogs             = List(transferEvent)
+  private val blockLogs               = List(transferEvent)
   private val e2CTransfersRootHashHex = HexBytesConverter.toHex(Bridge.mkTransfersHash(blockLogs).explicitGet())
   private val transferProofs          = Bridge.mkTransferProofs(List(transfer), 0).reverse // Contract requires from bottom to top
 
@@ -63,7 +63,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
 
       tryWithdraw() should produce("not found for the contract address")
 
-      step("Append a CL micro block with payload confirmation")
+      step("Append a CL micro block with block confirmation")
       d.ecClients.addKnown(payload)
       d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(reliable.account, payload, e2CTransfersRootHashHex))
       d.advanceConsensusLayerChanged()

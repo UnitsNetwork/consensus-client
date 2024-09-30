@@ -27,11 +27,11 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
       val payload = d.createPayloadBuilder("0", reliable).buildAndSetLogs(blockLogs)
       d.advanceConsensusLayerChanged()
 
-      step(s"Receive network block ${payload.hash} with payload from a peer")
+      step(s"Receive block ${payload.hash} payload from a peer")
       d.receivePayload(payload, reliable.account)
       d.triggerScheduledTasks()
 
-      step(s"Append a CL micro block with payload ${payload.hash} confirmation")
+      step(s"Append a CL micro block with block ${payload.hash} confirmation")
       d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(reliable.account, payload))
       d.advanceConsensusLayerChanged()
 
@@ -55,11 +55,11 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
         val payload = d.createPayloadBuilder("0", reliable).buildAndSetLogs(blockLogs)
         d.advanceConsensusLayerChanged()
 
-        step(s"Receive network block ${payload.hash} with payload from a peer")
+        step(s"Receive block ${payload.hash} payload from a peer")
         d.receivePayload(payload, reliable.account)
         d.triggerScheduledTasks()
 
-        step(s"Append a CL micro block with payload ${payload.hash} confirmation")
+        step(s"Append a CL micro block with block ${payload.hash} confirmation")
         d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(reliable.account, payload, e2CTransfersRootHashHex))
         d.advanceConsensusLayerChanged()
 
@@ -98,11 +98,11 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
           val payload2 =
             badBlockPayloadPostProcessing(d.createPayloadBuilder("0-0", malfunction, payload1).rewardPrevMiner().buildAndSetLogs(blockLogs))
 
-          step(s"Append a CL micro block with payload2 ${payload2.hash} confirmation")
+          step(s"Append a CL micro block with block2 ${payload2.hash} confirmation")
           d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(malfunction.account, payload2, e2CTransfersRootHashHex))
           d.advanceConsensusLayerChanged()
 
-          step(s"Receive network block ${payload2.hash} with payload2 from a peer")
+          step(s"Receive block2 ${payload2.hash} payload2 from a peer")
           d.receivePayload(payload2, malfunction.account)
           d.triggerScheduledTasks()
 
@@ -118,7 +118,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
 
         "Events from an unexpected EL bridge address" in {
           val fakeBridgeAddress = EthAddress.unsafeFrom("0x53481054Ad294207F6ed4B6C2E6EaE34E1Bb8704")
-          val block2Logs      = transferEvents.map(x => getLogsResponseEntry(x).copy(address = fakeBridgeAddress))
+          val block2Logs        = transferEvents.map(x => getLogsResponseEntry(x).copy(address = fakeBridgeAddress))
           e2CTest(
             blockLogs = block2Logs,
             e2CTransfersRootHashHex = e2CTransfersRootHashHex

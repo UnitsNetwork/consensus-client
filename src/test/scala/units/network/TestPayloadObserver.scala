@@ -18,7 +18,7 @@ class TestPayloadObserver(messages: Observable[PayloadMessage], allChannels: Def
     new ConcurrentHashMap[BlockHash, PayloadMessage]()
 
   override def loadPayload(req: BlockHash): CancelableFuture[ExecutionPayloadInfo] = {
-    log.debug(s"loadBlock($req)")
+    log.debug(s"loadPayload($req)")
     CancelableFuture.never
   }
 

@@ -134,7 +134,7 @@ class ExtensionDomain(
   triggers = triggers.appended(consensusClient)
 
   val defaultMaxTimeout: FiniteDuration =
-    List(WaitForReferenceConfirmInterval, ClChangedProcessingDelay, MiningRetryInterval, WaitRequestedBlockTimeout).max + 1.millis
+    List(WaitForReferenceConfirmInterval, ClChangedProcessingDelay, MiningRetryInterval, WaitRequestedPayloadTimeout).max + 1.millis
   val defaultInterval: FiniteDuration = ClChangedProcessingDelay
 
   def waitForWorking(
@@ -292,8 +292,8 @@ class ExtensionDomain(
   // See ELUpdater.consensusLayerChanged
   def advanceConsensusLayerChanged(): Unit = advanceElu(ELUpdater.ClChangedProcessingDelay, "advanceConsensusLayerChanged")
 
-  // See ELUpdater.requestBlocksAndStartMining
-  def advanceWaitRequestedBlock(): Unit = advanceElu(ELUpdater.WaitRequestedBlockTimeout, "advanceWaitRequestedBlock")
+  // See ELUpdater.requestPayloadsAndStartMining
+  def advanceWaitRequestedBlockPayload(): Unit = advanceElu(ELUpdater.WaitRequestedPayloadTimeout, "advanceWaitRequestedBlockPayload")
 
   def advanceMiningRetry(): Unit = advanceElu(ELUpdater.MiningRetryInterval, "advanceMiningRetry")
 

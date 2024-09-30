@@ -4,7 +4,7 @@ import com.wavesplatform.db.WithState.AddrWithBalance
 import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.wallet.Wallet
 import units.ELUpdater.State.ChainStatus.{FollowingChain, Mining, WaitForNewChain}
-import units.ELUpdater.WaitRequestedBlockTimeout
+import units.ELUpdater.WaitRequestedPayloadTimeout
 import units.client.contract.HasConsensusLayerDappTxHelpers.defaultFees
 import units.client.engine.model.ExecutionPayload
 
@@ -52,13 +52,13 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       f(d, payload2, block2Epoch)
     }
 
-    "EC-block comes within timeout - then we continue forging" in test { (d, payload2, block2Epoch) =>
-      d.advanceElu(WaitRequestedBlockTimeout - 1.millis)
+    "Block payload comes within timeout - then we continue forging" in test { (d, payload2, block2Epoch) =>
+      d.advanceElu(WaitRequestedPayloadTimeout - 1.millis)
       d.waitForCS[FollowingChain](s"Still waiting payload2 ${payload2.hash}") { s =>
         s.nextExpectedBlock.map(_.hash).value shouldBe payload2.hash
       }
 
-      step(s"Receive network block ${payload2.hash} with payload2")
+      step(s"Receive block2 ${payload2.hash} payload2")
       d.receivePayload(payload2, otherMiner1.account, block2Epoch)
       d.triggerScheduledTasks()
 
@@ -69,13 +69,13 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       }
     }
 
-    "Network block with payload doesn't come - then we start an alternative chain" in test { (d, _, _) =>
+    "Block payload doesn't come - then we start an alternative chain" in test { (d, _, _) =>
       d.waitForCS[WaitForNewChain](s"Switched to alternative chain") { _ => }
     }
   }
 
   "We're on the alternative chain and" - {
-    "Network block with payload comes within timeout - then we continue forging" in withExtensionDomain() { d =>
+    "Block payload comes within timeout - then we continue forging" in withExtensionDomain() { d =>
       step(s"Start a new epoch of otherMiner1 ${otherMiner1.address} with payload1")
       d.advanceNewBlocks(otherMiner1.address)
       val payload1 = d.createPayloadBuilder("0", otherMiner1).buildAndSetLogs()
@@ -135,7 +135,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       step(s"Start a new epoch of thisMiner ${thisMiner.address}")
       d.advanceNewBlocks(thisMiner.address)
       d.advanceConsensusLayerChanged()
-      d.advanceElu(WaitRequestedBlockTimeout - 1.millis)
+      d.advanceElu(WaitRequestedPayloadTimeout - 1.millis)
 
       d.waitForCS[FollowingChain](s"Waiting payload3 ${payload3.hash}") { s =>
         s.nodeChainInfo.isMain shouldBe false
@@ -143,7 +143,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
         s.nextExpectedBlock.map(_.hash).value shouldBe payload3.hash
       }
 
-      step(s"Receive network block ${payload3.hash} with payload3")
+      step(s"Receive block3 ${payload3.hash} payload3")
       d.receivePayload(payload3, thisMiner.account, block3Epoch)
 
       d.ecClients.willForge(d.createPayloadBuilder("0-1-1-1", thisMiner, payload3).rewardPrevMiner(2).build())
@@ -152,73 +152,72 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       }
     }
 
-    "We mined before the alternative chain before and network block with payload doesn't come - then we still wait for it" in withExtensionDomain() {
-      d =>
-        step(s"Start a new epoch of otherMiner1 ${otherMiner1.address} with payload1")
-        d.advanceNewBlocks(otherMiner1.address)
-        val payload1 = d.createPayloadBuilder("0", otherMiner1).buildAndSetLogs()
-        d.ecClients.addKnown(payload1)
-        d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(otherMiner1.account, payload1))
+    "We mined before the alternative chain before and block payload doesn't come - then we still wait for it" in withExtensionDomain() { d =>
+      step(s"Start a new epoch of otherMiner1 ${otherMiner1.address} with payload1")
+      d.advanceNewBlocks(otherMiner1.address)
+      val payload1 = d.createPayloadBuilder("0", otherMiner1).buildAndSetLogs()
+      d.ecClients.addKnown(payload1)
+      d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(otherMiner1.account, payload1))
 
-        d.waitForCS[FollowingChain]() { s =>
-          s.nodeChainInfo.isMain shouldBe true
-          s.nodeChainInfo.lastBlock.hash shouldBe payload1.hash
-        }
+      d.waitForCS[FollowingChain]() { s =>
+        s.nodeChainInfo.isMain shouldBe true
+        s.nodeChainInfo.lastBlock.hash shouldBe payload1.hash
+      }
 
-        step(s"Start a new epoch of otherMiner1 ${otherMiner1.address} with badPayload2")
-        d.advanceNewBlocks(otherMiner1.address)
-        val badPayload2 = d.createPayloadBuilder("0-0", otherMiner1, payload1).rewardPrevMiner().buildAndSetLogs()
-        d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(otherMiner1.account, badPayload2))
+      step(s"Start a new epoch of otherMiner1 ${otherMiner1.address} with badPayload2")
+      d.advanceNewBlocks(otherMiner1.address)
+      val badPayload2 = d.createPayloadBuilder("0-0", otherMiner1, payload1).rewardPrevMiner().buildAndSetLogs()
+      d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(otherMiner1.account, badPayload2))
 
-        d.waitForCS[FollowingChain]() { s =>
-          s.nodeChainInfo.isMain shouldBe true
-          s.nodeChainInfo.lastBlock.hash shouldBe badPayload2.hash
-        }
+      d.waitForCS[FollowingChain]() { s =>
+        s.nodeChainInfo.isMain shouldBe true
+        s.nodeChainInfo.lastBlock.hash shouldBe badPayload2.hash
+      }
 
-        step(s"Start a new epoch of thisMiner ${thisMiner.address} with alternative chain payload2")
-        d.advanceNewBlocks(thisMiner.address)
-        val payload2 = d.createPayloadBuilder("0-1", thisMiner, payload1).rewardPrevMiner().buildAndSetLogs()
-        d.ecClients.willForge(payload2)
-        d.ecClients.willForge(d.createPayloadBuilder("0-1-i", thisMiner, payload2).buildAndSetLogs())
+      step(s"Start a new epoch of thisMiner ${thisMiner.address} with alternative chain payload2")
+      d.advanceNewBlocks(thisMiner.address)
+      val payload2 = d.createPayloadBuilder("0-1", thisMiner, payload1).rewardPrevMiner().buildAndSetLogs()
+      d.ecClients.willForge(payload2)
+      d.ecClients.willForge(d.createPayloadBuilder("0-1-i", thisMiner, payload2).buildAndSetLogs())
 
-        d.waitForCS[Mining]() { s =>
-          val ci = s.nodeChainInfo.left.value
-          ci.referenceBlock.hash shouldBe payload1.hash
-        }
+      d.waitForCS[Mining]() { s =>
+        val ci = s.nodeChainInfo.left.value
+        ci.referenceBlock.hash shouldBe payload1.hash
+      }
 
-        d.advanceMining()
-        d.forgeFromUtxPool()
+      d.advanceMining()
+      d.forgeFromUtxPool()
 
-        d.waitForCS[Mining]() { s =>
-          val ci = s.nodeChainInfo.value
-          ci.lastBlock.hash shouldBe payload2.hash
-        }
+      d.waitForCS[Mining]() { s =>
+        val ci = s.nodeChainInfo.value
+        ci.lastBlock.hash shouldBe payload2.hash
+      }
 
-        step(s"Continue an alternative chain by otherMiner2 ${otherMiner2.address} with badPayload3")
-        d.advanceNewBlocks(otherMiner2.address)
-        val badPayload3 = d.createPayloadBuilder("0-1-1", otherMiner2, payload2).rewardMiner(otherMiner2.elRewardAddress, 1).buildAndSetLogs()
-        d.appendMicroBlockAndVerify(d.chainContract.extendAltChain(otherMiner2.account, badPayload3, chainId = 1))
+      step(s"Continue an alternative chain by otherMiner2 ${otherMiner2.address} with badPayload3")
+      d.advanceNewBlocks(otherMiner2.address)
+      val badPayload3 = d.createPayloadBuilder("0-1-1", otherMiner2, payload2).rewardMiner(otherMiner2.elRewardAddress, 1).buildAndSetLogs()
+      d.appendMicroBlockAndVerify(d.chainContract.extendAltChain(otherMiner2.account, badPayload3, chainId = 1))
 
-        d.waitForCS[FollowingChain]() { s =>
-          s.nodeChainInfo.isMain shouldBe false
-          s.nodeChainInfo.lastBlock.hash shouldBe badPayload3.hash
-          s.nextExpectedBlock.map(_.hash).value shouldBe badPayload3.hash
-        }
+      d.waitForCS[FollowingChain]() { s =>
+        s.nodeChainInfo.isMain shouldBe false
+        s.nodeChainInfo.lastBlock.hash shouldBe badPayload3.hash
+        s.nextExpectedBlock.map(_.hash).value shouldBe badPayload3.hash
+      }
 
-        step(s"Continue an alternative chain by thisMiner ${thisMiner.address}")
-        d.advanceNewBlocks(thisMiner.address)
+      step(s"Continue an alternative chain by thisMiner ${thisMiner.address}")
+      d.advanceNewBlocks(thisMiner.address)
 
-        d.advanceWaitRequestedBlock()
-        d.advanceWaitRequestedBlock()
+      d.advanceWaitRequestedBlockPayload()
+      d.advanceWaitRequestedBlockPayload()
 
-        d.waitForCS[FollowingChain](s"Still wait for badPayload3 ${badPayload3.hash}") { s =>
-          s.nodeChainInfo.isMain shouldBe false
-          s.nodeChainInfo.lastBlock.hash shouldBe badPayload3.hash
-          s.nextExpectedBlock.map(_.hash).value shouldBe badPayload3.hash
-        }
+      d.waitForCS[FollowingChain](s"Still wait for badPayload3 ${badPayload3.hash}") { s =>
+        s.nodeChainInfo.isMain shouldBe false
+        s.nodeChainInfo.lastBlock.hash shouldBe badPayload3.hash
+        s.nextExpectedBlock.map(_.hash).value shouldBe badPayload3.hash
+      }
     }
 
-    "We haven't mined the alternative chain before and network block with payload doesn't come - then we wait for a new alternative chain" in
+    "We haven't mined the alternative chain before and block payload doesn't come - then we wait for a new alternative chain" in
       withExtensionDomain() { d =>
         step(s"Start a new epoch of otherMiner1 ${otherMiner1.address} with payload1")
         d.advanceNewBlocks(otherMiner1.address)

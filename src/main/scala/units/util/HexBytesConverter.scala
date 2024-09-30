@@ -1,16 +1,12 @@
 package units.util
 
 import com.wavesplatform.common.state.ByteStr
-import units.BlockHash
 import org.web3j.abi.datatypes.generated.Uint256
 import org.web3j.utils.Numeric
 
 import java.math.BigInteger
 
 object HexBytesConverter {
-
-  def toByteStr(hash: BlockHash): ByteStr =
-    ByteStr(toBytes(hash))
 
   def toInt(intHex: String): Int =
     Numeric.toBigInt(intHex).intValueExact()

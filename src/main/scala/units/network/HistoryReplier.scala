@@ -31,9 +31,9 @@ class HistoryReplier(engineApiClient: EngineApiClient)(implicit sc: Scheduler) e
         ctx,
         loadPayload(hash)
           .map {
-            case Right(block) =>
-              RawBytes(PayloadSpec.messageCode, PayloadSpec.serializeData(block))
-            case Left(err) => throw new NoSuchElementException(s"Error loading block $hash: $err")
+            case Right(payloadMsg) =>
+              RawBytes(PayloadSpec.messageCode, PayloadSpec.serializeData(payloadMsg))
+            case Left(err) => throw new NoSuchElementException(s"Error loading block $hash payload: $err")
           }
       )
     case _ => super.channelRead(ctx, msg)

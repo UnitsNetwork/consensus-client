@@ -78,9 +78,9 @@ object PayloadMessage {
       .leftMap(err => s"Error creating payload message: $err")
 
   def apply(payloadBytes: Array[Byte], signature: Option[ByteStr]): Either[String, PayloadMessage] = for {
-    payload <- Try(Json.parse(payloadBytes).as[JsObject]).toEither.leftMap(err => s"Payload bytes are not a valid JSON object: ${err.getMessage}")
-    block   <- apply(payload, signature)
-  } yield block
+    payload    <- Try(Json.parse(payloadBytes).as[JsObject]).toEither.leftMap(err => s"Payload bytes are not a valid JSON object: ${err.getMessage}")
+    payloadMsg <- apply(payload, signature)
+  } yield payloadMsg
 
   def signed(payloadJson: JsObject, signer: PrivateKey): Either[String, PayloadMessage] = {
     val signature = crypto.sign(signer, Json.toBytes(payloadJson))
@@ -99,5 +99,5 @@ object PayloadMessage {
   }
 
   private def validateSignatureLength(signature: Option[ByteStr]): Either[String, Unit] =
-    Either.cond(signature.forall(_.size == SignatureLength), (), "Invalid block signature size")
+    Either.cond(signature.forall(_.size == SignatureLength), (), "Invalid payload signature size")
 }

@@ -102,7 +102,7 @@ class ConsensusClientDependencies(context: ExtensionContext) extends AutoCloseab
 
   val config: ClientConfig = context.settings.config.as[ClientConfig]("waves.l2")
 
-  private val payloadObserverScheduler = Schedulers.singleThread("block-observer-l2", reporter = { e => log.warn("Error in BlockObserver", e) })
+  private val payloadObserverScheduler = Schedulers.singleThread("payload-observer-l2", reporter = { e => log.warn("Error in PayloadObserver", e) })
   val globalScheduler: Scheduler       = monix.execution.Scheduler.global
   val eluScheduler: SchedulerService   = Scheduler.singleThread("el-updater", reporter = { e => log.warn("Exception in ELUpdater", e) })
 
