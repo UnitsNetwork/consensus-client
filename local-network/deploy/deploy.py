@@ -1,7 +1,8 @@
 #!/usr/bin/env python
+from decimal import Decimal
 from time import sleep
 
-from units_network import waves
+from units_network import units, waves
 from units_network.chain_contract import HexStr
 from units_network.node import Node
 
@@ -45,6 +46,37 @@ if not network.cl_chain_contract.isContractSetup():
     r = network.cl_chain_contract.setup(el_genesis_block_hash)
     waves.force_success(log, r, "Can not setup the chain contract")
 
+cl_token = network.cl_chain_contract.getToken()
+cl_poor_accounts = []
+for cl_account in network.cl_rich_accounts:
+    if cl_account.balance(cl_token.assetId) <= 0:
+        cl_poor_accounts.append(cl_account)
+
+cl_poor_accounts_number = len(cl_poor_accounts)
+txn_ids = []
+if cl_poor_accounts_number > 0:
+    user_amount_for_each = Decimal(100)
+    atomic_amount_for_each = units.raw_to_waves_atomic(user_amount_for_each)
+    quantity = units.raw_to_waves_atomic(user_amount_for_each * cl_poor_accounts_number)
+    log.info(
+        f"Issue {user_amount_for_each * cl_poor_accounts_number} UNIT0 additional tokens for testing purposes"
+    )
+    reissue_txn_id = network.cl_chain_contract.oracleAcc.reissueAsset(
+        cl_token, quantity, reissuable=True
+    )
+    waves.wait_for(reissue_txn_id)
+
+    for cl_account in cl_poor_accounts:
+        log.info(f"Send {user_amount_for_each} UNIT0 tokens to {cl_account.address}")
+        txn_result = network.cl_chain_contract.oracleAcc.sendAsset(
+            recipient=cl_account,
+            asset=cl_token,
+            amount=atomic_amount_for_each,
+        )
+        waves.force_success(log, txn_result, "Can not send UNIT0 tokens", wait=False)
+        txn_id = txn_result["id"]  # type: ignore
+        log.info(f"Transaction id: {txn_id}")
+        txn_ids.append(txn_id)
 
 r = network.cl_chain_contract.evaluate("allMiners")
 joined_miners = []
@@ -62,6 +94,13 @@ for miner in network.cl_miners:
             f"{miner.account.address} can not join the chain contract",
             wait=False,
         )
+        txn_id = r["id"]  # type: ignore
+        log.info(f"Transaction id: {txn_id}")  # type: ignore
+        txn_ids.append(txn_id)
+
+for txn_id in txn_ids:
+    waves.wait_for(txn_id)
+    log.info(f"{txn_id} confirmed")
 
 while True:
     r = network.w3.eth.get_block("latest")
