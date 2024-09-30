@@ -8,7 +8,7 @@ version = "0.1"
 description = "Scripts and tests for a locally deployed Unit network"
 dependencies = [
   "solc-select",
-  "units-network @ git+https://github.com/UnitsNetwork/examples.git@python",
+  "units-network @ git+https://github.com/UnitsNetwork/examples.git",
 ]
 readme = "README.md"
 requires-python = ">=3.12"
@@ -16,7 +16,7 @@ license = { text = "MIT License" }
 keywords = ["units network", "blockchain", "waves"]
 
 [project.urls]
-Homepage = "https://github.com/UnitsNetwork/consensus-client"
+Homepage = "https://github.com/UnitsNetwork/consensus-client/tree/main/local-network"
 
 [tool.setuptools.packages.find]
 where = ["."]

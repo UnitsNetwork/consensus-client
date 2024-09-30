@@ -60,7 +60,7 @@ def main():
         nonces[t.from_account.address] = Nonce(nonce + 1)
         send_native_txn_hashes.append((t, txn_hash))
 
-    cl_token_id = network.cl_chain_contract.getToken()
+    cl_token = network.cl_chain_contract.getToken()
 
     expected_balances: dict[pw.Address, int] = {}
     withdraw_txn_ids: List[Tuple[E2CTransfer, str]] = []
@@ -69,7 +69,7 @@ def main():
         if to_account in expected_balances:
             expected_balances[to_account] += t.waves_atomic_amount
         else:
-            balance_before = to_account.balance(cl_token_id.assetId)
+            balance_before = to_account.balance(cl_token.assetId)
             expected_balances[to_account] = balance_before + t.waves_atomic_amount
             log.info(
                 f"[C] {to_account.address} balance before: {units.waves_atomic_to_raw(balance_before)}"
@@ -112,7 +112,7 @@ def main():
         log.info(f"[C] #{i} ChainContract.withdraw result: {withdraw_result}")
 
     for to_account, expected_balance in expected_balances.items():
-        balance_after = to_account.balance(cl_token_id.assetId)
+        balance_after = to_account.balance(cl_token.assetId)
 
         log.info(
             f"[C] {to_account.address} balance after: {units.waves_atomic_to_raw(balance_after)}"

@@ -39,8 +39,8 @@ def main():
     ]
 
     el_curr_height = network.w3.eth.block_number
-    token = network.cl_chain_contract.getToken()
-    log.info(f"[C] Token id: {token.assetId}")
+    cl_token = network.cl_chain_contract.getToken()
+    log.info(f"[C] Token id: {cl_token.assetId}")
 
     expected_balances: dict[ChecksumAddress, Wei] = {}
     for i, t in enumerate(transfers):
@@ -58,7 +58,7 @@ def main():
 
         log.info(f"[C] #{i} Call ChainContract.transfer for {t}")
         transfer_result = network.cl_chain_contract.transfer(
-            t.from_account, t.to_account.address, token, t.waves_atomic_amount
+            t.from_account, t.to_account.address, cl_token, t.waves_atomic_amount
         )
         waves.force_success(
             log, transfer_result, "Can not send the chain_contract.transfer transaction"

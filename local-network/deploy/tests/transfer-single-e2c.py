@@ -50,8 +50,8 @@ def main():
     )
     network.cl_chain_contract.waitForFinalized(withdraw_block_meta)
 
-    cl_token_id = network.cl_chain_contract.getToken()
-    balance_before = transfer.to_account.balance(cl_token_id.assetId)
+    cl_token = network.cl_chain_contract.getToken()
+    balance_before = transfer.to_account.balance(cl_token.assetId)
     log.info(f"[C] Balance before: {units.waves_atomic_to_raw(balance_before)}")
 
     withdraw_result = network.cl_chain_contract.withdraw(
@@ -66,7 +66,7 @@ def main():
     )
     log.info(f"[C] ChainContract.withdraw result: {withdraw_result}")
 
-    balance_after = transfer.to_account.balance(cl_token_id.assetId)
+    balance_after = transfer.to_account.balance(cl_token.assetId)
     log.info(
         f"[C] Balance after: {units.waves_atomic_to_raw(balance_after)}, Δ {units.wei_to_raw(Wei(balance_after - balance_before))} UNIT0"
     )

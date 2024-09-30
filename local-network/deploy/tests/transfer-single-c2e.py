@@ -25,14 +25,14 @@ def main():
         f"[E] {transfer.to_account.address} balance before: {units.wei_to_raw(balance_before)} UNIT0"
     )
 
-    token = network.cl_chain_contract.getToken()
-    log.info(f"[C] Token id: {token.assetId}")
+    cl_token = network.cl_chain_contract.getToken()
+    log.info(f"[C] Token id: {cl_token.assetId}")
 
     el_curr_height = network.w3.eth.block_number
     transfer_result = network.cl_chain_contract.transfer(
         transfer.from_account,
         transfer.to_account.address,
-        token,
+        cl_token,
         transfer.waves_atomic_amount,
     )
     waves.force_success(
