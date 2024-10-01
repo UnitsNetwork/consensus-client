@@ -3,7 +3,7 @@ package units.client
 import cats.Id
 import cats.syntax.either.*
 import units.client.JsonRpcClient.DefaultTimeout
-import units.{ClientConfig, ClientError}
+import units.ClientConfig
 import play.api.libs.json.{JsError, JsValue, Reads, Writes}
 import sttp.client3.*
 import sttp.client3.playJson.*
@@ -23,8 +23,8 @@ trait JsonRpcClient {
   protected def sendRequest[RQ: Writes, RP: Reads](requestBody: RQ, timeout: FiniteDuration = DefaultTimeout): Either[String, Option[RP]] =
     sendRequest(mkRequest(requestBody, timeout), config.apiRequestRetries)
 
-  protected def parseJson[A: Reads](jsValue: JsValue): Either[ClientError, A] =
-    Try(jsValue.as[A]).toEither.leftMap(err => ClientError(s"Response parse error: ${err.getMessage}"))
+  protected def parseJson[A: Reads](jsValue: JsValue): Either[String, A] =
+    Try(jsValue.as[A]).toEither.leftMap(err => s"Response parse error: ${err.getMessage}")
 
   private def mkRequest[A: Writes, B: Reads](requestBody: A, timeout: FiniteDuration): RpcRequest[B] = {
     val currRequestId = ThreadLocalRandom.current().nextInt(10000, 100000).toString

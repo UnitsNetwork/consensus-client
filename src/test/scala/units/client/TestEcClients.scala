@@ -13,7 +13,7 @@ import units.client.engine.{EngineApiClient, LoggedEngineApiClient}
 import units.collections.ListOps.*
 import units.eth.EthAddress
 import units.network.PayloadMessage
-import units.{BlockHash, JobResult}
+import units.BlockHash
 
 class TestEcClients private (
     knownBlocks: Atomic[Map[BlockHash, ChainId]],
@@ -65,7 +65,7 @@ class TestEcClients private (
 
   val engineApi = new LoggedEngineApiClient(
     new EngineApiClient {
-      override def forkChoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus] = {
+      override def forkChoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash): Either[String, PayloadStatus] = {
         knownBlocks.get().get(blockHash) match {
           case Some(cid) =>
             currChainIdValue.set(cid)
@@ -87,7 +87,7 @@ class TestEcClients private (
           suggestedFeeRecipient: EthAddress,
           prevRandao: String,
           withdrawals: Vector[Withdrawal]
-      ): JobResult[PayloadId] =
+      ): Either[String, PayloadId] =
         forgingBlocks
           .get()
           .collectFirst { case fb if fb.testPayload.parentHash == lastBlockHash => fb } match {
@@ -99,7 +99,7 @@ class TestEcClients private (
             fb.payloadId.asRight
         }
 
-      override def getPayload(payloadId: PayloadId): JobResult[JsObject] =
+      override def getPayload(payloadId: PayloadId): Either[String, JsObject] =
         forgingBlocks.transformAndExtract(_.withoutFirst { fb => fb.payloadId == payloadId }) match {
           case Some(fb) => TestPayloads.toPayloadJson(fb.testPayload, fb.testPayload.prevRandao).asRight
           case None =>
@@ -108,7 +108,7 @@ class TestEcClients private (
             )
         }
 
-      override def applyNewPayload(payloadJson: JsObject): JobResult[Option[BlockHash]] = {
+      override def applyNewPayload(payloadJson: JsObject): Either[String, Option[BlockHash]] = {
         val newPayload = PayloadMessage(payloadJson).flatMap(_.payloadInfo).explicitGet().payload
         knownBlocks.get().get(newPayload.parentHash) match {
           case Some(cid) =>
@@ -129,16 +129,16 @@ class TestEcClients private (
         Some(newPayload.hash)
       }.asRight
 
-      override def getPayloadBodyByHash(hash: BlockHash): JobResult[Option[JsObject]] =
+      override def getPayloadBodyByHash(hash: BlockHash): Either[String, Option[JsObject]] =
         notImplementedMethodJob("getPayloadBodyJsonByHash")
 
-      override def getBlockByNumber(number: BlockNumber): JobResult[Option[ExecutionPayload]] =
+      override def getBlockByNumber(number: BlockNumber): Either[String, Option[ExecutionPayload]] =
         number match {
           case BlockNumber.Latest    => currChain.headOption.asRight
           case BlockNumber.Number(n) => currChain.find(_.height == n).asRight
         }
 
-      override def getBlockByHash(hash: BlockHash): JobResult[Option[ExecutionPayload]] = {
+      override def getBlockByHash(hash: BlockHash): Either[String, Option[ExecutionPayload]] = {
         for {
           cid <- knownBlocks.get().get(hash)
           c   <- chains.get().get(cid)
@@ -146,23 +146,23 @@ class TestEcClients private (
         } yield b
       }.asRight
 
-      override def getBlockJsonByHash(hash: BlockHash): JobResult[Option[JsObject]] =
+      override def getBlockJsonByHash(hash: BlockHash): Either[String, Option[JsObject]] =
         notImplementedMethodJob("getBlockJsonByHash")
 
-      override def getLatestBlock: JobResult[ExecutionPayload] = currChain.head.asRight
+      override def getLatestBlock: Either[String, ExecutionPayload] = currChain.head.asRight
 
-      override def getLogs(hash: BlockHash, address: EthAddress, topic: String): JobResult[List[GetLogsResponseEntry]] = {
+      override def getLogs(hash: BlockHash, address: EthAddress, topic: String): Either[String, List[GetLogsResponseEntry]] = {
         val request = GetLogsRequest(hash, address, List(topic))
         getLogsCalls.transform(_ + hash)
         logs.get().getOrElse(request, throw notImplementedCase("call setBlockLogs"))
       }.asRight
 
-      override def getPayloadJsonDataByHash(hash: BlockHash): JobResult[PayloadJsonData] =
+      override def getPayloadJsonDataByHash(hash: BlockHash): Either[String, PayloadJsonData] =
         notImplementedMethodJob("getPayloadJsonDataByHash")
     }
   )
 
-  protected def notImplementedMethodJob[A](text: String): JobResult[A] = throw new NotImplementedMethod(text)
+  protected def notImplementedMethodJob[A](text: String): Either[String, A] = throw new NotImplementedMethod(text)
   protected def notImplementedCase(text: String): Throwable            = new NotImplementedCase(text)
 }
 

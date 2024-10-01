@@ -12,7 +12,7 @@ import units.client.engine.model.*
 import units.client.engine.model.ForkChoiceUpdatedRequest.ForkChoiceAttributes
 import units.client.engine.model.PayloadStatus.{Syncing, Valid}
 import units.eth.EthAddress
-import units.{BlockHash, ClientConfig, ClientError, JobResult}
+import units.{BlockHash, ClientConfig}
 
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 
@@ -20,7 +20,7 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
 
   val apiUrl: Uri = uri"${config.executionClientAddress}"
 
-  def forkChoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus] = {
+  def forkChoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash): Either[String, PayloadStatus] = {
     sendEngineRequest[ForkChoiceUpdatedRequest, ForkChoiceUpdatedResponse](
       ForkChoiceUpdatedRequest(blockHash, finalizedBlockHash, None),
       BlockExecutionTimeout
@@ -28,8 +28,8 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
       .flatMap {
         case ForkChoiceUpdatedResponse(ps @ PayloadState(Valid | Syncing, _, _), None) => Right(ps.status)
         case ForkChoiceUpdatedResponse(PayloadState(_, _, Some(validationError)), _) =>
-          Left(ClientError(s"Payload validation error: $validationError"))
-        case ForkChoiceUpdatedResponse(payloadState, _) => Left(ClientError(s"Unexpected payload status ${payloadState.status}"))
+          Left(s"Payload validation error: $validationError")
+        case ForkChoiceUpdatedResponse(payloadState, _) => Left(s"Unexpected payload status ${payloadState.status}")
       }
   }
 
@@ -40,7 +40,7 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
       suggestedFeeRecipient: EthAddress,
       prevRandao: String,
       withdrawals: Vector[Withdrawal]
-  ): JobResult[PayloadId] = {
+  ): Either[String, PayloadId] = {
     sendEngineRequest[ForkChoiceUpdatedRequest, ForkChoiceUpdatedResponse](
       ForkChoiceUpdatedRequest(
         lastBlockHash,
@@ -52,74 +52,74 @@ class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Ide
       case ForkChoiceUpdatedResponse(PayloadState(Valid, _, _), Some(payloadId)) =>
         Right(payloadId)
       case ForkChoiceUpdatedResponse(_, None) =>
-        Left(ClientError(s"Payload id for $lastBlockHash is not defined"))
+        Left(s"Payload id for $lastBlockHash is not defined")
       case ForkChoiceUpdatedResponse(PayloadState(_, _, Some(validationError)), _) =>
-        Left(ClientError(s"Payload validation error for $lastBlockHash: $validationError"))
+        Left(s"Payload validation error for $lastBlockHash: $validationError")
       case ForkChoiceUpdatedResponse(payloadState, _) =>
-        Left(ClientError(s"Unexpected payload status for $lastBlockHash: ${payloadState.status}"))
+        Left(s"Unexpected payload status for $lastBlockHash: ${payloadState.status}")
     }
   }
 
-  def getPayload(payloadId: PayloadId): JobResult[JsObject] = {
+  def getPayload(payloadId: PayloadId): Either[String, JsObject] = {
     sendEngineRequest[GetPayloadRequest, GetPayloadResponse](GetPayloadRequest(payloadId), NonBlockExecutionTimeout).map(_.executionPayload)
   }
 
-  def applyNewPayload(payloadJson: JsObject): JobResult[Option[BlockHash]] = {
+  def applyNewPayload(payloadJson: JsObject): Either[String, Option[BlockHash]] = {
     sendEngineRequest[NewPayloadRequest, PayloadState](NewPayloadRequest(payloadJson), BlockExecutionTimeout).flatMap {
-      case PayloadState(_, _, Some(validationError))     => Left(ClientError(s"Payload validation error: $validationError"))
+      case PayloadState(_, _, Some(validationError))     => Left(s"Payload validation error: $validationError")
       case PayloadState(Valid, Some(latestValidHash), _) => Right(Some(latestValidHash))
       case PayloadState(Syncing, latestValidHash, _)     => Right(latestValidHash)
-      case PayloadState(status, None, _)                 => Left(ClientError(s"Latest valid hash is not defined at status $status"))
-      case PayloadState(status, _, _)                    => Left(ClientError(s"Unexpected payload status: $status"))
+      case PayloadState(status, None, _)                 => Left(s"Latest valid hash is not defined at status $status")
+      case PayloadState(status, _, _)                    => Left(s"Unexpected payload status: $status")
     }
   }
 
-  def getPayloadBodyByHash(hash: BlockHash): JobResult[Option[JsObject]] = {
+  def getPayloadBodyByHash(hash: BlockHash): Either[String, Option[JsObject]] = {
     sendEngineRequest[GetPayloadBodyByHash, JsArray](GetPayloadBodyByHash(hash), NonBlockExecutionTimeout)
       .map(_.value.headOption.flatMap(_.asOpt[JsObject]))
   }
 
-  def getBlockByNumber(number: BlockNumber): JobResult[Option[ExecutionPayload]] = {
+  def getBlockByNumber(number: BlockNumber): Either[String, Option[ExecutionPayload]] = {
     for {
       json <- sendRequest[GetBlockByNumberRequest, JsObject](GetBlockByNumberRequest(number.str))
-        .leftMap(err => ClientError(s"Error getting payload by number $number: $err"))
+        .leftMap(err => s"Error getting payload by number $number: $err")
       blockMeta <- json.traverse(parseJson[ExecutionPayload](_))
     } yield blockMeta
   }
 
-  def getBlockByHash(hash: BlockHash): JobResult[Option[ExecutionPayload]] = {
+  def getBlockByHash(hash: BlockHash): Either[String, Option[ExecutionPayload]] = {
     sendRequest[GetBlockByHashRequest, ExecutionPayload](GetBlockByHashRequest(hash))
-      .leftMap(err => ClientError(s"Error getting payload by hash $hash: $err"))
+      .leftMap(err => s"Error getting payload by hash $hash: $err")
   }
 
-  def getLatestBlock: JobResult[ExecutionPayload] = for {
+  def getLatestBlock: Either[String, ExecutionPayload] = for {
     lastPayloadOpt <- getBlockByNumber(BlockNumber.Latest)
-    lastPayload    <- Either.fromOption(lastPayloadOpt, ClientError("Impossible: EC doesn't have payloads"))
+    lastPayload    <- Either.fromOption(lastPayloadOpt, "Impossible: EC doesn't have payloads")
   } yield lastPayload
 
-  def getBlockJsonByHash(hash: BlockHash): JobResult[Option[JsObject]] = {
+  def getBlockJsonByHash(hash: BlockHash): Either[String, Option[JsObject]] = {
     sendRequest[GetBlockByHashRequest, JsObject](GetBlockByHashRequest(hash))
-      .leftMap(err => ClientError(s"Error getting block json by hash $hash: $err"))
+      .leftMap(err => s"Error getting block json by hash $hash: $err")
   }
 
-  def getPayloadJsonDataByHash(hash: BlockHash): JobResult[PayloadJsonData] = {
+  def getPayloadJsonDataByHash(hash: BlockHash): Either[String, PayloadJsonData] = {
     for {
       blockJsonOpt       <- getBlockJsonByHash(hash)
-      blockJson          <- Either.fromOption(blockJsonOpt, ClientError("block not found"))
+      blockJson          <- Either.fromOption(blockJsonOpt, "block not found")
       payloadBodyJsonOpt <- getPayloadBodyByHash(hash)
-      payloadBodyJson    <- Either.fromOption(payloadBodyJsonOpt, ClientError("payload body not found"))
+      payloadBodyJson    <- Either.fromOption(payloadBodyJsonOpt, "payload body not found")
     } yield PayloadJsonData(blockJson, payloadBodyJson)
   }
 
-  def getLogs(hash: BlockHash, address: EthAddress, topic: String): JobResult[List[GetLogsResponseEntry]] =
+  def getLogs(hash: BlockHash, address: EthAddress, topic: String): Either[String, List[GetLogsResponseEntry]] =
     sendRequest[GetLogsRequest, List[GetLogsResponseEntry]](GetLogsRequest(hash, address, List(topic)))
-      .leftMap(err => ClientError(s"Error getting block logs by hash $hash: $err"))
+      .leftMap(err => s"Error getting block logs by hash $hash: $err")
       .map(_.getOrElse(List.empty))
 
-  private def sendEngineRequest[A: Writes, B: Reads](request: A, timeout: FiniteDuration): JobResult[B] = {
+  private def sendEngineRequest[A: Writes, B: Reads](request: A, timeout: FiniteDuration): Either[String, B] = {
     sendRequest(request, timeout) match {
-      case Right(response) => response.toRight(ClientError(s"Unexpected engine API empty response"))
-      case Left(err)       => Left(ClientError(s"Engine API request error: $err"))
+      case Right(response) => response.toRight(s"Unexpected engine API empty response")
+      case Left(err)       => Left(s"Engine API request error: $err")
     }
   }
 }
