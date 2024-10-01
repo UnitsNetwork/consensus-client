@@ -88,6 +88,7 @@ class ELUpdater(
         case w: Working[ChainStatus] =>
           w.returnToMainChainInfo match {
             case Some(rInfo) if rInfo.missedBlock.hash == payload.hash =>
+              logger.debug(s"New block ${payload.hash} payload is for missed block from main chain ${rInfo.chainId}")
               chainContractClient.getChainInfo(rInfo.chainId) match {
                 case Some(chainInfo) if chainInfo.isMain =>
                   validateAndApplyMissed(epi, w, rInfo.missedBlock, rInfo.missedBlockParentPayload, chainInfo)
@@ -96,7 +97,15 @@ class ELUpdater(
                 case _ =>
                   logger.error(s"Failed to get chain ${rInfo.chainId} info, ignoring ${payload.hash}")
               }
-            case _ => logger.debug(s"Expecting ${w.returnToMainChainInfo.fold("no block payload")(_.toString)}, ignoring unexpected ${payload.hash}")
+            case rInfo =>
+              val returnToMainChainMsg = rInfo match {
+                case Some(rInfo) => s", main chain id: ${rInfo.chainId}, expected missed payload for main chain block: ${rInfo.missedBlock.hash}"
+                case _           => ", no missed blocks' payloads from main chain expecting"
+              }
+
+              logger.debug(
+                s"Ignoring unexpected payload for block ${payload.hash}, expected parent for current chain: ${w.lastPayload.hash}$returnToMainChainMsg"
+              )
           }
         case other =>
           logger.debug(s"$other: ignoring ${payload.hash}")
