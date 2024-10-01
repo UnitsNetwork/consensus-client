@@ -24,4 +24,4 @@ echo "BlockScout is ${BS}"
 
 ./genesis-update.sh
 docker compose up -d
-docker logs deploy -f
+docker compose logs deploy test -f

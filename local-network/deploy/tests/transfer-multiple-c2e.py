@@ -72,7 +72,7 @@ def main():
     for to_address, expected_balance in expected_balances.items():
         balance_after = network.w3.eth.get_balance(to_address)
         log.info(
-            f"[E] {to_address} balance after: {units.wei_to_raw(balance_after)} UNIT0"
+            f"[E] {to_address} balance after: {units.wei_to_raw(balance_after)} UNIT0, expected: {units.wei_to_raw(expected_balance)} UNIT0"
         )
 
         assert balance_after == expected_balance

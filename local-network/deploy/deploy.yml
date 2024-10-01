@@ -1,0 +1,12 @@
+services:
+  deploy:
+    build:
+      context: .
+      network: host
+    restart: no # Manual start
+    platform: linux/amd64 # HACK for Apple Silicon
+    environment:
+      DEPLOY_LOG_DIR: /home/node/logs
+    volumes:
+      - .:/usr/src/app
+

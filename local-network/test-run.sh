@@ -3,5 +3,5 @@
 DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "${DIR}" || exit
 
-./bridge-compile.sh
-python -B deploy.py
+docker rm -f test
+docker compose up --no-deps test

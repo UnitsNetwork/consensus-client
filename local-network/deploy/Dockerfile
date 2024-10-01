@@ -14,4 +14,4 @@ COPY pyproject.toml ./
 
 RUN pip install --no-cache-dir --editable .
 
-CMD ["/bin/bash", "deploy-run.sh"]
+CMD ["/bin/bash", "run.sh"]

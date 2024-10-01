@@ -68,18 +68,31 @@ services:
 
   deploy:
     container_name: deploy
-    build:
-      context: ./deploy/
-      network: host
-    restart: no # Manual start
-    platform: linux/amd64 # HACK for Apple Silicon
+    hostname: deploy
+    extends:
+      file: ./deploy/deploy.yml
+      service: deploy
     environment:
-      DEPLOY_LOG_DIR: /home/node/logs
+      MAIN: deploy.py
     volumes:
-      - ./deploy:/usr/src/app
       - ./logs/deploy:/var/log/deploy
     depends_on:
       wavesnode-1:
         condition: service_healthy
       ec-1:
         condition: service_healthy
+
+  test:
+    container_name: test
+    hostname: test
+    extends:
+      file: ./deploy/deploy.yml
+      service: deploy
+    environment:
+      MAIN: test.py
+    volumes:
+      - ./logs/test:/var/log/deploy
+    depends_on:
+      deploy:
+        condition: service_completed_successfully
+
