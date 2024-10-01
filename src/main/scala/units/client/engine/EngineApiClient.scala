@@ -4,10 +4,10 @@ import play.api.libs.json.*
 import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.model.*
 import units.eth.EthAddress
-import units.{BlockHash, JobResult}
+import units.BlockHash
 
 trait EngineApiClient {
-  def forkChoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus]
+  def forkChoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash): Either[String, PayloadStatus]
 
   def forkChoiceUpdatedWithPayloadId(
       lastBlockHash: BlockHash,
@@ -16,25 +16,25 @@ trait EngineApiClient {
       suggestedFeeRecipient: EthAddress,
       prevRandao: String,
       withdrawals: Vector[Withdrawal] = Vector.empty
-  ): JobResult[PayloadId]
+  ): Either[String, PayloadId]
 
-  def getPayload(payloadId: PayloadId): JobResult[JsObject]
+  def getPayload(payloadId: PayloadId): Either[String, JsObject]
 
-  def applyNewPayload(payloadJson: JsObject): JobResult[Option[BlockHash]]
+  def applyNewPayload(payloadJson: JsObject): Either[String, Option[BlockHash]]
 
-  def getPayloadBodyByHash(hash: BlockHash): JobResult[Option[JsObject]]
+  def getPayloadBodyByHash(hash: BlockHash): Either[String, Option[JsObject]]
 
-  def getBlockByNumber(number: BlockNumber): JobResult[Option[ExecutionPayload]]
+  def getBlockByNumber(number: BlockNumber): Either[String, Option[ExecutionPayload]]
 
-  def getBlockByHash(hash: BlockHash): JobResult[Option[ExecutionPayload]]
+  def getBlockByHash(hash: BlockHash): Either[String, Option[ExecutionPayload]]
 
-  def getLatestBlock: JobResult[ExecutionPayload]
+  def getLatestBlock: Either[String, ExecutionPayload]
 
-  def getBlockJsonByHash(hash: BlockHash): JobResult[Option[JsObject]]
+  def getBlockJsonByHash(hash: BlockHash): Either[String, Option[JsObject]]
 
-  def getPayloadJsonDataByHash(hash: BlockHash): JobResult[PayloadJsonData]
+  def getPayloadJsonDataByHash(hash: BlockHash): Either[String, PayloadJsonData]
 
-  def getLogs(hash: BlockHash, address: EthAddress, topic: String): JobResult[List[GetLogsResponseEntry]]
+  def getLogs(hash: BlockHash, address: EthAddress, topic: String): Either[String, List[GetLogsResponseEntry]]
 }
 
 object EngineApiClient {
