@@ -12,4 +12,7 @@ BS=enabled docker compose pull --ignore-buildable
 echo "Update deploy image"
 docker compose build deploy
 
+echo "Update test image"
+docker compose build test
+
 echo "Done."

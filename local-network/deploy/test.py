@@ -19,6 +19,6 @@ def run_main_from_module(filepath):
 
 tests_dir = "tests"
 for filename in os.listdir(tests_dir):
-    if filename.endswith(".py") and "multiple" in filename:
+    if filename.endswith(".py"):
         filepath = os.path.join(tests_dir, filename)
         run_main_from_module(filepath)

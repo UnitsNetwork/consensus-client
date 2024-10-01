@@ -65,7 +65,7 @@ def main():
         )
         log.info(f"[C] #{i} ChainContract.transfer result: {transfer_result}")
 
-    network.el_bridge.waitForWithdrawals(
+    network.el_bridge.wait_for_withdrawals(
         el_curr_height, [(t.to_account, t.wei_amount) for t in transfers]
     )
 
