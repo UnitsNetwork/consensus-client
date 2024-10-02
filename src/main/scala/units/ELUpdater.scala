@@ -68,6 +68,7 @@ class ELUpdater(
     if (payload.timestamp - now <= MaxTimeDrift) {
       state match {
         case WaitingForSyncHead(target, _) if payload.hash == target.hash =>
+          logger.debug(s"New block ${payload.hash} payload is for sync target block")
           val syncStarted = for {
             _         <- engineApiClient.applyNewPayload(epi.payloadJson)
             fcuStatus <- confirmBlock(target, target)
@@ -84,6 +85,7 @@ class ELUpdater(
           }
         case w @ Working(_, lastPayload, _, _, _, FollowingChain(nodeChainInfo, _), _, returnToMainChainInfo)
             if payload.parentHash == lastPayload.hash =>
+          logger.debug(s"New block ${payload.hash} payload refers to the last applied block")
           validateAndApply(epi, w, lastPayload, nodeChainInfo, returnToMainChainInfo)
         case w: Working[ChainStatus] =>
           w.returnToMainChainInfo match {
@@ -183,10 +185,12 @@ class ELUpdater(
       Proofs.empty,
       blockchain.settings.addressSchemeCharacter.toByte
     ).signWith(invoker.privateKey)
+
+    cleanPriorityPool()
+
     logger.info(
       s"Invoking ${config.chainContractAddress} '${fc.function.funcName}' for block ${payload.hash}->${payload.parentHash}, txId=${tx.id()}"
     )
-    cleanPriorityPool()
 
     broadcastTx(tx).resultE match {
       case Right(true)  => Either.unit
@@ -865,9 +869,11 @@ class ELUpdater(
     (chainContractClient.getMainChainInfo, chainContractClient.getChainInfo(prevChainId)) match {
       case (Some(mainChainInfo), Some(prevChainInfo)) =>
         if (mainChainInfo.id != prevState.mainChainInfo.id) {
+          logger.debug(s"Main chain was changed: switching to the chain ${mainChainInfo.id} (previous is ${prevState.mainChainInfo.id})")
           val updatedLastPayload = findLastPayload(mainChainInfo.lastBlock)
           rollbackAndFollowMainChain(updatedLastPayload, mainChainInfo)
         } else if (prevChainInfo.firstBlock.height < finalizedContractBlock.height && !prevChainInfo.isMain) {
+          logger.debug(s"Current chain ${prevChainInfo.id} became inactive, switching to main chain ${mainChainInfo.id}")
           val targetBlockHash = prevChainInfo.firstBlock.parentHash
           chainContractClient.getBlock(targetBlockHash) match {
             case Some(targetBlock) => rollbackAndFollowMainChain(targetBlock, mainChainInfo)
@@ -876,6 +882,7 @@ class ELUpdater(
               None
           }
         } else if (isLastBlockOnFork(prevChainInfo, prevState.lastPayload)) {
+          logger.debug(s"Last applied block ${prevState.lastPayload.hash} is on fork, trying to rollback to the most recent block from contract")
           val updatedLastPayload = findLastPayload(prevChainInfo.lastBlock)
           rollbackAndFollowChain(updatedLastPayload, prevChainInfo, mainChainInfo, prevState.returnToMainChainInfo)
         } else {
@@ -1052,9 +1059,10 @@ class ELUpdater(
         // we should check block miner based on epochInfo if block is not at contract yet
         val epochInfo = if (contractBlock.isEmpty) Some(prevState.epochInfo) else None
 
+        logger.debug(s"Trying to do prevalidation of block ${payload.hash}")
         preValidateBlock(epi, parentPayload, epochInfo) match {
           case Right(_) =>
-            logger.debug(s"Block ${payload.hash} was successfully partially validated")
+            logger.debug(s"Block ${payload.hash} was successfully prevalidated")
             broadcastAndConfirmBlock(epi, prevState, nodeChainInfo, returnToMainChainInfo)
           case Left(err) =>
             logger.error(s"Block ${payload.hash} prevalidation error: $err, ignoring block")
@@ -1099,7 +1107,7 @@ class ELUpdater(
     confirmBlockAndFollowChain(epi.payload, prevState, nodeChainInfo, returnToMainChainInfo)
   }
 
-  private def findBlockChild(parent: BlockHash, lastBlockHash: BlockHash): Either[String, ContractBlock] = {
+  private def findBlockChild(parent: BlockHash, lastBlockHash: BlockHash): Option[ContractBlock] = {
     @tailrec
     def loop(b: BlockHash): Option[ContractBlock] = chainContractClient.getBlock(b) match {
       case None => None
@@ -1108,7 +1116,7 @@ class ELUpdater(
         else loop(cb.parentHash)
     }
 
-    loop(lastBlockHash).toRight(s"Could not find child of $parent")
+    loop(lastBlockHash)
   }
 
   @tailrec
@@ -1116,10 +1124,7 @@ class ELUpdater(
     if (prevState.lastPayload.height < prevState.chainStatus.nodeChainInfo.lastBlock.height) {
       logger.debug(s"EC chain is not synced, trying to find next block to request payload")
       findBlockChild(prevState.lastPayload.hash, prevState.chainStatus.nodeChainInfo.lastBlock.hash) match {
-        case Left(error) =>
-          logger.error(s"Could not find child of ${prevState.lastPayload.hash} on contract: $error")
-          prevState
-        case Right(contractBlock) =>
+        case Some(contractBlock) =>
           requestBlockPayload(contractBlock) match {
             case PayloadRequestResult.Exists(payload) =>
               logger.debug(s"Block ${contractBlock.hash} payload exists at EC chain, trying to confirm")
@@ -1140,6 +1145,9 @@ class ELUpdater(
               setState("8", newState)
               newState
           }
+        case _ =>
+          logger.error(s"Could not find child of ${prevState.lastPayload.hash} on contract")
+          prevState
       }
     } else {
       logger.trace(s"EC chain ${prevState.chainStatus.nodeChainInfo.id} is synced, no need to request block payloads")
