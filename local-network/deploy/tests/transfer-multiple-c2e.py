@@ -1,17 +1,17 @@
 #!/usr/bin/env python
-import os
 from decimal import Decimal
 
 from eth_typing import ChecksumAddress
 from units_network import units, waves
+from units_network.common_utils import configure_cli_logger
 from web3.types import Wei
 
-from local.common import C2ETransfer, configure_script_logger
+from local.common import C2ETransfer
 from local.network import get_local
 
 
 def main():
-    log = configure_script_logger(os.path.basename(__file__))
+    log = configure_cli_logger(__file__)
     network = get_local()
 
     transfers = [

@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import os
 from decimal import Decimal
 from typing import List, Tuple
 
@@ -10,12 +9,12 @@ from units_network.bridge import E2CTransferParams
 from web3 import Web3
 from web3.types import Nonce, TxReceipt
 
-from local.common import E2CTransfer, configure_script_logger
+from local.common import E2CTransfer
 from local.network import get_local
 
 
 def main():
-    log = configure_script_logger(os.path.basename(__file__))
+    log = common_utils.configure_cli_logger(__file__)
     network = get_local()
 
     transfers = [

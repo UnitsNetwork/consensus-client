@@ -4,12 +4,12 @@ from time import sleep
 
 from units_network import units, waves
 from units_network.chain_contract import HexStr
+from units_network.common_utils import configure_cli_logger
 from units_network.node import Node
 
-from local.common import configure_script_logger
 from local.network import get_local
 
-log = configure_script_logger("main")
+log = configure_cli_logger(__file__)
 network = get_local()
 
 
