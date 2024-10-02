@@ -5,7 +5,7 @@ shopt -s nullglob
 DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "${DIR}" || exit
 
-COMPOSE_PROFILES=tests BS=enabled docker compose down
+COMPOSE_PROFILES=bs,tests BS=enabled docker compose down
 rm -rf data || true
 rm -rf logs || true
 

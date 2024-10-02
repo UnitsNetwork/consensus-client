@@ -14,10 +14,12 @@ You have to build consensus client. Run [./consensus_client-image-build.sh](./co
 
 - Run `./all-images-build.sh` after pulling the repository, so docker compose will pull new external images and rebuild
   the `deploy` image.
-- Set appropriate environment variables:
-  - To run Blockscout: `BS=1`
-  - To run tests in the end `COMPOSE_PROFILES=tests`
-- Run `ADD_ENV_VARS_HERE ./restart.sh` (see: [./restart.sh](./restart.sh)).
+- Available docker compose contexts:
+  - BlockScout services: `bs`
+  - Tests in the end `tests`
+- Run [./restart.sh](./restart.sh) 
+  - With selected contexts, for example, `COMPOSE_PROFILES=bs,tests ./restart.sh`
+  - Or without any context: `./restart.sh`
 
 To retry failed: 
 - deploy - run `./deploy-run.sh`.

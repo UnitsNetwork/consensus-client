@@ -1,6 +1,6 @@
 name: l2
 include:
-  - ./configs/blockscout/${BS-enabled}.yml
+  - ./configs/blockscout/blockscout.yml
 services:
   ec-1:
     container_name: ec-1
