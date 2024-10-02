@@ -3,4 +3,4 @@
 DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "${DIR}" || exit
 
-BS=enabled docker compose stop
+COMPOSE_PROFILES=tests BS=enabled docker compose stop

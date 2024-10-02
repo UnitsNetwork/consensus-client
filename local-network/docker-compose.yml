@@ -82,17 +82,17 @@ services:
       ec-1:
         condition: service_healthy
 
-  test:
-    container_name: test
-    hostname: test
+  tests:
+    container_name: tests
+    hostname: tests
     extends:
       file: ./deploy/deploy.yml
       service: deploy
     environment:
-      MAIN: test.py
+      MAIN: tests.py
     volumes:
-      - ./logs/test:/var/log/deploy
+      - ./logs/tests:/var/log/deploy
     depends_on:
       deploy:
         condition: service_completed_successfully
-
+    profiles: [ tests ]

@@ -18,10 +18,13 @@ mkdir -p ./deploy/setup/{el,waves}
 cp ../src/test/resources/bridge.sol ./deploy/setup/el/
 cp ../src/test/resources/main.ride ./deploy/setup/waves/
 
-export BS=${BS:+enabled}
-export BS=${BS:-disabled}
+export BS="${BS:+enabled}"
+export BS="${BS:-disabled}"
 echo "BlockScout is ${BS}"
+
+export COMPOSE_PROFILES="${COMPOSE_PROFILES:-}"
+echo "Compose profiles are: ${COMPOSE_PROFILES}"
 
 ./genesis-update.sh
 docker compose up -d
-docker compose logs deploy test -f
+docker compose logs deploy tests -f
