@@ -487,7 +487,7 @@ func appendBlock(
 }
 
 @Callable(i)
-func join(rewardAddress: ByteVector) = {
+func join(rewardAddressHex: String) = {
   # EL miner must sign a Network block by own private key
   func ensureNotOverrideOtherMinerPk(elAddressHex: String) = {
     match getBinary(minerPkKey(elAddressHex)) {
@@ -499,6 +499,9 @@ func join(rewardAddress: ByteVector) = {
       case _ => unit
     }
   }
+
+  let parts = rewardAddressHex.split("0x")
+  let rewardAddress = parts[parts.size() - 1].fromBase16String()
 
   if (!isContractSetup()) then
     throw("The contract has not yet set up")
@@ -513,8 +516,8 @@ func join(rewardAddress: ByteVector) = {
     then []
     else {
       let newMiner = i.originCaller.toString()
-      let rewardAddressHex = rewardAddress.toBase16String()
-      strict check = ensureNotOverrideOtherMinerPk(rewardAddressHex)
+      let lowercaseRewardAddress = rewardAddress.toBase16String()
+      strict check = ensureNotOverrideOtherMinerPk(lowercaseRewardAddress)
 
       let newMiners =
         if (allMiners.size() == 0)
@@ -531,8 +534,8 @@ func join(rewardAddress: ByteVector) = {
       }
       [
         StringEntry(allMinersKey, newMiners),
-        StringEntry(minerRewardAddressKey(newMiner), "0x" + rewardAddressHex),
-        BinaryEntry(minerPkKey(rewardAddressHex), i.originCallerPublicKey)
+        StringEntry(minerRewardAddressKey(newMiner), "0x" + lowercaseRewardAddress),
+        BinaryEntry(minerPkKey(lowercaseRewardAddress), i.originCallerPublicKey)
       ] ++ deletePrevRewardAddressPk
     }
   }

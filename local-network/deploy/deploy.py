@@ -87,7 +87,9 @@ log.info(f"Miners: {joined_miners}")
 for miner in network.cl_miners:
     if miner.account.address not in joined_miners:
         log.info(f"Call ChainContract.join by miner f{miner.account.address}")
-        r = network.cl_chain_contract.join(miner.account, miner.el_reward_address_hex)
+        r = network.cl_chain_contract.join_v2(
+            miner.account, miner.el_reward_address_hex
+        )
         waves.force_success(
             log,
             r,
