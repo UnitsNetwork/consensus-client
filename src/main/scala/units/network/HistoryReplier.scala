@@ -1,13 +1,12 @@
 package units.network
 
-import cats.syntax.either.*
 import com.wavesplatform.network.id
 import com.wavesplatform.utils.ScorexLogging
 import io.netty.channel.ChannelHandler.Sharable
 import io.netty.channel.{ChannelHandlerContext, ChannelInboundHandlerAdapter}
 import monix.execution.Scheduler
 import units.client.engine.EngineApiClient
-import units.{BlockHash, ClientError}
+import units.BlockHash
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
@@ -39,9 +38,9 @@ class HistoryReplier(engineApiClient: EngineApiClient)(implicit sc: Scheduler) e
     case _ => super.channelRead(ctx, msg)
   }
 
-  private def loadPayload(hash: BlockHash): Future[Either[ClientError, PayloadMessage]] = Future {
+  private def loadPayload(hash: BlockHash): Future[Either[String, PayloadMessage]] = Future {
     engineApiClient.getPayloadJsonDataByHash(hash).flatMap { payloadJsonData =>
-      PayloadMessage(payloadJsonData.toPayloadJson).leftMap(ClientError.apply)
+      PayloadMessage(payloadJsonData.toPayloadJson)
     }
   }
 }
