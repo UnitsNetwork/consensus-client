@@ -42,7 +42,6 @@ See [./deploy](./deploy/).
         * wavesnode-1: `devnet-1`
         * wavesnode-2: `devnet-2`
     * Chain contract: `3FdaanzgX4roVgHevhq8L8q42E7EZL9XTQr`
-    * Staking contract: `3FSgXpgbT6m1speWgVx3cVxAZKmdr4barHU`
 * EL mining reward accounts:
     * Reward account for **Miner 1** (`wavesnode-1`, `besu-1`):
         * Address: `0x7dBcf9c6C3583b76669100f9BE3CaF6d722bc9f9`
