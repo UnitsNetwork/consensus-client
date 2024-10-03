@@ -11,7 +11,6 @@ services:
       - --rpc-http-api=ETH,NET,WEB3,TXPOOL,TRACE
       - --rpc-http-cors-origins=all
       - --rpc-ws-enabled
-      - --discovery-dns-url=enrtree://AIRIZFFZSCSIVHXTKA44WYZQJMR75FLTGWJ5TUNEW5IP7QKZDLBRK@${NETWORK}-nodes.unit0.dev
       - --discovery-enabled=true
       - --engine-rpc-enabled
       - --engine-jwt-secret=/etc/secrets/jwtsecret
@@ -31,6 +30,5 @@ services:
     ports:
       - '30303:30303/tcp'
       - '30303:30303/udp'
-      - '8545:8545'
     environment:
       - LOG4J_CONFIGURATION_FILE=/etc/besu/log4j2.xml

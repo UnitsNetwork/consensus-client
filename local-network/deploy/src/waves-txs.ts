@@ -54,9 +54,8 @@ export const ccMinerJoin1 = wt.invokeScript(
       args: [
         {
           // Reward address
-          type: "binary",
-          // 0x7dbcf9c6c3583b76669100f9be3caf6d722bc9f9
-          value: "base64:fbz5xsNYO3ZmkQD5vjyvbXIryfk="
+          type: "string",
+          value: "0x7dbcf9c6c3583b76669100f9be3caf6d722bc9f9"
         }
       ]
     }
@@ -74,9 +73,8 @@ export const ccMinerJoin2 = wt.invokeScript(
       args: [
         {
           // Reward address
-          type: "binary",
-          // 0xcf0b9e13fdd593f4ca26d36afcaa44dd3fdccbed
-          value: "base64:zwueE/3Vk/TKJtNq/KpE3T/cy+0="
+          type: "string",
+          value: "0xcf0b9e13fdd593f4ca26d36afcaa44dd3fdccbed"
         }
       ]
     }
@@ -131,4 +129,3 @@ export function mkE2CTransfer(senderPrivateKey: string, blockHash: string, merkl
     { privateKey: senderPrivateKey }
   )
 }
-

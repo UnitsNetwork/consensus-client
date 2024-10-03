@@ -13,7 +13,6 @@ import units.client.CommonBlockData
 import units.client.contract.HasConsensusLayerDappTxHelpers.*
 import units.client.contract.HasConsensusLayerDappTxHelpers.defaultFees.chainContract.*
 import units.eth.{EthAddress, EthereumConstants}
-import units.util.HexBytesConverter
 
 trait HasConsensusLayerDappTxHelpers {
   def currentHitSource: ByteStr
@@ -38,7 +37,7 @@ trait HasConsensusLayerDappTxHelpers {
       invoker = minerAccount,
       dApp = chainContractAddress,
       func = "join".some,
-      args = List(Terms.CONST_BYTESTR(ByteStr(HexBytesConverter.toBytes(elRewardAddress.hexNoPrefix))).explicitGet()),
+      args = List(Terms.CONST_STRING(elRewardAddress.hexNoPrefix).explicitGet()),
       fee = joinFee
     )
 
