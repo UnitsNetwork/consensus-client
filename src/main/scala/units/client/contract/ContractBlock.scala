@@ -2,7 +2,7 @@ package units.client.contract
 
 import com.wavesplatform.common.merkle.Digest
 import units.BlockHash
-import units.client.L2BlockLike
+import units.client.CommonBlockData
 import units.eth.EthAddress
 import units.util.HexBytesConverter.toHex
 
@@ -11,13 +11,13 @@ case class ContractBlock(
     parentHash: BlockHash,
     epoch: Int,
     height: Long,
-    minerRewardL2Address: EthAddress,
+    feeRecipient: EthAddress,
     chainId: Long,
     e2cTransfersRootHash: Digest,
     lastC2ETransferIndex: Long
-) extends L2BlockLike {
+) extends CommonBlockData {
   override def toString: String =
-    s"ContractBlock($hash, p=$parentHash, e=$epoch, h=$height, m=$minerRewardL2Address, c=$chainId, " +
+    s"ContractBlock($hash, p=$parentHash, e=$epoch, h=$height, m=$feeRecipient, c=$chainId, " +
       s"e2c=${if (e2cTransfersRootHash.isEmpty) "" else toHex(e2cTransfersRootHash)}, c2e=$lastC2ETransferIndex)"
 }
 

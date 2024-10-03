@@ -7,8 +7,7 @@ import io.netty.channel.ChannelHandler.Sharable
 import io.netty.channel.{ChannelHandlerContext, ChannelInboundHandlerAdapter}
 import monix.execution.Scheduler
 import units.client.engine.EngineApiClient
-import units.util.BlockToPayloadMapper
-import units.{BlockHash, ClientError, NetworkL2Block}
+import units.{BlockHash, ClientError}
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
@@ -27,27 +26,22 @@ class HistoryReplier(engineApiClient: EngineApiClient)(implicit sc: Scheduler) e
     }
 
   override def channelRead(ctx: ChannelHandlerContext, msg: AnyRef): Unit = msg match {
-    case GetBlock(hash) =>
+    case GetPayload(hash) =>
       respondWith(
         ctx,
-        loadBlockL2(hash)
+        loadPayload(hash)
           .map {
-            case Right(blockL2) =>
-              RawBytes(BlockSpec.messageCode, BlockSpec.serializeData(blockL2))
-            case Left(err) => throw new NoSuchElementException(s"Error loading block $hash: $err")
+            case Right(payloadMsg) =>
+              RawBytes(PayloadSpec.messageCode, PayloadSpec.serializeData(payloadMsg))
+            case Left(err) => throw new NoSuchElementException(s"Error loading block $hash payload: $err")
           }
       )
     case _ => super.channelRead(ctx, msg)
   }
 
-  private def loadBlockL2(hash: BlockHash): Future[Either[ClientError, NetworkL2Block]] = Future {
-    for {
-      blockJsonOpt       <- engineApiClient.getBlockByHashJson(hash)
-      blockJson          <- Either.fromOption(blockJsonOpt, ClientError("block not found"))
-      payloadBodyJsonOpt <- engineApiClient.getPayloadBodyByHash(hash)
-      payloadBodyJson    <- Either.fromOption(payloadBodyJsonOpt, ClientError("payload body not found"))
-      payload = BlockToPayloadMapper.toPayloadJson(blockJson, payloadBodyJson)
-      blockL2 <- NetworkL2Block(payload)
-    } yield blockL2
+  private def loadPayload(hash: BlockHash): Future[Either[ClientError, PayloadMessage]] = Future {
+    engineApiClient.getPayloadJsonDataByHash(hash).flatMap { payloadJsonData =>
+      PayloadMessage(payloadJsonData.toPayloadJson).leftMap(ClientError.apply)
+    }
   }
 }

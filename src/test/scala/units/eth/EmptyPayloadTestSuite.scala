@@ -5,15 +5,15 @@ import org.scalatest.freespec.AnyFreeSpec
 import org.web3j.abi.datatypes.generated.Uint256
 import play.api.libs.json.Json
 import units.BlockHash
-import units.client.engine.model.EcBlock
-import units.eth.EmptyL2Block.Params
+import units.client.engine.model.ExecutionPayload
+import units.eth.EmptyPayload.Params
 
-class EmptyL2BlockTestSuite extends AnyFreeSpec with BaseSuite {
+class EmptyPayloadTestSuite extends AnyFreeSpec with BaseSuite {
   private val DefaultFeeRecipient = EthAddress.unsafeFrom("0x283c3c6ad2043af4d4e7d261809260fdab4a62d2")
 
   "mkExecutionPayload" in {
     // Got from eth_getBlockByHash
-    val parentEcBlockJson =
+    val parentBlockJson =
       """{
         |  "number": "0xf",
         |  "hash": "0x296e3d6de01dbe3c109e13799d6efd2b68469075149ee4e1d8d644765e2cd620",
@@ -50,8 +50,8 @@ class EmptyL2BlockTestSuite extends AnyFreeSpec with BaseSuite {
         |  "parentBeaconBlockRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"
         |}""".stripMargin
 
-    val parentEcBlock = Json.parse(parentEcBlockJson).as[EcBlock]
-    EmptyL2Block.mkExecutionPayload(parentEcBlock) shouldBe Json.parse(
+    val parentPayload = Json.parse(parentBlockJson).as[ExecutionPayload]
+    EmptyPayload.mkExecutionPayloadJson(parentPayload) shouldBe Json.parse(
       """{
         |  "parentHash": "0x296e3d6de01dbe3c109e13799d6efd2b68469075149ee4e1d8d644765e2cd620",
         |  "feeRecipient": "0x0000000000000000000000000000000000000000",
@@ -77,7 +77,7 @@ class EmptyL2BlockTestSuite extends AnyFreeSpec with BaseSuite {
   "calculateHash" - {
     "hash 1" in {
       val expected = "0xfb0c23d4b394710700e8b4588905cc0a123c088044a6326266280798cb6a5a92"
-      val actual = EmptyL2Block.calculateHash(
+      val actual = EmptyPayload.calculateHash(
         Params(
           parentHash = BlockHash("0x49a8da0a609fbf1d68535a0766ecb0fe35d9cdac6ba459281daa944fa4c273b9"),
           parentStateRoot = "0xc0687a72deb7cec7caa72e99a985f3475cb780321d0572a9975fa7638c29c4e1",
@@ -93,7 +93,7 @@ class EmptyL2BlockTestSuite extends AnyFreeSpec with BaseSuite {
 
     "hash 2" in {
       val expected = "0x86ecb0dc1b4f2a2f90f9cac69831ad9c3fc029e59d900b84b37fbee5e9963275"
-      val actual = EmptyL2Block.calculateHash(
+      val actual = EmptyPayload.calculateHash(
         Params(
           parentHash = BlockHash("0xfd07fb55cefbec6c0a74aa37058dd0462b71c6ef385ec5388cd2b2092618e895"),
           parentStateRoot = "0xd254bdd872c29ea362569bc5427843b416efca19a2c8e60af941b694cf48e40d",
@@ -110,7 +110,7 @@ class EmptyL2BlockTestSuite extends AnyFreeSpec with BaseSuite {
 
   "calculateGasFee" - {
     "0x11ebac8b" in {
-      EmptyL2Block.calculateGasFee(
+      EmptyPayload.calculateGasFee(
         parentGasLimit = 0x1002000,
         parentBaseFeePerGas = new Uint256(0x147b0e55),
         0
@@ -118,7 +118,7 @@ class EmptyL2BlockTestSuite extends AnyFreeSpec with BaseSuite {
     }
 
     "0xfae36fa" in {
-      EmptyL2Block.calculateGasFee(
+      EmptyPayload.calculateGasFee(
         parentGasLimit = 0x1002800,
         parentBaseFeePerGas = new Uint256(0x11ebac8b),
         0
@@ -127,7 +127,7 @@ class EmptyL2BlockTestSuite extends AnyFreeSpec with BaseSuite {
 
     // TODO test with parentGasUsed != 0
     "0x1ac012b7" in {
-      EmptyL2Block.calculateGasFee(
+      EmptyPayload.calculateGasFee(
         parentGasLimit = 0x1001400,
         parentBaseFeePerGas = new Uint256(0x1e925e88),
         0

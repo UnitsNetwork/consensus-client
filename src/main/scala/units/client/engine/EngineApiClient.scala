@@ -7,9 +7,9 @@ import units.eth.EthAddress
 import units.{BlockHash, JobResult}
 
 trait EngineApiClient {
-  def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus]
+  def forkChoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus]
 
-  def forkChoiceUpdateWithPayloadId(
+  def forkChoiceUpdatedWithPayloadId(
       lastBlockHash: BlockHash,
       finalizedBlockHash: BlockHash,
       unixEpochSeconds: Long,
@@ -20,19 +20,19 @@ trait EngineApiClient {
 
   def getPayload(payloadId: PayloadId): JobResult[JsObject]
 
-  def applyNewPayload(payload: JsObject): JobResult[Option[BlockHash]]
+  def applyNewPayload(payloadJson: JsObject): JobResult[Option[BlockHash]]
 
   def getPayloadBodyByHash(hash: BlockHash): JobResult[Option[JsObject]]
 
-  def getBlockByNumber(number: BlockNumber): JobResult[Option[EcBlock]]
+  def getBlockByNumber(number: BlockNumber): JobResult[Option[ExecutionPayload]]
 
-  def getBlockByHash(hash: BlockHash): JobResult[Option[EcBlock]]
+  def getBlockByHash(hash: BlockHash): JobResult[Option[ExecutionPayload]]
 
-  def getBlockByHashJson(hash: BlockHash): JobResult[Option[JsObject]]
+  def getLatestBlock: JobResult[ExecutionPayload]
 
-  def getLastExecutionBlock: JobResult[EcBlock]
+  def getBlockJsonByHash(hash: BlockHash): JobResult[Option[JsObject]]
 
-  def blockExists(hash: BlockHash): JobResult[Boolean]
+  def getPayloadJsonDataByHash(hash: BlockHash): JobResult[PayloadJsonData]
 
   def getLogs(hash: BlockHash, address: EthAddress, topic: String): JobResult[List[GetLogsResponseEntry]]
 }

@@ -11,29 +11,29 @@ class BlockBriefValidationTestSuite extends BaseIntegrationTestSuite {
     initialMiners = List(miner)
   )
 
-  "Brief validation of EC Block incoming from network" - {
+  "Brief validation of payload" - {
     "accepts if it is valid" in test { d =>
-      val ecBlock = d.createEcBlockBuilder("0", miner).build()
+      val payload = d.createPayloadBuilder("0", miner).build()
 
-      step(s"Receive ecBlock ${ecBlock.hash} from a peer")
-      d.receiveNetworkBlock(ecBlock, miner.account)
-      withClue("Brief EL block validation:") {
+      step(s"Receive block ${payload.hash} payload from a peer")
+      d.receivePayload(payload, miner.account)
+      withClue("Brief payload validation:") {
         d.triggerScheduledTasks()
-        d.pollSentNetworkBlock() match {
-          case Some(sent) => sent.hash shouldBe ecBlock.hash
-          case None       => fail(s"${ecBlock.hash} should not be ignored")
+        d.pollSentPayloadMessage() match {
+          case Some(sent) => sent.hash shouldBe payload.hash
+          case None       => fail(s"${payload.hash} should not be ignored")
         }
       }
     }
 
     "otherwise ignoring" in test { d =>
-      val ecBlock = d.createEcBlockBuilder("0", minerRewardL2Address = EthAddress.empty, parent = d.ecGenesisBlock).build()
+      val payload = d.createPayloadBuilder("0", minerRewardAddress = EthAddress.empty, parentPayload = d.genesisBlockPayload).build()
 
-      step(s"Receive ecBlock ${ecBlock.hash} from a peer")
-      d.receiveNetworkBlock(ecBlock, miner.account)
-      withClue("Brief EL block validation:") {
+      step(s"Receive block ${payload.hash} payload from a peer")
+      d.receivePayload(payload, miner.account)
+      withClue("Brief payload validation:") {
         d.triggerScheduledTasks()
-        if (d.pollSentNetworkBlock().nonEmpty) fail(s"${ecBlock.hash} should be ignored, because it is invalid by brief validation rules")
+        if (d.pollSentPayloadMessage().nonEmpty) fail(s"${payload.hash} should be ignored, because it is invalid by brief validation rules")
       }
     }
   }

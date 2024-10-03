@@ -16,6 +16,7 @@ import net.ceedubs.ficus.Ficus.*
 import org.slf4j.LoggerFactory
 import sttp.client3.HttpClientSyncBackend
 import units.client.JwtAuthenticationBackend
+import units.client.contract.{ChainContractClient, ChainContractStateClient}
 import units.client.engine.{EngineApiClient, HttpEngineApiClient, LoggedEngineApiClient}
 import units.network.*
 
@@ -27,8 +28,8 @@ class ConsensusClient(
     config: ClientConfig,
     context: ExtensionContext,
     engineApiClient: EngineApiClient,
-    blockObserver: BlocksObserver,
-    allChannels: DefaultChannelGroup,
+    chainContractClient: ChainContractClient,
+    payloadObserver: PayloadObserver,
     globalScheduler: Scheduler,
     eluScheduler: Scheduler,
     ownedResources: AutoCloseable
@@ -40,8 +41,8 @@ class ConsensusClient(
       deps.config,
       context,
       deps.engineApiClient,
-      deps.blockObserver,
-      deps.allChannels,
+      deps.chainContractClient,
+      deps.payloadObserver,
       deps.globalScheduler,
       deps.eluScheduler,
       deps
@@ -52,25 +53,25 @@ class ConsensusClient(
   private[units] val elu =
     new ELUpdater(
       engineApiClient,
+      chainContractClient,
       context.blockchain,
       context.utx,
-      allChannels,
+      payloadObserver,
       config,
       context.time,
       context.wallet,
-      blockObserver.loadBlock,
       context.broadcastTransaction,
       eluScheduler,
       globalScheduler
     )
 
-  private val blocksStreamCancelable: CancelableFuture[Unit] =
-    blockObserver.getBlockStream.foreach { case (ch, block) => elu.executionBlockReceived(block, ch) }(globalScheduler)
+  private val payloadsStreamCancelable: CancelableFuture[Unit] =
+    payloadObserver.getPayloadStream.foreach(elu.executionPayloadReceived)(globalScheduler)
 
   override def start(): Unit = {}
 
   def shutdown(): Future[Unit] = Future {
-    blocksStreamCancelable.cancel()
+    payloadsStreamCancelable.cancel()
     ownedResources.close()
   }(globalScheduler)
 
@@ -101,9 +102,9 @@ class ConsensusClientDependencies(context: ExtensionContext) extends AutoCloseab
 
   val config: ClientConfig = context.settings.config.as[ClientConfig]("waves.l2")
 
-  private val blockObserverScheduler = Schedulers.singleThread("block-observer-l2", reporter = { e => log.warn("Error in BlockObserver", e) })
-  val globalScheduler: Scheduler     = monix.execution.Scheduler.global
-  val eluScheduler: SchedulerService = Scheduler.singleThread("el-updater", reporter = { e => log.warn("Exception in ELUpdater", e) })
+  private val payloadObserverScheduler = Schedulers.singleThread("payload-observer-l2", reporter = { e => log.warn("Error in PayloadObserver", e) })
+  val globalScheduler: Scheduler       = monix.execution.Scheduler.global
+  val eluScheduler: SchedulerService   = Scheduler.singleThread("el-updater", reporter = { e => log.warn("Exception in ELUpdater", e) })
 
   private val httpClientBackend = HttpClientSyncBackend()
   private val maybeAuthenticatedBackend = config.jwtSecretFile match {
@@ -118,6 +119,9 @@ class ConsensusClientDependencies(context: ExtensionContext) extends AutoCloseab
 
   val engineApiClient = new LoggedEngineApiClient(new HttpEngineApiClient(config, maybeAuthenticatedBackend))
 
+  private val contractAddress = config.chainContractAddress
+  val chainContractClient     = new ChainContractStateClient(contractAddress, context.blockchain)
+
   val allChannels     = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE)
   val peerDatabase    = new PeerDatabaseImpl(config.network)
   val messageObserver = new MessageObserver()
@@ -130,7 +134,10 @@ class ConsensusClientDependencies(context: ExtensionContext) extends AutoCloseab
     new ConcurrentHashMap[Channel, PeerInfo]
   )
 
-  val blockObserver = new BlocksObserverImpl(allChannels, messageObserver.blocks, config.blockSyncRequestTimeout)(blockObserverScheduler)
+  val payloadObserver =
+    new PayloadObserverImpl(allChannels, messageObserver.payloads, chainContractClient.getMinersPks, config.blockSyncRequestTimeout)(
+      payloadObserverScheduler
+    )
 
   override def close(): Unit = {
     log.info("Closing HTTP/Engine API")
@@ -144,7 +151,7 @@ class ConsensusClientDependencies(context: ExtensionContext) extends AutoCloseab
     messageObserver.shutdown()
 
     log.info("Closing schedulers")
-    blockObserverScheduler.shutdown()
+    payloadObserverScheduler.shutdown()
     eluScheduler.shutdown()
   }
 }
