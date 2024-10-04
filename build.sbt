@@ -1,35 +1,46 @@
+import ConsensusClientTasks.buildTarballsForDocker
+import com.github.sbt.git.SbtGit.GitKeys.gitCurrentBranch
+
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
-enablePlugins(UniversalDeployPlugin, GitVersioning)
+enablePlugins(UniversalDeployPlugin, GitVersioning, sbtdocker.DockerPlugin)
 
 git.useGitDescribe       := true
 git.baseVersion          := "1.0.0"
 git.uncommittedSignifier := Some("DIRTY")
 
-scalaVersion     := "2.13.14"
-organization     := "network.units"
-organizationName := "Units Network"
-name             := "consensus-client"
-maintainer       := "Units Network Team"
-resolvers ++= Resolver.sonatypeOssRepos("releases") ++ Resolver.sonatypeOssRepos("snapshots") ++ Seq(Resolver.mavenLocal)
+inScope(Global)(
+  Seq(
+    scalaVersion     := "2.13.14",
+    organization     := "network.units",
+    organizationName := "Units Network",
+    resolvers ++= Resolver.sonatypeOssRepos("releases") ++ Resolver.sonatypeOssRepos("snapshots") ++ Seq(Resolver.mavenLocal),
+    scalacOptions ++= Seq(
+      "-Xsource:3",
+      "-feature",
+      "-deprecation",
+      "-unchecked",
+      "-language:higherKinds",
+      "-language:implicitConversions",
+      "-language:postfixOps",
+      "-Ywarn-unused:-implicits",
+      "-Xlint"
+    ),
+    javaOptions ++= Seq(
+      "-Dfile.encoding=UTF-8" // JVM default charset for proper and deterministic getBytes behaviour
+    )
+  )
+)
+
+name       := "consensus-client"
+maintainer := "Units Network Team"
+
 libraryDependencies ++= Seq(
   "com.wavesplatform"              % "node-testkit"  % "1.5.8-SNAPSHOT" % "test",
   "com.wavesplatform"              % "node"          % "1.5.8-SNAPSHOT" % "provided",
   "com.softwaremill.sttp.client3"  % "core_2.13"     % "3.9.8",
   "com.softwaremill.sttp.client3" %% "play-json"     % "3.9.8",
   "com.github.jwt-scala"          %% "jwt-play-json" % "10.0.1"
-)
-
-scalacOptions ++= Seq(
-  "-Xsource:3",
-  "-feature",
-  "-deprecation",
-  "-unchecked",
-  "-language:higherKinds",
-  "-language:implicitConversions",
-  "-language:postfixOps",
-  "-Ywarn-unused:-implicits",
-  "-Xlint"
 )
 
 Compile / packageDoc / publishArtifact := false
@@ -74,10 +85,28 @@ Universal / mappings ++= universalDepMappings((Runtime / dependencyClasspath).va
   }
 })
 
-lazy val buildTarballsForDocker = taskKey[Unit]("Package consensus-client tarball and copy it to docker/target")
 buildTarballsForDocker := {
   IO.copyFile(
     (Universal / packageZipTarball).value,
     baseDirectory.value / "docker" / "target" / "consensus-client.tgz"
   )
 }
+
+inTask(docker)(
+  Seq(
+    imageNames := Seq(
+      ImageName(s"unitsnetwork/consensus-client:${gitCurrentBranch.value}"), // Integration tests
+      ImageName("unitsnetwork/consensus-client:latest")                      // local-network
+    ),
+    dockerfile := NativeDockerfile(baseDirectory.value / "docker" / "Dockerfile"),
+    buildOptions := BuildOptions(),
+    dockerBuildArguments := Map("baseImage" -> "wavesplatform/wavesnode:1.5.7-1") // TODO Remove, 1.5.7 has other class files
+  )
+)
+
+docker := docker.dependsOn(LocalRootProject / buildTarballsForDocker).value
+
+lazy val `consensus-client-it` = project
+  .dependsOn(
+    LocalRootProject % "compile;test->test"
+  )

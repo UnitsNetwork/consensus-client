@@ -1,6 +1,6 @@
 services:
   wavesnode:
-    image: unitsnetwork/consensus-client:main
+    image: unitsnetwork/consensus-client:latest
     pull_policy: never
     environment:
       JAVA_OPTS: -Dlogback.file.level=TRACE
