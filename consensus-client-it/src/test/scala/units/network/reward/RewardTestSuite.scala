@@ -5,6 +5,6 @@ import units.network.BaseItTestSuite
 class RewardTestSuite extends BaseItTestSuite {
   "Test" in {
     log.debug("It works")
-    Thread.sleep(5000)
+    Thread.sleep(20000)
   }
 }

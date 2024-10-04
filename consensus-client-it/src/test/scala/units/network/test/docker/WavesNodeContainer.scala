@@ -17,6 +17,8 @@ class WavesNodeContainer(
     chainContract: Address,
     ecEngineApiUrl: String
 ) extends BaseContainer(s"wavesnode-$number") {
+  val apiPort = Ports.nextFreePort()
+
   protected override val container = new GenericContainer(DockerImageName.parse(System.getProperty("cc.it.docker.image")))
     .withNetwork(network)
     .withEnv(
@@ -39,7 +41,7 @@ class WavesNodeContainer(
         .withHostName(hostName)
         .withIpv4Address(ip)
         .withPortSpecs(
-          s"127.0.0.1:${number}6869:6869" // HTTP API
+          s"127.0.0.1:$apiPort:6869"
         )
         .withStopTimeout(5) // Otherwise we don't have logs in the end
         .withHostConfig(

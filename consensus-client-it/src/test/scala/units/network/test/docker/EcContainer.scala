@@ -5,10 +5,17 @@ import org.testcontainers.containers.Network.NetworkImpl
 import org.testcontainers.utility.DockerImageName
 import units.network.test.docker.BaseContainer.{ConfigsDir, DefaultLogsDir}
 
+import scala.jdk.CollectionConverters.SeqHasAsJava
+import scala.util.chaining.scalaUtilChainingOps
+
 class EcContainer(network: NetworkImpl, hostName: String, ip: String) extends BaseContainer(hostName) {
+  val rpcPort    = Ports.nextFreePort()
+  val enginePort = Ports.nextFreePort()
+
   protected override val container = new GenericContainer(DockerImageName.parse("hyperledger/besu:latest"))
     .withNetwork(network)
     .withEnv("LOG4J_CONFIGURATION_FILE", "/config/log4j2.xml")
+    // .withExposedPorts(8545) // Doesn't work in testcontainers
     .withCreateContainerCmdModifier { cmd =>
       cmd
         .withName(s"${network.getName}-$hostName")
@@ -35,4 +42,12 @@ class EcContainer(network: NetworkImpl, hostName: String, ip: String) extends Ba
             )
         )
     }
+//    .tap {
+//      _.setPortBindings(
+//        List(
+//          s"127.0.0.1:$rpcPort:8545",
+//          s"127.0.0.1:$enginePort:8551"
+//        ).asJava
+//      )
+//    }
 }
