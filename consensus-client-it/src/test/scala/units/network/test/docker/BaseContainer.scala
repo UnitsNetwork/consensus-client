@@ -21,6 +21,6 @@ abstract class BaseContainer(val hostName: String) {
 }
 
 object BaseContainer {
-  val ConfigsDir: Path     = Path.of(System.getenv("CONFIGS_DIR"))
-  val DefaultLogsDir: Path = Path.of(System.getenv("LOGS_DIR"))
+  val ConfigsDir: Path     = Path.of(System.getProperty("cc.it.configs.dir"))
+  val DefaultLogsDir: Path = Path.of(System.getProperty("cc.it.logs.dir"))
 }
