@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%date %-5level [%.15thread] %logger{100} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="com.github.dockerjava" level="WARN"/>
+    <logger name="org.testcontainers" level="WARN"/>
+
+    <!-- Containers initialization logs -->
+    <logger name="tc" level="WARN"/>
+
+    <root level="${logback.test.level:-TRACE}">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>
