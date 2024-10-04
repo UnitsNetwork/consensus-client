@@ -36,7 +36,7 @@ services:
     extends:
       file: ./configs/wavesnode/wavesnode.yml
       service: wavesnode
-    image: unitsnetwork/consensus-client:${WAVES_NODE_1_TAG:-main}
+    image: unitsnetwork/consensus-client:${WAVES_NODE_1_TAG:-latest}
     ports:
       - "127.0.0.1:16869:6869"
     environment:
@@ -54,7 +54,7 @@ services:
     extends:
       file: ./configs/wavesnode/wavesnode.yml
       service: wavesnode
-    image: unitsnetwork/consensus-client:${WAVES_NODE_2_TAG:-main}
+    image: unitsnetwork/consensus-client:${WAVES_NODE_2_TAG:-latest}
     ports:
       - "127.0.0.1:26869:6869"
     environment:

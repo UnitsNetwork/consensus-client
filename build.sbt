@@ -1,6 +1,9 @@
+import ConsensusClientTasks.buildTarballsForDocker
+import com.github.sbt.git.SbtGit.GitKeys.gitCurrentBranch
+
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
-enablePlugins(UniversalDeployPlugin, GitVersioning)
+enablePlugins(UniversalDeployPlugin, GitVersioning, sbtdocker.DockerPlugin)
 
 git.useGitDescribe       := true
 git.baseVersion          := "1.0.0"
@@ -82,13 +85,26 @@ Universal / mappings ++= universalDepMappings((Runtime / dependencyClasspath).va
   }
 })
 
-lazy val buildTarballsForDocker = taskKey[Unit]("Package consensus-client tarball and copy it to docker/target")
 buildTarballsForDocker := {
   IO.copyFile(
     (Universal / packageZipTarball).value,
     baseDirectory.value / "docker" / "target" / "consensus-client.tgz"
   )
 }
+
+inTask(docker)(
+  Seq(
+    imageNames := Seq(
+      ImageName(s"unitsnetwork/consensus-client:${gitCurrentBranch.value}"), // Integration tests
+      ImageName("unitsnetwork/consensus-client:latest")                      // local-network
+    ),
+    dockerfile := NativeDockerfile(baseDirectory.value / "docker" / "Dockerfile"),
+    buildOptions := BuildOptions(),
+    dockerBuildArguments := Map("baseImage" -> "wavesplatform/wavesnode:1.5.7-1") // TODO Remove, 1.5.7 has other class files
+  )
+)
+
+docker := docker.dependsOn(LocalRootProject / buildTarballsForDocker).value
 
 lazy val `consensus-client-it` = project
   .dependsOn(
