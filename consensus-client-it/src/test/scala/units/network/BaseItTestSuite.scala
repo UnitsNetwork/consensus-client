@@ -15,7 +15,7 @@ import java.nio.charset.StandardCharsets
 trait BaseItTestSuite extends AnyFreeSpec with ScorexLogging with BeforeAndAfterAll with EitherValues with OptionValues with CustomMatchers {
   protected lazy val network = Networks.network
 
-  protected lazy val ec1: EcContainer = new EcContainer(network, "ec-1", Networks.ipForNode(2))
+  protected lazy val ec1: EcContainer = new EcContainer(network, "ec-1", Networks.ipForNode(2)) // ipForNode(1) is assigned to Ryuk
   protected lazy val waves1: WavesNodeContainer = new WavesNodeContainer(
     network = network,
     number = 1,

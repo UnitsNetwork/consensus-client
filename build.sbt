@@ -23,7 +23,7 @@ inScope(Global)(
       "-Ywarn-unused:-implicits",
       "-Xlint"
     ),
-    javacOptions ++= Seq(
+    javaOptions ++= Seq(
       "-Dfile.encoding=UTF-8" // JVM default charset for proper and deterministic getBytes behaviour
     )
   )
