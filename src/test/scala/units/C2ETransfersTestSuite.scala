@@ -15,11 +15,11 @@ class C2ETransfersTestSuite extends BaseIntegrationTestSuite {
     additionalBalances = List(AddrWithBalance(transferSenderAccount.toAddress))
   )
 
-  "Pass valid address with valid payment" in {
+  "L2-351 Pass valid address with valid payment" in {
     transferFuncTest(validTransferRecipient) should beRight
   }
 
-  "Deny invalid address" in forAll(
+  "L2-348 Deny invalid address" in forAll(
     Table(
       "invalid address"                            -> "message",
       ""                                           -> "Address should have 40 characters",
@@ -33,18 +33,20 @@ class C2ETransfersTestSuite extends BaseIntegrationTestSuite {
     transferFuncTest(address) should produce(message)
   }
 
-  "Deny invalid payment amount" in forAll(
+  "L2-358 Deny invalid payment amount" in forAll(
     Table(
       ("invalid payment amount", "initial queue size", "message"),
       (1, 0, "should be >= 1000000 for queue size of 1"),
-      (1_000_000, 1600, "should be >= 100000000 for queue size of 1601"),
-      (1_000_000_001, 6401, "Transfers denied for queue size of 6402")
+      (1_000_000, 160, "should be >= 10000000 for queue size of 160"),
+      (10_000_000, 1600, "should be >= 100000000 for queue size of 1600"),
+      (100_000_000, 3200, "should be >= 100000000 for queue size of 3200"),
+      (1_000_000_001, 6401, "Transfers denied for queue size of 6401")
     )
   ) { case (transferAmount, initQueueSize, message) =>
     transferFuncTest(validTransferRecipient, transferAmount, queueSize = initQueueSize) should produce(message)
   }
 
-  "Deny invalid asset" in forAll(
+  "L2-354 Deny invalid asset" in forAll(
     Table(
       "invalid token"                        -> "message",
       Asset.Waves                            -> "in the payment, got Waves",

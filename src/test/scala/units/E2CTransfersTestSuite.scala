@@ -143,7 +143,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
     }
   }
 
-  "Can't get transferred tokens twice" in {
+  "L2-273 Can't get transferred tokens twice" in {
     val settings = defaultSettings.copy(
       additionalBalances = List(AddrWithBalance(transferReceiver.toAddress, defaultFees.chainContract.withdrawFee * 2))
     )
@@ -204,7 +204,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
     }
   }
 
-  "Fails on wrong data" in {
+  "L2-387 Fails on wrong data" in {
     val settings = defaultSettings.withEnabledElMining
     withExtensionDomain(settings) { d =>
       step(s"Start new epoch with ecBlock1")
@@ -220,7 +220,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
     }
   }
 
-  "Can't get transferred tokens from a fork and can after the fork becomes a main chain" in {
+  "L2-308 Can't get transferred tokens from a fork and can after the fork becomes a main chain" in {
     val settings = defaultSettings.copy(initialMiners = List(reliable, malfunction)).withEnabledElMining
     withExtensionDomain(settings) { d =>
       step(s"Start a new epoch of malfunction miner ${malfunction.address} with ecBlock1")
