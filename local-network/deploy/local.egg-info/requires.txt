@@ -1,2 +1,0 @@
-solc-select
-units-network@ git+https://github.com/UnitsNetwork/examples.git
