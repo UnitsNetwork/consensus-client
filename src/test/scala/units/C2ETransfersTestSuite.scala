@@ -37,10 +37,10 @@ class C2ETransfersTestSuite extends BaseIntegrationTestSuite {
     Table(
       ("invalid payment amount", "initial queue size", "message"),
       (1, 0, "should be >= 1000000 for queue size of 1"),
-      (1_000_000, 160, "should be >= 10000000 for queue size of 160"),
-      (10_000_000, 1600, "should be >= 100000000 for queue size of 1600"),
-      (100_000_000, 3200, "should be >= 100000000 for queue size of 3200"),
-      (1_000_000_001, 6401, "Transfers denied for queue size of 6401")
+      (1_000_000, 160, "should be >= 10000000 for queue size of 161"),
+      (10_000_000, 1600, "should be >= 100000000 for queue size of 1601"),
+      (100_000_000, 3200, "should be >= 1000000000 for queue size of 3201"),
+      (1_000_000_001, 6401, "Transfers denied for queue size of 6402")
     )
   ) { case (transferAmount, initQueueSize, message) =>
     transferFuncTest(validTransferRecipient, transferAmount, queueSize = initQueueSize) should produce(message)
