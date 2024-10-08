@@ -33,7 +33,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
     additionalBalances = List(AddrWithBalance(transferReceiver.toAddress, defaultFees.chainContract.withdrawFee))
   )
 
-  "Multiple withdrawals" in {
+  "L2-288 Multiple withdrawals" in {
     val transferReceiver1       = transferReceiver
     val transferReceiver2       = TxHelpers.signer(2)
     val transfer1               = Bridge.ElSentNativeEvent(transferReceiver1.toAddress, 1)
@@ -79,7 +79,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
     }
   }
 
-  "Can't get transferred tokens with index that is out of bounds" in forAll(
+  "L2-388 Can't get transferred tokens with index that is out of bounds" in forAll(
     Table(
       "index" -> "errorMessage",
       -1      -> "Transfer index in block should be nonnegative, got -1",
@@ -102,7 +102,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
     }
   }
 
-  "Deny withdrawals with a non-positive amount" in forAll(
+  "L2-389 Deny withdrawals with a non-positive amount" in forAll(
     Table(
       "index",
       0L,
@@ -124,7 +124,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
     }
   }
 
-  "Can't get transferred tokens if the data is incorrect and able if it is correct" in withExtensionDomain() { d =>
+  "L2-339 Can't get transferred tokens if the data is incorrect and able if it is correct" in withExtensionDomain() { d =>
     step(s"Start new epoch with ecBlock")
     d.advanceNewBlocks(reliable.address)
     val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
@@ -165,7 +165,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
     }
   }
 
-  "Ignores wrong events" in {
+  "L2-377 Ignores wrong events" in {
     val wrongEventDef: Event = new Event(
       "SentSomething",
       List[TypeReference[?]](new TypeReference[Bytes20](false) {}).asJava
