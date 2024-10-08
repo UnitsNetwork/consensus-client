@@ -1,6 +1,0 @@
-local
-node_modules
-setup
-src
-test
-tests
