@@ -6,17 +6,18 @@ import com.wavesplatform.api.common.{CommonAccountsApi, CommonAssetsApi, CommonB
 import com.wavesplatform.api.http.requests.InvokeScriptRequest.FunctionCallPart
 import com.wavesplatform.api.http.utils.UtilsEvaluator
 import com.wavesplatform.block.Block.BlockId
+import com.wavesplatform.block.{Block, MicroBlock}
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.database.{RDB, RocksDBWriter}
-import com.wavesplatform.events.UtxEvent
+import com.wavesplatform.events.{BlockchainUpdateTriggers, UtxEvent}
 import com.wavesplatform.extensions.Context
 import com.wavesplatform.history.Domain
 import com.wavesplatform.lang.ValidationError
 import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.mining.MultiDimensionalMiningConstraint
 import com.wavesplatform.settings.WavesSettings
-import com.wavesplatform.state.{Blockchain, BlockchainUpdaterImpl, StringDataEntry, TxMeta}
+import com.wavesplatform.state.{Blockchain, BlockchainUpdaterImpl, StateSnapshot, StringDataEntry, TxMeta}
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.smart.script.trace.TracedResult
 import com.wavesplatform.transaction.{DiscardedBlocks, Transaction}
@@ -49,7 +50,6 @@ import units.test.CustomMatchers
 
 import java.nio.charset.StandardCharsets
 import scala.annotation.tailrec
-import scala.concurrent.Await
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.reflect.ClassTag
 
@@ -119,9 +119,9 @@ class ExtensionDomain(
     override def utxEvents: Observable[UtxEvent] = Observable.empty
   }
 
-  val consensusClient: ConsensusClient = new ConsensusClient(
-    l2Config,
+  val consensusClient = new ConsensusClient.ChainHandler(
     extensionContext,
+    l2Config,
     ecClients.engineApi,
     blockObserver,
     allChannels,
@@ -129,7 +129,29 @@ class ExtensionDomain(
     eluScheduler,
     () => {}
   )
-  triggers = triggers.appended(consensusClient)
+  triggers = triggers.appended(new BlockchainUpdateTriggers {
+    override def onProcessBlock(
+        block: Block,
+        snapshot: StateSnapshot,
+        reward: Option[Long],
+        hitSource: BlockId,
+        blockchainBeforeWithReward: Blockchain
+    ): Unit =
+      consensusClient.elu.consensusLayerChanged()
+
+    override def onProcessMicroBlock(
+        microBlock: MicroBlock,
+        snapshot: StateSnapshot,
+        blockchainBeforeWithReward: Blockchain,
+        totalBlockId: BlockId,
+        totalTransactionsRoot: BlockId
+    ): Unit =
+      consensusClient.elu.consensusLayerChanged()
+
+    override def onRollback(blockchainBefore: Blockchain, toBlockId: BlockId, toHeight: Int): Unit = ()
+
+    override def onMicroBlockRollback(blockchainBefore: Blockchain, toBlockId: BlockId): Unit = ()
+  })
 
   val defaultMaxTimeout =
     List(WaitForReferenceConfirmInterval, ClChangedProcessingDelay, MiningRetryInterval, WaitRequestedBlockTimeout).max + 1.millis
@@ -336,9 +358,8 @@ class ExtensionDomain(
 
   override def close(): Unit = {
     log.trace("close")
-    val r = consensusClient.shutdown()
+    consensusClient.close()
     triggerScheduledTasks()
-    Await.result(r, 10.seconds)
     utxPool.close()
   }
 

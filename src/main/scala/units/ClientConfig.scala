@@ -19,7 +19,6 @@ case class ClientConfig(
     blockSyncRequestTimeout: FiniteDuration,
     network: NetworkSettings,
     miningEnable: Boolean,
-    syncInterval: FiniteDuration,
     jwtSecretFile: Option[String]
 ) {
   lazy val chainContractAddress: Address = Address.fromString(chainContract).explicitGet()

@@ -1,56 +1,91 @@
 package units
 
+import com.typesafe.scalalogging.StrictLogging
 import com.wavesplatform.block.{Block, MicroBlock}
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.events.BlockchainUpdateTriggers
 import com.wavesplatform.extensions.{Extension, Context as ExtensionContext}
-import com.wavesplatform.network.{PeerDatabaseImpl, PeerInfo}
 import com.wavesplatform.state.{Blockchain, StateSnapshot}
-import com.wavesplatform.utils.{LoggerFacade, Schedulers}
-import io.netty.channel.Channel
 import io.netty.channel.group.DefaultChannelGroup
-import io.netty.util.concurrent.GlobalEventExecutor
-import monix.execution.schedulers.SchedulerService
 import monix.execution.{CancelableFuture, Scheduler}
 import net.ceedubs.ficus.Ficus.*
-import org.slf4j.LoggerFactory
-import sttp.client3.HttpClientSyncBackend
-import units.client.JwtAuthenticationBackend
-import units.client.engine.{EngineApiClient, HttpEngineApiClient, LoggedEngineApiClient}
+import units.ConsensusClient.ChainHandler
+import units.client.engine.EngineApiClient
 import units.network.*
 
-import java.util.concurrent.ConcurrentHashMap
 import scala.concurrent.Future
-import scala.io.Source
+import scala.jdk.CollectionConverters.CollectionHasAsScala
+import scala.util.Try
 
-class ConsensusClient(
-    config: ClientConfig,
-    context: ExtensionContext,
-    engineApiClient: EngineApiClient,
-    blockObserver: BlocksObserver,
-    allChannels: DefaultChannelGroup,
-    globalScheduler: Scheduler,
-    eluScheduler: Scheduler,
-    ownedResources: AutoCloseable
-) extends Extension
-    with BlockchainUpdateTriggers {
+class ConsensusClient(context: ExtensionContext) extends StrictLogging with Extension with BlockchainUpdateTriggers {
+  import scala.concurrent.ExecutionContext.Implicits.global
 
-  def this(context: ExtensionContext, deps: ConsensusClientDependencies) =
-    this(
-      deps.config,
-      context,
-      deps.engineApiClient,
-      deps.blockObserver,
-      deps.allChannels,
-      deps.globalScheduler,
-      deps.eluScheduler,
-      deps
-    )
+  private def requireUnique[A](configs: Iterable[ClientConfig], key: ClientConfig => A, keyName: String): Unit = {
+    val duplicateKeys = configs.groupBy(key).collect { case (k, confs) if confs.size > 1 => k -> confs.size }
+    require(duplicateKeys.isEmpty, s"The following $keyName were used several times in config: ${duplicateKeys.mkString(",")}")
+  }
 
-  def this(context: ExtensionContext) = this(context, new ConsensusClientDependencies(context))
+  private val chainHandlers: Seq[ChainHandler] = {
+    val defaultConfig = context.settings.config.getConfig("units.defaults")
 
-  private[units] val elu =
-    new ELUpdater(
+    val legacyChainConfig =
+      Try(context.settings.config.getConfig("waves.l2")).toOption.map(_.withFallback(defaultConfig).as[ClientConfig]).tapEach { _ =>
+        logger.info("Consensus client settings at waves.l2 path have been deprecated, please update your config file")
+      }
+
+    val newChainConfigs = context.settings.config
+      .getConfigList("units.chains")
+      .asScala
+      .map(cfg => cfg.withFallback(defaultConfig).resolve().as[ClientConfig])
+
+    val allChainConfigs = legacyChainConfig ++ newChainConfigs
+
+    requireUnique(allChainConfigs, _.chainContract, "chain contract addresses")
+    requireUnique(allChainConfigs, _.executionClientAddress, "execution client addresses")
+
+    allChainConfigs.map(cfg => new ConsensusClient.ChainHandler(context, new ConsensusClientDependencies(cfg))).toVector
+  }
+
+  override def start(): Unit = {}
+
+  def shutdown(): Future[Unit] = Future.sequence(chainHandlers.map(h => Future(h.close()))).map(_ => ())
+
+  override def onProcessBlock(
+      block: Block,
+      snapshot: StateSnapshot,
+      reward: Option[Long],
+      hitSource: ByteStr,
+      blockchainBeforeWithReward: Blockchain
+  ): Unit = chainHandlers.foreach(_.elu.consensusLayerChanged())
+
+  override def onProcessMicroBlock(
+      microBlock: MicroBlock,
+      snapshot: StateSnapshot,
+      blockchainBeforeWithReward: Blockchain,
+      totalBlockId: ByteStr,
+      totalTransactionsRoot: ByteStr
+  ): Unit = chainHandlers.foreach(_.elu.consensusLayerChanged())
+
+  override def onRollback(blockchainBefore: Blockchain, toBlockId: ByteStr, toHeight: Int): Unit = {}
+
+  override def onMicroBlockRollback(blockchainBefore: Blockchain, toBlockId: ByteStr): Unit = {}
+}
+
+object ConsensusClient {
+  class ChainHandler(
+      context: ExtensionContext,
+      config: ClientConfig,
+      engineApiClient: EngineApiClient,
+      blockObserver: BlocksObserver,
+      allChannels: DefaultChannelGroup,
+      globalScheduler: Scheduler,
+      eluScheduler: Scheduler,
+      ownedResources: AutoCloseable
+  ) extends AutoCloseable {
+    def this(context: ExtensionContext, deps: ConsensusClientDependencies) =
+      this(context, deps.config, deps.engineApiClient, deps.blockObserver, deps.allChannels, deps.globalScheduler, deps.eluScheduler, deps)
+
+    val elu = new ELUpdater(
       engineApiClient,
       context.blockchain,
       context.utx,
@@ -64,87 +99,12 @@ class ConsensusClient(
       globalScheduler
     )
 
-  private val blocksStreamCancelable: CancelableFuture[Unit] =
-    blockObserver.getBlockStream.foreach { case (ch, block) => elu.executionBlockReceived(block, ch) }(globalScheduler)
+    private val blocksStreamCancelable: CancelableFuture[Unit] =
+      blockObserver.getBlockStream.foreach { case (ch, block) => elu.executionBlockReceived(block, ch) }(globalScheduler)
 
-  override def start(): Unit = {}
-
-  def shutdown(): Future[Unit] = Future {
-    blocksStreamCancelable.cancel()
-    ownedResources.close()
-  }(globalScheduler)
-
-  override def onProcessBlock(
-      block: Block,
-      snapshot: StateSnapshot,
-      reward: Option[Long],
-      hitSource: ByteStr,
-      blockchainBeforeWithReward: Blockchain
-  ): Unit = elu.consensusLayerChanged()
-
-  override def onProcessMicroBlock(
-      microBlock: MicroBlock,
-      snapshot: StateSnapshot,
-      blockchainBeforeWithReward: Blockchain,
-      totalBlockId: ByteStr,
-      totalTransactionsRoot: ByteStr
-  ): Unit = elu.consensusLayerChanged()
-
-  override def onRollback(blockchainBefore: Blockchain, toBlockId: ByteStr, toHeight: Int): Unit = {}
-
-  override def onMicroBlockRollback(blockchainBefore: Blockchain, toBlockId: ByteStr): Unit = {}
-}
-
-// A helper to create ConsensusClient due to Scala secondary constructors limitations
-class ConsensusClientDependencies(context: ExtensionContext) extends AutoCloseable {
-  protected lazy val log: LoggerFacade = LoggerFacade(LoggerFactory.getLogger(classOf[ConsensusClient]))
-
-  val config: ClientConfig = context.settings.config.as[ClientConfig]("waves.l2")
-
-  private val blockObserverScheduler = Schedulers.singleThread("block-observer-l2", reporter = { e => log.warn("Error in BlockObserver", e) })
-  val globalScheduler: Scheduler     = monix.execution.Scheduler.global
-  val eluScheduler: SchedulerService = Scheduler.singleThread("el-updater", reporter = { e => log.warn("Exception in ELUpdater", e) })
-
-  private val httpClientBackend = HttpClientSyncBackend()
-  private val maybeAuthenticatedBackend = config.jwtSecretFile match {
-    case Some(secretFile) =>
-      val src = Source.fromFile(secretFile)
-      try new JwtAuthenticationBackend(src.getLines().next(), httpClientBackend)
-      finally src.close()
-    case _ =>
-      log.warn("JWT secret is not set")
-      httpClientBackend
-  }
-
-  val engineApiClient = new LoggedEngineApiClient(new HttpEngineApiClient(config, maybeAuthenticatedBackend))
-
-  val allChannels     = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE)
-  val peerDatabase    = new PeerDatabaseImpl(config.network)
-  val messageObserver = new MessageObserver()
-  private val networkServer = NetworkServer(
-    config,
-    new HistoryReplier(engineApiClient)(globalScheduler),
-    peerDatabase,
-    messageObserver,
-    allChannels,
-    new ConcurrentHashMap[Channel, PeerInfo]
-  )
-
-  val blockObserver = new BlocksObserverImpl(allChannels, messageObserver.blocks, config.blockSyncRequestTimeout)(blockObserverScheduler)
-
-  override def close(): Unit = {
-    log.info("Closing HTTP/Engine API")
-    httpClientBackend.close()
-
-    log.debug("Closing peer database L2")
-    peerDatabase.close()
-
-    log.info("Stopping network services L2")
-    networkServer.shutdown()
-    messageObserver.shutdown()
-
-    log.info("Closing schedulers")
-    blockObserverScheduler.shutdown()
-    eluScheduler.shutdown()
+    override def close(): Unit = {
+      blocksStreamCancelable.cancel()
+      ownedResources.close()
+    }
   }
 }
