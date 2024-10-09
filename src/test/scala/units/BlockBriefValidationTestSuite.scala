@@ -12,7 +12,7 @@ class BlockBriefValidationTestSuite extends BaseIntegrationTestSuite {
   )
 
   "Brief validation of EC Block incoming from network" - {
-    "accepts if it is valid" in test { d =>
+    "L2-212 accepts if it is valid" in test { d =>
       val ecBlock = d.createEcBlockBuilder("0", miner).build()
 
       step(s"Receive ecBlock ${ecBlock.hash} from a peer")
@@ -26,7 +26,7 @@ class BlockBriefValidationTestSuite extends BaseIntegrationTestSuite {
       }
     }
 
-    "otherwise ignoring" in test { d =>
+    "L2-384 otherwise ignoring" in test { d =>
       val ecBlock = d.createEcBlockBuilder("0", minerRewardL2Address = EthAddress.empty, parent = d.ecGenesisBlock).build()
 
       step(s"Receive ecBlock ${ecBlock.hash} from a peer")

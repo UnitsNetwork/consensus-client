@@ -21,9 +21,9 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
   )
 
   "Full validation when the block is available on EL and CL" - {
-    "doesn't happen for finalized blocks" in withExtensionDomain(defaultSettings.copy(initialMiners = List(reliable))) { d =>
+    "L2-315 doesn't happen for finalized blocks" in withExtensionDomain(defaultSettings.copy(initialMiners = List(reliable))) { d =>
       step("Start new epoch for ecBlock")
-      d.advanceNewBlocks(reliable.address)
+      d.advanceNewBlocks(reliable.address)//ожидание эпохи майнера -сайнер1
       val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
       d.advanceConsensusLayerChanged()
 
@@ -48,7 +48,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
       }
     }
 
-    "happens for not finalized blocks" - {
+    "L2-310 happens for not finalized blocks" - {
       "successful validation updates the chain information" in withExtensionDomain() { d =>
         step("Start new epoch for ecBlock")
         d.advanceNewBlocks(reliable.address)
@@ -76,7 +76,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
         }
       }
 
-      "unsuccessful causes a fork" - {
+      "L2-245 unsuccessful causes a fork" - {
         def e2CTest(
             blockLogs: List[GetLogsResponseEntry],
             e2CTransfersRootHashHex: String,
@@ -108,14 +108,15 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
           d.waitForCS[WaitForNewChain]("Forking") { cs =>
             cs.chainSwitchInfo.referenceBlock.hash shouldBe ecBlock1.hash
           }
+
         }
 
-        "CL confirmation without a transfers root hash" in e2CTest(
+        "L2-361 CL confirmation without a transfers root hash" in e2CTest(
           blockLogs = ecBlockLogs,
           e2CTransfersRootHashHex = EmptyE2CTransfersRootHashHex
         )
 
-        "Events from an unexpected EL bridge address" in {
+        "L2-385 Events from an unexpected EL bridge address" in {
           val fakeBridgeAddress = EthAddress.unsafeFrom("0x53481054Ad294207F6ed4B6C2E6EaE34E1Bb8704")
           val ecBlock2Logs      = transferEvents.map(x => getLogsResponseEntry(x).copy(address = fakeBridgeAddress))
           e2CTest(
@@ -124,7 +125,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
           )
         }
 
-        "Different miners in CL and EL" in e2CTest(
+        "L2-256 Different miners in CL and EL" in e2CTest(
           blockLogs = ecBlockLogs,
           e2CTransfersRootHashHex = e2CTransfersRootHashHex,
           badBlockPostProcessing = _.copy(minerRewardL2Address = reliable.elRewardAddress)
