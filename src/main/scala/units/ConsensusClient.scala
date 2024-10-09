@@ -15,6 +15,7 @@ import units.network.*
 
 import scala.concurrent.Future
 import scala.jdk.CollectionConverters.CollectionHasAsScala
+import scala.util.Try
 
 class ConsensusClient(context: ExtensionContext) extends StrictLogging with Extension with BlockchainUpdateTriggers {
   import scala.concurrent.ExecutionContext.Implicits.global
@@ -25,11 +26,13 @@ class ConsensusClient(context: ExtensionContext) extends StrictLogging with Exte
   }
 
   private val chainHandlers: Seq[ChainHandler] = {
-    val legacyChainConfig = context.settings.config.getAs[ClientConfig]("waves.l2").tapEach { _ =>
-      logger.info("Consensus client settings at waves.l2 path have been deprecated, please update your config file")
-    }
-
     val defaultConfig = context.settings.config.getConfig("units.defaults")
+
+    val legacyChainConfig =
+      Try(context.settings.config.getConfig("waves.l2")).toOption.map(_.withFallback(defaultConfig).as[ClientConfig]).tapEach { _ =>
+        logger.info("Consensus client settings at waves.l2 path have been deprecated, please update your config file")
+      }
+
     val newChainConfigs = context.settings.config
       .getConfigList("units.chains")
       .asScala
