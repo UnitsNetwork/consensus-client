@@ -37,7 +37,12 @@ trait BaseIntegrationTestSuite
       val txs =
         List(
           d.chainContract.setScript(),
-          d.chainContract.setup(d.ecGenesisBlock, elMinerDefaultReward.amount.longValue())
+          d.chainContract.setup(
+            d.ecGenesisBlock,
+            elMinerDefaultReward.amount.longValue(),
+            defaultSettings.daoRewardAccount.map(_.toAddress),
+            defaultSettings.daoRewardAmount
+          )
         ) ++
           settings.initialMiners.map { x => d.chainContract.join(x.account, x.elRewardAddress) }
 
