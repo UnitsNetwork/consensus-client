@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=75.0", "wheel"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,10 +8,10 @@ version = "0.1"
 description = "Scripts and tests for a locally deployed Unit network"
 dependencies = [
   "solc-select",
-  "units-network @ git+https://github.com/UnitsNetwork/examples.git",
+  "units-network @ git+https://github.com/UnitsNetwork/examples.git@dao-rewards",
 ]
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.9"
 license = { text = "MIT License" }
 keywords = ["units network", "blockchain", "waves"]
 
