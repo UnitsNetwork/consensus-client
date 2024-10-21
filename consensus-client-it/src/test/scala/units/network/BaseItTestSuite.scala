@@ -34,8 +34,8 @@ trait BaseItTestSuite extends AnyFreeSpec with ScorexLogging with BeforeAndAfter
   }
 
   override protected def afterAll(): Unit = {
-    ec1.stop()
     waves1.stop()
+    ec1.stop()
     super.afterAll()
   }
 

@@ -1,11 +1,12 @@
 package units.network.test.docker
 
-import com.github.dockerjava.api.model.{Binds, HostConfig}
 import com.wavesplatform.account.{Address, SeedKeyPair}
 import com.wavesplatform.common.utils.Base58
+import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.Network.NetworkImpl
 import org.testcontainers.utility.DockerImageName
 import units.network.test.docker.BaseContainer.{ConfigsDir, DefaultLogsDir}
+import units.network.test.docker.WavesNodeContainer.ApiPort
 
 import scala.jdk.CollectionConverters.MapHasAsJava
 
@@ -17,10 +18,9 @@ class WavesNodeContainer(
     chainContract: Address,
     ecEngineApiUrl: String
 ) extends BaseContainer(s"wavesnode-$number") {
-  val apiPort = Ports.nextFreePort()
-
   protected override val container = new GenericContainer(DockerImageName.parse(System.getProperty("cc.it.docker.image")))
     .withNetwork(network)
+    .withExposedPorts(ApiPort)
     .withEnv(
       Map(
         "NODE_NUMBER"       -> s"$number",
@@ -35,32 +35,25 @@ class WavesNodeContainer(
         "WAVES_HEAP_SIZE" -> "1g"
       ).asJava
     )
+    .withFileSystemBind(s"$ConfigsDir/wavesnode", "/etc/waves", BindMode.READ_ONLY)
+    .withFileSystemBind(s"$ConfigsDir/ec-common", "/etc/secrets", BindMode.READ_ONLY)
+    .withFileSystemBind(s"$DefaultLogsDir", "/var/log/waves", BindMode.READ_WRITE)
     .withCreateContainerCmdModifier { cmd =>
       cmd
         .withName(s"${network.getName}-$hostName")
         .withHostName(hostName)
         .withIpv4Address(ip)
-        .withPortSpecs(
-          s"127.0.0.1:$apiPort:6869"
-        )
         .withStopTimeout(5) // Otherwise we don't have logs in the end
-        .withHostConfig(
-          HostConfig
-            .newHostConfig()
-            .withBinds(
-              Binds.fromPrimitive(
-                Array(
-                  s"$ConfigsDir/wavesnode:/etc/waves:ro",
-                  s"$ConfigsDir/ec-common:/etc/secrets:ro",
-                  s"$DefaultLogsDir:/var/log/waves:rw"
-                )
-              )
-            )
-        )
     }
+
+  val apiPort = new MappedPort(container, ApiPort)
 
   override def stop(): Unit = {
     // container.stop() kills and removes the container, and we lose logs. stopContainerCmd stops gracefully.
     container.getDockerClient.stopContainerCmd(container.getContainerId).exec()
   }
+}
+
+object WavesNodeContainer {
+  val ApiPort = 6869
 }

@@ -22,6 +22,10 @@
         </encoder>
     </appender>
 
+    <!-- Retries logs -->
+    <logger name="org.rnorth.ducttape.unreliables" level="WARN"/>
+
+    <!-- Docker logs -->
     <logger name="com.github.dockerjava" level="WARN"/>
     <logger name="org.testcontainers" level="WARN"/>
 

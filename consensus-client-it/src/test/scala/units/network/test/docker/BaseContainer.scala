@@ -1,10 +1,11 @@
 package units.network.test.docker
 
+import com.wavesplatform.utils.ScorexLogging
 import org.testcontainers.containers.wait.strategy.DockerHealthcheckWaitStrategy
 
 import java.nio.file.Path
 
-abstract class BaseContainer(val hostName: String) {
+abstract class BaseContainer(val hostName: String) extends ScorexLogging {
   protected val container: GenericContainer
 
   def start(): Unit = {

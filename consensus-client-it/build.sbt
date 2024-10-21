@@ -36,34 +36,10 @@ inConfig(Test)(
       val logDirectoryValue = (Test / logsDirectory).value
       val envVarsValue      = (Test / envVars).value
       val javaOptionsValue  = (Test / javaOptions).value
-      val (portRangeLowerBound, portRangeHigherBound) = sys.env
-        .get("INTEGRATION_TESTS_PORT_RANGE")
-        .map { range =>
-          val limits = range.split('-').map(_.toInt)
-          if (limits.length != 2) throw new IllegalArgumentException(s"Illegal port range for tests! $range")
-          val Array(first, second) = limits
-          if (first >= second)
-            throw new IllegalArgumentException(s"Illegal port range for tests! First boundary $first is bigger or equals second $second!")
-          (first, second)
-        }
-        .getOrElse(DEFAULT_PORT_RANGE)
 
       val tests = (Test / definedTests).value
 
-      // Checks that we will not get higher than portRangeHigherBound
-      if (tests.size * PORTS_PER_TEST > portRangeHigherBound - portRangeLowerBound)
-        throw new RuntimeException(
-          s"""Cannot run tests;
-             |They need at least ${tests.size * PORTS_PER_TEST} available ports,
-             | but specified interval has only ${portRangeHigherBound - portRangeLowerBound}.
-             | Increase the port range.
-             | """.stripMargin
-        )
-
       tests.zipWithIndex.map { case (suite, i) =>
-        val lowerBound  = portRangeLowerBound + PORTS_PER_TEST * i
-        val higherBound = lowerBound + PORTS_PER_TEST - 1
-
         Group(
           suite.name,
           Seq(suite),
@@ -77,7 +53,7 @@ inConfig(Test)(
                 s"-Dcc.it.logs.dir=${logDirectoryValue / suite.name.replaceAll("""(\w)\w*\.""", "$1.")}" // foo.bar.Baz -> f.b.Baz
               ) ++ javaOptionsValue,
               connectInput = false,
-              envVars = envVarsValue + ("TEST_PORT_RANGE" -> s"$lowerBound-$higherBound")
+              envVars = envVarsValue
             )
           )
         )
