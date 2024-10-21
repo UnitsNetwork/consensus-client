@@ -3,5 +3,5 @@
 DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "${DIR}" || exit
 
-./bridge-compile.sh
-npm run deploy
+docker rm -f tests
+docker compose up --no-deps tests

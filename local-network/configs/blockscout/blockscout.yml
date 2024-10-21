@@ -3,6 +3,7 @@ services:
     extends:
       file: ./redis/redis.yml
       service: redis
+    profiles: [ bs ]
 
   # db-init:
   #   extends:
@@ -16,6 +17,7 @@ services:
     extends:
       file: ./db/db.yml
       service: db
+    profiles: [ bs ]
 
   backend:
     depends_on:
@@ -25,6 +27,7 @@ services:
     extends:
       file: ./backend/backend.yml
       service: backend
+    profiles: [ bs ]
 
   # visualizer:
   #   extends:
@@ -35,6 +38,7 @@ services:
     extends:
       file: ./sig-provider/sig-provider.yml
       service: sig-provider
+    profiles: [ bs ]
 
   frontend:
     depends_on:
@@ -42,6 +46,7 @@ services:
     extends:
       file: ./frontend/frontend.yml
       service: frontend
+    profiles: [ bs ]
 
   # stats-db-init:
   #   extends:
@@ -55,6 +60,7 @@ services:
     extends:
       file: ./stats/stats.yml
       service: stats-db
+    profiles: [ bs ]
 
   stats:
     depends_on:
@@ -63,6 +69,7 @@ services:
     extends:
       file: ./stats/stats.yml
       service: stats
+    profiles: [ bs ]
 
   nginx:
     depends_on:
@@ -72,3 +79,4 @@ services:
     extends:
       file: ./nginx/nginx.yml
       service: nginx
+    profiles: [ bs ]

@@ -33,8 +33,7 @@ object TestSettings {
 
 case class ElMinerSettings(
     account: SeedKeyPair,
-    wavesBalance: Long = 20_100.waves,
-    stakingBalance: Long = 50_000_000L
+    wavesBalance: Long = 20_100.waves
 ) {
   val address         = account.toAddress
   val elRewardAddress = EthAddress.unsafeFrom(address.toEthAddress)

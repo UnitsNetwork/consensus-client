@@ -4,8 +4,6 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "${DIR}" || exit
 
 SOLC_VERSION=0.8.26
-export VIRTUAL_ENV="${DIR}" # for solc-select and solc
-
 solc-select use $SOLC_VERSION --always-install
 
 echo "Compile bridge.sol"
