@@ -1,20 +1,24 @@
 package units.network.test.docker
 
-import com.wavesplatform.account.{Address, SeedKeyPair}
+import com.wavesplatform.account.Address
 import com.wavesplatform.common.utils.Base58
+import com.wavesplatform.wavesj.Node
+import org.apache.http.client.config.{CookieSpecs, RequestConfig}
+import org.apache.http.impl.client.HttpClients
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.Network.NetworkImpl
 import org.testcontainers.utility.DockerImageName
 import units.network.test.docker.BaseContainer.{ConfigsDir, DefaultLogsDir}
 import units.network.test.docker.WavesNodeContainer.ApiPort
 
+import java.nio.charset.StandardCharsets
 import scala.jdk.CollectionConverters.MapHasAsJava
 
 class WavesNodeContainer(
     network: NetworkImpl,
     number: Int,
     ip: String,
-    keyPair: SeedKeyPair,
+    baseSeed: String,
     chainContract: Address,
     ecEngineApiUrl: String
 ) extends BaseContainer(s"wavesnode-$number") {
@@ -24,7 +28,7 @@ class WavesNodeContainer(
     .withEnv(
       Map(
         "NODE_NUMBER"       -> s"$number",
-        "WAVES_WALLET_SEED" -> Base58.encode(keyPair.seed),
+        "WAVES_WALLET_SEED" -> Base58.encode(baseSeed.getBytes(StandardCharsets.UTF_8)),
         "JAVA_OPTS" -> List(
           s"-Dwaves.l2.chain-contract=$chainContract",
           s"-Dwaves.l2.execution-client-address=$ecEngineApiUrl",
@@ -46,11 +50,24 @@ class WavesNodeContainer(
         .withStopTimeout(5) // Otherwise we don't have logs in the end
     }
 
-  val apiPort = new MappedPort(container, ApiPort)
+  lazy val apiPort = container.getMappedPort(ApiPort)
+
+  private lazy val httpClient = HttpClients.custom
+    .setDefaultRequestConfig(
+      RequestConfig.custom
+        .setSocketTimeout(60000)
+        .setConnectTimeout(60000)
+        .setConnectionRequestTimeout(60000)
+        .setCookieSpec(CookieSpecs.STANDARD)
+        .build
+    )
+    .build
+
+  lazy val api = new Node(s"http://${container.getHost}:$apiPort", httpClient)
 
   override def stop(): Unit = {
-    // container.stop() kills and removes the container, and we lose logs. stopContainerCmd stops gracefully.
-    container.getDockerClient.stopContainerCmd(container.getContainerId).exec()
+    httpClient.close()
+    super.stop()
   }
 }
 
