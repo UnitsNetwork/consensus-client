@@ -1,7 +1,7 @@
 services:
   waves-node:
     container_name: waves-node
-    image: ghcr.io/unitsnetwork/consensus-client:${WAVES_NODE_TAG:-${NETWORK}}
+    image: consensus-client:local
     stop_grace_period: 5m
     ports:
       - "6869:6869"
