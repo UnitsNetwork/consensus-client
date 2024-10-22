@@ -43,7 +43,10 @@ if not network.cl_chain_contract.isContractSetup():
 
     log.info(f"Genesis block hash: {el_genesis_block_hash}")
 
-    r = network.cl_chain_contract.setup(el_genesis_block_hash)
+    r = network.cl_chain_contract.setup(
+      el_genesis_block_hash,
+      daoAddress = '3FYp54DX9Np9uouxBtnnCFPYWzz7K3kvSD2'
+    )
     waves.force_success(log, r, "Can not setup the chain contract")
 
 cl_token = network.cl_chain_contract.getToken()

@@ -13,6 +13,6 @@ echo "Update deploy image"
 docker compose build deploy --no-cache
 
 echo "Update test image"
-docker compose build test
+docker compose build tests
 
 echo "Done."
