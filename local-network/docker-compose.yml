@@ -36,7 +36,7 @@ services:
     extends:
       file: ./configs/wavesnode/wavesnode.yml
       service: wavesnode
-    image: ${WAVES_NODE_IMAGE_1:-${WAVES_NODE_IMAGE:-ghcr.io/unitsnetwork/consensus-client:testnet-2}}
+    image: ${WAVES_NODE_IMAGE_1:-${WAVES_NODE_IMAGE:-consensus-client:local}}
     ports:
       - "127.0.0.1:16869:6869"
     environment:
@@ -56,7 +56,7 @@ services:
     extends:
       file: ./configs/wavesnode/wavesnode.yml
       service: wavesnode
-    image: ${WAVES_NODE_IMAGE_2:-${WAVES_NODE_IMAGE:-ghcr.io/unitsnetwork/consensus-client:testnet-2}}
+    image: ${WAVES_NODE_IMAGE_2:-${WAVES_NODE_IMAGE:-consensus-client:local}}
     ports:
       - "127.0.0.1:26869:6869"
     environment:
