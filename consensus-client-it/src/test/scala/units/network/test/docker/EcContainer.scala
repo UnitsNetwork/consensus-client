@@ -39,6 +39,8 @@ class EcContainer(network: NetworkImpl, hostName: String, ip: String) extends Ba
     httpClientBackend.close()
     super.stop()
   }
+
+  override def logPorts(): Unit = log.debug(s"External host: ${container.getHost}, rpc: $rpcPort, engine: $enginePort")
 }
 
 object EcContainer {

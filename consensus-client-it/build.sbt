@@ -7,8 +7,7 @@ import java.time.format.DateTimeFormatter
 description := "Consensus client integration tests"
 
 libraryDependencies ++= Seq(
-  "org.testcontainers" % "testcontainers" % "1.20.2",
-  "com.wavesplatform"  % "wavesj"         % "1.3.0"
+  "org.testcontainers" % "testcontainers" % "1.20.2"
 ).map(_ % Test)
 
 val logsDirectory = taskKey[File]("The directory for logs") // Evaluates every time, so it recreates the logs directory

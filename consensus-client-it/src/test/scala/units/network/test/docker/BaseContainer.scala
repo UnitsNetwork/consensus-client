@@ -1,11 +1,14 @@
 package units.network.test.docker
 
-import com.wavesplatform.utils.ScorexLogging
+import com.wavesplatform.utils.LoggerFacade
+import org.slf4j.LoggerFactory
 import org.testcontainers.containers.wait.strategy.DockerHealthcheckWaitStrategy
 
 import java.nio.file.Path
 
-abstract class BaseContainer(val hostName: String) extends ScorexLogging {
+abstract class BaseContainer(val hostName: String) {
+  protected lazy val log = LoggerFacade(LoggerFactory.getLogger(s"${getClass.getSimpleName}.$hostName"))
+
   protected val container: GenericContainer
 
   def start(): Unit = {
@@ -19,6 +22,8 @@ abstract class BaseContainer(val hostName: String) extends ScorexLogging {
   def stop(): Unit = {
     container.stop()
   }
+
+  def logPorts(): Unit
 }
 
 object BaseContainer {

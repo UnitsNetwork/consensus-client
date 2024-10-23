@@ -1,13 +1,13 @@
 package units.network.test.docker
 
 import com.wavesplatform.account.Address
+import com.wavesplatform.api.NodeHttpApi
 import com.wavesplatform.common.utils.Base58
-import com.wavesplatform.wavesj.Node
-import org.apache.http.client.config.{CookieSpecs, RequestConfig}
-import org.apache.http.impl.client.HttpClients
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.Network.NetworkImpl
 import org.testcontainers.utility.DockerImageName
+import sttp.client3.{HttpClientSyncBackend, UriContext}
+import units.client.HttpChainContractClient
 import units.network.test.docker.BaseContainer.{ConfigsDir, DefaultLogsDir}
 import units.network.test.docker.WavesNodeContainer.ApiPort
 
@@ -19,7 +19,7 @@ class WavesNodeContainer(
     number: Int,
     ip: String,
     baseSeed: String,
-    chainContract: Address,
+    chainContractAddress: Address,
     ecEngineApiUrl: String
 ) extends BaseContainer(s"wavesnode-$number") {
   protected override val container = new GenericContainer(DockerImageName.parse(System.getProperty("cc.it.docker.image")))
@@ -30,7 +30,7 @@ class WavesNodeContainer(
         "NODE_NUMBER"       -> s"$number",
         "WAVES_WALLET_SEED" -> Base58.encode(baseSeed.getBytes(StandardCharsets.UTF_8)),
         "JAVA_OPTS" -> List(
-          s"-Dwaves.l2.chain-contract=$chainContract",
+          s"-Dwaves.l2.chain-contract=$chainContractAddress",
           s"-Dwaves.l2.execution-client-address=$ecEngineApiUrl",
           "-Dlogback.file.level=TRACE",
           "-Dfile.encoding=UTF-8"
@@ -52,23 +52,19 @@ class WavesNodeContainer(
 
   lazy val apiPort = container.getMappedPort(ApiPort)
 
-  private lazy val httpClient = HttpClients.custom
-    .setDefaultRequestConfig(
-      RequestConfig.custom
-        .setSocketTimeout(60000)
-        .setConnectTimeout(60000)
-        .setConnectionRequestTimeout(60000)
-        .setCookieSpec(CookieSpecs.STANDARD)
-        .build
-    )
-    .build
+  // TODO common from EcContainer
+  private val httpClientBackend = HttpClientSyncBackend()
 
-  lazy val api = new Node(s"http://${container.getHost}:$apiPort", httpClient)
+  lazy val api = new NodeHttpApi(uri"http://${container.getHost}:$apiPort", httpClientBackend)
+
+  lazy val chainContract = new HttpChainContractClient(api, chainContractAddress)
 
   override def stop(): Unit = {
-    httpClient.close()
+    httpClientBackend.close()
     super.stop()
   }
+
+  override def logPorts(): Unit = log.debug(s"External host: ${container.getHost}, api: $apiPort")
 }
 
 object WavesNodeContainer {
