@@ -21,6 +21,5 @@ cp ../src/test/resources/main.ride ./deploy/setup/waves/
 export COMPOSE_PROFILES="${COMPOSE_PROFILES:-}"
 echo "Compose profiles are: ${COMPOSE_PROFILES}"
 
-./genesis-update.sh
 docker compose up -d
 docker compose logs deploy tests -f

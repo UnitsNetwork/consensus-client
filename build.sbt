@@ -32,8 +32,8 @@ name       := "consensus-client"
 maintainer := "Units Network Team"
 
 libraryDependencies ++= Seq(
-  "com.wavesplatform"              % "node-testkit"  % "1.5.8-SNAPSHOT" % "test",
-  "com.wavesplatform"              % "node"          % "1.5.8-SNAPSHOT" % "provided",
+  "com.wavesplatform"              % "node-testkit"  % "1.5.8" % "test",
+  "com.wavesplatform"              % "node"          % "1.5.8" % "provided",
   "com.softwaremill.sttp.client3"  % "core_2.13"     % "3.9.8",
   "com.softwaremill.sttp.client3" %% "play-json"     % "3.9.8",
   "com.github.jwt-scala"          %% "jwt-play-json" % "10.0.1"
@@ -91,12 +91,12 @@ buildTarballsForDocker := {
 inTask(docker)(
   Seq(
     imageNames := Seq(
-      ImageName(s"unitsnetwork/consensus-client:${gitCurrentBranch.value}"), // Integration tests
-      ImageName("unitsnetwork/consensus-client:latest")                      // local-network
+      ImageName(s"consensus-client:${gitCurrentBranch.value}"), // Integration tests
+      ImageName("consensus-client:local")                       // local-network
     ),
     dockerfile           := NativeDockerfile(baseDirectory.value / "docker" / "Dockerfile"),
     buildOptions         := BuildOptions(),
-    dockerBuildArguments := Map("baseImage" -> "wavesplatform/wavesnode:1.5.7-1") // TODO Remove, 1.5.7 has other class files
+    dockerBuildArguments := Map("baseImage" -> "wavesplatform/wavesnode:1.5.7-8")
   )
 )
 

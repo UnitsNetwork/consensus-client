@@ -24,7 +24,7 @@ inConfig(Test)(
     javaOptions ++= Seq(
       s"-Dlogback.configurationFile=${(Test / resourceDirectory).value}/logback-test.xml", // Fixes a logback blaming for multiple configs
       s"-Dcc.it.configs.dir=${baseDirectory.value.getParent}/local-network/configs",
-      s"-Dcc.it.docker.image=unitsnetwork/consensus-client:${gitCurrentBranch.value}"
+      s"-Dcc.it.docker.image=consensus-client:${gitCurrentBranch.value}"
     ),
     testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-fFWD", ((Test / logsDirectory).value / "summary.log").toString),
     parallelExecution := true,

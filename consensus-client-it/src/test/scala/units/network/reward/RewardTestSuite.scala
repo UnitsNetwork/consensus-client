@@ -29,6 +29,8 @@ class RewardTestSuite extends BaseItTestSuite with HasConsensusLayerDappTxHelper
         .setup(
           genesisBlock = genesisBlock,
           elMinerReward = rewardAmount.amount.longValue(),
+          daoAddress = None,
+          daoReward = 0,
           invoker = chainContractAccount
         )
     )

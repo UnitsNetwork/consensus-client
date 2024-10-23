@@ -1,6 +1,6 @@
 services:
   wavesnode:
-    image: unitsnetwork/consensus-client:latest
+    image: ghcr.io/unitsnetwork/consensus-client:testnet
     pull_policy: never
     environment:
       JAVA_OPTS: -Dlogback.file.level=TRACE

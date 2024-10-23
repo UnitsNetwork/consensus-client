@@ -24,12 +24,20 @@ trait HasConsensusLayerDappTxHelpers {
   object chainContract {
     def setScript(): SetScriptTransaction = TxHelpers.setScript(chainContractAccount, CompiledChainContract.script, fee = setScriptFee)
 
-    def setup(genesisBlock: L2BlockLike, elMinerReward: Long, invoker: KeyPair = defaultSigner): InvokeScriptTransaction = TxHelpers.invoke(
+    def setup(
+        genesisBlock: L2BlockLike,
+        elMinerReward: Long,
+        daoAddress: Option[Address],
+        daoReward: Long,
+        invoker: KeyPair = defaultSigner
+    ): InvokeScriptTransaction = TxHelpers.invoke(
       dApp = chainContractAddress,
       func = "setup".some,
       args = List(
         Terms.CONST_STRING(genesisBlock.hash.drop(2)).explicitGet(),
-        Terms.CONST_LONG(elMinerReward)
+        Terms.CONST_LONG(elMinerReward),
+        Terms.CONST_STRING(daoAddress.fold("")(_.toString)).explicitGet(),
+        Terms.CONST_LONG(daoReward)
       ),
       fee = setupFee,
       invoker = invoker
