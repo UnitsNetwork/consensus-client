@@ -34,7 +34,7 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?]) extends Scorex
     if (currHeight >= atLeast) currHeight
     else
       WithRetries(
-        maxAttempts = (averageBlockDelay.toSeconds.toInt * (atLeast - currHeight) * 1.5).toInt,
+        maxAttempts = (averageBlockDelay.toSeconds.toInt * (atLeast - currHeight) * 2.5).toInt,
         message = s"waitForHeight($atLeast)"
       ).until(height) {
         case h if h >= atLeast => h

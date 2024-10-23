@@ -22,12 +22,11 @@
         </encoder>
     </appender>
 
-    <!-- Retries logs -->
+    <!-- TestContainers logs -->
     <logger name="org.rnorth.ducttape.unreliables" level="WARN"/>
-
-    <!-- Docker logs -->
     <logger name="com.github.dockerjava" level="WARN"/>
     <logger name="org.testcontainers" level="WARN"/>
+    <logger name="org.testcontainers.utility" level="ERROR"/>
 
     <root level="TRACE">
         <appender-ref ref="STDOUT"/>

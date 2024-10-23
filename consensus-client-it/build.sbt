@@ -29,9 +29,6 @@ inConfig(Test)(
     testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-fFWD", ((Test / logsDirectory).value / "summary.log").toString),
     parallelExecution := true,
     testGrouping := {
-      val PORTS_PER_TEST     = 50
-      val DEFAULT_PORT_RANGE = (10000, 32000)
-
       val javaHomeValue     = (test / javaHome).value
       val logDirectoryValue = (Test / logsDirectory).value
       val envVarsValue      = (Test / envVars).value
