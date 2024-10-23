@@ -1,8 +1,6 @@
 import ConsensusClientTasks.buildTarballsForDocker
 import com.github.sbt.git.SbtGit.GitKeys.gitCurrentBranch
 
-Global / onChangedBuildSource := ReloadOnSourceChanges
-
 enablePlugins(UniversalDeployPlugin, GitVersioning, sbtdocker.DockerPlugin)
 
 git.useGitDescribe       := true
@@ -11,9 +9,10 @@ git.uncommittedSignifier := Some("DIRTY")
 
 inScope(Global)(
   Seq(
-    scalaVersion     := "2.13.14",
-    organization     := "network.units",
-    organizationName := "Units Network",
+    onChangedBuildSource := ReloadOnSourceChanges,
+    scalaVersion         := "2.13.14",
+    organization         := "network.units",
+    organizationName     := "Units Network",
     resolvers ++= Resolver.sonatypeOssRepos("releases") ++ Resolver.sonatypeOssRepos("snapshots") ++ Seq(Resolver.mavenLocal),
     scalacOptions ++= Seq(
       "-Xsource:3",
@@ -25,9 +24,6 @@ inScope(Global)(
       "-language:postfixOps",
       "-Ywarn-unused:-implicits",
       "-Xlint"
-    ),
-    javaOptions ++= Seq(
-      "-Dfile.encoding=UTF-8" // JVM default charset for proper and deterministic getBytes behaviour
     )
   )
 )
@@ -98,15 +94,17 @@ inTask(docker)(
       ImageName(s"unitsnetwork/consensus-client:${gitCurrentBranch.value}"), // Integration tests
       ImageName("unitsnetwork/consensus-client:latest")                      // local-network
     ),
-    dockerfile := NativeDockerfile(baseDirectory.value / "docker" / "Dockerfile"),
-    buildOptions := BuildOptions(),
+    dockerfile           := NativeDockerfile(baseDirectory.value / "docker" / "Dockerfile"),
+    buildOptions         := BuildOptions(),
     dockerBuildArguments := Map("baseImage" -> "wavesplatform/wavesnode:1.5.7-1") // TODO Remove, 1.5.7 has other class files
   )
 )
 
 docker := docker.dependsOn(LocalRootProject / buildTarballsForDocker).value
 
+lazy val `consensus-client` = project.in(file("."))
+
 lazy val `consensus-client-it` = project
   .dependsOn(
-    LocalRootProject % "compile;test->test"
+    `consensus-client` % "compile;test->test"
   )
