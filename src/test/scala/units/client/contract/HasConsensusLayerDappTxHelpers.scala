@@ -7,6 +7,7 @@ import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.test.NumericExt
+import com.wavesplatform.transaction.TxHelpers.defaultSigner
 import com.wavesplatform.transaction.smart.{InvokeScriptTransaction, SetScriptTransaction}
 import com.wavesplatform.transaction.{Asset, TxHelpers}
 import units.client.L2BlockLike
@@ -23,7 +24,13 @@ trait HasConsensusLayerDappTxHelpers {
   object chainContract {
     def setScript(): SetScriptTransaction = TxHelpers.setScript(chainContractAccount, CompiledChainContract.script, fee = setScriptFee)
 
-    def setup(genesisBlock: L2BlockLike, elMinerReward: Long, daoAddress: Option[Address], daoReward: Long): InvokeScriptTransaction = TxHelpers.invoke(
+    def setup(
+        genesisBlock: L2BlockLike,
+        elMinerReward: Long,
+        daoAddress: Option[Address],
+        daoReward: Long,
+        invoker: KeyPair = defaultSigner
+    ): InvokeScriptTransaction = TxHelpers.invoke(
       dApp = chainContractAddress,
       func = "setup".some,
       args = List(
@@ -32,7 +39,8 @@ trait HasConsensusLayerDappTxHelpers {
         Terms.CONST_STRING(daoAddress.fold("")(_.toString)).explicitGet(),
         Terms.CONST_LONG(daoReward)
       ),
-      fee = setupFee
+      fee = setupFee,
+      invoker = invoker
     )
 
     def join(minerAccount: KeyPair, elRewardAddress: EthAddress): InvokeScriptTransaction = TxHelpers.invoke(

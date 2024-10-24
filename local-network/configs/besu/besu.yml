@@ -1,6 +1,6 @@
 services:
   besu:
-    image: hyperledger/besu:latest # Debug version: besu-debug:latest , see _debug/
+    image: hyperledger/besu:latest
     volumes:
       - ../ec-common/genesis.json:/genesis.json:ro
       - .:/config:ro
