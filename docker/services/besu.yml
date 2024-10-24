@@ -19,8 +19,6 @@ services:
       - --data-path=/var/lib/besu
       - --genesis-file=/etc/besu/genesis.json
       - --data-storage-format=BONSAI
-      - --network-id=${NETWORK_ID}
-      - --target-gas-limit=15000000
     volumes:
       - ../genesis-${NETWORK}.json:/etc/besu/genesis.json
       - ../data/secrets:/etc/secrets:ro
@@ -32,3 +30,5 @@ services:
       - '30303:30303/udp'
     environment:
       - LOG4J_CONFIGURATION_FILE=/etc/besu/log4j2.xml
+      - BESU_TARGET_GAS_LIMIT=${GAS_LIMIT}
+      - BESU_NETWORK_ID=${NETWORK_ID}

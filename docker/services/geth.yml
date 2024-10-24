@@ -26,11 +26,12 @@ services:
       - --ws.origins=*
       - --authrpc.addr=0.0.0.0
       - --authrpc.vhosts=*
-      - --discovery.dns=enrtree://AIRIZFFZSCSIVHXTKA44WYZQJMR75FLTGWJ5TUNEW5IP7QKZDLBRK@${NETWORK}-nodes.unit0.dev
-      - --networkid=${NETWORK_ID}
       - --authrpc.jwtsecret=/etc/secrets/jwtsecret
+      - --discovery.dns=enrtree://AIRIZFFZSCSIVHXTKA44WYZQJMR75FLTGWJ5TUNEW5IP7QKZDLBRK@${NETWORK}-nodes.unit0.dev
       - --nodekey=/etc/secrets/p2p-key
-      - --miner.gaslimit=15000000
+    env:
+      - GETH_MINER_GASLIMIT=${GAS_LIMIT}
+      - GETH_NETWORKID=${NETWORK_ID}
     logging:
       driver: local
       options:
