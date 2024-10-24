@@ -51,7 +51,6 @@ import units.test.CustomMatchers
 import java.nio.charset.StandardCharsets
 import scala.annotation.tailrec
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
-import scala.jdk.CollectionConverters.CollectionHasAsScala
 import scala.reflect.ClassTag
 
 class ExtensionDomain(
@@ -68,16 +67,7 @@ class ExtensionDomain(
     with ScorexLogging { self =>
   override val chainContractAccount: KeyPair = KeyPair("chain-contract".getBytes(StandardCharsets.UTF_8))
 
-  val l2Config = {
-    val defaultConfig = settings.config.getConfig("units.defaults")
-    val newChainConfigs = settings.config
-      .getConfigList("units.chains")
-      .asScala
-      .map(cfg => cfg.withFallback(defaultConfig).resolve().as[ClientConfig])
-
-    newChainConfigs.head
-  }
-
+  val l2Config = settings.config.as[ClientConfig]("units.defaults")
   require(l2Config.chainContractAddress == chainContractAddress, "Check settings")
 
   val ecGenesisBlock = EcBlock(

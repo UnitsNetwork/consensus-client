@@ -1,6 +1,6 @@
 package units.network.test.docker
 
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{ConfigFactory, ConfigValueFactory}
 import net.ceedubs.ficus.Ficus.toFicusConfig
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.Network.NetworkImpl
@@ -48,8 +48,11 @@ object EcContainer {
   val EnginePort = 8551
 
   // TODO move
-  private val baseConfig       = ConfigFactory.load(this.getClass.getClassLoader, "application.conf")
-  private val baseClientConfig = baseConfig.as[ClientConfig]("waves.l2")
-
-  private def mkConfig(host: String, port: Int): ClientConfig = baseClientConfig.copy(executionClientAddress = s"http://$host:$port")
+  private val baseConfig = ConfigFactory.load(this.getClass.getClassLoader, "application.conf")
+  private def mkConfig(host: String, port: Int): ClientConfig = baseConfig
+    .getConfig("units.defaults")
+    .withValue("chain-contract", ConfigValueFactory.fromAnyRef("")) // Doesn't matter for HttpEngineApiClient
+    .withValue("execution-client-address", ConfigValueFactory.fromAnyRef(s"http://$host:$port"))
+    .resolve()
+    .as[ClientConfig]
 }
