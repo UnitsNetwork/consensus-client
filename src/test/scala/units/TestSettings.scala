@@ -29,7 +29,7 @@ object TestSettings {
 
   private object Waves {
     val Default    = DomainPresets.TransactionStateSnapshot
-    val WithMining = Default.copy(config = ConfigFactory.parseString("waves.l2.mining-enable = true").withFallback(Default.config))
+    val WithMining = Default.copy(config = ConfigFactory.parseString("units.defaults.mining-enable = true").withFallback(Default.config))
   }
 }
 
