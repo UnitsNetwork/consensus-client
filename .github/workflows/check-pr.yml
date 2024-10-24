@@ -25,14 +25,15 @@ jobs:
           java-version: '11'
           cache: 'sbt'
       - uses: sbt/setup-sbt@v1
-      - name: Run unit tests
-        run: sbt --batch "test"
-      - name: Generate genesis.conf
+      - name: Run tests
         run: |
-          cd local-network
-          sh genesis-update.sh
-      - name: Run docker tests
-        run: sbt --batch "docker;consensus-client-it/test"
+          sbt --batch "\
+            test; \
+            consensus-client-it/Test/runMain com.wavesplatform.GenesisBlockGenerator \
+              ../local-network/configs/wavesnode/genesis-template.conf \
+              ../local-network/configs/wavesnode/genesis.conf; \
+            docker; \
+            consensus-client-it/test"
       - name: Archive logs
         uses: actions/upload-artifact@v4
         if: always()
