@@ -1,4 +1,4 @@
-package units.network.test.docker
+package units.docker
 
 import com.wavesplatform.account.Address
 import com.wavesplatform.api.NodeHttpApi
@@ -8,8 +8,8 @@ import org.testcontainers.containers.Network.NetworkImpl
 import org.testcontainers.utility.DockerImageName
 import sttp.client3.{HttpClientSyncBackend, UriContext}
 import units.client.HttpChainContractClient
-import units.network.test.docker.BaseContainer.{ConfigsDir, DefaultLogsDir}
-import units.network.test.docker.WavesNodeContainer.ApiPort
+import units.docker.BaseContainer.{ConfigsDir, DefaultLogsDir}
+import units.docker.WavesNodeContainer.ApiPort
 
 import java.nio.charset.StandardCharsets
 import scala.jdk.CollectionConverters.MapHasAsJava

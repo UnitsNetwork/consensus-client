@@ -1,4 +1,4 @@
-package units.network
+package units
 
 import com.wavesplatform.common.utils.EitherExt2
 import units.client.engine.model.BlockNumber

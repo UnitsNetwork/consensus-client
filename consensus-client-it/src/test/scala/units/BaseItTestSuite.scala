@@ -1,7 +1,7 @@
-package units.network
+package units
 
 import com.google.common.primitives.{Bytes, Ints}
-import com.wavesplatform.account.{Address, AddressScheme, KeyPair, SeedKeyPair}
+import com.wavesplatform.account.{AddressScheme, KeyPair, SeedKeyPair}
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.crypto
@@ -11,10 +11,11 @@ import org.scalatest.concurrent.Eventually
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues}
+import org.web3j.crypto.Credentials
 import units.client.contract.HasConsensusLayerDappTxHelpers
 import units.client.engine.model.BlockNumber
+import units.docker.{EcContainer, Networks, WavesNodeContainer}
 import units.eth.{EthAddress, Gwei}
-import units.network.test.docker.{EcContainer, Networks, WavesNodeContainer}
 import units.test.CustomMatchers
 
 import java.nio.charset.StandardCharsets
@@ -44,12 +45,18 @@ trait BaseItTestSuite
     number = 1,
     ip = Networks.ipForNode(3),
     baseSeed = "devnet-1",
-    chainContractAddress = Address.fromString("3FdaanzgX4roVgHevhq8L8q42E7EZL9XTQr", expectedChainId = Some('D'.toByte)).explicitGet(),
+    chainContractAddress = chainContractAddress,
     ecEngineApiUrl = s"http://${ec1.hostName}:${EcContainer.EnginePort}"
   )
 
   protected val miner1Account       = mkKeyPair("devnet-1", 0)
   protected val miner1RewardAddress = EthAddress.unsafeFrom("0x7dbcf9c6c3583b76669100f9be3caf6d722bc9f9")
+
+  protected val clRichAccount1 = mkKeyPair("devnet-0", 0)
+  protected val clRichAccount2 = mkKeyPair("devnet-0", 1)
+
+  protected val elRichAccount1 = Credentials.create("8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63")
+  protected val elRichAccount2 = Credentials.create("ae6ae8e5ccbfb04590405997ee2d52d2b330726137b875053c36d94e974d162f")
 
   override def beforeAll(): Unit = {
     BaseItTestSuite.init()

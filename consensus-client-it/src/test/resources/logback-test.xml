@@ -28,6 +28,9 @@
     <logger name="org.testcontainers" level="WARN"/>
     <logger name="org.testcontainers.utility" level="ERROR"/>
 
+    <!-- Web3j -->
+    <logger name="org.web3j.protocol" level="INFO"/>
+
     <root level="TRACE">
         <appender-ref ref="STDOUT"/>
         <appender-ref ref="FILE"/>

@@ -1,4 +1,4 @@
-package units.network.test.docker
+package units.docker
 
 import org.testcontainers.containers.GenericContainer as JGenericContrainer
 import org.testcontainers.utility.DockerImageName

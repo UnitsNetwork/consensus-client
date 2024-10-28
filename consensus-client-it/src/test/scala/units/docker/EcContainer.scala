@@ -1,15 +1,20 @@
-package units.network.test.docker
+package units.docker
 
 import com.typesafe.config.{ConfigFactory, ConfigValueFactory}
 import net.ceedubs.ficus.Ficus.toFicusConfig
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.Network.NetworkImpl
 import org.testcontainers.utility.DockerImageName
+import org.web3j.protocol.Web3j
+import org.web3j.protocol.http.HttpService
 import sttp.client3.HttpClientSyncBackend
 import units.ClientConfig
 import units.client.engine.{HttpEngineApiClient, LoggedEngineApiClient}
-import units.network.test.docker.BaseContainer.{ConfigsDir, DefaultLogsDir}
-import units.network.test.docker.EcContainer.{EnginePort, RpcPort, mkConfig}
+import units.docker.BaseContainer.{ConfigsDir, DefaultLogsDir}
+import units.docker.EcContainer.{EnginePort, RpcPort, mkConfig}
+import units.el.ElBridgeClient
+import units.eth.EthAddress
+import units.http.OkHttpLogger
 
 class EcContainer(network: NetworkImpl, hostName: String, ip: String) extends BaseContainer(hostName) {
   protected override val container = new GenericContainer(DockerImageName.parse("hyperledger/besu:latest"))
@@ -35,7 +40,19 @@ class EcContainer(network: NetworkImpl, hostName: String, ip: String) extends Ba
   private val httpClientBackend = HttpClientSyncBackend()
   lazy val engineApi            = new LoggedEngineApiClient(new HttpEngineApiClient(mkConfig(container.getHost, enginePort), httpClientBackend))
 
+  lazy val web3j = Web3j.build(
+    new HttpService(
+      s"http://${container.getHost}:$rpcPort",
+      HttpService.getOkHttpClientBuilder
+        .addInterceptor(OkHttpLogger)
+        .build()
+    )
+  )
+
+  lazy val elBridge = new ElBridgeClient(web3j, EthAddress.unsafeFrom("0x0000000000000000000000000000000000006a7e"))
+
   override def stop(): Unit = {
+    web3j.shutdown()
     httpClientBackend.close()
     super.stop()
   }

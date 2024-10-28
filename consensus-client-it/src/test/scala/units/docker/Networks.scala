@@ -1,4 +1,4 @@
-package units.network.test.docker
+package units.docker
 
 import com.github.dockerjava.api.command.CreateNetworkCmd
 import com.github.dockerjava.api.model.Network.Ipam

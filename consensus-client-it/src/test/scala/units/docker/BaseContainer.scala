@@ -1,4 +1,4 @@
-package units.network.test.docker
+package units.docker
 
 import com.wavesplatform.utils.LoggerFacade
 import org.slf4j.LoggerFactory
