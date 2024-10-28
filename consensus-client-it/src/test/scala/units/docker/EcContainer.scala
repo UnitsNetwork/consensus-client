@@ -1,5 +1,6 @@
 package units.docker
 
+import com.google.common.io.Files
 import com.typesafe.config.{ConfigFactory, ConfigValueFactory}
 import net.ceedubs.ficus.Ficus.toFicusConfig
 import org.testcontainers.containers.BindMode
@@ -16,7 +17,12 @@ import units.el.ElBridgeClient
 import units.eth.EthAddress
 import units.http.OkHttpLogger
 
-class EcContainer(network: NetworkImpl, hostName: String, ip: String) extends BaseContainer(hostName) {
+import java.io.File
+
+class EcContainer(network: NetworkImpl, number: Int, ip: String) extends BaseContainer(s"ec-$number") {
+  private val logFile = new File(s"$DefaultLogsDir/besu-$number.log")
+  Files.touch(logFile)
+
   protected override val container = new GenericContainer(DockerImageName.parse("hyperledger/besu:latest"))
     .withNetwork(network)
     .withExposedPorts(RpcPort, EnginePort)
@@ -25,7 +31,7 @@ class EcContainer(network: NetworkImpl, hostName: String, ip: String) extends Ba
     .withFileSystemBind(s"$ConfigsDir/besu", "/config", BindMode.READ_ONLY)
     .withFileSystemBind(s"$ConfigsDir/besu/run-besu.sh", "/tmp/run.sh", BindMode.READ_ONLY)
     .withFileSystemBind(s"$ConfigsDir/ec-common/p2p-key-1.hex", "/etc/secrets/p2p-key", BindMode.READ_ONLY)
-    .withFileSystemBind(s"$DefaultLogsDir", "/opt/besu/logs", BindMode.READ_WRITE)
+    .withFileSystemBind(s"$logFile", "/opt/besu/logs/besu.log", BindMode.READ_WRITE)
     .withCreateContainerCmdModifier { cmd =>
       cmd
         .withName(s"${network.getName}-$hostName")

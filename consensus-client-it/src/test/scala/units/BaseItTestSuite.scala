@@ -39,7 +39,12 @@ trait BaseItTestSuite
 
   protected lazy val network = Networks.network
 
-  protected lazy val ec1: EcContainer = new EcContainer(network, "ec-1", Networks.ipForNode(2)) // ipForNode(1) is assigned to Ryuk
+  protected lazy val ec1: EcContainer = new EcContainer(
+    network = network,
+    number = 1,
+    ip = Networks.ipForNode(2) // ipForNode(1) is assigned to Ryuk
+  )
+
   protected lazy val waves1: WavesNodeContainer = new WavesNodeContainer(
     network = network,
     number = 1,

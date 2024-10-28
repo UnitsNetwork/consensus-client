@@ -1,5 +1,6 @@
 package units.docker
 
+import com.google.common.io.Files
 import com.wavesplatform.account.Address
 import com.wavesplatform.api.NodeHttpApi
 import com.wavesplatform.common.utils.Base58
@@ -11,6 +12,7 @@ import units.client.HttpChainContractClient
 import units.docker.BaseContainer.{ConfigsDir, DefaultLogsDir}
 import units.docker.WavesNodeContainer.ApiPort
 
+import java.io.File
 import java.nio.charset.StandardCharsets
 import scala.jdk.CollectionConverters.MapHasAsJava
 
@@ -22,6 +24,9 @@ class WavesNodeContainer(
     chainContractAddress: Address,
     ecEngineApiUrl: String
 ) extends BaseContainer(s"wavesnode-$number") {
+  private val logFile = new File(s"$DefaultLogsDir/waves-$number.log")
+  Files.touch(logFile)
+
   protected override val container = new GenericContainer(DockerImageName.parse(System.getProperty("cc.it.docker.image")))
     .withNetwork(network)
     .withExposedPorts(ApiPort)
@@ -41,7 +46,7 @@ class WavesNodeContainer(
     )
     .withFileSystemBind(s"$ConfigsDir/wavesnode", "/etc/waves", BindMode.READ_ONLY)
     .withFileSystemBind(s"$ConfigsDir/ec-common", "/etc/secrets", BindMode.READ_ONLY)
-    .withFileSystemBind(s"$DefaultLogsDir", "/var/log/waves", BindMode.READ_WRITE)
+    .withFileSystemBind(s"$logFile", "/var/log/waves/waves.log", BindMode.READ_WRITE)
     .withCreateContainerCmdModifier { cmd =>
       cmd
         .withName(s"${network.getName}-$hostName")
