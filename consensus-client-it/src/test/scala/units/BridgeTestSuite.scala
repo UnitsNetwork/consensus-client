@@ -12,7 +12,7 @@ import units.eth.EthAddress
 import scala.jdk.CollectionConverters.CollectionHasAsScala
 import scala.jdk.OptionConverters.RichOptional
 
-class BridgeTestSuite extends BaseItTestSuite {
+class BridgeTestSuite extends OneNodeTestSuite {
   "L2-379 Checking balances in EL->CL transfers" in {
     val elSender    = elRichAccount1
     val clRecipient = clRichAccount1
