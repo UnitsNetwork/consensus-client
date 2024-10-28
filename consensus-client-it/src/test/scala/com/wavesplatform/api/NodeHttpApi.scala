@@ -2,11 +2,12 @@ package com.wavesplatform.api
 
 import cats.syntax.option.*
 import com.wavesplatform.account.Address
-import com.wavesplatform.api.NodeHttpApi.{HeightResponse, TransactionInfoResponse}
+import com.wavesplatform.api.NodeHttpApi.{AssetBalanceResponse, HeightResponse, TransactionInfoResponse}
 import com.wavesplatform.api.http.ApiMarshallers.TransactionJsonWrites
 import com.wavesplatform.api.http.TransactionsApiRoute.ApplicationStatus
 import com.wavesplatform.state.DataEntry.Format
 import com.wavesplatform.state.{DataEntry, EmptyDataEntry, TransactionId}
+import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.Transaction
 import com.wavesplatform.utils.ScorexLogging
 import play.api.libs.json.*
@@ -88,6 +89,18 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?]) extends Scorex
         }
     }
 
+  def balance(address: Address, asset: IssuedAsset): Long =
+    basicRequest
+      .get(uri"$apiUri/assets/balance/$address/$asset")
+      .response(asJson[AssetBalanceResponse])
+      .send(backend)
+      .body match {
+      case Left(HttpError(_, StatusCode.NotFound))     => 0L
+      case Left(HttpError(body, statusCode))           => fail(s"Server returned error $body with status ${statusCode.code}")
+      case Left(DeserializationException(body, error)) => fail(s"failed to parse response $body: $error")
+      case Right(r)                                    => r.balance
+    }
+
   private def fail(message: String): Nothing = throw new RuntimeException(s"JSON-RPC error: $message")
 }
 
@@ -100,5 +113,10 @@ object NodeHttpApi {
   case class TransactionInfoResponse(height: Int, applicationStatus: String)
   object TransactionInfoResponse {
     implicit val transactionInfoResponseFormat: OFormat[TransactionInfoResponse] = Json.format[TransactionInfoResponse]
+  }
+
+  case class AssetBalanceResponse(balance: Long)
+  object AssetBalanceResponse {
+    implicit val assetBalanceResponseFormat: OFormat[AssetBalanceResponse] = Json.format[AssetBalanceResponse]
   }
 }

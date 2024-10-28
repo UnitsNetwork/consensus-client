@@ -96,6 +96,8 @@ trait BaseItTestSuite
         )
     )
 
+    log.info(s"Token id: ${waves1.chainContract.token}")
+
     log.info("Waves miner #1 join")
     val joinMiner1Result = waves1.api.broadcastAndWait(
       chainContract

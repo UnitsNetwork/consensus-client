@@ -231,13 +231,13 @@ trait ChainContractClient {
   private def getFirstBlockHash(chainId: Long): Option[BlockHash] =
     getBlockHash(s"chain${chainId}FirstBlock")
 
-  private def getBinaryData(key: String): Option[ByteStr] =
+  protected def getBinaryData(key: String): Option[ByteStr] =
     extractBinaryValue(key, extractData(key))
 
-  private def getStringData(key: String): Option[String] =
+  protected def getStringData(key: String): Option[String] =
     extractStringValue(key, extractData(key))
 
-  private def getLongData(key: String): Option[Long] =
+  protected def getLongData(key: String): Option[Long] =
     extractLongValue(key, extractData(key))
 
   private def extractLongValue(context: String, extractedDataEntry: Option[DataEntry[?]]): Option[Long] =
@@ -258,7 +258,7 @@ trait ChainContractClient {
 
   private def clean(hash: BlockHash): String = hash.drop(2) // Drop "0x"
 
-  private def fail(reason: String, cause: Throwable = null): Nothing = throw new InconsistentContractData(reason, cause)
+  protected def fail(reason: String, cause: Throwable = null): Nothing = throw new InconsistentContractData(reason, cause)
 }
 
 object ChainContractClient {

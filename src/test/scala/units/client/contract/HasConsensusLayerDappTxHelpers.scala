@@ -10,6 +10,7 @@ import com.wavesplatform.test.NumericExt
 import com.wavesplatform.transaction.TxHelpers.defaultSigner
 import com.wavesplatform.transaction.smart.{InvokeScriptTransaction, SetScriptTransaction}
 import com.wavesplatform.transaction.{Asset, TxHelpers}
+import units.BlockHash
 import units.client.L2BlockLike
 import units.client.contract.HasConsensusLayerDappTxHelpers.*
 import units.client.contract.HasConsensusLayerDappTxHelpers.defaultFees.chainContract.*
@@ -179,13 +180,21 @@ trait HasConsensusLayerDappTxHelpers {
         merkleProof: Seq[Digest],
         transferIndexInBlock: Int,
         amount: Long
+    ): InvokeScriptTransaction = withdraw(sender, block.hash, merkleProof, transferIndexInBlock, amount)
+
+    def withdraw(
+        sender: KeyPair,
+        blockHash: BlockHash,
+        merkleProof: Seq[Digest],
+        transferIndexInBlock: Int,
+        amount: Long
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = sender,
         dApp = chainContractAddress,
         func = "withdraw".some,
         args = List(
-          Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(blockHash.drop(2)).explicitGet(),
           Terms.ARR(merkleProof.map[Terms.EVALUATED](x => Terms.CONST_BYTESTR(ByteStr(x)).explicitGet()).toVector, limited = false).explicitGet(),
           Terms.CONST_LONG(transferIndexInBlock),
           Terms.CONST_LONG(amount)

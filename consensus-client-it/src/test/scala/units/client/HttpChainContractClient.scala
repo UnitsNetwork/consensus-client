@@ -1,16 +1,20 @@
 package units.client
 
+import cats.syntax.option.*
 import com.wavesplatform.account.Address
 import com.wavesplatform.api.NodeHttpApi
+import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.state.DataEntry
+import com.wavesplatform.transaction.Asset.IssuedAsset
 import units.BlockHash
-import cats.syntax.option.*
 import units.client.contract.{ChainContractClient, ContractBlock}
 
 import scala.annotation.tailrec
 
 class HttpChainContractClient(api: NodeHttpApi, override val contract: Address) extends ChainContractClient {
   override def extractData(key: String): Option[DataEntry[?]] = api.getDataByKey(contract, key)
+
+  lazy val token: IssuedAsset = IssuedAsset(ByteStr.decodeBase58(getStringData("tokenId").getOrElse(fail("Call setup first"))).get)
 
   def getEpochFirstBlock(epochNumber: Int): Option[ContractBlock] =
     getEpochMeta(epochNumber).flatMap { epochData =>
