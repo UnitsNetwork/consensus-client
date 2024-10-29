@@ -2,7 +2,7 @@ package units.docker
 
 import com.google.common.io.Files
 import com.wavesplatform.account.Address
-import com.wavesplatform.api.NodeHttpApi
+import com.wavesplatform.api.{LoggingBackend, NodeHttpApi}
 import com.wavesplatform.common.utils.Base58
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.Network.NetworkImpl
@@ -58,7 +58,7 @@ class WavesNodeContainer(
   lazy val apiPort = container.getMappedPort(ApiPort)
 
   // TODO common from EcContainer
-  private val httpClientBackend = HttpClientSyncBackend()
+  private val httpClientBackend = new LoggingBackend(HttpClientSyncBackend())
 
   lazy val api = new NodeHttpApi(uri"http://${container.getHost}:$apiPort", httpClientBackend)
 

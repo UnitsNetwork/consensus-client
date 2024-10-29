@@ -2,14 +2,13 @@ package units.client
 
 import cats.Id
 import cats.syntax.either.*
-import units.client.JsonRpcClient.DefaultTimeout
-import units.{ClientConfig, ClientError}
 import play.api.libs.json.{JsError, JsValue, Reads, Writes}
 import sttp.client3.*
 import sttp.client3.playJson.*
 import sttp.model.Uri
+import units.client.JsonRpcClient.DefaultTimeout
+import units.{ClientConfig, ClientError}
 
-import java.util.concurrent.ThreadLocalRandom
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.util.{Failure, Success, Try}
 
@@ -26,15 +25,12 @@ trait JsonRpcClient {
   protected def parseJson[A: Reads](jsValue: JsValue): Either[ClientError, A] =
     Try(jsValue.as[A]).toEither.leftMap(err => ClientError(s"Response parse error: ${err.getMessage}"))
 
-  private def mkRequest[A: Writes, B: Reads](requestBody: A, timeout: FiniteDuration): RpcRequest[B] = {
-    val currRequestId = ThreadLocalRandom.current().nextInt(10000, 100000).toString
+  private def mkRequest[A: Writes, B: Reads](requestBody: A, timeout: FiniteDuration): RpcRequest[B] =
     basicRequest
       .body(requestBody)
       .post(apiUrl)
       .response(asJson[JsonRpcResponse[B]])
       .readTimeout(timeout)
-      .tag(RequestIdTag, currRequestId)
-  }
 
   private def sendRequest[RQ: Writes, RS: Reads](request: RpcRequest[RS], retriesLeft: Int): Either[String, Option[RS]] = {
     def retryIf(cond: Boolean, elseError: String): Either[String, Option[RS]] =
@@ -42,7 +38,7 @@ trait JsonRpcClient {
         val retries = retriesLeft - 1
         // TODO: make non-blocking waiting
         Thread.sleep(config.apiRequestRetryWaitTime.toMillis)
-        sendRequest(request.tag(RetriesLeftTag, retries), retries)
+        sendRequest(request, retries)
       } else Left(elseError)
 
     Try {

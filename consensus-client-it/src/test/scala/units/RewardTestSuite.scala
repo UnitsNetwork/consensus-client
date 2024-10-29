@@ -5,7 +5,7 @@ import units.client.engine.model.BlockNumber
 
 class RewardTestSuite extends OneNodeTestSuite {
   "L2-234 The reward for a previous epoch is in the first block withdrawals" in {
-    val epoch1FirstEcBlock = eventually {
+    val epoch1FirstEcBlock = retry {
       ec1.engineApi.getBlockByNumber(BlockNumber.Number(1)).explicitGet().get
     }
 
@@ -13,8 +13,8 @@ class RewardTestSuite extends OneNodeTestSuite {
       epoch1FirstEcBlock.withdrawals shouldBe empty
     }
 
-    val epoch1FirstContractBlock = eventually {
-      waves1.chainContract.getBlock(epoch1FirstEcBlock.hash).getOrElse(fail(s"No first block ${epoch1FirstEcBlock.hash} confirmation"))
+    val epoch1FirstContractBlock = retry {
+      waves1.chainContract.getBlock(epoch1FirstEcBlock.hash).getOrElse(failRetry(s"No first block ${epoch1FirstEcBlock.hash} confirmation"))
     }
 
     val epoch1Number = epoch1FirstContractBlock.epoch
@@ -24,14 +24,14 @@ class RewardTestSuite extends OneNodeTestSuite {
     waves1.api.waitForHeight(epoch2Number)
 
     log.info(s"Wait for epoch #$epoch2Number data on chain contract")
-    val epoch2FirstContractBlock = eventually {
+    val epoch2FirstContractBlock = retry {
       waves1.chainContract.getEpochFirstBlock(epoch2Number).get
     }
 
     val epoch2FirstEcBlock = ec1.engineApi
       .getBlockByHash(epoch2FirstContractBlock.hash)
       .explicitGet()
-      .getOrElse(fail(s"Can't find ${epoch2FirstContractBlock.hash}"))
+      .getOrElse(failRetry(s"Can't find ${epoch2FirstContractBlock.hash}"))
 
     epoch2FirstEcBlock.withdrawals should have length 1
 

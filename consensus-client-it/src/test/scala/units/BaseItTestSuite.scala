@@ -2,11 +2,11 @@ package units
 
 import com.google.common.primitives.{Bytes, Ints}
 import com.wavesplatform.account.{AddressScheme, KeyPair, SeedKeyPair}
+import com.wavesplatform.api.HasRetry
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.crypto
 import com.wavesplatform.utils.ScorexLogging
 import monix.execution.atomic.AtomicBoolean
-import org.scalatest.concurrent.Eventually
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues}
@@ -17,7 +17,6 @@ import units.eth.{EthAddress, Gwei}
 import units.test.CustomMatchers
 
 import java.nio.charset.StandardCharsets
-import scala.concurrent.duration.DurationInt
 
 trait BaseItTestSuite
     extends AnyFreeSpec
@@ -27,10 +26,8 @@ trait BaseItTestSuite
     with CustomMatchers
     with EitherValues
     with OptionValues
-    with Eventually
+    with HasRetry
     with HasConsensusLayerDappTxHelpers {
-  override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = 30.seconds, interval = 1.second)
-
   override val currentHitSource: ByteStr     = ByteStr.empty
   override val chainContractAccount: KeyPair = mkKeyPair("devnet-1", 2)
   protected val rewardAmount: Gwei           = Gwei.ofRawGwei(2_000_000_000L)

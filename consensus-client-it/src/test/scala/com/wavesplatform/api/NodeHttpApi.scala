@@ -2,7 +2,8 @@ package com.wavesplatform.api
 
 import cats.syntax.option.*
 import com.wavesplatform.account.Address
-import com.wavesplatform.api.NodeHttpApi.{AssetBalanceResponse, HeightResponse, TransactionInfoResponse}
+import com.wavesplatform.api.LoggingBackend.{LoggingOptions, LoggingOptionsTag}
+import com.wavesplatform.api.NodeHttpApi.*
 import com.wavesplatform.api.http.ApiMarshallers.TransactionJsonWrites
 import com.wavesplatform.api.http.TransactionsApiRoute.ApplicationStatus
 import com.wavesplatform.state.DataEntry.Format
@@ -10,104 +11,153 @@ import com.wavesplatform.state.{DataEntry, EmptyDataEntry, TransactionId}
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.Transaction
 import com.wavesplatform.utils.ScorexLogging
+import org.scalatest.concurrent.Eventually.PatienceConfig
 import play.api.libs.json.*
 import sttp.client3.*
 import sttp.client3.playJson.*
 import sttp.model.{StatusCode, Uri}
 
 import scala.concurrent.duration.DurationInt
+import scala.util.chaining.scalaUtilChainingOps
 
-class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?]) extends ScorexLogging {
+class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?]) extends HasRetry with ScorexLogging {
   private val averageBlockDelay = 18.seconds
 
-  def height: Int =
+  protected override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = averageBlockDelay, interval = 1.second)
+
+  def waitForHeight(atLeast: Int): Int = {
+    val loggingOptions: LoggingOptions = LoggingOptions()
+    log.debug(s"${loggingOptions.prefix} waitForHeight($atLeast)")
+    val currHeight = heightImpl()(loggingOptions)
+    if (currHeight >= atLeast) currHeight
+    else {
+      val subsequentPatienceConfig = patienceConfig.copy(timeout = averageBlockDelay * (atLeast - currHeight) * 2.5)
+      val subsequentLoggingOptions = loggingOptions.copy(logRequest = false)
+      Thread.sleep(patienceConfig.interval.toMillis)
+      retry {
+        heightImpl()(subsequentLoggingOptions).tap { r =>
+          if (r < atLeast) failRetry("")
+        }
+      }(subsequentPatienceConfig)
+    }
+  }
+
+  protected def heightImpl()(implicit loggingOptions: LoggingOptions = LoggingOptions()): Int =
     basicRequest
       .get(uri"$apiUri/blocks/height")
       .response(asJson[HeightResponse])
+      .tag(LoggingOptionsTag, loggingOptions)
       .send(backend)
       .body match {
       case Left(e)  => throw e
       case Right(r) => r.height
     }
 
-  def waitForHeight(atLeast: Int): Int = {
-    val currHeight = height
-    if (currHeight >= atLeast) currHeight
-    else
-      WithRetries(
-        maxAttempts = (averageBlockDelay.toSeconds.toInt * (atLeast - currHeight) * 2.5).toInt,
-        message = s"waitForHeight($atLeast)"
-      ).until(height) {
-        case h if h >= atLeast => h
+  def broadcastAndWait(txn: Transaction): TransactionInfoResponse = {
+    implicit val loggingOptions: LoggingOptions = LoggingOptions(logResponseBody = false)
+    log.debug(s"${loggingOptions.prefix} broadcastAndWait($txn)")
+    broadcastImpl(txn)(loggingOptions.copy(logRequestBody = false))
+    retryWithAttempts { attempt =>
+      val subsequentLoggingOptions = loggingOptions.copy(logRequest = attempt == 1)
+      transactionInfoImpl(TransactionId(txn.id()))(subsequentLoggingOptions) match {
+        case Some(r) if r.applicationStatus == ApplicationStatus.Succeeded => r
+        case r => failRetry(s"Expected ${ApplicationStatus.Succeeded} status, got: ${r.map(_.applicationStatus)}")
       }
+    }
   }
 
-  def broadcast[T <: Transaction](txn: T): T =
+  protected def broadcastImpl[T <: Transaction](txn: T)(implicit loggingOptions: LoggingOptions = LoggingOptions()): T =
     basicRequest
       .post(uri"$apiUri/transactions/broadcast")
       .body(txn: Transaction)
+      .response(asJson[BroadcastResponse])
+      .tag(LoggingOptionsTag, loggingOptions)
       .send(backend)
       .body match {
       case Left(e) => throw new RuntimeException(e)
       case _       => txn
     }
 
-  def broadcastAndWait(txn: Transaction): TransactionInfoResponse = {
-    broadcast(txn)
-    WithRetries(
-      message = s"broadcastAndWait(${txn.id()})"
-    ).until(transactionInfo(TransactionId(txn.id()))) {
-      case Some(info) if info.applicationStatus == ApplicationStatus.Succeeded => info
-    }
-  }
-
-  def transactionInfo(id: TransactionId): Option[TransactionInfoResponse] =
+  protected def transactionInfoImpl(id: TransactionId)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Option[TransactionInfoResponse] =
     basicRequest
       .get(uri"$apiUri/transactions/info/$id")
       .response(asJson[TransactionInfoResponse])
+      .tag(LoggingOptionsTag, loggingOptions)
       .send(backend)
       .body match {
       case Left(HttpError(_, StatusCode.NotFound))     => none
-      case Left(HttpError(body, statusCode))           => fail(s"Server returned error $body with status ${statusCode.code}")
-      case Left(DeserializationException(body, error)) => fail(s"failed to parse response $body: $error")
+      case Left(HttpError(body, statusCode))           => failRetry(s"Server returned error $body with status ${statusCode.code}")
+      case Left(DeserializationException(body, error)) => failRetry(s"failed to parse response $body: $error")
       case Right(r)                                    => r.some
     }
 
-  def getDataByKey(address: Address, key: String): Option[DataEntry[?]] =
+  def getDataByKey(address: Address, key: String)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Option[DataEntry[?]] = {
+    log.debug(s"${loggingOptions.prefix} getDataByKey($address, $key)")
     basicRequest
       .get(uri"$apiUri/addresses/data/$address/$key")
       .response(asJson[DataEntry[?]])
+      .tag(LoggingOptionsTag, loggingOptions)
       .send(backend)
       .body match {
       case Left(HttpError(_, StatusCode.NotFound))     => none
-      case Left(HttpError(body, statusCode))           => fail(s"Server returned error $body with status ${statusCode.code}")
-      case Left(DeserializationException(body, error)) => fail(s"failed to parse response $body: $error")
-      case Right(r) =>
-        r match {
+      case Left(HttpError(body, statusCode))           => failRetry(s"Server returned error $body with status ${statusCode.code}")
+      case Left(DeserializationException(body, error)) => failRetry(s"failed to parse response $body: $error")
+      case Right(response) =>
+        response match {
           case _: EmptyDataEntry => none
-          case _                 => r.some
+          case _                 => response.some
         }
     }
+  }
 
-  def balance(address: Address, asset: IssuedAsset): Long =
+  def balance(address: Address, asset: IssuedAsset)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Long = {
+    log.debug(s"${loggingOptions.prefix} balance($address, $asset)")
     basicRequest
       .get(uri"$apiUri/assets/balance/$address/$asset")
       .response(asJson[AssetBalanceResponse])
+      .tag(LoggingOptionsTag, loggingOptions)
       .send(backend)
       .body match {
       case Left(HttpError(_, StatusCode.NotFound))     => 0L
-      case Left(HttpError(body, statusCode))           => fail(s"Server returned error $body with status ${statusCode.code}")
-      case Left(DeserializationException(body, error)) => fail(s"failed to parse response $body: $error")
+      case Left(HttpError(body, statusCode))           => failRetry(s"Server returned error $body with status ${statusCode.code}")
+      case Left(DeserializationException(body, error)) => failRetry(s"failed to parse response $body: $error")
       case Right(r)                                    => r.balance
     }
+  }
 
-  private def fail(message: String): Nothing = throw new RuntimeException(s"JSON-RPC error: $message")
+  def waitForConnectedPeers(atLeast: Int): Unit = {
+    implicit val loggingOptions: LoggingOptions = LoggingOptions(logRequestBody = false)
+    log.debug(s"${loggingOptions.prefix} waitForConnectedPeers($atLeast)")
+    retryWithAttempts { attempt =>
+      val subsequentLoggingOptions = loggingOptions.copy(logRequest = attempt == 1)
+      connectedPeersImpl()(subsequentLoggingOptions).tap { x =>
+        if (x < atLeast) failRetry(s"Expected at least $atLeast, got $x")
+      }
+    }
+  }
+
+  protected def connectedPeersImpl()(implicit loggingOptions: LoggingOptions = LoggingOptions()): Int =
+    basicRequest
+      .get(uri"$apiUri/peers/connected")
+      .response(asJson[ConnectedPeersResponse])
+      .tag(LoggingOptionsTag, loggingOptions)
+      .send(backend)
+      .body match {
+      case Left(HttpError(body, statusCode))           => failRetry(s"Server returned error $body with status ${statusCode.code}")
+      case Left(DeserializationException(body, error)) => failRetry(s"failed to parse response $body: $error")
+      case Right(r)                                    => r.peers.length
+    }
 }
 
 object NodeHttpApi {
   case class HeightResponse(height: Int)
   object HeightResponse {
     implicit val heightResponseFormat: OFormat[HeightResponse] = Json.format[HeightResponse]
+  }
+
+  case class BroadcastResponse(id: String)
+  object BroadcastResponse {
+    implicit val broadcastResponseFormat: OFormat[BroadcastResponse] = Json.format[BroadcastResponse]
   }
 
   case class TransactionInfoResponse(height: Int, applicationStatus: String)
@@ -118,5 +168,10 @@ object NodeHttpApi {
   case class AssetBalanceResponse(balance: Long)
   object AssetBalanceResponse {
     implicit val assetBalanceResponseFormat: OFormat[AssetBalanceResponse] = Json.format[AssetBalanceResponse]
+  }
+
+  case class ConnectedPeersResponse(peers: List[JsObject])
+  object ConnectedPeersResponse {
+    implicit val connectedPeersResponseFormat: OFormat[ConnectedPeersResponse] = Json.format[ConnectedPeersResponse]
   }
 }

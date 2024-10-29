@@ -8,7 +8,7 @@ description := "Consensus client integration tests"
 
 libraryDependencies ++= Seq(
   "org.testcontainers" % "testcontainers" % "1.20.2",
-  "org.web3j" % "core" % "4.9.8"
+  "org.web3j"          % "core"           % "4.9.8"
 ).map(_ % Test)
 
 val logsDirectory = taskKey[File]("The directory for logs") // Evaluates every time, so it recreates the logs directory
