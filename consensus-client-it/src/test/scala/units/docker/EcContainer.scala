@@ -18,6 +18,8 @@ import units.eth.EthAddress
 import units.http.OkHttpLogger
 
 import java.io.File
+import java.nio.charset.StandardCharsets
+import scala.jdk.CollectionConverters.CollectionHasAsScala
 
 class EcContainer(network: NetworkImpl, number: Int, ip: String) extends BaseContainer(s"ec-$number") {
   private val logFile = new File(s"$DefaultLogsDir/besu-$number.log")
@@ -26,11 +28,12 @@ class EcContainer(network: NetworkImpl, number: Int, ip: String) extends BaseCon
   protected override val container = new GenericContainer(DockerImageName.parse("hyperledger/besu:latest"))
     .withNetwork(network)
     .withExposedPorts(RpcPort, EnginePort)
+    .withEnv(EcContainer.peersEnv, EcContainer.peersVal.mkString(","))
     .withEnv("LOG4J_CONFIGURATION_FILE", "/config/log4j2.xml")
     .withFileSystemBind(s"$ConfigsDir/ec-common/genesis.json", "/genesis.json", BindMode.READ_ONLY)
     .withFileSystemBind(s"$ConfigsDir/besu", "/config", BindMode.READ_ONLY)
     .withFileSystemBind(s"$ConfigsDir/besu/run-besu.sh", "/tmp/run.sh", BindMode.READ_ONLY)
-    .withFileSystemBind(s"$ConfigsDir/ec-common/p2p-key-1.hex", "/etc/secrets/p2p-key", BindMode.READ_ONLY)
+    .withFileSystemBind(s"$ConfigsDir/ec-common/p2p-key-$number.hex", "/etc/secrets/p2p-key", BindMode.READ_ONLY)
     .withFileSystemBind(s"$logFile", "/opt/besu/logs/besu.log", BindMode.READ_WRITE)
     .withCreateContainerCmdModifier { cmd =>
       cmd
@@ -78,4 +81,16 @@ object EcContainer {
     .withValue("execution-client-address", ConfigValueFactory.fromAnyRef(s"http://$host:$port"))
     .resolve()
     .as[ClientConfig]
+
+  val (peersEnv, peersVal) = {
+    val file = new File(s"$ConfigsDir/ec-common/peers.env")
+    Files
+      .readLines(file, StandardCharsets.UTF_8)
+      .asScala
+      .mkString("")
+      .split('=') match {
+      case Array(peersEnv, peersVal, _*) => (peersEnv, peersVal.split(',').map(_.trim))
+      case xs                            => throw new RuntimeException(s"Wrong $file content: ${xs.mkString(", ")}")
+    }
+  }
 }

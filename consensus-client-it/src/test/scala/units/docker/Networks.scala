@@ -15,7 +15,7 @@ object Networks {
   // 10.x.x.x/28 network will accommodate up to 13 nodes
   val networkPrefix = s"${InetAddress.getByAddress(toByteArray(networkSeed)).getHostAddress}/28"
 
-  val network = Network
+  def network: Network.NetworkImpl = Network
     .builder()
     .driver("bridge")
     .enableIpv6(false)

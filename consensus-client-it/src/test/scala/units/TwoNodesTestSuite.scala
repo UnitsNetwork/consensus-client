@@ -52,6 +52,17 @@ trait TwoNodesTestSuite extends BaseItTestSuite {
     waves2.waitReady()
 
     waves1.api.waitForConnectedPeers(1)
+
+    // HACK: EC nodes won't connect each other
+    ec1.waitReady()
+    ec2.waitReady()
+    for {
+      peer <- EcContainer.peersVal
+      ec   <- List(ec1, ec2)
+    } {
+      log.debug(s"Add $peer to ${ec.hostName}")
+      ec.web3j.adminAddPeer(peer).send()
+    }
   }
 
   override protected def stopNodes(): Unit = {
