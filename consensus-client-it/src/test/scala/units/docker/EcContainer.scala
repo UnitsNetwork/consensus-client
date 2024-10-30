@@ -41,6 +41,7 @@ class EcContainer(network: NetworkImpl, number: Int, ip: String) extends BaseCon
         .withHostName(hostName)
         .withIpv4Address(ip)
         .withEntrypoint("/tmp/run.sh")
+        .withStopTimeout(5)
     }
 
   lazy val rpcPort    = container.getMappedPort(RpcPort)
