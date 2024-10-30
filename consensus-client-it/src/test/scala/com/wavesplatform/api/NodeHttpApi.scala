@@ -1,5 +1,6 @@
 package com.wavesplatform.api
 
+import cats.syntax.either.*
 import cats.syntax.option.*
 import com.wavesplatform.account.Address
 import com.wavesplatform.api.LoggingBackend.{LoggingOptions, LoggingOptionsTag}
@@ -56,7 +57,10 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?]) extends HasRet
   def broadcastAndWait(txn: Transaction): TransactionInfoResponse = {
     implicit val loggingOptions: LoggingOptions = LoggingOptions(logResponseBody = false)
     log.debug(s"${loggingOptions.prefix} broadcastAndWait($txn)")
-    broadcastImpl(txn)(loggingOptions.copy(logRequestBody = false))
+    broadcastImpl(txn)(loggingOptions.copy(logRequestBody = false)).left.foreach { e =>
+      throw new RuntimeException(s"Can't broadcast ${txn.id()}: code=${e.error}, message=${e.message}")
+    }
+
     retryWithAttempts { attempt =>
       val subsequentLoggingOptions = loggingOptions.copy(logRequest = attempt == 1)
       transactionInfoImpl(TransactionId(txn.id()))(subsequentLoggingOptions) match {
@@ -66,16 +70,23 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?]) extends HasRet
     }
   }
 
-  protected def broadcastImpl[T <: Transaction](txn: T)(implicit loggingOptions: LoggingOptions = LoggingOptions()): T =
+  def broadcast(txn: Transaction): Either[ErrorResponse, Transaction] = {
+    implicit val loggingOptions: LoggingOptions = LoggingOptions()
+    log.debug(s"${loggingOptions.prefix} broadcast($txn)")
+    broadcastImpl(txn)
+  }
+
+  protected def broadcastImpl[T <: Transaction](txn: T)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Either[ErrorResponse, T] =
     basicRequest
       .post(uri"$apiUri/transactions/broadcast")
       .body(txn: Transaction)
-      .response(asJson[BroadcastResponse])
+      .response(asJsonEither[ErrorResponse, BroadcastResponse])
       .tag(LoggingOptionsTag, loggingOptions)
       .send(backend)
       .body match {
-      case Left(e) => throw new RuntimeException(e)
-      case _       => txn
+      case Left(HttpError(e, _)) => e.asLeft
+      case Left(e)               => throw new RuntimeException(e)
+      case _                     => txn.asRight
     }
 
   protected def transactionInfoImpl(id: TransactionId)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Option[TransactionInfoResponse] =
@@ -173,5 +184,10 @@ object NodeHttpApi {
   case class ConnectedPeersResponse(peers: List[JsObject])
   object ConnectedPeersResponse {
     implicit val connectedPeersResponseFormat: OFormat[ConnectedPeersResponse] = Json.format[ConnectedPeersResponse]
+  }
+
+  case class ErrorResponse(error: Int, message: String)
+  object ErrorResponse {
+    implicit val errorResponseFormat: OFormat[ErrorResponse] = Json.format[ErrorResponse]
   }
 }

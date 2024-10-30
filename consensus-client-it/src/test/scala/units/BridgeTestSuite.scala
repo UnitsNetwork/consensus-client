@@ -1,5 +1,8 @@
 package units
 
+import com.wavesplatform.account.KeyPair
+import com.wavesplatform.api.NodeHttpApi.ErrorResponse
+import com.wavesplatform.api.http.ApiError.ScriptExecutionError
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.settings.Constants
 import com.wavesplatform.utils.EthEncoding
@@ -21,18 +24,10 @@ class BridgeTestSuite extends TwoNodesTestSuite {
     val ethAmount      = Convert.toWei(userAmount.toString, Convert.Unit.ETHER).toBigIntegerExact
     val sendTxnReceipt = ec1.elBridge.sendNativeAndWait(elSender, clRecipient.toAddress, ethAmount)
 
+    // TODO check the balance of contract wasn't changed
+
     val blockHash = BlockHash(sendTxnReceipt.getBlockHash)
     log.info(s"Block with transaction: $blockHash")
-
-    log.info(s"Wait block $blockHash on contract")
-    val blockConfirmationHeight = retry {
-      waves1.chainContract.getBlock(blockHash).get.height
-    }
-
-    log.info(s"Wait block $blockHash finalization")
-    retry {
-      blockConfirmationHeight <= waves1.chainContract.getFinalizedBlock.height
-    }
 
     val rawLogsInBlock = ec1.web3j
       .ethGetLogs(new EthFilter(blockHash, ec1.elBridge.address.hex).addSingleTopic(Bridge.ElSentNativeEventTopic))
@@ -59,6 +54,42 @@ class BridgeTestSuite extends TwoNodesTestSuite {
     val transferProofs  = Bridge.mkTransferProofs(transferEvents, sendTxnLogIndex).reverse
     val wavesAmount     = userAmount * Constants.UnitsInWave
 
+    log.info(s"Wait block $blockHash on contract")
+    val blockConfirmationHeight = retry {
+      waves1.chainContract.getBlock(blockHash).get.height
+    }
+
+    val currFinalizedHeight = waves1.chainContract.getFinalizedBlock.height
+    if (currFinalizedHeight >= blockConfirmationHeight)
+      fail(s"Can't continue the test: the block ($blockConfirmationHeight) is already finalized ($currFinalizedHeight)")
+
+    log.info("Trying to withdraw before finalization")
+    def withdraw(sender: KeyPair = clRecipient) = chainContract.withdraw(
+      sender = sender,
+      blockHash = BlockHash(sendTxnReceipt.getBlockHash),
+      merkleProof = transferProofs,
+      transferIndexInBlock = sendTxnLogIndex,
+      amount = wavesAmount
+    )
+
+    val attempt1 = waves1.api.broadcast(withdraw()).left.value
+    attempt1.error shouldBe ScriptExecutionError.Id
+    attempt1.message should include("is not finalized")
+
+    log.info(s"Wait block $blockHash ($blockConfirmationHeight) finalization")
+    retry {
+      val currFinalizedHeight = waves1.chainContract.getFinalizedBlock.height
+      log.info(s"Current finalized height: $currFinalizedHeight")
+      if (currFinalizedHeight < blockConfirmationHeight) fail("Not yet finalized")
+    }
+
+    // TODO: try to send from other person
+    withClue("Try ") {
+      val attempt2 = waves1.api.broadcast(withdraw(clRichAccount2)).left.value
+      attempt2.error shouldBe ScriptExecutionError.Id
+      attempt2.message should include("Check your withdraw arguments")
+    }
+
     def balance: Long = waves1.api.balance(clRecipient.toAddress, waves1.chainContract.token)
     val balanceBefore = balance
 
@@ -66,15 +97,7 @@ class BridgeTestSuite extends TwoNodesTestSuite {
       s"Broadcast withdraw transaction: transferIndexInBlock=$sendTxnLogIndex, amount=$wavesAmount, " +
         s"merkleProof={${transferProofs.map(EthEncoding.toHexString).mkString(",")}}"
     )
-    waves1.api.broadcastAndWait(
-      chainContract.withdraw(
-        sender = clRecipient,
-        blockHash = BlockHash(sendTxnReceipt.getBlockHash),
-        merkleProof = transferProofs,
-        transferIndexInBlock = sendTxnLogIndex,
-        amount = wavesAmount
-      )
-    )
+    waves1.api.broadcastAndWait(withdraw())
 
     val balanceAfter = balance
     withClue("Received") {
