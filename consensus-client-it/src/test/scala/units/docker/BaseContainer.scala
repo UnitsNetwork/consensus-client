@@ -27,6 +27,7 @@ abstract class BaseContainer(val hostName: String) {
 }
 
 object BaseContainer {
-  val ConfigsDir: Path     = Path.of(System.getProperty("cc.it.configs.dir"))
-  val DefaultLogsDir: Path = Path.of(System.getProperty("cc.it.logs.dir"))
+  val ConfigsDir: Path         = Path.of(System.getProperty("cc.it.configs.dir"))
+  val DefaultLogsDir: Path     = Path.of(System.getProperty("cc.it.logs.dir"))
+  val WavesDockerImage: String = System.getProperty("cc.it.docker.image")
 }

@@ -9,7 +9,7 @@ import org.testcontainers.containers.Network.NetworkImpl
 import org.testcontainers.utility.DockerImageName
 import sttp.client3.{HttpClientSyncBackend, UriContext}
 import units.client.HttpChainContractClient
-import units.docker.BaseContainer.{ConfigsDir, DefaultLogsDir}
+import units.docker.BaseContainer.*
 import units.docker.WavesNodeContainer.ApiPort
 
 import java.io.File
@@ -27,7 +27,7 @@ class WavesNodeContainer(
   private val logFile = new File(s"$DefaultLogsDir/waves-$number.log")
   Files.touch(logFile)
 
-  protected override val container = new GenericContainer(DockerImageName.parse(System.getProperty("cc.it.docker.image")))
+  protected override val container = new GenericContainer(DockerImageName.parse(WavesDockerImage))
     .withNetwork(network)
     .withExposedPorts(ApiPort)
     .withEnv(

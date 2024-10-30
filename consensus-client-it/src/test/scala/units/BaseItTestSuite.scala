@@ -1,22 +1,26 @@
 package units
 
 import com.google.common.primitives.{Bytes, Ints}
+import com.typesafe.config.ConfigFactory
 import com.wavesplatform.account.{AddressScheme, KeyPair, SeedKeyPair}
 import com.wavesplatform.api.HasRetry
 import com.wavesplatform.common.state.ByteStr
-import com.wavesplatform.crypto
 import com.wavesplatform.utils.ScorexLogging
-import monix.execution.atomic.AtomicBoolean
+import com.wavesplatform.{GenesisBlockGenerator, crypto}
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues}
 import org.web3j.crypto.Credentials
 import units.client.contract.HasConsensusLayerDappTxHelpers
+import units.docker.BaseContainer.ConfigsDir
 import units.docker.Networks
 import units.eth.{EthAddress, Gwei}
 import units.test.CustomMatchers
 
+import java.io.PrintStream
 import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import scala.concurrent.duration.DurationInt
 
 trait BaseItTestSuite
     extends AnyFreeSpec
@@ -72,11 +76,35 @@ trait BaseItTestSuite
 }
 
 object BaseItTestSuite {
-  private val initialized = AtomicBoolean(false)
+  private var initialized = false
 
-  def init(): Unit =
-    if (initialized.compareAndSet(expect = false, update = true))
+  def init(): Unit = synchronized {
+    if (!initialized) {
       AddressScheme.current = new AddressScheme {
         override val chainId: Byte = 'D'.toByte
       }
+
+      val templateFile = ConfigsDir.resolve("wavesnode/genesis-template.conf").toAbsolutePath
+      val genesisFile  = ConfigsDir.resolve("wavesnode/genesis.conf").toAbsolutePath
+
+      val origConfig = ConfigFactory.parseFile(templateFile.toFile)
+      val gap        = 1.minute // To force node mining at start, otherwise it schedules
+      val overrides = ConfigFactory.parseString(
+        s"""genesis-generator {
+           |  timestamp = ${System.currentTimeMillis() - gap.toMillis}
+           |}""".stripMargin
+      )
+
+      val genesisSettings = GenesisBlockGenerator.parseSettings(overrides.withFallback(origConfig))
+
+      val origOut = System.out
+      System.setOut(new PrintStream({ (_: Int) => }))
+      val config = GenesisBlockGenerator.createConfig(genesisSettings)
+      System.setOut(origOut)
+
+      Files.writeString(genesisFile, config)
+
+      initialized = true
+    }
+  }
 }

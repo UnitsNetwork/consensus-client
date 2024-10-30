@@ -12,7 +12,6 @@ libraryDependencies ++= Seq(
 ).map(_ % Test)
 
 val logsDirectory = taskKey[File]("The directory for logs") // Evaluates every time, so it recreates the logs directory
-val updateGenesis = taskKey[Unit]("Updates the genesis.json file in local-network")
 
 inConfig(Test)(
   Seq(
@@ -57,13 +56,6 @@ inConfig(Test)(
           )
         )
       }
-    },
-    updateGenesis := Def.taskDyn {
-      val mainClass           = "com.wavesplatform.GenesisBlockGenerator"
-      val wavesNodeConfigsDir = baseDirectory.value.getParentFile / "local-network" / "configs" / "wavesnode"
-      val templateFile        = wavesNodeConfigsDir / "genesis-template.conf"
-      val outputFile          = wavesNodeConfigsDir / "genesis.conf"
-      (Test / runMain).toTask(s" $mainClass $templateFile $outputFile")
-    }.value
+    }
   )
 )

@@ -20,7 +20,6 @@ class RewardTestSuite extends OneNodeTestSuite {
     val epoch1Number = epoch1FirstContractBlock.epoch
     val epoch2Number = epoch1Number + 1
 
-    log.info(s"Wait for next epoch #$epoch2Number")
     waves1.api.waitForHeight(epoch2Number)
 
     log.info(s"Wait for epoch #$epoch2Number data on chain contract")
