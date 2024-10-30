@@ -29,9 +29,7 @@ jobs:
         run: |
           sbt --batch "\
             test; \
-            consensus-client-it/Test/runMain com.wavesplatform.GenesisBlockGenerator \
-              ../local-network/configs/wavesnode/genesis-template.conf \
-              ../local-network/configs/wavesnode/genesis.conf; \
+            consensus-client-it/Test/updateGenesis; \
             docker; \
             consensus-client-it/test"
       - name: Archive logs
