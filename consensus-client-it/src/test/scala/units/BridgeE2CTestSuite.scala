@@ -3,29 +3,26 @@ package units
 import com.wavesplatform.account.KeyPair
 import com.wavesplatform.api.http.ApiError.ScriptExecutionError
 import com.wavesplatform.common.utils.EitherExt2
-import com.wavesplatform.settings.Constants
 import com.wavesplatform.utils.EthEncoding
 import org.web3j.protocol.core.DefaultBlockParameterName
 import org.web3j.protocol.core.methods.request.EthFilter
 import org.web3j.protocol.core.methods.response.EthLog
-import org.web3j.utils.Convert
 import units.client.engine.model.GetLogsResponseEntry
 import units.eth.EthAddress
 
 import scala.jdk.CollectionConverters.CollectionHasAsScala
 
-class BridgeTestSuite extends TwoNodesTestSuite {
+class BridgeE2CTestSuite extends TwoNodesTestSuite {
   "L2-379 Checking balances in EL->CL transfers" in {
     val elSender    = elRichAccount1
     val clRecipient = clRichAccount1
     val userAmount  = 1
+    val wavesAmount = UnitsConvert.toWavesAmount(userAmount)
 
     log.info("Broadcast Bridge.sendNative transaction")
-    val ethAmount = Convert.toWei(userAmount.toString, Convert.Unit.ETHER).toBigIntegerExact
-
     def bridgeBalance       = ec1.web3j.ethGetBalance(ec1.elBridge.address.hex, DefaultBlockParameterName.LATEST).send().getBalance
     val bridgeBalanceBefore = bridgeBalance
-    val sendTxnReceipt      = ec1.elBridge.sendNativeAndWait(elSender, clRecipient.toAddress, ethAmount)
+    val sendTxnReceipt      = ec1.elBridge.sendNativeAndWait(elSender, clRecipient.toAddress, UnitsConvert.toEthAmount(userAmount))
 
     val bridgeBalanceAfter = bridgeBalance
     withClue("1. The balance of Bridge contract wasn't changed: ") {
@@ -58,7 +55,6 @@ class BridgeTestSuite extends TwoNodesTestSuite {
 
     val sendTxnLogIndex = rawLogsInBlock.indexWhere(_.getTransactionHash == sendTxnReceipt.getTransactionHash)
     val transferProofs  = Bridge.mkTransferProofs(transferEvents, sendTxnLogIndex).reverse
-    val wavesAmount     = userAmount * Constants.UnitsInWave
 
     log.info(s"Wait block $blockHash on contract")
     val blockConfirmationHeight = retry {
@@ -105,6 +101,4 @@ class BridgeTestSuite extends TwoNodesTestSuite {
       balanceAfter shouldBe (receiverBalanceBefore + wavesAmount)
     }
   }
-
-  "L2-380 Checking balances in CL->EL transfers" in {}
 }

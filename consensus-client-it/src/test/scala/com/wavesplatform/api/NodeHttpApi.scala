@@ -136,6 +136,20 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?]) extends HasRet
     }
   }
 
+  def assetQuantity(asset: IssuedAsset)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Long = {
+    log.debug(s"${loggingOptions.prefix} assetQuantity($asset)")
+    basicRequest
+      .get(uri"$apiUri/assets/details/$asset?full=false")
+      .response(asJson[AssetDetailsResponse])
+      .tag(LoggingOptionsTag, loggingOptions)
+      .send(backend)
+      .body match {
+      case Left(HttpError(body, statusCode))           => failRetry(s"Server returned error $body with status ${statusCode.code}")
+      case Left(DeserializationException(body, error)) => failRetry(s"failed to parse response $body: $error")
+      case Right(r)                                    => r.quantity
+    }
+  }
+
   def waitForConnectedPeers(atLeast: Int): Unit = {
     implicit val loggingOptions: LoggingOptions = LoggingOptions(logRequestBody = false)
     log.debug(s"${loggingOptions.prefix} waitForConnectedPeers($atLeast)")
@@ -179,6 +193,11 @@ object NodeHttpApi {
   case class AssetBalanceResponse(balance: Long)
   object AssetBalanceResponse {
     implicit val assetBalanceResponseFormat: OFormat[AssetBalanceResponse] = Json.format[AssetBalanceResponse]
+  }
+
+  case class AssetDetailsResponse(quantity: Long)
+  object AssetDetailsResponse {
+    implicit val assetDetailsResponseFormat: OFormat[AssetDetailsResponse] = Json.format[AssetDetailsResponse]
   }
 
   case class ConnectedPeersResponse(peers: List[JsObject])
