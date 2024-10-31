@@ -5,12 +5,6 @@ import com.wavesplatform.api.http.ApiError.ScriptExecutionError
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.utils.EthEncoding
 import org.web3j.protocol.core.DefaultBlockParameterName
-import org.web3j.protocol.core.methods.request.EthFilter
-import org.web3j.protocol.core.methods.response.EthLog
-import units.client.engine.model.GetLogsResponseEntry
-import units.eth.EthAddress
-
-import scala.jdk.CollectionConverters.CollectionHasAsScala
 
 class BridgeE2CTestSuite extends TwoNodesTestSuite {
   "L2-379 Checking balances in EL->CL transfers" in {
@@ -22,7 +16,7 @@ class BridgeE2CTestSuite extends TwoNodesTestSuite {
     log.info("Broadcast Bridge.sendNative transaction")
     def bridgeBalance       = ec1.web3j.ethGetBalance(ec1.elBridge.address.hex, DefaultBlockParameterName.LATEST).send().getBalance
     val bridgeBalanceBefore = bridgeBalance
-    val sendTxnReceipt      = ec1.elBridge.sendNativeAndWait(elSender, clRecipient.toAddress, UnitsConvert.toEthAmount(userAmount))
+    val sendTxnReceipt      = ec1.elBridge.sendNativeAndWait(elSender, clRecipient.toAddress, UnitsConvert.toWei(userAmount))
 
     val bridgeBalanceAfter = bridgeBalance
     withClue("1. The balance of Bridge contract wasn't changed: ") {
@@ -32,28 +26,14 @@ class BridgeE2CTestSuite extends TwoNodesTestSuite {
     val blockHash = BlockHash(sendTxnReceipt.getBlockHash)
     log.info(s"Block with transaction: $blockHash")
 
-    val rawLogsInBlock = ec1.web3j
-      .ethGetLogs(new EthFilter(blockHash, ec1.elBridge.address.hex).addSingleTopic(Bridge.ElSentNativeEventTopic))
-      .send()
-      .getLogs
-      .asScala
-      .map(_.get().asInstanceOf[EthLog.LogObject])
-      .toList
-
-    val logsInBlock = rawLogsInBlock.map { x =>
-      GetLogsResponseEntry(
-        address = EthAddress.unsafeFrom(x.getAddress),
-        data = x.getData,
-        topics = x.getTopics.asScala.toList
-      )
-    }
+    val logsInBlock = ec1.engineApi.getLogs(blockHash, ec1.elBridge.address, Bridge.ElSentNativeEventTopic).explicitGet()
 
     val transferEvents = logsInBlock.map { x =>
       Bridge.ElSentNativeEvent.decodeArgs(x.data).explicitGet()
     }
     log.info(s"Transfer events: ${transferEvents.mkString(", ")}")
 
-    val sendTxnLogIndex = rawLogsInBlock.indexWhere(_.getTransactionHash == sendTxnReceipt.getTransactionHash)
+    val sendTxnLogIndex = logsInBlock.indexWhere(_.transactionHash == sendTxnReceipt.getTransactionHash)
     val transferProofs  = Bridge.mkTransferProofs(transferEvents, sendTxnLogIndex).reverse
 
     log.info(s"Wait block $blockHash on contract")

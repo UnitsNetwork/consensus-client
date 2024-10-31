@@ -108,5 +108,5 @@ trait BaseIntegrationTestSuite
   protected def step(name: String): Unit = log.info(s"========= $name =========")
 
   protected def getLogsResponseEntry(event: ElSentNativeEvent): GetLogsResponseEntry =
-    GetLogsResponseEntry(elBridgeAddress, Bridge.ElSentNativeEvent.encodeArgs(event), List(Bridge.ElSentNativeEventTopic))
+    GetLogsResponseEntry(elBridgeAddress, Bridge.ElSentNativeEvent.encodeArgs(event), List(Bridge.ElSentNativeEventTopic), "")
 }
