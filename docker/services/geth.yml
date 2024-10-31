@@ -13,6 +13,7 @@ services:
     pull_policy: always
     stop_grace_period: 5m
     command:
+      - --syncmode=full
       - --verbosity=4
       - --http
       - --http.addr=0.0.0.0
@@ -27,11 +28,11 @@ services:
       - --authrpc.addr=0.0.0.0
       - --authrpc.vhosts=*
       - --authrpc.jwtsecret=/etc/secrets/jwtsecret
-      - --discovery.dns=enrtree://AIRIZFFZSCSIVHXTKA44WYZQJMR75FLTGWJ5TUNEW5IP7QKZDLBRK@${NETWORK}-nodes.unit0.dev
       - --nodekey=/etc/secrets/p2p-key
-    env:
+    environment:
       - GETH_MINER_GASLIMIT=${GAS_LIMIT}
       - GETH_NETWORKID=${NETWORK_ID}
+      - GETH_BOOTNODES=${BOOTNODES}
     logging:
       driver: local
       options:
