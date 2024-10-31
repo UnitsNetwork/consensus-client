@@ -1,6 +1,6 @@
 package units.docker
 
-import com.google.common.io.Files
+import com.google.common.io.Files as GFiles
 import com.wavesplatform.account.Address
 import com.wavesplatform.api.{LoggingBackend, NodeHttpApi}
 import com.wavesplatform.common.utils.Base58
@@ -10,10 +10,11 @@ import org.testcontainers.utility.DockerImageName
 import sttp.client3.{HttpClientSyncBackend, UriContext}
 import units.client.HttpChainContractClient
 import units.docker.BaseContainer.*
-import units.docker.WavesNodeContainer.ApiPort
+import units.docker.WavesNodeContainer.*
 
 import java.io.File
 import java.nio.charset.StandardCharsets
+import java.nio.file.Path
 import scala.jdk.CollectionConverters.MapHasAsJava
 
 class WavesNodeContainer(
@@ -22,10 +23,11 @@ class WavesNodeContainer(
     ip: String,
     baseSeed: String,
     chainContractAddress: Address,
-    ecEngineApiUrl: String
+    ecEngineApiUrl: String,
+    genesisConfigPath: Path
 ) extends BaseContainer(s"wavesnode-$number") {
   private val logFile = new File(s"$DefaultLogsDir/waves-$number.log")
-  Files.touch(logFile)
+  GFiles.touch(logFile)
 
   protected override val container = new GenericContainer(DockerImageName.parse(WavesDockerImage))
     .withNetwork(network)
@@ -46,6 +48,7 @@ class WavesNodeContainer(
     )
     .withFileSystemBind(s"$ConfigsDir/wavesnode", "/etc/waves", BindMode.READ_ONLY)
     .withFileSystemBind(s"$ConfigsDir/ec-common", "/etc/secrets", BindMode.READ_ONLY)
+    .withFileSystemBind(s"$genesisConfigPath", "/etc/it/genesis.conf", BindMode.READ_ONLY)
     .withFileSystemBind(s"$logFile", "/var/log/waves/waves.log", BindMode.READ_WRITE)
     .withCreateContainerCmdModifier { cmd =>
       cmd
@@ -74,4 +77,5 @@ class WavesNodeContainer(
 
 object WavesNodeContainer {
   val ApiPort = 6869
+
 }

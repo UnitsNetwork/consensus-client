@@ -17,7 +17,8 @@ trait OneNodeTestSuite extends BaseItTestSuite {
     ip = Networks.ipForNode(3),
     baseSeed = "devnet-1",
     chainContractAddress = chainContractAddress,
-    ecEngineApiUrl = s"http://${ec1.hostName}:${EcContainer.EnginePort}"
+    ecEngineApiUrl = s"http://${ec1.hostName}:${EcContainer.EnginePort}",
+    genesisConfigPath = wavesGenesisConfigPath
   )
 
   override protected def startNodes(): Unit = {

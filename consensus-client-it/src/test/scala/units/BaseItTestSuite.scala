@@ -7,19 +7,21 @@ import com.wavesplatform.api.HasRetry
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.utils.ScorexLogging
 import com.wavesplatform.{GenesisBlockGenerator, crypto}
+import monix.execution.atomic.AtomicBoolean
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues}
 import org.web3j.crypto.Credentials
+import units.BaseItTestSuite.generateWavesGenesisConfig
 import units.client.contract.HasConsensusLayerDappTxHelpers
-import units.docker.BaseContainer.ConfigsDir
+import units.docker.BaseContainer.{ConfigsDir, DefaultLogsDir}
 import units.docker.Networks
 import units.eth.{EthAddress, Gwei}
 import units.test.CustomMatchers
 
 import java.io.PrintStream
 import java.nio.charset.StandardCharsets
-import java.nio.file.Files
+import java.nio.file.{Files, Path}
 import scala.concurrent.duration.DurationInt
 
 trait BaseItTestSuite
@@ -50,6 +52,8 @@ trait BaseItTestSuite
   protected val elRichAccount1 = Credentials.create("8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63")
   protected val elRichAccount2 = Credentials.create("ae6ae8e5ccbfb04590405997ee2d52d2b330726137b875053c36d94e974d162f")
 
+  protected lazy val wavesGenesisConfigPath = generateWavesGenesisConfig()
+
   protected def startNodes(): Unit
 
   protected def stopNodes(): Unit
@@ -76,35 +80,34 @@ trait BaseItTestSuite
 }
 
 object BaseItTestSuite {
-  private var initialized = false
+  private val initialized = AtomicBoolean(false)
 
-  def init(): Unit = synchronized {
-    if (!initialized) {
+  def init(): Unit =
+    if (initialized.compareAndSet(expect = false, update = true))
       AddressScheme.current = new AddressScheme {
         override val chainId: Byte = 'D'.toByte
       }
 
-      val templateFile = ConfigsDir.resolve("wavesnode/genesis-template.conf").toAbsolutePath
-      val genesisFile  = ConfigsDir.resolve("wavesnode/genesis.conf").toAbsolutePath
+  def generateWavesGenesisConfig(): Path = {
+    val templateFile = ConfigsDir.resolve("wavesnode/genesis-template.conf").toAbsolutePath
 
-      val origConfig = ConfigFactory.parseFile(templateFile.toFile)
-      val gap        = 1.minute // To force node mining at start, otherwise it schedules
-      val overrides = ConfigFactory.parseString(
-        s"""genesis-generator {
-           |  timestamp = ${System.currentTimeMillis() - gap.toMillis}
-           |}""".stripMargin
-      )
+    val origConfig = ConfigFactory.parseFile(templateFile.toFile)
+    val gap        = 1.minute // To force node mining at start, otherwise it schedules
+    val overrides = ConfigFactory.parseString(
+      s"""genesis-generator {
+         |  timestamp = ${System.currentTimeMillis() - gap.toMillis}
+         |}""".stripMargin
+    )
 
-      val genesisSettings = GenesisBlockGenerator.parseSettings(overrides.withFallback(origConfig))
+    val genesisSettings = GenesisBlockGenerator.parseSettings(overrides.withFallback(origConfig))
 
-      val origOut = System.out
-      System.setOut(new PrintStream({ (_: Int) => }))
-      val config = GenesisBlockGenerator.createConfig(genesisSettings)
-      System.setOut(origOut)
+    val origOut = System.out
+    System.setOut(new PrintStream({ (_: Int) => })) // We don't use System.out in tests, so it should not be an issue
+    val config = GenesisBlockGenerator.createConfig(genesisSettings)
+    System.setOut(origOut)
 
-      Files.writeString(genesisFile, config)
-
-      initialized = true
-    }
+    val dest = DefaultLogsDir.resolve("genesis.conf").toAbsolutePath
+    Files.writeString(dest, config)
+    dest
   }
 }

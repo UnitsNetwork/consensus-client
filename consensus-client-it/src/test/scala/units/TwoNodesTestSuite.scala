@@ -23,7 +23,8 @@ trait TwoNodesTestSuite extends BaseItTestSuite {
     ip = Networks.ipForNode(4),
     baseSeed = "devnet-1",
     chainContractAddress = chainContractAddress,
-    ecEngineApiUrl = s"http://${ec1.hostName}:${EcContainer.EnginePort}"
+    ecEngineApiUrl = s"http://${ec1.hostName}:${EcContainer.EnginePort}",
+    genesisConfigPath = wavesGenesisConfigPath
   )
 
   protected lazy val waves2: WavesNodeContainer = new WavesNodeContainer(
@@ -32,7 +33,8 @@ trait TwoNodesTestSuite extends BaseItTestSuite {
     ip = Networks.ipForNode(5),
     baseSeed = "devnet-2",
     chainContractAddress = chainContractAddress,
-    ecEngineApiUrl = s"http://${ec2.hostName}:${EcContainer.EnginePort}"
+    ecEngineApiUrl = s"http://${ec2.hostName}:${EcContainer.EnginePort}",
+    genesisConfigPath = wavesGenesisConfigPath
   )
 
   override protected def startNodes(): Unit = {
@@ -110,4 +112,5 @@ trait TwoNodesTestSuite extends BaseItTestSuite {
     log.info(s"Wait for #$epoch1Number epoch")
     waves1.api.waitForHeight(epoch1Number)
   }
+
 }
