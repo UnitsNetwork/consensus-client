@@ -67,7 +67,7 @@ trait BaseItTestSuite
 
   override protected def afterAll(): Unit = {
     stopNodes()
-    // network.close()
+    network.close()
     super.afterAll()
   }
 
