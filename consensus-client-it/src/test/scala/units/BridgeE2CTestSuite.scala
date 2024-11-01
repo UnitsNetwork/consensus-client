@@ -6,6 +6,7 @@ import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.utils.EthEncoding
 import org.web3j.protocol.core.DefaultBlockParameterName
 import org.web3j.protocol.exceptions.TransactionException
+import org.web3j.utils.Convert
 import units.el.ElBridgeClient
 
 class BridgeE2CTestSuite extends TwoNodesTestSuite {
@@ -22,6 +23,17 @@ class BridgeE2CTestSuite extends TwoNodesTestSuite {
         val revertReason        = ElBridgeClient.decodeRevertReason(encodedRevertReason)
         revertReason shouldBe "Sent value 1 must be greater or equal to 10000000000"
     }
+  }
+
+  "L2-325 Sent tokens burned" in {
+    def burnedTokens       = ec1.web3j.ethGetBalance(ElBridgeClient.BurnAddress.hex, DefaultBlockParameterName.LATEST).send().getBalance
+    val burnedTokensBefore = BigInt(burnedTokens)
+
+    val transferAmount = Convert.toWei("10", Convert.Unit.GWEI).longValueExact()
+    ec1.elBridge.sendNativeAndWait(elSender, clRecipient.toAddress, transferAmount)
+    val burnedTokensAfter = BigInt(burnedTokens)
+
+    burnedTokensAfter shouldBe (transferAmount + burnedTokensBefore)
   }
 
   "L2-379 Checking balances in EL->CL transfers" in {

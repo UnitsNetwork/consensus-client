@@ -28,6 +28,8 @@ class ElBridgeClient(web3j: Web3j, val address: EthAddress) extends HasRetry wit
 }
 
 object ElBridgeClient {
+  val BurnAddress = EthAddress.unsafeFrom("0x0000000000000000000000000000000000000000")
+
   def decodeRevertReason(hexRevert: String): String = {
     val cleanHex       = if (hexRevert.startsWith("0x")) hexRevert.drop(2) else hexRevert
     val errorSignature = "08c379a0" // Error(string)
