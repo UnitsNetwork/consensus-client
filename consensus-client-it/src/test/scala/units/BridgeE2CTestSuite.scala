@@ -5,14 +5,26 @@ import com.wavesplatform.api.http.ApiError.ScriptExecutionError
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.utils.EthEncoding
 import org.web3j.protocol.core.DefaultBlockParameterName
+import org.web3j.protocol.exceptions.TransactionException
+import units.el.ElBridgeClient
 
 class BridgeE2CTestSuite extends TwoNodesTestSuite {
-  "L2-379 Checking balances in EL->CL transfers" in {
-    val elSender    = elRichAccount1
-    val clRecipient = clRichAccount1
-    val userAmount  = 1
-    val wavesAmount = UnitsConvert.toWavesAmount(userAmount)
+  protected val elSender    = elRichAccount1
+  protected val clRecipient = clRichAccount1
+  protected val userAmount  = 1
+  protected val wavesAmount = UnitsConvert.toWavesAmount(userAmount)
 
+  "L2-264 Amount should % 10 Gwei" in {
+    try ec1.elBridge.sendNativeAndWait(elSender, clRecipient.toAddress, BigInt(1))
+    catch {
+      case e: TransactionException =>
+        val encodedRevertReason = e.getTransactionReceipt.get().getRevertReason
+        val revertReason        = ElBridgeClient.decodeRevertReason(encodedRevertReason)
+        revertReason shouldBe "Sent value 1 must be greater or equal to 10000000000"
+    }
+  }
+
+  "L2-379 Checking balances in EL->CL transfers" in {
     log.info("Broadcast Bridge.sendNative transaction")
     def bridgeBalance       = ec1.web3j.ethGetBalance(ec1.elBridge.address.hex, DefaultBlockParameterName.LATEST).send().getBalance
     val bridgeBalanceBefore = bridgeBalance
