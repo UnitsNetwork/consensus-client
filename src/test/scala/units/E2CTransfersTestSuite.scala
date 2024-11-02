@@ -102,28 +102,23 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
     }
   }
 
-  "L2-265 Deny withdrawals with invalid amount" in forAll(
-    Table(
-      "index",
-      Long.MinValue,
-      0L,
-      transfer.amount - 1
-    )
-  ) { amount =>
-    withExtensionDomain() { d =>
-      step("Start new epoch with ecBlock")
-      d.advanceNewBlocks(reliable.address)
-      val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
-      d.ecClients.addKnown(ecBlock)
-      d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(reliable.account, ecBlock, e2CTransfersRootHashHex))
-      d.advanceConsensusLayerChanged()
+  private def wrongAmountTest(amount: Long): Unit = withExtensionDomain() { d =>
+    step("Start new epoch with ecBlock")
+    d.advanceNewBlocks(reliable.address)
+    val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
+    d.ecClients.addKnown(ecBlock)
+    d.appendMicroBlockAndVerify(d.chainContract.extendMainChain(reliable.account, ecBlock, e2CTransfersRootHashHex))
+    d.advanceConsensusLayerChanged()
 
-      def tryWithdraw(): Either[Throwable, BlockId] =
-        d.appendMicroBlockE(d.chainContract.withdraw(transferReceiver, ecBlock, transferProofs, 0, amount))
+    def tryWithdraw(): Either[Throwable, BlockId] =
+      d.appendMicroBlockE(d.chainContract.withdraw(transferReceiver, ecBlock, transferProofs, 0, amount))
 
-      tryWithdraw() should produce("Amount should be positive")
-    }
+    tryWithdraw() should produce("Amount should be positive")
   }
+
+  "L2-360 Deny negative amount" in wrongAmountTest(Long.MinValue)
+
+  "Deny withdrawals with invalid amount" in forAll(Table("index", 0L, transfer.amount - 1))(wrongAmountTest)
 
   "Can't get transferred tokens if the data is incorrect and able if it is correct" in withExtensionDomain() { d =>
     step(s"Start new epoch with ecBlock")

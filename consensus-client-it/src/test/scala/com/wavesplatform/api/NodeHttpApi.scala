@@ -32,11 +32,8 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?]) extends HasRet
       .post(uri"$apiUri/debug/print")
       .body(Json.obj("message" -> message))
       .header(`X-Api-Key`.name, ApiKeyValue)
-      .response(asJsonEither[ErrorResponse, BroadcastResponse])
+      .response(ignore)
       .send(backend)
-      .body
-      .left
-      .foreach { e => throw new RuntimeException(e) }
 
   def waitForHeight(atLeast: Int): Int = {
     val loggingOptions: LoggingOptions = LoggingOptions()

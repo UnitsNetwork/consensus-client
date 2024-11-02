@@ -19,21 +19,39 @@ class BridgeE2CTestSuite extends TwoNodesTestSuite {
   protected def sendNative(amount: BigInt = UnitsConvert.toWei(userAmount)): TransactionReceipt =
     ec1.elBridge.sendNative(elSender, clRecipient.toAddress, amount)
 
+  private val tenGwei = BigInt(Convert.toWei("10", Convert.Unit.GWEI).toBigIntegerExact)
+
   "L2-264 Amount should % 10 Gwei" in {
-    try sendNative(1)
+    try sendNative(tenGwei + 1)
     catch {
       case e: TransactionException =>
         val encodedRevertReason = e.getTransactionReceipt.get().getRevertReason
         val revertReason        = ElBridgeClient.decodeRevertReason(encodedRevertReason)
-        revertReason shouldBe "Sent value 1 must be greater or equal to 10000000000"
+        revertReason shouldBe "Sent value 10000000001 must be a multiple of 10000000000"
+    }
+  }
+
+  "L2-265 Amount should be between 10 and MAX_AMOUNT_IN_WEI Gwei" in {
+    withClue("1. Less than 10 Gwei: ") {
+      try sendNative(1)
+      catch {
+        case e: TransactionException =>
+          val encodedRevertReason = e.getTransactionReceipt.get().getRevertReason
+          val revertReason        = ElBridgeClient.decodeRevertReason(encodedRevertReason)
+          revertReason shouldBe "Sent value 1 must be greater or equal to 10000000000"
+      }
     }
 
-    try sendNative(Convert.toWei("11", Convert.Unit.GWEI).longValueExact())
-    catch {
-      case e: TransactionException =>
-        val encodedRevertReason = e.getTransactionReceipt.get().getRevertReason
-        val revertReason        = ElBridgeClient.decodeRevertReason(encodedRevertReason)
-        revertReason shouldBe "Sent value 11000000000 must be a multiple of 10000000000"
+    withClue("2. More than MAX_AMOUNT_IN_WEI: ") {
+      val maxAmountInWei = BigInt(Long.MaxValue)
+      val biggerAmount   = (maxAmountInWei / tenGwei + 1) * tenGwei
+      try sendNative(biggerAmount)
+      catch {
+        case e: TransactionException =>
+          val encodedRevertReason = e.getTransactionReceipt.get().getRevertReason
+          val revertReason        = ElBridgeClient.decodeRevertReason(encodedRevertReason)
+          revertReason shouldBe s"Sent value $biggerAmount must be less or equal to $maxAmountInWei"
+      }
     }
   }
 
@@ -41,7 +59,7 @@ class BridgeE2CTestSuite extends TwoNodesTestSuite {
     def burnedTokens       = ec1.web3j.ethGetBalance(ElBridgeClient.BurnAddress.hex, DefaultBlockParameterName.LATEST).send().getBalance
     val burnedTokensBefore = BigInt(burnedTokens)
 
-    val transferAmount = Convert.toWei("10", Convert.Unit.GWEI).longValueExact()
+    val transferAmount = tenGwei
     sendNative(transferAmount)
     val burnedTokensAfter = BigInt(burnedTokens)
 
