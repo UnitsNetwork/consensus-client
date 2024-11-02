@@ -15,13 +15,13 @@ import units.eth.EthAddress
 import java.util.Collections
 
 class ElBridgeClient(web3j: Web3j, val address: EthAddress) extends HasRetry with ScorexLogging {
-  def sendNativeAndWait(
+  def sendNative(
       sender: Credentials,
       recipient: Address,
       amountInEther: BigInt
   ): TransactionReceipt = {
     val senderAddress = sender.getAddress
-    log.debug(s"sendNativeAndWait($senderAddress->$recipient: $amountInEther Ether)")
+    log.debug(s"sendNative($senderAddress->$recipient: $amountInEther Ether)")
     val bridgeContract = BridgeContract.load(address.hex, web3j, sender, new DefaultGasProvider)
     bridgeContract.send_sendNative(recipient.publicKeyHash, amountInEther.bigInteger).send()
   }

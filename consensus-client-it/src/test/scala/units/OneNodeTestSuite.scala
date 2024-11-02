@@ -65,4 +65,9 @@ trait OneNodeTestSuite extends BaseItTestSuite {
     log.info(s"Wait for #$epoch1Number epoch")
     waves1.api.waitForHeight(epoch1Number)
   }
+
+  override protected def print(text: String): Unit = {
+    super.print(text)
+    waves1.api.print(text)
+  }
 }

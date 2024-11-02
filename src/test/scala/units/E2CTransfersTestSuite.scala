@@ -102,15 +102,16 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
     }
   }
 
-  "Deny withdrawals with a non-positive amount" in forAll(
+  "L2-265 Deny withdrawals with invalid amount" in forAll(
     Table(
       "index",
+      Long.MinValue,
       0L,
-      Long.MinValue
+      transfer.amount - 1
     )
   ) { amount =>
     withExtensionDomain() { d =>
-      step(s"Start new epoch with ecBlock")
+      step("Start new epoch with ecBlock")
       d.advanceNewBlocks(reliable.address)
       val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
       d.ecClients.addKnown(ecBlock)
@@ -143,7 +144,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
     }
   }
 
-  "Can't get transferred tokens twice" in {
+  "L2-273 Can't get transferred tokens twice" in {
     val settings = defaultSettings.copy(
       additionalBalances = List(AddrWithBalance(transferReceiver.toAddress, defaultFees.chainContract.withdrawFee * 2))
     )
@@ -184,7 +185,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       withExtensionDomain(settings) { d =>
         step(s"Start new epoch with ecBlock1")
         d.advanceNewBlocks(reliable.address)
-        val ecBlock1       = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(List(transferEvent))
+        val ecBlock1 = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(List(transferEvent))
         def tryWithdraw(): Either[Throwable, BlockId] =
           d.appendMicroBlockE(d.chainContract.withdraw(transferReceiver, ecBlock1, transferProofs, 0, transfer.amount))
 
@@ -209,7 +210,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
     withExtensionDomain(settings) { d =>
       step(s"Start new epoch with ecBlock1")
       d.advanceNewBlocks(reliable.address)
-      val ecBlock1       = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(List(transferEvent.copy(data = "d3ad884fa04292")))
+      val ecBlock1 = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(List(transferEvent.copy(data = "d3ad884fa04292")))
       d.ecClients.willForge(ecBlock1)
       d.ecClients.willForge(d.createEcBlockBuilder("0-0", reliable).build())
 

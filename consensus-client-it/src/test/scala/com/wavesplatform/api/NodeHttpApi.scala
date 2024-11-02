@@ -7,6 +7,7 @@ import com.wavesplatform.api.LoggingBackend.{LoggingOptions, LoggingOptionsTag}
 import com.wavesplatform.api.NodeHttpApi.*
 import com.wavesplatform.api.http.ApiMarshallers.TransactionJsonWrites
 import com.wavesplatform.api.http.TransactionsApiRoute.ApplicationStatus
+import com.wavesplatform.api.http.`X-Api-Key`
 import com.wavesplatform.state.DataEntry.Format
 import com.wavesplatform.state.{DataEntry, EmptyDataEntry, TransactionId}
 import com.wavesplatform.transaction.Asset.IssuedAsset
@@ -25,6 +26,17 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?]) extends HasRet
   private val averageBlockDelay = 18.seconds
 
   protected override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = averageBlockDelay, interval = 1.second)
+
+  def print(message: String): Unit =
+    basicRequest
+      .post(uri"$apiUri/debug/print")
+      .body(Json.obj("message" -> message))
+      .header(`X-Api-Key`.name, ApiKeyValue)
+      .response(asJsonEither[ErrorResponse, BroadcastResponse])
+      .send(backend)
+      .body
+      .left
+      .foreach { e => throw new RuntimeException(e) }
 
   def waitForHeight(atLeast: Int): Int = {
     val loggingOptions: LoggingOptions = LoggingOptions()
@@ -175,6 +187,8 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?]) extends HasRet
 }
 
 object NodeHttpApi {
+  val ApiKeyValue = "testapi"
+
   case class HeightResponse(height: Int)
   object HeightResponse {
     implicit val heightResponseFormat: OFormat[HeightResponse] = Json.format[HeightResponse]

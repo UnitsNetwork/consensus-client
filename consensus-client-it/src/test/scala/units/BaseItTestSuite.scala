@@ -32,6 +32,7 @@ trait BaseItTestSuite
     with CustomMatchers
     with EitherValues
     with OptionValues
+    with ReportingTestName
     with HasRetry
     with HasConsensusLayerDappTxHelpers {
   override val currentHitSource: ByteStr     = ByteStr.empty

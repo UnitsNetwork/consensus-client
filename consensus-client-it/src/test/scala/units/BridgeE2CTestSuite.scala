@@ -5,6 +5,7 @@ import com.wavesplatform.api.http.ApiError.ScriptExecutionError
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.utils.EthEncoding
 import org.web3j.protocol.core.DefaultBlockParameterName
+import org.web3j.protocol.core.methods.response.TransactionReceipt
 import org.web3j.protocol.exceptions.TransactionException
 import org.web3j.utils.Convert
 import units.el.ElBridgeClient
@@ -15,13 +16,24 @@ class BridgeE2CTestSuite extends TwoNodesTestSuite {
   protected val userAmount  = 1
   protected val wavesAmount = UnitsConvert.toWavesAmount(userAmount)
 
+  protected def sendNative(amount: BigInt = UnitsConvert.toWei(userAmount)): TransactionReceipt =
+    ec1.elBridge.sendNative(elSender, clRecipient.toAddress, amount)
+
   "L2-264 Amount should % 10 Gwei" in {
-    try ec1.elBridge.sendNativeAndWait(elSender, clRecipient.toAddress, BigInt(1))
+    try sendNative(1)
     catch {
       case e: TransactionException =>
         val encodedRevertReason = e.getTransactionReceipt.get().getRevertReason
         val revertReason        = ElBridgeClient.decodeRevertReason(encodedRevertReason)
         revertReason shouldBe "Sent value 1 must be greater or equal to 10000000000"
+    }
+
+    try sendNative(Convert.toWei("11", Convert.Unit.GWEI).longValueExact())
+    catch {
+      case e: TransactionException =>
+        val encodedRevertReason = e.getTransactionReceipt.get().getRevertReason
+        val revertReason        = ElBridgeClient.decodeRevertReason(encodedRevertReason)
+        revertReason shouldBe "Sent value 11000000000 must be a multiple of 10000000000"
     }
   }
 
@@ -30,7 +42,7 @@ class BridgeE2CTestSuite extends TwoNodesTestSuite {
     val burnedTokensBefore = BigInt(burnedTokens)
 
     val transferAmount = Convert.toWei("10", Convert.Unit.GWEI).longValueExact()
-    ec1.elBridge.sendNativeAndWait(elSender, clRecipient.toAddress, transferAmount)
+    sendNative(transferAmount)
     val burnedTokensAfter = BigInt(burnedTokens)
 
     burnedTokensAfter shouldBe (transferAmount + burnedTokensBefore)
@@ -40,10 +52,10 @@ class BridgeE2CTestSuite extends TwoNodesTestSuite {
     log.info("Broadcast Bridge.sendNative transaction")
     def bridgeBalance       = ec1.web3j.ethGetBalance(ec1.elBridge.address.hex, DefaultBlockParameterName.LATEST).send().getBalance
     val bridgeBalanceBefore = bridgeBalance
-    val sendTxnReceipt      = ec1.elBridge.sendNativeAndWait(elSender, clRecipient.toAddress, UnitsConvert.toWei(userAmount))
+    val sendTxnReceipt      = sendNative()
 
-    val bridgeBalanceAfter = bridgeBalance
     withClue("1. The balance of Bridge contract wasn't changed: ") {
+      val bridgeBalanceAfter = bridgeBalance
       bridgeBalanceAfter shouldBe bridgeBalanceBefore
     }
 
@@ -91,17 +103,18 @@ class BridgeE2CTestSuite extends TwoNodesTestSuite {
       if (currFinalizedHeight < blockConfirmationHeight) fail("Not yet finalized")
     }
 
-    def receiverBalance: Long = waves1.api.balance(clRecipient.toAddress, waves1.chainContract.token)
-    val receiverBalanceBefore = receiverBalance
-
-    log.info(
-      s"Broadcast withdraw transaction: transferIndexInBlock=$sendTxnLogIndex, amount=$wavesAmount, " +
-        s"merkleProof={${transferProofs.map(EthEncoding.toHexString).mkString(",")}}"
-    )
-    waves1.api.broadcastAndWait(withdraw())
-
-    val balanceAfter = receiverBalance
     withClue("3. Tokens received: ") {
+      log.info(
+        s"Broadcast withdraw transaction: transferIndexInBlock=$sendTxnLogIndex, amount=$wavesAmount, " +
+          s"merkleProof={${transferProofs.map(EthEncoding.toHexString).mkString(",")}}"
+      )
+
+      def receiverBalance: Long = waves1.api.balance(clRecipient.toAddress, waves1.chainContract.token)
+      val receiverBalanceBefore = receiverBalance
+
+      waves1.api.broadcastAndWait(withdraw())
+
+      val balanceAfter = receiverBalance
       balanceAfter shouldBe (receiverBalanceBefore + wavesAmount)
     }
   }

@@ -113,4 +113,9 @@ trait TwoNodesTestSuite extends BaseItTestSuite {
     waves1.api.waitForHeight(epoch1Number)
   }
 
+  override protected def print(text: String): Unit = {
+    super.print(text)
+    waves1.api.print(text)
+    waves2.api.print(text)
+  }
 }
