@@ -16,6 +16,7 @@ trait OneNodeTestSuite extends BaseItTestSuite {
     number = 1,
     ip = Networks.ipForNode(3),
     baseSeed = "devnet-1",
+    clMinerKeyPair = mkKeyPair("devnet-1", 0),
     chainContractAddress = chainContractAddress,
     ecEngineApiUrl = s"http://${ec1.hostName}:${EcContainer.EnginePort}",
     genesisConfigPath = wavesGenesisConfigPath

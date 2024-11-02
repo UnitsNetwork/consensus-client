@@ -28,8 +28,12 @@ class Miner:
 
 class ExtendedNetwork(Network):
     @cached_property
+    def cl_dao(self) -> ChainContract:
+        return pw.Address(seed="devnet dao 1", nonce=0)
+
+    @cached_property
     def cl_chain_contract(self) -> ChainContract:
-        return ChainContract(seed="devnet-1", nonce=2)
+        return ChainContract(seed="devnet cc 1", nonce=0)
 
     @cached_property
     def cl_miners(self) -> List[Miner]:
@@ -56,7 +60,7 @@ class ExtendedNetwork(Network):
 
     @cached_property
     def cl_rich_accounts(self) -> List[pw.Address]:
-        return [pw.Address(seed="devnet-0", nonce=n) for n in range(0, 2)]
+        return [pw.Address(seed="devnet rich", nonce=n) for n in range(0, 2)]
 
     @cached_property
     def el_rich_accounts(self) -> List[LocalAccount]:
@@ -75,7 +79,7 @@ local_net = NetworkSettings(
     chain_id_str="D",
     cl_node_api_url=get_waves_api_url(1),
     el_node_api_url=get_ec_api_url(1),
-    chain_contract_address="3FdaanzgX4roVgHevhq8L8q42E7EZL9XTQr",
+    chain_contract_address="3FZyX72BjuE6s5PMTVQN9mJTN4jEJto95nv",
 )
 
 

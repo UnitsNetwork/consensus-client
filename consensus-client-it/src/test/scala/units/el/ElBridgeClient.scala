@@ -1,7 +1,6 @@
 package units.el
 
 import com.wavesplatform.account.Address
-import com.wavesplatform.api.HasRetry
 import com.wavesplatform.utils.ScorexLogging
 import org.web3j.abi.datatypes.{AbiTypes, Type}
 import org.web3j.abi.{FunctionReturnDecoder, TypeReference}
@@ -11,6 +10,7 @@ import org.web3j.protocol.core.methods.response.TransactionReceipt
 import org.web3j.tx.gas.DefaultGasProvider
 import units.bridge.BridgeContract
 import units.eth.EthAddress
+import units.test.HasRetry
 
 import java.util.Collections
 

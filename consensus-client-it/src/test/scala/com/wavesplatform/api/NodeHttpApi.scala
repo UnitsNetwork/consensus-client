@@ -18,6 +18,7 @@ import play.api.libs.json.*
 import sttp.client3.*
 import sttp.client3.playJson.*
 import sttp.model.{StatusCode, Uri}
+import units.test.HasRetry
 
 import scala.concurrent.duration.DurationInt
 import scala.util.chaining.scalaUtilChainingOps

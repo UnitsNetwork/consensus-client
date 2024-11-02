@@ -41,7 +41,7 @@ See [./deploy](./deploy/).
     * Node wallet seed:
         * wavesnode-1: `devnet-1`
         * wavesnode-2: `devnet-2`
-    * Chain contract: `3FdaanzgX4roVgHevhq8L8q42E7EZL9XTQr`
+    * Chain contract: `3FZyX72BjuE6s5PMTVQN9mJTN4jEJto95nv`
 * EL mining reward accounts:
     * Reward account for **Miner 1** (`wavesnode-1`, `besu-1`):
         * Address: `0x7dBcf9c6C3583b76669100f9BE3CaF6d722bc9f9`

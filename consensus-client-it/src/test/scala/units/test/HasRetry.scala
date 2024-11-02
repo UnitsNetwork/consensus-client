@@ -1,4 +1,4 @@
-package com.wavesplatform.api
+package units.test
 
 import org.scalatest.concurrent.Eventually.PatienceConfig
 

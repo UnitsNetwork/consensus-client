@@ -22,6 +22,7 @@ trait TwoNodesTestSuite extends BaseItTestSuite {
     number = 1,
     ip = Networks.ipForNode(4),
     baseSeed = "devnet-1",
+    clMinerKeyPair = mkKeyPair("devnet-1", 0),
     chainContractAddress = chainContractAddress,
     ecEngineApiUrl = s"http://${ec1.hostName}:${EcContainer.EnginePort}",
     genesisConfigPath = wavesGenesisConfigPath
@@ -32,6 +33,7 @@ trait TwoNodesTestSuite extends BaseItTestSuite {
     number = 2,
     ip = Networks.ipForNode(5),
     baseSeed = "devnet-2",
+    clMinerKeyPair = mkKeyPair("devnet-2", 0),
     chainContractAddress = chainContractAddress,
     ecEngineApiUrl = s"http://${ec2.hostName}:${EcContainer.EnginePort}",
     genesisConfigPath = wavesGenesisConfigPath

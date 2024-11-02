@@ -1,9 +1,11 @@
 package units.docker
 
 import com.google.common.io.Files as GFiles
-import com.wavesplatform.account.Address
+import com.google.common.primitives.{Bytes, Ints}
+import com.wavesplatform.account.{Address, KeyPair, SeedKeyPair}
 import com.wavesplatform.api.{LoggingBackend, NodeHttpApi}
 import com.wavesplatform.common.utils.Base58
+import com.wavesplatform.crypto
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.Network.NetworkImpl
 import org.testcontainers.utility.DockerImageName
@@ -22,6 +24,7 @@ class WavesNodeContainer(
     number: Int,
     ip: String,
     baseSeed: String,
+    clMinerKeyPair: KeyPair, // Force CL miner
     chainContractAddress: Address,
     ecEngineApiUrl: String,
     genesisConfigPath: Path
@@ -37,6 +40,7 @@ class WavesNodeContainer(
         "NODE_NUMBER"       -> s"$number",
         "WAVES_WALLET_SEED" -> Base58.encode(baseSeed.getBytes(StandardCharsets.UTF_8)),
         "JAVA_OPTS" -> List(
+          s"-Dwaves.miner.private-keys.0=${Base58.encode(clMinerKeyPair.privateKey.arr)}",
           s"-Dunits.defaults.chain-contract=$chainContractAddress",
           s"-Dunits.defaults.execution-client-address=$ecEngineApiUrl",
           "-Dlogback.file.level=TRACE",
@@ -78,4 +82,6 @@ class WavesNodeContainer(
 object WavesNodeContainer {
   val ApiPort = 6869
 
+  def mkKeyPair(seed: String, nonce: Int): SeedKeyPair =
+    SeedKeyPair(crypto.secureHash(Bytes.concat(Ints.toByteArray(nonce), seed.getBytes(StandardCharsets.UTF_8))))
 }
