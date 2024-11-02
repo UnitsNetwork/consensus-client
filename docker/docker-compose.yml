@@ -2,7 +2,6 @@ services:
   besu:
     profiles: [besu]
     hostname: execution-client
-    restart: unless-stopped
     extends:
       file: ./services/besu.yml
       service: besu
@@ -16,7 +15,6 @@ services:
   geth:
     profiles: [geth]
     hostname: execution-client
-    restart: unless-stopped
     extends:
       file: ./services/geth.yml
       service: geth
@@ -25,7 +23,6 @@ services:
         condition: service_completed_successfully
 
   waves-node:
-    restart: unless-stopped
     extends:
       file: ./services/waves-node.yml
       service: waves-node

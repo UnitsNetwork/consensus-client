@@ -3,6 +3,7 @@ services:
     container_name: waves-node
     image: ghcr.io/unitsnetwork/consensus-client:testnet
     stop_grace_period: 5m
+    restart: unless-stopped
     ports:
       - 127.0.0.1:6869:6869
       - 6868:6868

@@ -4,6 +4,7 @@ services:
     image: hyperledger/besu:latest
     pull_policy: always
     stop_grace_period: 5m
+    restart: unless-stopped
     command:
       - --logging=ALL
       - --host-allowlist=*
@@ -19,9 +20,11 @@ services:
       - --data-path=/var/lib/besu
       - --genesis-file=/etc/besu/genesis.json
       - --data-storage-format=BONSAI
+      - --static-nodes-file=/etc/besu/static-nodes.json
     volumes:
-      - ../genesis-${NETWORK}.json:/etc/besu/genesis.json
       - ../data/secrets:/etc/secrets:ro
+      - ../genesis-${NETWORK}.json:/etc/besu/genesis.json
+      - ../static-nodes-${NETWORK}.json:/etc/besu/static-nodes.json
       - ../log4j2.xml:/etc/besu/log4j2.xml
       - ../data/besu:/var/lib/besu
       - ../logs/besu:/opt/besu/logs
