@@ -59,8 +59,8 @@ trait OneNodeTestSuite extends BaseItTestSuite {
 
   protected def joinMiners(): Unit
 
-  override protected def print(text: String): Unit = {
-    super.print(text)
+  override protected def step(text: String): Unit = {
+    super.step(text)
     waves1.api.print(text)
   }
 }

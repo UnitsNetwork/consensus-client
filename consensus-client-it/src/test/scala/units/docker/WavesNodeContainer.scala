@@ -2,6 +2,7 @@ package units.docker
 
 import com.google.common.io.Files
 import com.google.common.primitives.{Bytes, Ints}
+import com.typesafe.config.ConfigFactory
 import com.wavesplatform.account.{Address, KeyPair, SeedKeyPair}
 import com.wavesplatform.api.{LoggingBackend, NodeHttpApi}
 import com.wavesplatform.common.utils.Base58
@@ -18,6 +19,7 @@ import java.io.File
 import java.nio.charset.StandardCharsets
 import java.nio.file.Path
 import scala.jdk.CollectionConverters.MapHasAsJava
+import scala.jdk.DurationConverters.JavaDurationOps
 
 class WavesNodeContainer(
     network: NetworkImpl,
@@ -67,7 +69,7 @@ class WavesNodeContainer(
   // TODO common from EcContainer
   private val httpClientBackend = new LoggingBackend(HttpClientSyncBackend())
 
-  lazy val api = new NodeHttpApi(uri"http://${container.getHost}:$apiPort", httpClientBackend)
+  lazy val api = new NodeHttpApi(uri"http://${container.getHost}:$apiPort", httpClientBackend, AverageBlockDelay)
 
   lazy val chainContract = new HttpChainContractClient(api, chainContractAddress)
 
@@ -81,6 +83,10 @@ class WavesNodeContainer(
 
 object WavesNodeContainer {
   val ApiPort = 6869
+
+  val DefaultConfigFile = new File(s"$ConfigsDir/wavesnode/waves.conf")
+  val DefaultConfig     = ConfigFactory.parseFile(DefaultConfigFile)
+  val AverageBlockDelay = DefaultConfig.getDuration("waves.blockchain.custom.genesis.average-block-delay").toScala
 
   def mkKeyPair(seed: String, nonce: Int): SeedKeyPair =
     SeedKeyPair(crypto.secureHash(Bytes.concat(Ints.toByteArray(nonce), seed.getBytes(StandardCharsets.UTF_8))))

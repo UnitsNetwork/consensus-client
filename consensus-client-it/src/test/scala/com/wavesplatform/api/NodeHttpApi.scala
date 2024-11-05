@@ -9,7 +9,7 @@ import com.wavesplatform.api.http.ApiMarshallers.TransactionJsonWrites
 import com.wavesplatform.api.http.TransactionsApiRoute.ApplicationStatus
 import com.wavesplatform.api.http.`X-Api-Key`
 import com.wavesplatform.state.DataEntry.Format
-import com.wavesplatform.state.{DataEntry, EmptyDataEntry, TransactionId}
+import com.wavesplatform.state.{DataEntry, EmptyDataEntry, Height, TransactionId}
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.Transaction
 import com.wavesplatform.utils.ScorexLogging
@@ -20,15 +20,13 @@ import sttp.client3.playJson.*
 import sttp.model.{StatusCode, Uri}
 import units.test.HasRetry
 
-import scala.concurrent.duration.DurationInt
+import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.util.chaining.scalaUtilChainingOps
 
-class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?]) extends HasRetry with ScorexLogging {
-  private val averageBlockDelay = 18.seconds
-
+class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], averageBlockDelay: FiniteDuration) extends HasRetry with ScorexLogging {
   protected override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = averageBlockDelay, interval = 1.second)
 
-  def waitForHeight(atLeast: Int): Int = {
+  def waitForHeight(atLeast: Int): Height = {
     val loggingOptions: LoggingOptions = LoggingOptions()
     log.debug(s"${loggingOptions.prefix} waitForHeight($atLeast)")
     val currHeight = heightImpl()(loggingOptions)
@@ -45,7 +43,13 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?]) extends HasRet
     }
   }
 
-  protected def heightImpl()(implicit loggingOptions: LoggingOptions = LoggingOptions()): Int =
+  def height: Height = {
+    val loggingOptions: LoggingOptions = LoggingOptions()
+    log.debug(s"${loggingOptions.prefix} height")
+    heightImpl()
+  }
+
+  protected def heightImpl()(implicit loggingOptions: LoggingOptions = LoggingOptions()): Height =
     basicRequest
       .get(uri"$apiUri/blocks/height")
       .response(asJson[HeightResponse])
@@ -185,11 +189,27 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?]) extends HasRet
       .send(backend)
   }
 
+  def rollback(to: Height): Unit = {
+    implicit val loggingOptions: LoggingOptions = LoggingOptions()
+    basicRequest
+      .post(uri"$apiUri/debug/rollback")
+      .header(`X-Api-Key`.name, ApiKeyValue)
+      .body(
+        Json.obj(
+          "rollbackTo"              -> to,
+          "returnTransactionsToUtx" -> false
+        )
+      )
+      .response(asString)
+      .tag(LoggingOptionsTag, loggingOptions)
+      .send(backend)
+  }
+
   def print(message: String): Unit =
     basicRequest
       .post(uri"$apiUri/debug/print")
-      .body(Json.obj("message" -> message))
       .header(`X-Api-Key`.name, ApiKeyValue)
+      .body(Json.obj("message" -> message))
       .response(ignore)
       .send(backend)
 }
@@ -197,7 +217,7 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?]) extends HasRet
 object NodeHttpApi {
   val ApiKeyValue = "testapi"
 
-  case class HeightResponse(height: Int)
+  case class HeightResponse(height: Height)
   object HeightResponse {
     implicit val heightResponseFormat: OFormat[HeightResponse] = Json.format[HeightResponse]
   }
@@ -207,7 +227,7 @@ object NodeHttpApi {
     implicit val broadcastResponseFormat: OFormat[BroadcastResponse] = Json.format[BroadcastResponse]
   }
 
-  case class TransactionInfoResponse(height: Int, applicationStatus: String)
+  case class TransactionInfoResponse(height: Height, applicationStatus: String)
   object TransactionInfoResponse {
     implicit val transactionInfoResponseFormat: OFormat[TransactionInfoResponse] = Json.format[TransactionInfoResponse]
   }

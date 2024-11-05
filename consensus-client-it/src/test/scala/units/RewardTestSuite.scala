@@ -22,7 +22,7 @@ class RewardTestSuite extends OneNodeTestSuite with OneNodeTestSuite.OneMiner {
 
     waves1.api.waitForHeight(epoch2Number)
 
-    log.info(s"Wait for epoch #$epoch2Number data on chain contract")
+    step(s"Wait for epoch #$epoch2Number data on chain contract")
     val epoch2FirstContractBlock = retry {
       waves1.chainContract.getEpochFirstBlock(epoch2Number).get
     }

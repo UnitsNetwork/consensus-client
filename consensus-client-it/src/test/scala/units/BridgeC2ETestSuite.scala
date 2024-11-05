@@ -5,12 +5,12 @@ import units.client.engine.model.BlockNumber
 import units.eth.EthAddress
 
 class BridgeC2ETestSuite extends OneNodeTestSuite with OneNodeTestSuite.OneMiner {
-  protected val clSender          = clRichAccount1
-  protected val elReceiver        = elRichAccount1
-  protected val elReceiverAddress = EthAddress.unsafeFrom(elReceiver.getAddress)
-  protected val userAmount        = 1
-  protected val wavesAmount       = UnitsConvert.toWavesAmount(userAmount)
-  protected val gweiAmount        = UnitsConvert.toGwei(userAmount)
+  private val clSender          = clRichAccount1
+  private val elReceiver        = elRichAccount1
+  private val elReceiverAddress = EthAddress.unsafeFrom(elReceiver.getAddress)
+  private val userAmount        = 1
+  private val wavesAmount       = UnitsConvert.toWavesAmount(userAmount)
+  private val gweiAmount        = UnitsConvert.toGwei(userAmount)
 
   "L2-380 Checking balances in CL->EL transfers" in {
     def clAssetQuantity: Long      = waves1.api.assetQuantity(waves1.chainContract.token)
@@ -59,7 +59,7 @@ class BridgeC2ETestSuite extends OneNodeTestSuite with OneNodeTestSuite.OneMiner
   override def beforeAll(): Unit = {
     super.beforeAll()
 
-    log.info("Prepare: issue tokens on chain contract and transfer to a user")
+    step("Prepare: issue tokens on chain contract and transfer to a user")
     waves1.api.broadcastAndWait(
       TxHelpers.reissue(
         asset = waves1.chainContract.token,

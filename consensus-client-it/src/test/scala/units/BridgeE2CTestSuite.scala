@@ -9,15 +9,15 @@ import org.web3j.utils.Convert
 import units.el.ElBridgeClient
 
 class BridgeE2CTestSuite extends OneNodeTestSuite with OneNodeTestSuite.OneMiner {
-  protected val elSender    = elRichAccount1
-  protected val clRecipient = clRichAccount1
-  protected val userAmount  = 1
-  protected val wavesAmount = UnitsConvert.toWavesAmount(userAmount)
+  private val elSender    = elRichAccount1
+  private val clRecipient = clRichAccount1
+  private val userAmount  = 1
+  private val wavesAmount = UnitsConvert.toWavesAmount(userAmount)
 
-  protected def sendNative(amount: BigInt = UnitsConvert.toWei(userAmount)): TransactionReceipt =
+  private def sendNative(amount: BigInt = UnitsConvert.toWei(userAmount)): TransactionReceipt =
     ec1.elBridge.sendNative(elSender, clRecipient.toAddress, amount)
 
-  protected val tenGwei = BigInt(Convert.toWei("10", Convert.Unit.GWEI).toBigIntegerExact)
+  private val tenGwei = BigInt(Convert.toWei("10", Convert.Unit.GWEI).toBigIntegerExact)
 
   "Negative" - {
     def sendNativeInvalid(amount: BigInt): TransactionException =
@@ -66,7 +66,7 @@ class BridgeE2CTestSuite extends OneNodeTestSuite with OneNodeTestSuite.OneMiner
   }
 
   "L2-379 Checking balances in EL->CL transfers" in {
-    log.info("Broadcast Bridge.sendNative transaction")
+    step("Broadcast Bridge.sendNative transaction")
     def bridgeBalance       = ec1.web3j.ethGetBalance(ec1.elBridge.address.hex, DefaultBlockParameterName.LATEST).send().getBalance
     val bridgeBalanceBefore = bridgeBalance
     val sendTxnReceipt      = sendNative()
@@ -77,32 +77,32 @@ class BridgeE2CTestSuite extends OneNodeTestSuite with OneNodeTestSuite.OneMiner
     }
 
     val blockHash = BlockHash(sendTxnReceipt.getBlockHash)
-    log.info(s"Block with transaction: $blockHash")
+    step(s"Block with transaction: $blockHash")
 
     val logsInBlock = ec1.engineApi.getLogs(blockHash, ec1.elBridge.address, Bridge.ElSentNativeEventTopic).explicitGet()
 
     val transferEvents = logsInBlock.map { x =>
       Bridge.ElSentNativeEvent.decodeArgs(x.data).explicitGet()
     }
-    log.info(s"Transfer events: ${transferEvents.mkString(", ")}")
+    step(s"Transfer events: ${transferEvents.mkString(", ")}")
 
     val sendTxnLogIndex = logsInBlock.indexWhere(_.transactionHash == sendTxnReceipt.getTransactionHash)
     val transferProofs  = Bridge.mkTransferProofs(transferEvents, sendTxnLogIndex).reverse
 
-    log.info(s"Wait block $blockHash on contract")
+    step(s"Wait block $blockHash on contract")
     val blockConfirmationHeight = retry {
       waves1.chainContract.getBlock(blockHash).get.height
     }
 
-    log.info(s"Wait block $blockHash ($blockConfirmationHeight) finalization")
+    step(s"Wait block $blockHash ($blockConfirmationHeight) finalization")
     retry {
       val currFinalizedHeight = waves1.chainContract.getFinalizedBlock.height
-      log.info(s"Current finalized height: $currFinalizedHeight")
+      step(s"Current finalized height: $currFinalizedHeight")
       if (currFinalizedHeight < blockConfirmationHeight) fail("Not yet finalized")
     }
 
     withClue("3. Tokens received: ") {
-      log.info(
+      step(
         s"Broadcast withdraw transaction: transferIndexInBlock=$sendTxnLogIndex, amount=$wavesAmount, " +
           s"merkleProof={${transferProofs.map(EthEncoding.toHexString).mkString(",")}}"
       )
