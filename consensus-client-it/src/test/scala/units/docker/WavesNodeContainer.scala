@@ -84,9 +84,9 @@ class WavesNodeContainer(
 object WavesNodeContainer {
   val ApiPort = 6869
 
-  val DefaultConfigFile = new File(s"$ConfigsDir/wavesnode/waves.conf")
-  val DefaultConfig     = ConfigFactory.parseFile(DefaultConfigFile)
-  val AverageBlockDelay = DefaultConfig.getDuration("waves.blockchain.custom.genesis.average-block-delay").toScala
+  val GenesisTemplateFile = new File(s"$ConfigsDir/wavesnode/genesis-template.conf")
+  val GenesisTemplate     = ConfigFactory.parseFile(GenesisTemplateFile)
+  val AverageBlockDelay   = GenesisTemplate.getDuration("genesis-generator.average-block-delay").toScala
 
   def mkKeyPair(seed: String, nonce: Int): SeedKeyPair =
     SeedKeyPair(crypto.secureHash(Bytes.concat(Ints.toByteArray(nonce), seed.getBytes(StandardCharsets.UTF_8))))
