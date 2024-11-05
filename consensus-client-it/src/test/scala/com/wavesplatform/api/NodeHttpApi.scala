@@ -28,14 +28,6 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?]) extends HasRet
 
   protected override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = averageBlockDelay, interval = 1.second)
 
-  def print(message: String): Unit =
-    basicRequest
-      .post(uri"$apiUri/debug/print")
-      .body(Json.obj("message" -> message))
-      .header(`X-Api-Key`.name, ApiKeyValue)
-      .response(ignore)
-      .send(backend)
-
   def waitForHeight(atLeast: Int): Int = {
     val loggingOptions: LoggingOptions = LoggingOptions()
     log.debug(s"${loggingOptions.prefix} waitForHeight($atLeast)")
@@ -182,6 +174,24 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?]) extends HasRet
       case Left(DeserializationException(body, error)) => failRetry(s"failed to parse response $body: $error")
       case Right(r)                                    => r.peers.length
     }
+
+  def createWalletAddress(): Unit = {
+    implicit val loggingOptions: LoggingOptions = LoggingOptions()
+    basicRequest
+      .post(uri"$apiUri/addresses")
+      .header(`X-Api-Key`.name, ApiKeyValue)
+      .response(asString)
+      .tag(LoggingOptionsTag, loggingOptions)
+      .send(backend)
+  }
+
+  def print(message: String): Unit =
+    basicRequest
+      .post(uri"$apiUri/debug/print")
+      .body(Json.obj("message" -> message))
+      .header(`X-Api-Key`.name, ApiKeyValue)
+      .response(ignore)
+      .send(backend)
 }
 
 object NodeHttpApi {

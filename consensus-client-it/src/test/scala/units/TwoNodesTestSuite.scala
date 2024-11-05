@@ -97,16 +97,16 @@ trait TwoNodesTestSuite extends BaseItTestSuite {
     log.info("Waves miner #1 join")
     waves1.api.broadcastAndWait(
       chainContract.join(
-        minerAccount = miner1Account,
-        elRewardAddress = miner1RewardAddress
+        minerAccount = miner11Account,
+        elRewardAddress = miner11RewardAddress
       )
     )
 
     log.info("Waves miner #2 join")
     val joinMiner2Result = waves1.api.broadcastAndWait(
       chainContract.join(
-        minerAccount = miner2Account,
-        elRewardAddress = miner2RewardAddress
+        minerAccount = miner21Account,
+        elRewardAddress = miner21RewardAddress
       )
     )
 

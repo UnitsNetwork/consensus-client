@@ -3,7 +3,7 @@ package units
 import com.wavesplatform.common.utils.EitherExt2
 import units.client.engine.model.BlockNumber
 
-class RewardTestSuite extends OneNodeTestSuite {
+class RewardTestSuite extends OneNodeTestSuite with OneNodeTestSuite.OneMiner {
   "L2-234 The reward for a previous epoch is in the first block withdrawals" in {
     val epoch1FirstEcBlock = retry {
       ec1.engineApi.getBlockByNumber(BlockNumber.Number(1)).explicitGet().get
@@ -39,7 +39,7 @@ class RewardTestSuite extends OneNodeTestSuite {
     }
 
     withClue("Expected reward receiver: ") {
-      epoch2FirstEcBlock.withdrawals(0).address shouldBe miner1RewardAddress
+      epoch2FirstEcBlock.withdrawals(0).address shouldBe miner11RewardAddress
     }
   }
 }

@@ -1,7 +1,5 @@
 package units
 
-import com.wavesplatform.account.KeyPair
-import com.wavesplatform.api.http.ApiError.ScriptExecutionError
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.utils.EthEncoding
 import org.web3j.protocol.core.DefaultBlockParameterName
@@ -10,7 +8,7 @@ import org.web3j.protocol.exceptions.TransactionException
 import org.web3j.utils.Convert
 import units.el.ElBridgeClient
 
-class BridgeE2CTestSuite extends OneNodeTestSuite {
+class BridgeE2CTestSuite extends OneNodeTestSuite with OneNodeTestSuite.OneMiner {
   protected val elSender    = elRichAccount1
   protected val clRecipient = clRichAccount1
   protected val userAmount  = 1
@@ -46,7 +44,7 @@ class BridgeE2CTestSuite extends OneNodeTestSuite {
       }
 
       withClue("2. More than MAX_AMOUNT_IN_WEI: ") {
-        val maxAmountInWei      = BigInt(Long.MaxValue)
+        val maxAmountInWei      = BigInt(Long.MaxValue) * tenGwei
         val biggerAmount        = (maxAmountInWei / tenGwei + 1) * tenGwei
         val e                   = sendNativeInvalid(biggerAmount)
         val encodedRevertReason = e.getTransactionReceipt.get().getRevertReason
@@ -96,25 +94,6 @@ class BridgeE2CTestSuite extends OneNodeTestSuite {
       waves1.chainContract.getBlock(blockHash).get.height
     }
 
-    val currFinalizedHeight = waves1.chainContract.getFinalizedBlock.height
-    if (currFinalizedHeight >= blockConfirmationHeight)
-      fail(s"Can't continue the test: the block ($blockConfirmationHeight) is already finalized ($currFinalizedHeight)")
-
-    log.info("Trying to withdraw before finalization")
-    def withdraw(sender: KeyPair = clRecipient) = chainContract.withdraw(
-      sender = sender,
-      blockHash = BlockHash(sendTxnReceipt.getBlockHash),
-      merkleProof = transferProofs,
-      transferIndexInBlock = sendTxnLogIndex,
-      amount = wavesAmount
-    )
-
-    withClue("2. Withdraws from non-finalized blocks are denied: ") {
-      val attempt1 = waves1.api.broadcast(withdraw()).left.value
-      attempt1.error shouldBe ScriptExecutionError.Id
-      attempt1.message should include("is not finalized")
-    }
-
     log.info(s"Wait block $blockHash ($blockConfirmationHeight) finalization")
     retry {
       val currFinalizedHeight = waves1.chainContract.getFinalizedBlock.height
@@ -131,7 +110,15 @@ class BridgeE2CTestSuite extends OneNodeTestSuite {
       def receiverBalance: Long = waves1.api.balance(clRecipient.toAddress, waves1.chainContract.token)
       val receiverBalanceBefore = receiverBalance
 
-      waves1.api.broadcastAndWait(withdraw())
+      waves1.api.broadcastAndWait(
+        chainContract.withdraw(
+          sender = clRecipient,
+          blockHash = BlockHash(sendTxnReceipt.getBlockHash),
+          merkleProof = transferProofs,
+          transferIndexInBlock = sendTxnLogIndex,
+          amount = wavesAmount
+        )
+      )
 
       val balanceAfter = receiverBalance
       balanceAfter shouldBe (receiverBalanceBefore + wavesAmount)

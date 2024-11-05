@@ -11,11 +11,14 @@ import java.nio.charset.StandardCharsets
 trait Accounts {
   val chainContractAccount: KeyPair = mkKeyPair("devnet cc 1", 0)
 
-  val miner1Account       = mkKeyPair("devnet-1", 0)
-  val miner1RewardAddress = EthAddress.unsafeFrom("0x7dbcf9c6c3583b76669100f9be3caf6d722bc9f9")
+  val miner11Account       = mkKeyPair("devnet-1", 0)
+  val miner11RewardAddress = EthAddress.unsafeFrom("0x7dbcf9c6c3583b76669100f9be3caf6d722bc9f9")
 
-  val miner2Account       = mkKeyPair("devnet-2", 0)
-  val miner2RewardAddress = EthAddress.unsafeFrom("0xcf0b9e13fdd593f4ca26d36afcaa44dd3fdccbed")
+  val miner12Account       = mkKeyPair("devnet-1", 1)
+  val miner12RewardAddress = EthAddress.unsafeFrom("0x7dbcf9c6c3583b76669100f9be3caf6d722bc9f0")
+
+  val miner21Account       = mkKeyPair("devnet-2", 0)
+  val miner21RewardAddress = EthAddress.unsafeFrom("0xcf0b9e13fdd593f4ca26d36afcaa44dd3fdccbed")
 
   val clRichAccount1 = mkKeyPair("devnet rich", 0)
   val clRichAccount2 = mkKeyPair("devnet rich", 1)

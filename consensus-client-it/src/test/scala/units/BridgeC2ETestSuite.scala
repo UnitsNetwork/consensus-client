@@ -4,7 +4,7 @@ import com.wavesplatform.transaction.TxHelpers
 import units.client.engine.model.BlockNumber
 import units.eth.EthAddress
 
-class BridgeC2ETestSuite extends OneNodeTestSuite {
+class BridgeC2ETestSuite extends OneNodeTestSuite with OneNodeTestSuite.OneMiner {
   protected val clSender          = clRichAccount1
   protected val elReceiver        = elRichAccount1
   protected val elReceiverAddress = EthAddress.unsafeFrom(elReceiver.getAddress)

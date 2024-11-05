@@ -54,21 +54,57 @@ trait OneNodeTestSuite extends BaseItTestSuite {
 
     log.info(s"Token id: ${waves1.chainContract.token}")
 
-    log.info("Waves miner #1 join")
-    val joinMiner1Result = waves1.api.broadcastAndWait(
-      chainContract.join(
-        minerAccount = miner1Account,
-        elRewardAddress = miner1RewardAddress
-      )
-    )
-
-    val epoch1Number = joinMiner1Result.height + 1
-    log.info(s"Wait for #$epoch1Number epoch")
-    waves1.api.waitForHeight(epoch1Number)
+    joinMiners()
   }
+
+  protected def joinMiners(): Unit
 
   override protected def print(text: String): Unit = {
     super.print(text)
     waves1.api.print(text)
+  }
+}
+
+object OneNodeTestSuite {
+  trait OneMiner { this: OneNodeTestSuite =>
+    override protected def joinMiners(): Unit = {
+      log.info("EL miner #1 join")
+      val joinMiner1Result = waves1.api.broadcastAndWait(
+        chainContract.join(
+          minerAccount = miner11Account,
+          elRewardAddress = miner11RewardAddress
+        )
+      )
+
+      val epoch1Number = joinMiner1Result.height + 1
+      log.info(s"Wait for #$epoch1Number epoch")
+      waves1.api.waitForHeight(epoch1Number)
+    }
+  }
+
+  trait TwoMiners { this: OneNodeTestSuite =>
+    override protected def joinMiners(): Unit = {
+      waves1.api.createWalletAddress() // Init miner2Account
+
+      log.info("EL miner #1 join")
+      waves1.api.broadcastAndWait(
+        chainContract.join(
+          minerAccount = miner11Account,
+          elRewardAddress = miner11RewardAddress
+        )
+      )
+
+      log.info("EL miner #2 join")
+      val joinMiner2Result = waves1.api.broadcastAndWait(
+        chainContract.join(
+          minerAccount = miner12Account,
+          elRewardAddress = miner12RewardAddress
+        )
+      )
+
+      val epoch1Number = joinMiner2Result.height + 1
+      log.info(s"Wait for #$epoch1Number epoch")
+      waves1.api.waitForHeight(epoch1Number)
+    }
   }
 }

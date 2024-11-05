@@ -30,28 +30,29 @@ inConfig(Test)(
     testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-fFWD", ((Test / logsDirectory).value / "summary.log").toString),
     parallelExecution := true,
     testGrouping := {
-      val javaHomeValue     = (test / javaHome).value
-      val logDirectoryValue = (Test / logsDirectory).value
-      val envVarsValue      = (Test / envVars).value
-      val javaOptionsValue  = (Test / javaOptions).value
+      val javaHomeVal    = (test / javaHome).value
+      val baseLogDirVal  = (Test / logsDirectory).value
+      val envVarsVal     = (Test / envVars).value
+      val javaOptionsVal = (Test / javaOptions).value
 
       val tests = (Test / definedTests).value
 
       tests.zipWithIndex.map { case (suite, i) =>
+        val suiteLogDir = baseLogDirVal / suite.name.replaceAll("""(\w)\w*\.""", "$1.") // foo.bar.Baz -> f.b.Baz
         Group(
           suite.name,
           Seq(suite),
           Tests.SubProcess(
             ForkOptions(
-              javaHome = javaHomeValue,
+              javaHome = javaHomeVal,
               outputStrategy = (Test / outputStrategy).value,
               bootJars = Vector.empty[java.io.File],
               workingDirectory = Option((Test / baseDirectory).value),
               runJVMOptions = Vector(
-                s"-Dcc.it.logs.dir=${logDirectoryValue / suite.name.replaceAll("""(\w)\w*\.""", "$1.")}" // foo.bar.Baz -> f.b.Baz
-              ) ++ javaOptionsValue,
+                s"-Dcc.it.logs.dir=$suiteLogDir"
+              ) ++ javaOptionsVal,
               connectInput = false,
-              envVars = envVarsValue
+              envVars = envVarsVal
             )
           )
         )

@@ -1,6 +1,6 @@
 package units.docker
 
-import com.google.common.io.Files as GFiles
+import com.google.common.io.Files
 import com.google.common.primitives.{Bytes, Ints}
 import com.wavesplatform.account.{Address, KeyPair, SeedKeyPair}
 import com.wavesplatform.api.{LoggingBackend, NodeHttpApi}
@@ -30,7 +30,7 @@ class WavesNodeContainer(
     genesisConfigPath: Path
 ) extends BaseContainer(s"wavesnode-$number") {
   private val logFile = new File(s"$DefaultLogsDir/waves-$number.log")
-  GFiles.touch(logFile)
+  Files.touch(logFile)
 
   protected override val container = new GenericContainer(DockerImageName.parse(WavesDockerImage))
     .withNetwork(network)
