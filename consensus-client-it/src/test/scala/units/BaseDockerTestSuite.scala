@@ -9,18 +9,18 @@ import monix.execution.atomic.AtomicBoolean
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues}
-import units.BaseItTestSuite.generateWavesGenesisConfig
+import units.BaseDockerTestSuite.generateWavesGenesisConfig
 import units.client.contract.HasConsensusLayerDappTxHelpers
-import units.docker.BaseContainer.{ConfigsDir, DefaultLogsDir}
 import units.docker.Networks
 import units.eth.Gwei
+import units.test.TestEnvironment.*
 import units.test.{CustomMatchers, HasRetry}
 
 import java.io.PrintStream
 import java.nio.file.{Files, Path}
 import scala.concurrent.duration.DurationInt
 
-trait BaseItTestSuite
+trait BaseDockerTestSuite
     extends AnyFreeSpec
     with ScorexLogging
     with BeforeAndAfterAll
@@ -44,7 +44,7 @@ trait BaseItTestSuite
   protected def setupNetwork(): Unit
 
   override def beforeAll(): Unit = {
-    BaseItTestSuite.init()
+    BaseDockerTestSuite.init()
     super.beforeAll()
     log.debug(s"Docker network name: ${network.getName}, id: ${network.getId}") // Force create network
 
@@ -59,7 +59,7 @@ trait BaseItTestSuite
   }
 }
 
-object BaseItTestSuite {
+object BaseDockerTestSuite {
   private val initialized = AtomicBoolean(false)
 
   def init(): Unit =

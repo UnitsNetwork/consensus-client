@@ -80,6 +80,28 @@ trait HasConsensusLayerDappTxHelpers {
         fee = extendMainChainFee
       )
 
+    def extendMainChain(
+        minerAccount: KeyPair,
+        blockHash: BlockHash,
+        parentBlockHash: BlockHash,
+        e2cTransfersRootHashHex: String,
+        lastC2ETransferIndex: Long,
+        vrf: ByteStr
+    ): InvokeScriptTransaction =
+      TxHelpers.invoke(
+        invoker = minerAccount,
+        dApp = chainContractAddress,
+        func = "extendMainChain".some,
+        args = List(
+          Terms.CONST_STRING(blockHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(parentBlockHash.drop(2)).explicitGet(),
+          Terms.CONST_BYTESTR(vrf).explicitGet(),
+          Terms.CONST_STRING(e2cTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(lastC2ETransferIndex)
+        ),
+        fee = extendMainChainFee
+      )
+
     def appendBlock(
         minerAccount: KeyPair,
         block: L2BlockLike,

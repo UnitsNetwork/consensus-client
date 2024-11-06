@@ -26,6 +26,22 @@ import scala.util.chaining.scalaUtilChainingOps
 class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], averageBlockDelay: FiniteDuration) extends HasRetry with ScorexLogging {
   protected override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = averageBlockDelay, interval = 1.second)
 
+  def blockHeader(atHeight: Int): Option[BlockHeaderResponse] = {
+    val loggingOptions: LoggingOptions = LoggingOptions()
+    log.debug(s"${loggingOptions.prefix} blockHeader($atHeight)")
+    basicRequest
+      .get(uri"$apiUri/blocks/headers/at/$atHeight")
+      .response(asJson[BlockHeaderResponse])
+      .tag(LoggingOptionsTag, loggingOptions)
+      .send(backend)
+      .body match {
+      case Left(HttpError(_, StatusCode.NotFound))     => none
+      case Left(HttpError(body, statusCode))           => throw new RuntimeException(s"Server returned error $body with status ${statusCode.code}")
+      case Left(DeserializationException(body, error)) => throw new RuntimeException(s"failed to parse response $body: $error")
+      case Right(r)                                    => r.some
+    }
+  }
+
   def waitForHeight(atLeast: Int): Height = {
     val loggingOptions: LoggingOptions = LoggingOptions()
     log.debug(s"${loggingOptions.prefix} waitForHeight($atLeast)")
@@ -108,7 +124,7 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], averageBlockDe
       case Right(r)                                    => r.some
     }
 
-  def getDataByKey(address: Address, key: String)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Option[DataEntry[?]] = {
+  def dataByKey(address: Address, key: String)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Option[DataEntry[?]] = {
     log.debug(s"${loggingOptions.prefix} getDataByKey($address, $key)")
     basicRequest
       .get(uri"$apiUri/addresses/data/$address/$key")
@@ -179,8 +195,24 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], averageBlockDe
       case Right(r)                                    => r.peers.length
     }
 
+  def evaluateExpr(address: Address, expr: String): JsObject = {
+    implicit val loggingOptions: LoggingOptions = LoggingOptions()
+    log.debug(s"${loggingOptions.prefix} evaluateExpr($address, '$expr')")
+    basicRequest
+      .post(uri"$apiUri/utils/script/evaluate/$address")
+      .body(Json.obj("expr" -> expr))
+      .response(asJson[JsObject])
+      .tag(LoggingOptionsTag, loggingOptions)
+      .send(backend)
+      .body match {
+      case Left(e)  => throw new RuntimeException(e)
+      case Right(r) => r
+    }
+  }
+
   def createWalletAddress(): Unit = {
     implicit val loggingOptions: LoggingOptions = LoggingOptions()
+    log.debug(s"${loggingOptions.prefix} createWalletAddress")
     basicRequest
       .post(uri"$apiUri/addresses")
       .header(`X-Api-Key`.name, ApiKeyValue)
@@ -191,6 +223,7 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], averageBlockDe
 
   def rollback(to: Height): Unit = {
     implicit val loggingOptions: LoggingOptions = LoggingOptions()
+    log.debug(s"${loggingOptions.prefix} rollback($to)")
     basicRequest
       .post(uri"$apiUri/debug/rollback")
       .header(`X-Api-Key`.name, ApiKeyValue)
@@ -216,6 +249,11 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], averageBlockDe
 
 object NodeHttpApi {
   val ApiKeyValue = "testapi"
+
+  case class BlockHeaderResponse(VRF: String)
+  object BlockHeaderResponse {
+    implicit val blockHeaderResponseFormat: OFormat[BlockHeaderResponse] = Json.format[BlockHeaderResponse]
+  }
 
   case class HeightResponse(height: Height)
   object HeightResponse {

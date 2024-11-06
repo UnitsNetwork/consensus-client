@@ -4,7 +4,7 @@ import com.wavesplatform.common.utils.EitherExt2
 import units.client.engine.model.BlockNumber
 import units.docker.{EcContainer, Networks, WavesNodeContainer}
 
-trait OneNodeTestSuite extends BaseItTestSuite {
+trait OneNodeTestSuite extends BaseDockerTestSuite {
   protected lazy val ec1: EcContainer = new EcContainer(
     network = network,
     number = 1,

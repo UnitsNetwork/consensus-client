@@ -12,9 +12,18 @@ import units.client.contract.{ChainContractClient, ContractBlock}
 import scala.annotation.tailrec
 
 class HttpChainContractClient(api: NodeHttpApi, override val contract: Address) extends ChainContractClient {
-  override def extractData(key: String): Option[DataEntry[?]] = api.getDataByKey(contract, key)
+  override def extractData(key: String): Option[DataEntry[?]] = api.dataByKey(contract, key)
 
   lazy val token: IssuedAsset = IssuedAsset(ByteStr.decodeBase58(getStringData("tokenId").getOrElse(fail("Call setup first"))).get)
+
+  def computedGenerator: Address = {
+    val rawResult  = api.evaluateExpr(contract, "computedGenerator").result
+    val rawAddress = (rawResult \ "result" \ "value").as[String]
+    Address.fromString(rawAddress) match {
+      case Left(e)  => fail(s"Can't parse computedGenerator address: $rawAddress. Reason: $e")
+      case Right(r) => r
+    }
+  }
 
   def getEpochFirstBlock(epochNumber: Int): Option[ContractBlock] =
     getEpochMeta(epochNumber).flatMap { epochData =>

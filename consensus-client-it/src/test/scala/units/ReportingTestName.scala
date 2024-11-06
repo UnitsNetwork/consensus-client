@@ -3,7 +3,7 @@ package units
 import org.scalatest.{Args, Status, SuiteMixin}
 
 trait ReportingTestName extends SuiteMixin {
-  self: BaseItTestSuite =>
+  self: BaseDockerTestSuite =>
 
   abstract override protected def runTest(testName: String, args: Args): Status = {
     testStep(s"Test '$testName' started")

@@ -9,11 +9,10 @@ import com.wavesplatform.common.utils.Base58
 import com.wavesplatform.crypto
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.Network.NetworkImpl
-import org.testcontainers.utility.DockerImageName
 import sttp.client3.{HttpClientSyncBackend, UriContext}
 import units.client.HttpChainContractClient
-import units.docker.BaseContainer.*
 import units.docker.WavesNodeContainer.*
+import units.test.TestEnvironment.*
 
 import java.io.File
 import java.nio.charset.StandardCharsets
@@ -34,7 +33,7 @@ class WavesNodeContainer(
   private val logFile = new File(s"$DefaultLogsDir/waves-$number.log")
   Files.touch(logFile)
 
-  protected override val container = new GenericContainer(DockerImageName.parse(WavesDockerImage))
+  protected override val container = new GenericContainer(DockerImages.WavesNode)
     .withNetwork(network)
     .withExposedPorts(ApiPort)
     .withEnv(

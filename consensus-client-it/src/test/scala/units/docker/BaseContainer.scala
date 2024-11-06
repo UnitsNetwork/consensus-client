@@ -4,8 +4,6 @@ import com.wavesplatform.utils.LoggerFacade
 import org.slf4j.LoggerFactory
 import org.testcontainers.containers.wait.strategy.DockerHealthcheckWaitStrategy
 
-import java.nio.file.{Files, Path}
-
 abstract class BaseContainer(val hostName: String) {
   protected lazy val log = LoggerFacade(LoggerFactory.getLogger(s"${getClass.getSimpleName}.$hostName"))
 
@@ -24,12 +22,4 @@ abstract class BaseContainer(val hostName: String) {
   }
 
   def logPorts(): Unit
-}
-
-object BaseContainer {
-  val ConfigsDir: Path     = Path.of(System.getProperty("cc.it.configs.dir"))
-  val DefaultLogsDir: Path = Path.of(System.getProperty("cc.it.logs.dir"))
-  Files.createDirectories(DefaultLogsDir)
-
-  val WavesDockerImage: String = System.getProperty("cc.it.docker.image")
 }

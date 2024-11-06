@@ -11,7 +11,7 @@ class LoggingBackend[F[_], P](delegate: SttpBackend[F, P]) extends DelegateSttpB
 
     l.filter(_.logRequest).foreach { l =>
       var logStr = s"${l.prefix} ${request.method} ${request.uri}"
-      if (l.logResponseBody) logStr += s": body=${request.body.show}"
+      if (l.logRequestBody) logStr += s": body=${request.body.show}"
       log.debug(logStr)
     }
 

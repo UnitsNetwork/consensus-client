@@ -5,17 +5,16 @@ import com.typesafe.config.{ConfigFactory, ConfigValueFactory}
 import net.ceedubs.ficus.Ficus.toFicusConfig
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.Network.NetworkImpl
-import org.testcontainers.utility.DockerImageName
 import org.web3j.protocol.Web3j
 import org.web3j.protocol.http.HttpService
 import sttp.client3.HttpClientSyncBackend
 import units.ClientConfig
 import units.client.engine.{HttpEngineApiClient, LoggedEngineApiClient}
-import units.docker.BaseContainer.{ConfigsDir, DefaultLogsDir}
 import units.docker.EcContainer.{EnginePort, RpcPort, mkConfig}
 import units.el.ElBridgeClient
 import units.eth.EthAddress
 import units.http.OkHttpLogger
+import units.test.TestEnvironment.*
 
 import java.io.File
 import java.nio.charset.StandardCharsets
@@ -25,7 +24,7 @@ class EcContainer(network: NetworkImpl, number: Int, ip: String) extends BaseCon
   private val logFile = new File(s"$DefaultLogsDir/besu-$number.log")
   Files.touch(logFile)
 
-  protected override val container = new GenericContainer(DockerImageName.parse("hyperledger/besu:latest"))
+  protected override val container = new GenericContainer(DockerImages.ExecutionClient)
     .withNetwork(network)
     .withExposedPorts(RpcPort, EnginePort)
     .withEnv(EcContainer.peersEnv, EcContainer.peersVal.mkString(","))
