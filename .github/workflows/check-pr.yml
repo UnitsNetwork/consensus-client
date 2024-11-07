@@ -10,6 +10,7 @@ jobs:
     env:
       JAVA_OPTS: -Xss6M -XX:ReservedCodeCacheSize=256M -Dfile.encoding=UTF-8
       BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+      SBT_IT_TEST_THREADS: 2
     services:
       docker:
         image: docker:latest

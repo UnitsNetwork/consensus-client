@@ -12,6 +12,11 @@ libraryDependencies ++= Seq(
 
 val logsDirectory = taskKey[File]("The directory for logs") // Evaluates every time, so it recreates the logs directory
 
+Global / concurrentRestrictions := {
+  val threadNumber = Option(System.getenv("SBT_IT_TEST_THREADS")).fold(1)(_.toInt)
+  Seq(Tags.limit(Tags.ForkedTestGroup, threadNumber))
+}
+
 inConfig(Test)(
   Seq(
     logsDirectory := {
@@ -20,14 +25,14 @@ inConfig(Test)(
       r.mkdirs()
       r
     },
-    fork := true,
     javaOptions ++= Seq(
       s"-Dlogback.configurationFile=${(Test / resourceDirectory).value}/logback-test.xml", // Fixes a logback blaming for multiple configs
       s"-Dcc.it.configs.dir=${baseDirectory.value.getParent}/local-network/configs",
       s"-Dcc.it.docker.image=consensus-client:${gitCurrentBranch.value}"
     ),
     testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-fFWD", ((Test / logsDirectory).value / "summary.log").toString),
-    parallelExecution := true,
+    fork               := true,
+    testForkedParallel := true,
     testGrouping := {
       val javaHomeVal    = (test / javaHome).value
       val baseLogDirVal  = (Test / logsDirectory).value
