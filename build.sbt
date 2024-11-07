@@ -32,12 +32,12 @@ name       := "consensus-client"
 maintainer := "Units Network Team"
 
 libraryDependencies ++= Seq(
-  "com.wavesplatform"              % "node"          % "1.5.8" % "provided",
+  "com.wavesplatform"              % "node"          % "1.5.8"  % "provided",
   "com.softwaremill.sttp.client3"  % "core_2.13"     % "3.10.1",
   "com.softwaremill.sttp.client3" %% "play-json"     % "3.10.1",
   "com.github.jwt-scala"          %% "jwt-play-json" % "10.0.1",
-  "com.wavesplatform"              % "node-testkit"  % "1.5.8" % Test,
-  "org.web3j"                      % "core"          % "4.9.8" % Test
+  "com.wavesplatform"              % "node-testkit"  % "1.5.8"  % Test,
+  "org.web3j"                      % "core"          % "4.9.8" % Test // TODO?
 )
 
 Compile / packageDoc / publishArtifact := false
