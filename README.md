@@ -17,3 +17,4 @@
       ```bash 
       sbt "consensus-client-it/test"
       ```
+   3. See logs in `consensus-client-it/target/test-logs`.
