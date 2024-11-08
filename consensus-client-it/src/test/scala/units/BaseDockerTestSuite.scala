@@ -10,10 +10,13 @@ import monix.execution.atomic.AtomicBoolean
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues}
+import sttp.client3.{HttpClientSyncBackend, Identity, SttpBackend}
 import units.BaseDockerTestSuite.generateWavesGenesisConfig
+import units.client.HttpChainContractClient
 import units.client.contract.HasConsensusLayerDappTxHelpers
 import units.client.engine.model.BlockNumber
 import units.docker.{EcContainer, Networks, WavesNodeContainer}
+import units.el.ElBridgeClient
 import units.eth.Gwei
 import units.test.TestEnvironment.*
 import units.test.{CustomMatchers, HasRetry}
@@ -41,6 +44,8 @@ trait BaseDockerTestSuite
 
   protected lazy val wavesGenesisConfigPath = generateWavesGenesisConfig()
 
+  private implicit val httpClientBackend: SttpBackend[Identity, Any] = HttpClientSyncBackend()
+
   protected lazy val ec1: EcContainer = new EcContainer(
     network = network,
     number = 1,
@@ -52,11 +57,13 @@ trait BaseDockerTestSuite
     number = 1,
     ip = Networks.ipForNode(3),
     baseSeed = "devnet-1",
-    clMinerKeyPair = mkKeyPair("devnet-1", 0),
     chainContractAddress = chainContractAddress,
-    ecEngineApiUrl = s"http://${ec1.hostName}:${EcContainer.EnginePort}",
+    ecEngineApiUrl = ec1.engineApiDockerUrl,
     genesisConfigPath = wavesGenesisConfigPath
   )
+
+  protected lazy val chainContract = new HttpChainContractClient(waves1.api, chainContractAddress)
+  protected lazy val elBridge      = new ElBridgeClient(ec1.web3j, elBridgeAddress)
 
   protected def startNodes(): Unit = {
     ec1.start()
@@ -74,12 +81,12 @@ trait BaseDockerTestSuite
 
   protected def setupNetwork(): Unit = {
     log.info("Set script")
-    waves1.api.broadcastAndWait(chainContract.setScript())
+    waves1.api.broadcastAndWait(ChainContract.setScript())
 
     log.info("Setup chain contract")
     val genesisBlock = ec1.engineApi.getBlockByNumber(BlockNumber.Number(0)).explicitGet().getOrElse(failRetry("No EL genesis block"))
     waves1.api.broadcastAndWait(
-      chainContract.setup(
+      ChainContract.setup(
         genesisBlock = genesisBlock,
         elMinerReward = rewardAmount.amount.longValue(),
         daoAddress = None,
@@ -87,11 +94,11 @@ trait BaseDockerTestSuite
         invoker = chainContractAccount
       )
     )
-    log.info(s"Token id: ${waves1.chainContract.token}")
+    log.info(s"Token id: ${chainContract.token}")
 
     log.info("EL miner #1 join")
     val joinMiner1Result = waves1.api.broadcastAndWait(
-      chainContract.join(
+      ChainContract.join(
         minerAccount = miner11Account,
         elRewardAddress = miner11RewardAddress
       )
@@ -117,6 +124,8 @@ trait BaseDockerTestSuite
   }
 
   override protected def afterAll(): Unit = {
+    httpClientBackend.close()
+
     stopNodes()
     network.close()
     super.afterAll()

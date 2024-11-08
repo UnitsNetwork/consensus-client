@@ -34,7 +34,7 @@ class SyncingTestSuite extends BaseDockerTestSuite {
     step(s"Waiting blocks ${blocksWithTxns.mkString(", ")} on contract")
     blocksWithTxns.foreach { case (_, blockHash) =>
       retry {
-        waves1.chainContract.getBlock(BlockHash(blockHash)).get
+        chainContract.getBlock(BlockHash(blockHash)).get
       }
     }
 
@@ -47,7 +47,7 @@ class SyncingTestSuite extends BaseDockerTestSuite {
     step(s"Waiting blocks ${blocksWithTxns.mkString(", ")} disappear")
     blocksWithTxns.foreach { case (_, blockHash) =>
       retry {
-        if (waves1.chainContract.getBlock(BlockHash(blockHash)).nonEmpty) throw new RuntimeException(s"Expected $blockHash to disappear")
+        if (chainContract.getBlock(BlockHash(blockHash)).nonEmpty) throw new RuntimeException(s"Expected $blockHash to disappear")
       }
     }
 

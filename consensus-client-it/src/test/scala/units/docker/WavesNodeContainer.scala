@@ -3,14 +3,13 @@ package units.docker
 import com.google.common.io.Files
 import com.google.common.primitives.{Bytes, Ints}
 import com.typesafe.config.ConfigFactory
-import com.wavesplatform.account.{Address, KeyPair, SeedKeyPair}
-import com.wavesplatform.api.{LoggingBackend, NodeHttpApi}
+import com.wavesplatform.account.{Address, SeedKeyPair}
+import com.wavesplatform.api.NodeHttpApi
 import com.wavesplatform.common.utils.Base58
 import com.wavesplatform.crypto
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.Network.NetworkImpl
-import sttp.client3.{HttpClientSyncBackend, UriContext}
-import units.client.HttpChainContractClient
+import sttp.client3.{Identity, SttpBackend, UriContext}
 import units.docker.WavesNodeContainer.*
 import units.test.TestEnvironment.*
 
@@ -25,11 +24,11 @@ class WavesNodeContainer(
     number: Int,
     ip: String,
     baseSeed: String,
-    clMinerKeyPair: KeyPair, // Force CL miner
     chainContractAddress: Address,
     ecEngineApiUrl: String,
     genesisConfigPath: Path
-) extends BaseContainer(s"wavesnode-$number") {
+)(implicit httpClientBackend: SttpBackend[Identity, Any])
+    extends BaseContainer(s"wavesnode-$number") {
   private val logFile = new File(s"$DefaultLogsDir/waves-$number.log")
   Files.touch(logFile)
 
@@ -41,7 +40,6 @@ class WavesNodeContainer(
         "NODE_NUMBER"       -> s"$number",
         "WAVES_WALLET_SEED" -> Base58.encode(baseSeed.getBytes(StandardCharsets.UTF_8)),
         "JAVA_OPTS" -> List(
-          s"-Dwaves.miner.private-keys.0=${Base58.encode(clMinerKeyPair.privateKey.arr)}",
           s"-Dunits.defaults.chain-contract=$chainContractAddress",
           s"-Dunits.defaults.execution-client-address=$ecEngineApiUrl",
           "-Dlogback.file.level=TRACE",
@@ -65,17 +63,7 @@ class WavesNodeContainer(
 
   lazy val apiPort = container.getMappedPort(ApiPort)
 
-  // TODO common from EcContainer
-  private val httpClientBackend = new LoggingBackend(HttpClientSyncBackend())
-
   lazy val api = new NodeHttpApi(uri"http://${container.getHost}:$apiPort", httpClientBackend, AverageBlockDelay)
-
-  lazy val chainContract = new HttpChainContractClient(api, chainContractAddress)
-
-  override def stop(): Unit = {
-    httpClientBackend.close()
-    super.stop()
-  }
 
   override def logPorts(): Unit = log.debug(s"External host: ${container.getHost}, api: $apiPort")
 }

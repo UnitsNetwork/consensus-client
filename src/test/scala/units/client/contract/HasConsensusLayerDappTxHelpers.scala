@@ -13,7 +13,7 @@ import com.wavesplatform.transaction.{Asset, TxHelpers}
 import units.BlockHash
 import units.client.L2BlockLike
 import units.client.contract.HasConsensusLayerDappTxHelpers.*
-import units.client.contract.HasConsensusLayerDappTxHelpers.defaultFees.chainContract.*
+import units.client.contract.HasConsensusLayerDappTxHelpers.DefaultFees.ChainContract.*
 import units.eth.{EthAddress, EthereumConstants}
 
 trait HasConsensusLayerDappTxHelpers {
@@ -22,7 +22,7 @@ trait HasConsensusLayerDappTxHelpers {
   def chainContractAccount: KeyPair
   lazy val chainContractAddress: Address = chainContractAccount.toAddress
 
-  object chainContract {
+  object ChainContract {
     def setScript(): SetScriptTransaction = TxHelpers.setScript(chainContractAccount, CompiledChainContract.script, fee = setScriptFee)
 
     def setup(
@@ -229,8 +229,8 @@ trait HasConsensusLayerDappTxHelpers {
 object HasConsensusLayerDappTxHelpers {
   val EmptyE2CTransfersRootHashHex = EthereumConstants.NullHex
 
-  object defaultFees {
-    object chainContract {
+  object DefaultFees {
+    object ChainContract {
       val setScriptFee       = 0.05.waves
       val setupFee           = 2.waves
       val joinFee            = 0.1.waves

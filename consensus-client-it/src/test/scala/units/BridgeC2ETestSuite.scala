@@ -13,8 +13,8 @@ class BridgeC2ETestSuite extends BaseDockerTestSuite {
   private val gweiAmount        = UnitsConvert.toGwei(userAmount)
 
   "L2-380 Checking balances in CL->EL transfers" in {
-    def clAssetQuantity: Long      = waves1.api.assetQuantity(waves1.chainContract.token)
-    def chainContractBalance: Long = waves1.api.balance(chainContractAddress, waves1.chainContract.token)
+    def clAssetQuantity: Long      = waves1.api.assetQuantity(chainContract.token)
+    def chainContractBalance: Long = waves1.api.balance(chainContractAddress, chainContract.token)
 
     val clAssetQuantityBefore      = clAssetQuantity
     val chainContractBalanceBefore = chainContractBalance
@@ -22,10 +22,10 @@ class BridgeC2ETestSuite extends BaseDockerTestSuite {
     val elCurrHeight = ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact()
 
     waves1.api.broadcastAndWait(
-      chainContract.transfer(
+      ChainContract.transfer(
         sender = clSender,
         destElAddress = elReceiverAddress,
-        asset = waves1.chainContract.token,
+        asset = chainContract.token,
         amount = wavesAmount
       )
     )
@@ -62,7 +62,7 @@ class BridgeC2ETestSuite extends BaseDockerTestSuite {
     step("Prepare: issue tokens on chain contract and transfer to a user")
     waves1.api.broadcastAndWait(
       TxHelpers.reissue(
-        asset = waves1.chainContract.token,
+        asset = chainContract.token,
         sender = chainContractAccount,
         amount = wavesAmount
       )
@@ -72,7 +72,7 @@ class BridgeC2ETestSuite extends BaseDockerTestSuite {
         from = chainContractAccount,
         to = clSender.toAddress,
         amount = wavesAmount,
-        asset = waves1.chainContract.token
+        asset = chainContract.token
       )
     )
   }

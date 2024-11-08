@@ -15,7 +15,7 @@ class BridgeE2CTestSuite extends BaseDockerTestSuite {
   private val wavesAmount = UnitsConvert.toWavesAmount(userAmount)
 
   private def sendNative(amount: BigInt = UnitsConvert.toWei(userAmount)): TransactionReceipt =
-    ec1.elBridge.sendNative(elSender, clRecipient.toAddress, amount)
+    elBridge.sendNative(elSender, clRecipient.toAddress, amount)
 
   private val tenGwei = BigInt(Convert.toWei("10", Convert.Unit.GWEI).toBigIntegerExact)
 
@@ -67,7 +67,7 @@ class BridgeE2CTestSuite extends BaseDockerTestSuite {
 
   "L2-379 Checking balances in EL->CL transfers" in {
     step("Broadcast Bridge.sendNative transaction")
-    def bridgeBalance       = ec1.web3j.ethGetBalance(ec1.elBridge.address.hex, DefaultBlockParameterName.LATEST).send().getBalance
+    def bridgeBalance       = ec1.web3j.ethGetBalance(elBridgeAddress.hex, DefaultBlockParameterName.LATEST).send().getBalance
     val bridgeBalanceBefore = bridgeBalance
     val sendTxnReceipt      = sendNative()
 
@@ -79,7 +79,7 @@ class BridgeE2CTestSuite extends BaseDockerTestSuite {
     val blockHash = BlockHash(sendTxnReceipt.getBlockHash)
     step(s"Block with transaction: $blockHash")
 
-    val logsInBlock = ec1.engineApi.getLogs(blockHash, ec1.elBridge.address, Bridge.ElSentNativeEventTopic).explicitGet()
+    val logsInBlock = ec1.engineApi.getLogs(blockHash, elBridgeAddress, Bridge.ElSentNativeEventTopic).explicitGet()
 
     val transferEvents = logsInBlock.map { x =>
       Bridge.ElSentNativeEvent.decodeArgs(x.data).explicitGet()
@@ -91,12 +91,12 @@ class BridgeE2CTestSuite extends BaseDockerTestSuite {
 
     step(s"Wait block $blockHash on contract")
     val blockConfirmationHeight = retry {
-      waves1.chainContract.getBlock(blockHash).get.height
+      chainContract.getBlock(blockHash).get.height
     }
 
     step(s"Wait block $blockHash ($blockConfirmationHeight) finalization")
     retry {
-      val currFinalizedHeight = waves1.chainContract.getFinalizedBlock.height
+      val currFinalizedHeight = chainContract.getFinalizedBlock.height
       step(s"Current finalized height: $currFinalizedHeight")
       if (currFinalizedHeight < blockConfirmationHeight) fail("Not yet finalized")
     }
@@ -107,11 +107,11 @@ class BridgeE2CTestSuite extends BaseDockerTestSuite {
           s"merkleProof={${transferProofs.map(EthEncoding.toHexString).mkString(",")}}"
       )
 
-      def receiverBalance: Long = waves1.api.balance(clRecipient.toAddress, waves1.chainContract.token)
+      def receiverBalance: Long = waves1.api.balance(clRecipient.toAddress, chainContract.token)
       val receiverBalanceBefore = receiverBalance
 
       waves1.api.broadcastAndWait(
-        chainContract.withdraw(
+        ChainContract.withdraw(
           sender = clRecipient,
           blockHash = BlockHash(sendTxnReceipt.getBlockHash),
           merkleProof = transferProofs,

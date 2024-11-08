@@ -14,7 +14,7 @@ class RewardTestSuite extends BaseDockerTestSuite {
     }
 
     val epoch1FirstContractBlock = retry {
-      waves1.chainContract.getBlock(epoch1FirstEcBlock.hash).getOrElse(failRetry(s"No first block ${epoch1FirstEcBlock.hash} confirmation"))
+      chainContract.getBlock(epoch1FirstEcBlock.hash).getOrElse(failRetry(s"No first block ${epoch1FirstEcBlock.hash} confirmation"))
     }
 
     val epoch1Number = epoch1FirstContractBlock.epoch
@@ -24,7 +24,7 @@ class RewardTestSuite extends BaseDockerTestSuite {
 
     step(s"Wait for epoch #$epoch2Number data on chain contract")
     val epoch2FirstContractBlock = retry {
-      waves1.chainContract.getEpochFirstBlock(epoch2Number).get
+      chainContract.getEpochFirstBlock(epoch2Number).get
     }
 
     val epoch2FirstEcBlock = ec1.engineApi

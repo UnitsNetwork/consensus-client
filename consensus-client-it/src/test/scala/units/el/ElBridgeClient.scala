@@ -14,7 +14,7 @@ import units.test.HasRetry
 
 import java.util.Collections
 
-class ElBridgeClient(web3j: Web3j, val address: EthAddress) extends HasRetry with ScorexLogging {
+class ElBridgeClient(web3j: Web3j, address: EthAddress) extends HasRetry with ScorexLogging {
   def sendNative(
       sender: Credentials,
       recipient: Address,

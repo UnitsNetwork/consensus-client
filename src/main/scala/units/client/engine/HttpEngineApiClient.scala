@@ -4,7 +4,6 @@ import cats.syntax.either.*
 import cats.syntax.traverse.*
 import play.api.libs.json.*
 import sttp.client3.*
-import sttp.model.Uri
 import units.client.JsonRpcClient
 import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.HttpEngineApiClient.*
@@ -12,14 +11,11 @@ import units.client.engine.model.*
 import units.client.engine.model.ForkChoiceUpdatedRequest.ForkChoiceAttributes
 import units.client.engine.model.PayloadStatus.{Syncing, Valid}
 import units.eth.EthAddress
-import units.{BlockHash, ClientConfig, ClientError, JobResult}
+import units.{BlockHash, ClientError, JobResult}
 
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 
-class HttpEngineApiClient(val config: ClientConfig, val backend: SttpBackend[Identity, ?]) extends EngineApiClient with JsonRpcClient {
-
-  val apiUrl: Uri = uri"${config.executionClientAddress}"
-
+class HttpEngineApiClient(val config: JsonRpcClient.Config, val backend: SttpBackend[Identity, ?]) extends EngineApiClient with JsonRpcClient {
   def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus] = {
     sendEngineRequest[ForkChoiceUpdatedRequest, ForkChoiceUpdatedResponse](
       ForkChoiceUpdatedRequest(blockHash, finalizedBlockHash, None),

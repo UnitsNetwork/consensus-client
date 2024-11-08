@@ -36,15 +36,15 @@ trait BaseIntegrationTestSuite
       log.debug("EL init")
       val txs =
         List(
-          d.chainContract.setScript(),
-          d.chainContract.setup(
+          d.ChainContract.setScript(),
+          d.ChainContract.setup(
             d.ecGenesisBlock,
             elMinerDefaultReward.amount.longValue(),
             defaultSettings.daoRewardAccount.map(_.toAddress),
             defaultSettings.daoRewardAmount
           )
         ) ++
-          settings.initialMiners.map { x => d.chainContract.join(x.account, x.elRewardAddress) }
+          settings.initialMiners.map { x => d.ChainContract.join(x.account, x.elRewardAddress) }
 
       d.appendBlock(txs*)
       d.advanceConsensusLayerChanged()
