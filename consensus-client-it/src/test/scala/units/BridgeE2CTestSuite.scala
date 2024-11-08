@@ -8,7 +8,7 @@ import org.web3j.protocol.exceptions.TransactionException
 import org.web3j.utils.Convert
 import units.el.ElBridgeClient
 
-class BridgeE2CTestSuite extends OneNodeTestSuite {
+class BridgeE2CTestSuite extends BaseDockerTestSuite {
   private val elSender    = elRichAccount1
   private val clRecipient = clRichAccount1
   private val userAmount  = 1

@@ -5,7 +5,7 @@ import com.wavesplatform.common.state.ByteStr
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.docker.WavesNodeContainer
 
-class AlternativeChainTestSuite extends OneNodeTestSuite {
+class AlternativeChainTestSuite extends BaseDockerTestSuite {
   "L2-383 Start an alternative chain after not getting an EL-block" in {
     step("EL miner #2 join")
     waves1.api.broadcastAndWait(
