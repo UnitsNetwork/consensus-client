@@ -23,7 +23,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
   "Full validation when the block is available on EL and CL" - {
     "L2-315 doesn't happen for finalized blocks" in withExtensionDomain(defaultSettings.copy(initialMiners = List(reliable))) { d =>
       step("Start new epoch for ecBlock")
-      d.advanceNewBlocks(reliable.address)//ожидание эпохи майнера -сайнер1
+      d.advanceNewBlocks(reliable.address) // Waiting for reliable miner epoch
       val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
       d.advanceConsensusLayerChanged()
 
@@ -108,7 +108,6 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
           d.waitForCS[WaitForNewChain]("Forking") { cs =>
             cs.chainSwitchInfo.referenceBlock.hash shouldBe ecBlock1.hash
           }
-
         }
 
         "L2-361 CL confirmation without a transfers root hash" in e2CTest(
