@@ -32,7 +32,7 @@ name       := "consensus-client"
 maintainer := "Units Network Team"
 
 libraryDependencies ++= Seq(
-  "com.wavesplatform"              % "node"          % "1.5.8"  % "provided",
+  "com.wavesplatform"              % "node"          % "1.5.8"  % Provided,
   "com.softwaremill.sttp.client3"  % "core_2.13"     % "3.10.1",
   "com.softwaremill.sttp.client3" %% "play-json"     % "3.10.1",
   "com.github.jwt-scala"          %% "jwt-play-json" % "10.0.1",

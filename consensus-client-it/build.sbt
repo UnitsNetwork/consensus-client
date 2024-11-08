@@ -10,7 +10,7 @@ libraryDependencies ++= Seq(
   "org.testcontainers" % "testcontainers" % "1.20.3"
 ).map(_ % Test)
 
-val logsDirectory = taskKey[File]("The directory for logs") // Evaluates every time, so it recreates the logs directory
+val logsDirectory = taskKey[File]("The directory for logs") // Task to evaluate and recreate the logs directory every time
 
 Global / concurrentRestrictions := {
   val threadNumber = Option(System.getenv("SBT_IT_TEST_THREADS")).fold(1)(_.toInt)

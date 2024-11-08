@@ -16,7 +16,7 @@ trait HasRetry {
     }
   }
 
-  // Eventually has issues with handling patienceConfig
+  // org.scalatest.concurrent.Eventually can't catch a local patienceConfig
   protected def retry[ResponseT](f: => ResponseT)(implicit patienceConfig: PatienceConfig): ResponseT = {
     val deadline = Deadline.now + patienceConfig.timeout
 

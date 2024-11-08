@@ -5,7 +5,6 @@ on:
 jobs:
   check-pr:
     name: Check PR
-    timeout-minutes: 20
     runs-on: ubuntu-latest
     env:
       JAVA_OPTS: -Xss6M -XX:ReservedCodeCacheSize=256M -Dfile.encoding=UTF-8
