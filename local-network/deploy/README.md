@@ -14,7 +14,7 @@ web3j generate solidity \
   --abiFile=setup/el/compiled/Bridge.abi \
   --binFile=setup/el/compiled/Bridge.bin \
   --generateBoth \
-  --outputDir=../../src/test/java/ \
+  --outputDir=../../consensus-client-it/src/test/java/ \
   -p units.bridge \
   --primitiveTypes \
   -c BridgeContract
