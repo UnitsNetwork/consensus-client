@@ -52,7 +52,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       f(d, ecBlock2, ecBlock2Epoch)
     }
 
-    "EC-block comes within timeout - then we continue forging" in test { (d, ecBlock2, ecBlock2Epoch) =>
+    "L2-309 EC-block comes within timeout - then we continue forging" in test { (d, ecBlock2, ecBlock2Epoch) =>
       d.advanceElu(WaitRequestedBlockTimeout - 1.millis)
       d.waitForCS[FollowingChain](s"Still waiting ecBlock2 ${ecBlock2.hash}") { s =>
         s.nextExpectedBlock.value.hash shouldBe ecBlock2.hash
@@ -69,7 +69,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       }
     }
 
-    "EC-block doesn't come - then we start an alternative chain" in test { (d, _, _) =>
+    "L2-251 EC-block doesn't come - then we start an alternative chain" in test { (d, _, _) =>
       d.waitForCS[WaitForNewChain](s"Switched to alternative chain") { _ => }
     }
   }
@@ -97,7 +97,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
         s.nodeChainInfo.lastBlock.hash shouldBe ecBadBlock2.hash
       }
 
-      step(s"Start a new epoch of otherMiner2 ${otherMiner2.address} with alternative chain ecBlock2")
+      step(s"L2-280 Start a new epoch of otherMiner2 ${otherMiner2.address} with alternative chain ecBlock2")
       d.advanceNewBlocks(otherMiner2.address)
       val ecBlock2 = d.createEcBlockBuilder("0-1", otherMiner2, ecBlock1).rewardPrevMiner().buildAndSetLogs()
 
@@ -154,7 +154,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       }
     }
 
-    "We mined before the alternative chain before and EC-block doesn't come - then we still wait for it" in withExtensionDomain() { d =>
+    "L2-386 We mined before the alternative chain before and EC-block doesn't come - then we still wait for it" in withExtensionDomain() { d =>
       step(s"Start a new epoch of otherMiner1 ${otherMiner1.address} with ecBlock1")
       d.advanceNewBlocks(otherMiner1.address)
       val ecBlock1 = d.createEcBlockBuilder("0", otherMiner1).buildAndSetLogs()
@@ -219,7 +219,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       }
     }
 
-    "We haven't mined the alternative chain before and EC-block doesn't come - then we wait for a new alternative chain" in
+    "L2-276 We haven't mined the alternative chain before and EC-block doesn't come - then we wait for a new alternative chain" in
       withExtensionDomain() { d =>
         step(s"Start a new epoch of otherMiner1 ${otherMiner1.address} with ecBlock1")
         d.advanceNewBlocks(otherMiner1.address)
