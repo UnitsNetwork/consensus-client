@@ -1,4 +1,6 @@
-node_modules
-logs
-.solc-select
-**/*.js
+.venv/
+.solc-select/
+__pycache__/
+build/
+setup/
+*.egg-info/
