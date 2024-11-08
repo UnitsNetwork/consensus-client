@@ -9,7 +9,7 @@ import org.web3j.utils.Convert
 
 import java.math.BigInteger
 
-class SyncingTestSuite extends OneNodeTestSuite with OneNodeTestSuite.OneMiner {
+class SyncingTestSuite extends OneNodeTestSuite {
   private val elSender = elRichAccount1
   private val amount   = Convert.toWei("1", Convert.Unit.ETHER).toBigInteger
 
