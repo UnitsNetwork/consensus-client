@@ -94,9 +94,8 @@ inTask(docker)(
       ImageName(s"consensus-client:${gitCurrentBranch.value}"), // Integration tests
       ImageName("consensus-client:local")                       // local-network
     ),
-    dockerfile           := NativeDockerfile(baseDirectory.value / "docker" / "Dockerfile"),
-    buildOptions         := BuildOptions(),
-    dockerBuildArguments := Map("baseImage" -> "wavesplatform/wavesnode:1.5.8")
+    dockerfile   := NativeDockerfile(baseDirectory.value / "docker" / "Dockerfile"),
+    buildOptions := BuildOptions()
   )
 )
 
