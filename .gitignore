@@ -5,11 +5,4 @@ target
 docker/data
 docker/logs
 docker/secrets.env
-local-network/logs/
-local-network/.cache
-local-network/data
-local-network/deploy/node_modules
-local-network/deploy/local
-local-network/deploy/.solc-select
-.venv/
-local-network/deploy/.venv/
+
