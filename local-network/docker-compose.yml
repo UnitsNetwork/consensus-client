@@ -1,6 +1,6 @@
 name: l2
 include:
-  - ./configs/blockscout/${BS-enabled}.yml
+  - ./configs/blockscout/blockscout.yml
 services:
   ec-1:
     container_name: ec-1
@@ -36,7 +36,7 @@ services:
     extends:
       file: ./configs/wavesnode/wavesnode.yml
       service: wavesnode
-    image: unitsnetwork/consensus-client:${WAVES_NODE_1_TAG:-main}
+    image: ${WAVES_NODE_IMAGE_1:-${WAVES_NODE_IMAGE:-consensus-client:local}}
     ports:
       - "127.0.0.1:16869:6869"
     environment:
@@ -47,6 +47,8 @@ services:
     depends_on:
       ec-1:
         condition: service_healthy
+      update-genesis:
+        condition: service_completed_successfully
 
   wavesnode-2:
     container_name: wavesnode-2
@@ -54,7 +56,7 @@ services:
     extends:
       file: ./configs/wavesnode/wavesnode.yml
       service: wavesnode
-    image: unitsnetwork/consensus-client:${WAVES_NODE_2_TAG:-main}
+    image: ${WAVES_NODE_IMAGE_2:-${WAVES_NODE_IMAGE:-consensus-client:local}}
     ports:
       - "127.0.0.1:26869:6869"
     environment:
@@ -65,20 +67,46 @@ services:
     depends_on:
       ec-2:
         condition: service_healthy
+      update-genesis:
+        condition: service_completed_successfully
+
+  update-genesis:
+    container_name: update-genesis
+    image: ${WAVES_NODE_IMAGE:-ghcr.io/wavesplatform/waves:test-gengen}
+    volumes:
+      - ./configs/wavesnode:/tmp/configs
+    command:
+      - gengen
+      - /tmp/configs/genesis-template.conf
+      - /tmp/configs/genesis.conf
 
   deploy:
     container_name: deploy
-    build:
-      context: ./deploy/
-      network: host
-    restart: no # Manual start
-    platform: linux/amd64 # HACK for Apple Silicon
+    hostname: deploy
+    extends:
+      file: ./deploy/deploy.yml
+      service: deploy
     environment:
-      DEPLOY_LOG_DIR: /home/node/logs
+      MAIN: deploy.py
     volumes:
-      - ./deploy:/home/node/app
-      - ./logs/deploy:/home/node/logs
-      - /home/node/app/node_modules # Ignore this subdirectory
+      - ./logs/deploy:/var/log/deploy
     depends_on:
-      - wavesnode-1
-      - ec-1
+      wavesnode-1:
+        condition: service_healthy
+      ec-1:
+        condition: service_healthy
+
+  tests:
+    container_name: tests
+    hostname: tests
+    extends:
+      file: ./deploy/deploy.yml
+      service: deploy
+    environment:
+      MAIN: tests.py
+    volumes:
+      - ./logs/tests:/var/log/deploy
+    depends_on:
+      deploy:
+        condition: service_completed_successfully
+    profiles: [ tests ]

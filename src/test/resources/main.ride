@@ -16,6 +16,8 @@ let MAX_CL_TO_EL_TRANSFERS = 16
 # 1024 symbols
 let zeroesStr = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
 
+let offsets_100 = "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::".split_4C("")
+
 let allMinersKey            = "allMiners"
 let mainChainIdKey          = "mainChainId"
 let lastChainIdKey          = "lastChainId"
@@ -26,6 +28,8 @@ let finalizedBlockKey       = "finalizedBlock"
 let tokenIdKey              = "tokenId"
 let elBridgeAddressKey      = "elBridgeAddress"
 let nativeTransfersCountKey = "nativeTransfersCount"
+let daoAddressKey           = "daoAddress"
+let daoRewardKey            = "daoReward"
 
 func pad(i: Int) = {
   let s = i.toString()
@@ -185,14 +189,13 @@ let (computedGenerator, computedTotalBalance) = {
 
 let (mclbIgnored1, mainChainEpoch) = blockMeta(mainChainLastBlock)
 
-func calculateFinalizedBlockHash(curMiner: Address, curPrevEpoch: Int, curLastBlockHash: String) = {
-  let offsets_100 = "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::".split_4C("")
+func calculateFinalizedBlockHashAndEpoch(curMiner: Address, curPrevEpoch: Int, curLastBlockHash: String) = {
 
   let halfBalance = computedTotalBalance / 2
 
   func step(prev: (Int, String|Unit, Int, List[Address]), next: String) = {
-    let (thisEpoch, maybeSafeEpoch, totalBalance, prevMiners) = prev
-    match maybeSafeEpoch {
+    let (thisEpoch, maybeFinalizedBlockHash, totalBalance, prevMiners) = prev
+    match maybeFinalizedBlockHash {
       case _: Unit =>
         let (miner, prevEpoch, lastBlockHash) = if (thisEpoch == height)
           then (curMiner, curPrevEpoch, curLastBlockHash)
@@ -211,12 +214,11 @@ func calculateFinalizedBlockHash(curMiner: Address, curPrevEpoch: Int, curLastBl
     }
   }
 
-  let (fallbackEpoch, finalizedBlockHashOpt) = FOLD<100>(offsets_100, (height, unit, 0, []), step)
-  match finalizedBlockHashOpt {
+  let (finalizedEpoch, finalizedBlockHashOpt) = FOLD<100>(offsets_100, (height, unit, 0, []), step)
+  (match finalizedBlockHashOpt {
     case finalizedBlockHash: String => finalizedBlockHash
-    case _ =>
-      epochMeta(fallbackEpoch).value()._3
-  }
+    case _ => epochMeta(finalizedEpoch).value()._3
+  }, finalizedEpoch)
 }
 
 func supportingBalance(chainId: Int) = {
@@ -231,8 +233,8 @@ func supportingBalance(chainId: Int) = {
     }
   }
   let allGenerators = getStringValue(supportersKey(chainId)).split_4C(SEP)
-  let (balance, _g) = FOLD<100>(allGenerators, (0, []), addBalance)
-  balance
+  let res = FOLD<100>(allGenerators, (0, []), addBalance)
+  res._1
 }
 
 func isContractSetup() = {
@@ -318,11 +320,37 @@ func validateBlockHash(hexStr: String) = {
 }
 
 func getUpdateFinalizedBlockAction(caller: Address, newBlockHashHex: String, prevEpoch: Int) = {
-  let curFinalizedBlockHeight = blockMeta(getStringValue(finalizedBlockKey))._1
-  let newFinalizedBlockHash = calculateFinalizedBlockHash(caller, prevEpoch, newBlockHashHex)
-  if (newFinalizedBlockHash == newBlockHashHex || blockMeta(newFinalizedBlockHash)._1 > curFinalizedBlockHeight)
+  let curFinalizedBlockMeta = blockMeta(getStringValue(finalizedBlockKey))
+  let (newFinalizedBlockHash, newFinalizedEpoch) = calculateFinalizedBlockHashAndEpoch(caller, prevEpoch, newBlockHashHex)
+
+  let rewardActions = match getString(daoAddressKey) {
+    case addr: String =>
+      if newFinalizedEpoch == curFinalizedBlockMeta._2 then [] else {
+        func countNonEmptyEpochs(acc: (Int, Int), next: String) =
+          if acc._1 == curFinalizedBlockMeta._2 then acc
+          else match epochMeta(acc._1) {
+            case m: (Address, Int, String) => (m._2, acc._2 + 1)
+            case _ => acc
+          }
+
+        let startFromEpoch = if newFinalizedEpoch == height then prevEpoch else epochMeta(newFinalizedEpoch).valueOrErrorMessage("no prev epoch for start")._2
+        let daoRewards = FOLD<100>(offsets_100, (startFromEpoch, 1), countNonEmptyEpochs)
+        let reissueAmount = daoRewards._2 * getIntegerValue(daoRewardKey)
+        let tokenId = getStringValue(tokenIdKey).fromBase58String()
+        [
+          Reissue(tokenId, reissueAmount, true),
+          ScriptTransfer(Address(addr.fromBase58String()), reissueAmount, tokenId)
+        ]
+      }
+
+    case _ => []
+  }
+
+  rewardActions ++ (
+    if (newFinalizedBlockHash == newBlockHashHex || blockMeta(newFinalizedBlockHash)._1 > curFinalizedBlockMeta._1)
     then [StringEntry(finalizedBlockKey, newFinalizedBlockHash)]
     else []
+  )
 }
 
 @Callable(i)
@@ -487,7 +515,7 @@ func appendBlock(
 }
 
 @Callable(i)
-func join(rewardAddress: ByteVector) = {
+func join(rewardAddressHex: String) = {
   # EL miner must sign a Network block by own private key
   func ensureNotOverrideOtherMinerPk(elAddressHex: String) = {
     match getBinary(minerPkKey(elAddressHex)) {
@@ -499,6 +527,9 @@ func join(rewardAddress: ByteVector) = {
       case _ => unit
     }
   }
+
+  let parts = rewardAddressHex.split("0x")
+  let rewardAddress = parts[parts.size() - 1].fromBase16String()
 
   if (!isContractSetup()) then
     throw("The contract has not yet set up")
@@ -513,8 +544,8 @@ func join(rewardAddress: ByteVector) = {
     then []
     else {
       let newMiner = i.originCaller.toString()
-      let rewardAddressHex = rewardAddress.toBase16String()
-      strict check = ensureNotOverrideOtherMinerPk(rewardAddressHex)
+      let lowercaseRewardAddress = rewardAddress.toBase16String()
+      strict check = ensureNotOverrideOtherMinerPk(lowercaseRewardAddress)
 
       let newMiners =
         if (allMiners.size() == 0)
@@ -531,8 +562,8 @@ func join(rewardAddress: ByteVector) = {
       }
       [
         StringEntry(allMinersKey, newMiners),
-        StringEntry(minerRewardAddressKey(newMiner), "0x" + rewardAddressHex),
-        BinaryEntry(minerPkKey(rewardAddressHex), i.originCallerPublicKey)
+        StringEntry(minerRewardAddressKey(newMiner), "0x" + lowercaseRewardAddress),
+        BinaryEntry(minerPkKey(lowercaseRewardAddress), i.originCallerPublicKey)
       ] ++ deletePrevRewardAddressPk
     }
   }
@@ -645,7 +676,7 @@ func withdraw(blockHashHex: String, merkleProof: List[ByteVector], transferIndex
 
 # genesisBlockHashHex without 0x
 @Callable(i)
-func setup(genesisBlockHashHex: String, minerRewardInGwei: Int) = {
+func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: String, daoReward: Int) = {
   if (isContractSetup()) then throw("The contract has been already set up")
   else if (minerRewardInGwei < 0) then throw("The miner reward must be nonnegative")
   else {
@@ -669,6 +700,11 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int) = {
       -1 # lastC2ETransferIndex
     )
 
+    let daoEntries = if daoAddress == "" then [] else [
+      StringEntry(daoAddressKey, Address(daoAddress.fromBase58String()).toString()),
+      IntegerEntry(daoRewardKey, if daoReward > 0 then daoReward else throw("invalid DAO reward amount"))
+    ]
+
     [
       genesisBlockMeta,
       StringEntry(chainFirstBlockIdKey(0), genesisBlockHashHex),
@@ -679,6 +715,6 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int) = {
       issue,
       StringEntry(tokenIdKey, tokenId.toBase58String()),
       StringEntry(elBridgeAddressKey, "0x0000000000000000000000000000000000006a7e")
-    ]
+    ] ++ daoEntries
   }
 }

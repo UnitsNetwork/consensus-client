@@ -6,17 +6,17 @@ git.useGitDescribe       := true
 git.baseVersion          := "1.0.0"
 git.uncommittedSignifier := Some("DIRTY")
 
-scalaVersion     := "2.13.14"
+scalaVersion     := "2.13.15"
 organization     := "network.units"
 organizationName := "Units Network"
 name             := "consensus-client"
 maintainer       := "Units Network Team"
 resolvers ++= Resolver.sonatypeOssRepos("releases") ++ Resolver.sonatypeOssRepos("snapshots") ++ Seq(Resolver.mavenLocal)
 libraryDependencies ++= Seq(
-  "com.wavesplatform"              % "node-testkit"  % "1.5.7-3964-SNAPSHOT" % "test",
-  "com.wavesplatform"              % "node"          % "1.5.7-3964-SNAPSHOT" % "provided",
-  "com.softwaremill.sttp.client3"  % "core_2.13"     % "3.9.8",
-  "com.softwaremill.sttp.client3" %% "play-json"     % "3.9.8",
+  "com.wavesplatform"              % "node-testkit"  % "1.5.8" % "test",
+  "com.wavesplatform"              % "node"          % "1.5.8" % "provided",
+  "com.softwaremill.sttp.client3"  % "core_2.13"     % "3.10.1",
+  "com.softwaremill.sttp.client3" %% "play-json"     % "3.10.1",
   "com.github.jwt-scala"          %% "jwt-play-json" % "10.0.1"
 )
 

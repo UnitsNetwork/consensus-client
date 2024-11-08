@@ -1,14 +1,9 @@
-FROM node:18-slim
+FROM python:3.9
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    python3-pip \
-    curl \
-    && pip3 install solc-select --break-system-packages \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+WORKDIR /usr/src/app
 
-WORKDIR /home/node/app
-COPY package.json package-lock.json /home/node/app/
-RUN npm i
+COPY pyproject.toml ./
 
-CMD ["/bin/bash", "deploy-run.sh"]
+RUN pip install --no-cache-dir --editable .
+
+CMD ["/bin/bash", "run.sh"]

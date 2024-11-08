@@ -13,7 +13,6 @@ import units.client.L2BlockLike
 import units.client.contract.HasConsensusLayerDappTxHelpers.*
 import units.client.contract.HasConsensusLayerDappTxHelpers.defaultFees.chainContract.*
 import units.eth.{EthAddress, EthereumConstants}
-import units.util.HexBytesConverter
 
 trait HasConsensusLayerDappTxHelpers {
   def currentHitSource: ByteStr
@@ -24,12 +23,14 @@ trait HasConsensusLayerDappTxHelpers {
   object chainContract {
     def setScript(): SetScriptTransaction = TxHelpers.setScript(chainContractAccount, CompiledChainContract.script, fee = setScriptFee)
 
-    def setup(genesisBlock: L2BlockLike, elMinerReward: Long): InvokeScriptTransaction = TxHelpers.invoke(
+    def setup(genesisBlock: L2BlockLike, elMinerReward: Long, daoAddress: Option[Address], daoReward: Long): InvokeScriptTransaction = TxHelpers.invoke(
       dApp = chainContractAddress,
       func = "setup".some,
       args = List(
         Terms.CONST_STRING(genesisBlock.hash.drop(2)).explicitGet(),
-        Terms.CONST_LONG(elMinerReward)
+        Terms.CONST_LONG(elMinerReward),
+        Terms.CONST_STRING(daoAddress.fold("")(_.toString)).explicitGet(),
+        Terms.CONST_LONG(daoReward)
       ),
       fee = setupFee
     )
@@ -38,7 +39,7 @@ trait HasConsensusLayerDappTxHelpers {
       invoker = minerAccount,
       dApp = chainContractAddress,
       func = "join".some,
-      args = List(Terms.CONST_BYTESTR(ByteStr(HexBytesConverter.toBytes(elRewardAddress.hexNoPrefix))).explicitGet()),
+      args = List(Terms.CONST_STRING(elRewardAddress.hexNoPrefix).explicitGet()),
       fee = joinFee
     )
 

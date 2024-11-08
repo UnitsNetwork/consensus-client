@@ -1,11 +1,28 @@
 services:
   besu:
+    profiles: [besu]
+    hostname: execution-client
     extends:
       file: ./services/besu.yml
       service: besu
+
+  geth-init:
+    profiles: [geth]
+    extends:
+      file: ./services/geth.yml
+      service: geth-init
+
+  geth:
+    profiles: [geth]
+    hostname: execution-client
+    extends:
+      file: ./services/geth.yml
+      service: geth
+    depends_on:
+      geth-init:
+        condition: service_completed_successfully
+
   waves-node:
     extends:
       file: ./services/waves-node.yml
       service: waves-node
-    environment:
-      EXECUTION_CLIENT: besu
