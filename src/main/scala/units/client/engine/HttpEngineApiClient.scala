@@ -83,12 +83,12 @@ class HttpEngineApiClient(val config: JsonRpcClient.Config, val backend: SttpBac
   }
 
   def getBlockByHash(hash: BlockHash): JobResult[Option[EcBlock]] = {
-    sendRequest[GetBlockByHashRequest, EcBlock](GetBlockByHashRequest(hash))
+    sendRequest[GetBlockByHashRequest, EcBlock](GetBlockByHashRequest(hash), NonBlockExecutionTimeout)
       .leftMap(err => ClientError(s"Error getting block by hash $hash: $err"))
   }
 
   def getBlockByHashJson(hash: BlockHash): JobResult[Option[JsObject]] = {
-    sendRequest[GetBlockByHashRequest, JsObject](GetBlockByHashRequest(hash))
+    sendRequest[GetBlockByHashRequest, JsObject](GetBlockByHashRequest(hash), NonBlockExecutionTimeout)
       .leftMap(err => ClientError(s"Error getting block json by hash $hash: $err"))
   }
 
@@ -101,12 +101,12 @@ class HttpEngineApiClient(val config: JsonRpcClient.Config, val backend: SttpBac
     getBlockByHash(hash).map(_.isDefined)
 
   private def getBlockByNumberJson(number: String): JobResult[Option[JsObject]] = {
-    sendRequest[GetBlockByNumberRequest, JsObject](GetBlockByNumberRequest(number))
+    sendRequest[GetBlockByNumberRequest, JsObject](GetBlockByNumberRequest(number), NonBlockExecutionTimeout)
       .leftMap(err => ClientError(s"Error getting block by number $number: $err"))
   }
 
   override def getLogs(hash: BlockHash, address: EthAddress, topic: String): JobResult[List[GetLogsResponseEntry]] =
-    sendRequest[GetLogsRequest, List[GetLogsResponseEntry]](GetLogsRequest(hash, address, List(topic)))
+    sendRequest[GetLogsRequest, List[GetLogsResponseEntry]](GetLogsRequest(hash, address, List(topic)), NonBlockExecutionTimeout)
       .leftMap(err => ClientError(s"Error getting block logs by hash $hash: $err"))
       .map(_.getOrElse(List.empty))
 
