@@ -9,9 +9,10 @@ import play.api.libs.json.{JsError, JsValue, Reads, Writes}
 import sttp.client3.*
 import sttp.client3.playJson.*
 import units.ClientError
-import units.client.JsonRpcClient.{Config, DefaultTimeout}
+import units.client.JsonRpcClient.*
 
-import scala.concurrent.duration.{DurationInt, FiniteDuration}
+import java.util.concurrent.ThreadLocalRandom
+import scala.concurrent.duration.FiniteDuration
 import scala.util.{Failure, Success, Try}
 
 trait JsonRpcClient {
@@ -20,8 +21,12 @@ trait JsonRpcClient {
   def config: Config
   def backend: SttpBackend[Id, ?]
 
-  protected def sendRequest[RQ: Writes, RP: Reads](requestBody: RQ, timeout: FiniteDuration = DefaultTimeout): Either[String, Option[RP]] =
-    sendRequest(mkRequest(requestBody, timeout), config.apiRequestRetries)
+  protected def sendRequest[RQ: Writes, RP: Reads](
+      requestBody: RQ,
+      timeout: FiniteDuration,
+      requestId: Int
+  ): Either[String, Option[RP]] =
+    sendRequest(requestId, mkRequest(requestBody, timeout), config.apiRequestRetries)
 
   protected def parseJson[A: Reads](jsValue: JsValue): Either[ClientError, A] =
     Try(jsValue.as[A]).toEither.leftMap(err => ClientError(s"Response parse error: ${err.getMessage}"))
@@ -33,13 +38,13 @@ trait JsonRpcClient {
       .response(asJson[JsonRpcResponse[B]])
       .readTimeout(timeout)
 
-  private def sendRequest[RQ: Writes, RS: Reads](request: RpcRequest[RS], retriesLeft: Int): Either[String, Option[RS]] = {
+  private def sendRequest[RQ: Writes, RS: Reads](requestId: Int, request: RpcRequest[RS], retriesLeft: Int): Either[String, Option[RS]] = {
     def retryIf(cond: Boolean, elseError: String): Either[String, Option[RS]] =
       if (cond) {
         val retries = retriesLeft - 1
-        // TODO: make non-blocking waiting
         Thread.sleep(config.apiRequestRetryWaitTime.toMillis)
-        sendRequest(request, retries)
+        onRetry(requestId)
+        sendRequest(requestId, request, retries)
       } else Left(elseError)
 
     Try {
@@ -64,11 +69,11 @@ trait JsonRpcClient {
     // geth: // https://github.com/ethereum/go-ethereum/blob/master/rpc/errors.go#L71
     lcErrorMessage.contains("timed out")
   }
+
+  def onRetry(requestId: Int): Unit
 }
 
 object JsonRpcClient {
-  val DefaultTimeout: FiniteDuration = 1.minute
-
   case class Config(apiUrl: String, apiRequestRetries: Int, apiRequestRetryWaitTime: FiniteDuration) {
     val sttpApiUri = uri"$apiUrl"
   }
@@ -76,4 +81,6 @@ object JsonRpcClient {
   object Config {
     implicit val configValueReader: Generated[ValueReader[Config]] = arbitraryTypeValueReader
   }
+
+  def newRequestId: Int = ThreadLocalRandom.current().nextInt(10000, 100000)
 }

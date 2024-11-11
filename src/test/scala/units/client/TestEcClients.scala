@@ -6,6 +6,7 @@ import com.wavesplatform.state.Blockchain
 import com.wavesplatform.utils.ScorexLogging
 import monix.execution.atomic.{Atomic, AtomicInt}
 import play.api.libs.json.JsObject
+import units.client.JsonRpcClient.newRequestId
 import units.client.TestEcClients.*
 import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.model.*
@@ -52,7 +53,7 @@ class TestEcClients private (
 
   private val logs = Atomic(Map.empty[GetLogsRequest, List[GetLogsResponseEntry]])
   def setBlockLogs(hash: BlockHash, address: EthAddress, topic: String, blockLogs: List[GetLogsResponseEntry]): Unit = {
-    val request = GetLogsRequest(hash, address, List(topic))
+    val request = GetLogsRequest(hash, address, List(topic), newRequestId)
     logs.transform(_.updated(request, blockLogs))
   }
 
@@ -64,7 +65,7 @@ class TestEcClients private (
 
   val engineApi = new LoggedEngineApiClient(
     new EngineApiClient {
-      override def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus] = {
+      override def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int): JobResult[PayloadStatus] = {
         knownBlocks.get().get(blockHash) match {
           case Some(cid) =>
             currChainIdValue.set(cid)
@@ -85,7 +86,8 @@ class TestEcClients private (
           unixEpochSeconds: Long,
           suggestedFeeRecipient: EthAddress,
           prevRandao: String,
-          withdrawals: Vector[Withdrawal]
+          withdrawals: Vector[Withdrawal],
+          requestId: Int
       ): JobResult[PayloadId] =
         forgingBlocks
           .get()
@@ -98,7 +100,7 @@ class TestEcClients private (
             fb.payloadId.asRight
         }
 
-      override def getPayload(payloadId: PayloadId): JobResult[JsObject] =
+      override def getPayload(payloadId: PayloadId, requestId: Int): JobResult[JsObject] =
         forgingBlocks.transformAndExtract(_.withoutFirst { fb => fb.payloadId == payloadId }) match {
           case Some(fb) => TestEcBlocks.toPayload(fb.testBlock, fb.testBlock.prevRandao).asRight
           case None =>
@@ -107,7 +109,7 @@ class TestEcClients private (
             )
         }
 
-      override def applyNewPayload(payload: JsObject): JobResult[Option[BlockHash]] = {
+      override def applyNewPayload(payload: JsObject, requestId: Int): JobResult[Option[BlockHash]] = {
         val newBlock = NetworkL2Block(payload).explicitGet().toEcBlock
         knownBlocks.get().get(newBlock.parentHash) match {
           case Some(cid) =>
@@ -128,16 +130,16 @@ class TestEcClients private (
         Some(newBlock.hash)
       }.asRight
 
-      override def getPayloadBodyByHash(hash: BlockHash): JobResult[Option[JsObject]] =
+      override def getPayloadBodyByHash(hash: BlockHash, requestId: Int): JobResult[Option[JsObject]] =
         getBlockByHashJson(hash)
 
-      override def getBlockByNumber(number: BlockNumber): JobResult[Option[EcBlock]] =
+      override def getBlockByNumber(number: BlockNumber, requestId: Int): JobResult[Option[EcBlock]] =
         number match {
           case BlockNumber.Latest    => currChain.headOption.asRight
           case BlockNumber.Number(n) => currChain.find(_.height == n).asRight
         }
 
-      override def getBlockByHash(hash: BlockHash): JobResult[Option[EcBlock]] = {
+      override def getBlockByHash(hash: BlockHash, requestId: Int): JobResult[Option[EcBlock]] = {
         for {
           cid <- knownBlocks.get().get(hash)
           c   <- chains.get().get(cid)
@@ -145,15 +147,15 @@ class TestEcClients private (
         } yield b
       }.asRight
 
-      override def getBlockByHashJson(hash: BlockHash): JobResult[Option[JsObject]] =
+      override def getBlockByHashJson(hash: BlockHash, requestId: Int): JobResult[Option[JsObject]] =
         notImplementedMethodJob("getBlockByHashJson")
 
-      override def getLastExecutionBlock: JobResult[EcBlock] = currChain.head.asRight
+      override def getLastExecutionBlock(requestId: Int): JobResult[EcBlock] = currChain.head.asRight
 
-      override def blockExists(hash: BlockHash): JobResult[Boolean] = notImplementedMethodJob("blockExists")
+      override def blockExists(hash: BlockHash, requestId: Int): JobResult[Boolean] = notImplementedMethodJob("blockExists")
 
-      override def getLogs(hash: BlockHash, address: EthAddress, topic: String): JobResult[List[GetLogsResponseEntry]] = {
-        val request = GetLogsRequest(hash, address, List(topic))
+      override def getLogs(hash: BlockHash, address: EthAddress, topic: String, requestId: Int): JobResult[List[GetLogsResponseEntry]] = {
+        val request = GetLogsRequest(hash, address, List(topic), requestId)
         getLogsCalls.transform(_ + hash)
         logs.get().getOrElse(request, throw notImplementedCase("call setBlockLogs"))
       }.asRight

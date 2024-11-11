@@ -265,7 +265,7 @@ class ELUpdater(
       fixedFinalizedBlock = if (finalizedBlock.height > rollbackBlock.parentBlock.height) rollbackBlock.parentBlock else finalizedBlock
       _           <- confirmBlock(rollbackBlock.hash, fixedFinalizedBlock.hash)
       _           <- confirmBlock(target, fixedFinalizedBlock)
-      lastEcBlock <- engineApiClient.getLastExecutionBlock
+      lastEcBlock <- engineApiClient.getLastExecutionBlock()
       _ <- Either.cond(
         targetHash == lastEcBlock.hash,
         (),
@@ -454,7 +454,7 @@ class ELUpdater(
           (for {
             newEpochInfo  <- calculateEpochInfo
             mainChainInfo <- chainContractClient.getMainChainInfo.toRight("Can't get main chain info")
-            lastEcBlock   <- engineApiClient.getLastExecutionBlock.leftMap(_.message)
+            lastEcBlock   <- engineApiClient.getLastExecutionBlock().leftMap(_.message)
           } yield {
             logger.trace(s"Following main chain ${mainChainInfo.id}")
             val fullValidationStatus = FullValidationStatus(
@@ -890,7 +890,7 @@ class ELUpdater(
   private def waitForSyncCompletion(target: ContractBlock): Unit = scheduler.scheduleOnce(5.seconds)(state match {
     case SyncingToFinalizedBlock(finalizedBlockHash) if finalizedBlockHash == target.hash =>
       logger.debug(s"Checking if EL has synced to ${target.hash} on height ${target.height}")
-      engineApiClient.getLastExecutionBlock match {
+      engineApiClient.getLastExecutionBlock() match {
         case Left(error) =>
           logger.error(s"Sync to ${target.hash} was not completed, error=${error.message}")
           setState("23", Starting)

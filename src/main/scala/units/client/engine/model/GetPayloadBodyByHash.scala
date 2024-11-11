@@ -1,9 +1,9 @@
 package units.client.engine.model
 
-import units.BlockHash
 import play.api.libs.json.{Json, Writes}
+import units.BlockHash
 
-case class GetPayloadBodyByHash(hash: BlockHash)
+case class GetPayloadBodyByHash(hash: BlockHash, id: Int)
 
 object GetPayloadBodyByHash {
   implicit val writes: Writes[GetPayloadBodyByHash] = (o: GetPayloadBodyByHash) => {
@@ -11,7 +11,7 @@ object GetPayloadBodyByHash {
       "jsonrpc" -> "2.0",
       "method"  -> "engine_getPayloadBodiesByHashV1",
       "params"  -> Json.arr(Json.arr(o.hash)),
-      "id"      -> 1
+      "id"      -> o.id
     )
   }
 }
