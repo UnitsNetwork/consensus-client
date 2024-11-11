@@ -95,7 +95,7 @@ inTask(docker)(
       ImageName("consensus-client:local")                       // local-network
     ),
     dockerfile   := NativeDockerfile(baseDirectory.value / "docker" / "Dockerfile"),
-    buildOptions := BuildOptions()
+    buildOptions := BuildOptions(cache = true)
   )
 )
 
