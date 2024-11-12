@@ -6,7 +6,6 @@ import com.wavesplatform.state.Blockchain
 import com.wavesplatform.utils.ScorexLogging
 import monix.execution.atomic.{Atomic, AtomicInt}
 import play.api.libs.json.JsObject
-import units.client.JsonRpcClient.newRequestId
 import units.client.TestEcClients.*
 import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.model.*
@@ -53,7 +52,7 @@ class TestEcClients private (
 
   private val logs = Atomic(Map.empty[GetLogsRequest, List[GetLogsResponseEntry]])
   def setBlockLogs(hash: BlockHash, address: EthAddress, topic: String, blockLogs: List[GetLogsResponseEntry]): Unit = {
-    val request = GetLogsRequest(hash, address, List(topic), newRequestId)
+    val request = GetLogsRequest(hash, address, List(topic), 0)
     logs.transform(_.updated(request, blockLogs))
   }
 
@@ -125,7 +124,7 @@ class TestEcClients private (
               knownBlocks.transform(_.updated(newBlock.hash, newCid))
             }
 
-          case None => throw notImplementedCase(s"Can't find a parent block ${newBlock.parentHash} for ${newBlock.hash}")
+          case None => notImplementedCase(s"Can't find a parent block ${newBlock.parentHash} for ${newBlock.hash}")
         }
         Some(newBlock.hash)
       }.asRight
@@ -155,15 +154,22 @@ class TestEcClients private (
       override def blockExists(hash: BlockHash, requestId: Int): JobResult[Boolean] = notImplementedMethodJob("blockExists")
 
       override def getLogs(hash: BlockHash, address: EthAddress, topic: String, requestId: Int): JobResult[List[GetLogsResponseEntry]] = {
-        val request = GetLogsRequest(hash, address, List(topic), requestId)
+        val request = GetLogsRequest(hash, address, List(topic), 0) // requestId is ignored, see setBlockLogs
         getLogsCalls.transform(_ + hash)
-        logs.get().getOrElse(request, throw notImplementedCase("call setBlockLogs"))
+        logs.get().getOrElse(request, notImplementedCase("call setBlockLogs"))
       }.asRight
     }
   )
 
-  protected def notImplementedMethodJob[A](text: String): JobResult[A] = throw new NotImplementedMethod(text)
-  protected def notImplementedCase(text: String): Throwable            = new NotImplementedCase(text)
+  protected def notImplementedMethodJob[A](text: String): JobResult[A] = {
+    log.warn(s"notImplementedMethodJob($text)")
+    throw new NotImplementedMethod(text)
+  }
+
+  protected def notImplementedCase(text: String): Nothing = {
+    log.warn(s"notImplementedCase($text)")
+    throw new NotImplementedCase(text)
+  }
 }
 
 object TestEcClients {
