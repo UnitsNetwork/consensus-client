@@ -24,6 +24,7 @@ class EcContainer(network: NetworkImpl, number: Int, ip: String)(implicit httpCl
     .withNetwork(network)
     .withExposedPorts(RpcPort, EnginePort)
     .withEnv("LOG4J_CONFIGURATION_FILE", "/config/log4j2.xml")
+    .withEnv("ROOT_LOG_FILE_LEVEL", "TRACE")
     .withFileSystemBind(s"$ConfigsDir/ec-common/genesis.json", "/genesis.json", BindMode.READ_ONLY)
     .withFileSystemBind(s"$ConfigsDir/besu", "/config", BindMode.READ_ONLY)
     .withFileSystemBind(s"$ConfigsDir/besu/run-besu.sh", "/tmp/run.sh", BindMode.READ_ONLY)
