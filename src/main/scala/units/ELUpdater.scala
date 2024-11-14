@@ -259,9 +259,10 @@ class ELUpdater(
 
   private def rollbackTo(prevState: Working[ChainStatus], target: L2BlockLike, finalizedBlock: ContractBlock): JobResult[Working[ChainStatus]] = {
     val targetHash = target.hash
+    logger.info(s"Starting rollback to $targetHash")
     for {
       rollbackBlock <- mkRollbackBlock(targetHash)
-      _                   = logger.info(s"Starting rollback to $targetHash using rollback block ${rollbackBlock.hash}")
+      _                   = logger.info(s"Intermediate rollback block: ${rollbackBlock.hash}")
       fixedFinalizedBlock = if (finalizedBlock.height > rollbackBlock.parentBlock.height) rollbackBlock.parentBlock else finalizedBlock
       _           <- confirmBlock(rollbackBlock.hash, fixedFinalizedBlock.hash)
       _           <- confirmBlock(target, fixedFinalizedBlock)
@@ -286,7 +287,7 @@ class ELUpdater(
       setState("10", newState)
       newState
     }
-  }
+  }.left.map(e => ClientError(s"Error during rollback: ${e.message}"))
 
   private def startBuildingPayload(
       epochInfo: EpochInfo,

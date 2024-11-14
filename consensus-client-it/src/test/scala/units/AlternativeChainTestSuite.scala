@@ -7,6 +7,12 @@ import units.docker.WavesNodeContainer
 
 class AlternativeChainTestSuite extends BaseDockerTestSuite {
   "L2-383 Start an alternative chain after not getting an EL-block" in {
+    step("Wait miner #1 forge at least one block")
+    def getLastContractBlock = chainContract.getLastBlockMeta(0).getOrElse(fail("Can't get last block"))
+    retry {
+      getLastContractBlock.height > 0
+    }
+
     step("EL miner #2 join")
     waves1.api.broadcastAndWait(
       ChainContract.join(
@@ -19,7 +25,7 @@ class AlternativeChainTestSuite extends BaseDockerTestSuite {
     waitMinerEpoch(miner21Account)
 
     step("Issue miner #2 block confirmation")
-    val lastContractBlock = chainContract.getLastBlockMeta(0).getOrElse(fail("Can't get last block"))
+    val lastContractBlock = getLastContractBlock
     val lastWavesBlock    = waves1.api.blockHeader(waves1.api.height).getOrElse(fail("Can't get current block header"))
     waves1.api.broadcastAndWait(
       ChainContract.extendMainChain(
