@@ -15,11 +15,11 @@ import units.BaseDockerTestSuite.generateWavesGenesisConfig
 import units.client.HttpChainContractClient
 import units.client.contract.HasConsensusLayerDappTxHelpers
 import units.client.engine.model.BlockNumber
-import units.docker.{EcContainer, Networks, WavesNodeContainer}
+import units.docker.*
 import units.el.ElBridgeClient
 import units.eth.Gwei
 import units.test.TestEnvironment.*
-import units.test.{CustomMatchers, HasRetry}
+import units.test.{CustomMatchers, HasRetry, TestEnvironment}
 
 import java.io.PrintStream
 import java.nio.file.{Files, Path}
@@ -46,11 +46,15 @@ trait BaseDockerTestSuite
 
   private implicit val httpClientBackend: SttpBackend[Identity, Any] = HttpClientSyncBackend()
 
-  protected lazy val ec1: EcContainer = new EcContainer(
-    network = network,
-    number = 1,
-    ip = Networks.ipForNode(2) // ipForNode(1) is assigned to Ryuk
-  )
+  protected lazy val ec1: EcContainer = {
+    val constructor = TestEnvironment.ExecutionClient match {
+      case "besu" => new BesuContainer(_, _, _)
+      case "geth" => new GethContainer(_, _, _)
+      case x      => throw new RuntimeException(s"Unknown execution client: $x. Only 'geth' or 'besu' supported")
+    }
+
+    constructor(network, 1, Networks.ipForNode(2) /* ipForNode(1) is assigned to Ryuk */ )
+  }
 
   protected lazy val waves1: WavesNodeContainer = new WavesNodeContainer(
     network = network,

@@ -6,6 +6,7 @@ import org.web3j.protocol.core.DefaultBlockParameter
 import org.web3j.protocol.core.methods.response.{EthSendTransaction, TransactionReceipt}
 import org.web3j.tx.gas.DefaultGasProvider
 import org.web3j.utils.Convert
+import units.docker.EcContainer
 
 import java.math.BigInteger
 
@@ -65,11 +66,13 @@ class SyncingTestSuite extends BaseDockerTestSuite {
 
   private def sendTxn(nonce: Long): EthSendTransaction = {
     val rawTransaction = RawTransaction.createEtherTransaction(
+      EcContainer.ChainId,
       BigInteger.valueOf(nonce),
-      DefaultGasProvider.GAS_PRICE,
       DefaultGasProvider.GAS_LIMIT,
       "0x0000000000000000000000000000000000000000",
-      amount
+      amount,
+      BigInteger.ZERO,
+      DefaultGasProvider.GAS_PRICE
     )
     val signedTransaction = EthEncoding.toHexString(TransactionEncoder.signMessage(rawTransaction, elSender))
     ec1.web3j.ethSendRawTransaction(signedTransaction).send()

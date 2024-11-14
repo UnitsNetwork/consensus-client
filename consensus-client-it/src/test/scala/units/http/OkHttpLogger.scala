@@ -35,6 +35,6 @@ object OkHttpLogger extends Interceptor with ScorexLogging {
       val source = body.source()
       source.request(Long.MaxValue) // Buffer the entire body.
       val buffer = source.getBuffer.clone()
-      buffer.readUtf8()
+      buffer.readUtf8().trim
   }
 }
