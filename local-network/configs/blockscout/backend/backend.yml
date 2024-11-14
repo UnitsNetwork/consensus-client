@@ -12,3 +12,4 @@ services:
       -  ./bs-backend.env
     volumes:
       - ../../../logs/bs-backend/:/app/logs/prod
+      - ./:/assets:ro
