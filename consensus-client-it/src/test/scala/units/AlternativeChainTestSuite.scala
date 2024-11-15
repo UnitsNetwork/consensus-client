@@ -12,7 +12,7 @@ class AlternativeChainTestSuite extends BaseDockerTestSuite {
     step("Wait miner #1 forge at least one block")
     def getLastContractBlock = chainContract.getLastBlockMeta(0).getOrElse(fail("Can't get last block"))
     retry {
-      getLastContractBlock.height should be > 0
+      getLastContractBlock.height should be > 0L
     }
 
     step("EL miner #2 join")
