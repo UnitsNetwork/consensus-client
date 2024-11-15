@@ -6,11 +6,13 @@ import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRoo
 import units.docker.WavesNodeContainer
 
 class AlternativeChainTestSuite extends BaseDockerTestSuite {
+  private val waitFiveBlocksAtMax = patienceConfig.copy(timeout = WavesNodeContainer.AverageBlockDelay * 5)
+
   "L2-383 Start an alternative chain after not getting an EL-block" in {
     step("Wait miner #1 forge at least one block")
     def getLastContractBlock = chainContract.getLastBlockMeta(0).getOrElse(fail("Can't get last block"))
     retry {
-      getLastContractBlock.height > 0
+      getLastContractBlock.height should be > 0
     }
 
     step("EL miner #2 join")
@@ -52,6 +54,6 @@ class AlternativeChainTestSuite extends BaseDockerTestSuite {
     retry {
       val actualGenerator = chainContract.computedGenerator
       if (actualGenerator != expectedGenerator) fail(s"Expected $expectedGenerator generator, got $actualGenerator")
-    }(patienceConfig.copy(timeout = WavesNodeContainer.AverageBlockDelay * 5))
+    }(waitFiveBlocksAtMax)
   }
 }
