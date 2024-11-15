@@ -1,21 +1,22 @@
 package units.docker
 
-import com.google.common.io.Files
+import com.google.common.io.Files as GFiles
 import com.google.common.primitives.{Bytes, Ints}
 import com.typesafe.config.ConfigFactory
 import com.wavesplatform.account.{Address, SeedKeyPair}
 import com.wavesplatform.api.NodeHttpApi
 import com.wavesplatform.common.utils.Base58
-import com.wavesplatform.crypto
+import com.wavesplatform.{GenesisBlockGenerator, crypto}
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.Network.NetworkImpl
 import sttp.client3.{Identity, SttpBackend, UriContext}
 import units.docker.WavesNodeContainer.*
 import units.test.TestEnvironment.*
 
-import java.io.File
+import java.io.{File, PrintStream}
 import java.nio.charset.StandardCharsets
-import java.nio.file.Path
+import java.nio.file.{Files, Path}
+import scala.concurrent.duration.DurationInt
 import scala.jdk.CollectionConverters.MapHasAsJava
 import scala.jdk.DurationConverters.JavaDurationOps
 
@@ -30,7 +31,7 @@ class WavesNodeContainer(
 )(implicit httpClientBackend: SttpBackend[Identity, Any])
     extends BaseContainer(s"wavesnode-$number") {
   private val logFile = new File(s"$DefaultLogsDir/waves-$number.log")
-  Files.touch(logFile)
+  GFiles.touch(logFile)
 
   protected override val container = new GenericContainer(DockerImages.WavesNode)
     .withNetwork(network)
@@ -77,4 +78,27 @@ object WavesNodeContainer {
 
   def mkKeyPair(seed: String, nonce: Int): SeedKeyPair =
     SeedKeyPair(crypto.secureHash(Bytes.concat(Ints.toByteArray(nonce), seed.getBytes(StandardCharsets.UTF_8))))
+
+  def generateWavesGenesisConfig(): Path = {
+    val templateFile = ConfigsDir.resolve("wavesnode/genesis-template.conf").toAbsolutePath
+
+    val origConfig = ConfigFactory.parseFile(templateFile.toFile)
+    val gap        = 1.minute // To force node mining at start, otherwise it schedules
+    val overrides = ConfigFactory.parseString(
+      s"""genesis-generator {
+         |  timestamp = ${System.currentTimeMillis() - gap.toMillis}
+         |}""".stripMargin
+    )
+
+    val genesisSettings = GenesisBlockGenerator.parseSettings(overrides.withFallback(origConfig))
+
+    val origOut = System.out
+    System.setOut(new PrintStream({ (_: Int) => })) // We don't use System.out in tests, so it should not be an issue
+    val config = GenesisBlockGenerator.createConfig(genesisSettings)
+    System.setOut(origOut)
+
+    val dest = DefaultLogsDir.resolve("genesis.conf").toAbsolutePath
+    Files.writeString(dest, config)
+    dest
+  }
 }

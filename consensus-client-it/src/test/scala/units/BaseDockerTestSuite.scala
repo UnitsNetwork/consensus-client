@@ -1,7 +1,5 @@
 package units
 
-import com.typesafe.config.ConfigFactory
-import com.wavesplatform.GenesisBlockGenerator
 import com.wavesplatform.account.AddressScheme
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2
@@ -11,19 +9,14 @@ import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues}
 import sttp.client3.{HttpClientSyncBackend, Identity, SttpBackend}
-import units.BaseDockerTestSuite.generateWavesGenesisConfig
 import units.client.HttpChainContractClient
 import units.client.contract.HasConsensusLayerDappTxHelpers
 import units.client.engine.model.BlockNumber
 import units.docker.*
+import units.docker.WavesNodeContainer.generateWavesGenesisConfig
 import units.el.ElBridgeClient
 import units.eth.Gwei
-import units.test.TestEnvironment.*
 import units.test.{CustomMatchers, HasRetry, TestEnvironment}
-
-import java.io.PrintStream
-import java.nio.file.{Files, Path}
-import scala.concurrent.duration.DurationInt
 
 trait BaseDockerTestSuite
     extends AnyFreeSpec
@@ -144,27 +137,4 @@ object BaseDockerTestSuite {
       AddressScheme.current = new AddressScheme {
         override val chainId: Byte = 'D'.toByte
       }
-
-  def generateWavesGenesisConfig(): Path = {
-    val templateFile = ConfigsDir.resolve("wavesnode/genesis-template.conf").toAbsolutePath
-
-    val origConfig = ConfigFactory.parseFile(templateFile.toFile)
-    val gap        = 1.minute // To force node mining at start, otherwise it schedules
-    val overrides = ConfigFactory.parseString(
-      s"""genesis-generator {
-         |  timestamp = ${System.currentTimeMillis() - gap.toMillis}
-         |}""".stripMargin
-    )
-
-    val genesisSettings = GenesisBlockGenerator.parseSettings(overrides.withFallback(origConfig))
-
-    val origOut = System.out
-    System.setOut(new PrintStream({ (_: Int) => })) // We don't use System.out in tests, so it should not be an issue
-    val config = GenesisBlockGenerator.createConfig(genesisSettings)
-    System.setOut(origOut)
-
-    val dest = DefaultLogsDir.resolve("genesis.conf").toAbsolutePath
-    Files.writeString(dest, config)
-    dest
-  }
 }
