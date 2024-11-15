@@ -29,11 +29,11 @@ class Miner:
 class ExtendedNetwork(Network):
     @cached_property
     def cl_dao(self) -> ChainContract:
-        return pw.Address(seed="devnet dao 1", nonce=0)
+        return pw.Address(seed="devnet dao", nonce=0)
 
     @cached_property
     def cl_chain_contract(self) -> ChainContract:
-        return ChainContract(seed="devnet cc 1", nonce=0)
+        return ChainContract(seed="devnet cc", nonce=0)
 
     @cached_property
     def cl_miners(self) -> List[Miner]:
@@ -79,7 +79,7 @@ local_net = NetworkSettings(
     chain_id_str="D",
     cl_node_api_url=get_waves_api_url(1),
     el_node_api_url=get_ec_api_url(1),
-    chain_contract_address="3FZyX72BjuE6s5PMTVQN9mJTN4jEJto95nv",
+    chain_contract_address="3FXDd4LoxxqVLfMk8M25f8CQvfCtGMyiXV1",
 )
 
 

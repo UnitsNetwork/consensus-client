@@ -23,7 +23,9 @@ import units.test.HasRetry
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.util.chaining.scalaUtilChainingOps
 
-class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], averageBlockDelay: FiniteDuration) extends HasRetry with ScorexLogging {
+class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], averageBlockDelay: FiniteDuration, apiKeyValue: String = DefaultApiKeyValue)
+    extends HasRetry
+    with ScorexLogging {
   protected override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = averageBlockDelay, interval = 1.second)
 
   def blockHeader(atHeight: Int): Option[BlockHeaderResponse] = {
@@ -215,7 +217,7 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], averageBlockDe
     log.debug(s"${loggingOptions.prefix} createWalletAddress")
     basicRequest
       .post(uri"$apiUri/addresses")
-      .header(`X-Api-Key`.name, ApiKeyValue)
+      .header(`X-Api-Key`.name, apiKeyValue)
       .response(asString)
       .tag(LoggingOptionsTag, loggingOptions)
       .send(backend)
@@ -226,7 +228,7 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], averageBlockDe
     log.debug(s"${loggingOptions.prefix} rollback($to)")
     basicRequest
       .post(uri"$apiUri/debug/rollback")
-      .header(`X-Api-Key`.name, ApiKeyValue)
+      .header(`X-Api-Key`.name, apiKeyValue)
       .body(
         Json.obj(
           "rollbackTo"              -> to,
@@ -241,14 +243,14 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], averageBlockDe
   def print(message: String): Unit =
     basicRequest
       .post(uri"$apiUri/debug/print")
-      .header(`X-Api-Key`.name, ApiKeyValue)
+      .header(`X-Api-Key`.name, apiKeyValue)
       .body(Json.obj("message" -> message))
       .response(ignore)
       .send(backend)
 }
 
 object NodeHttpApi {
-  val ApiKeyValue = "testapi"
+  val DefaultApiKeyValue = "testapi"
 
   case class BlockHeaderResponse(VRF: String)
   object BlockHeaderResponse {
