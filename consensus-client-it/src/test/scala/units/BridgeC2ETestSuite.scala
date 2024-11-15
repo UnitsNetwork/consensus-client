@@ -43,8 +43,8 @@ class BridgeC2ETestSuite extends BaseDockerTestSuite {
     val withdrawal = Iterator
       .from(elCurrHeight + 1)
       .map { h =>
-        retry {
-          ec1.engineApi.getBlockByNumber(BlockNumber.Number(h)).toOption.flatten.getOrElse(fail(s"Can't get EL block #$h"))
+        eventually {
+          ec1.engineApi.getBlockByNumber(BlockNumber.Number(h)).toOption.flatten.value
         }
       }
       .flatMap(_.withdrawals)

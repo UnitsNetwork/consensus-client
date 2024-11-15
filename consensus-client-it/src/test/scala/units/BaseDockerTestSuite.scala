@@ -5,6 +5,7 @@ import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.utils.ScorexLogging
 import monix.execution.atomic.AtomicBoolean
+import org.scalatest.concurrent.Eventually
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues}
@@ -16,7 +17,9 @@ import units.docker.*
 import units.docker.WavesNodeContainer.generateWavesGenesisConfig
 import units.el.ElBridgeClient
 import units.eth.Gwei
-import units.test.{CustomMatchers, HasRetry, TestEnvironment}
+import units.test.{CustomMatchers, TestEnvironment}
+
+import scala.concurrent.duration.DurationInt
 
 trait BaseDockerTestSuite
     extends AnyFreeSpec
@@ -27,9 +30,11 @@ trait BaseDockerTestSuite
     with EitherValues
     with OptionValues
     with ReportingTestName
-    with HasRetry
+    with Eventually
     with Accounts
     with HasConsensusLayerDappTxHelpers {
+  implicit override def patienceConfig: PatienceConfig = PatienceConfig(timeout = 30.seconds, interval = 1.second)
+
   override val currentHitSource: ByteStr = ByteStr.empty
   protected val rewardAmount: Gwei       = Gwei.ofRawGwei(2_000_000_000L)
 
@@ -81,7 +86,7 @@ trait BaseDockerTestSuite
     waves1.api.broadcastAndWait(ChainContract.setScript())
 
     log.info("Setup chain contract")
-    val genesisBlock = ec1.engineApi.getBlockByNumber(BlockNumber.Number(0)).explicitGet().getOrElse(failRetry("No EL genesis block"))
+    val genesisBlock = ec1.engineApi.getBlockByNumber(BlockNumber.Number(0)).explicitGet().getOrElse(fail("No EL genesis block"))
     waves1.api.broadcastAndWait(
       ChainContract.setup(
         genesisBlock = genesisBlock,

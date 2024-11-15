@@ -90,15 +90,15 @@ class BridgeE2CTestSuite extends BaseDockerTestSuite {
     val transferProofs  = Bridge.mkTransferProofs(transferEvents, sendTxnLogIndex).reverse
 
     step(s"Wait block $blockHash on contract")
-    val blockConfirmationHeight = retry {
-      chainContract.getBlock(blockHash).get.height
+    val blockConfirmationHeight = eventually {
+      chainContract.getBlock(blockHash).value.height
     }
 
     step(s"Wait block $blockHash ($blockConfirmationHeight) finalization")
-    retry {
+    eventually {
       val currFinalizedHeight = chainContract.getFinalizedBlock.height
       step(s"Current finalized height: $currFinalizedHeight")
-      if (currFinalizedHeight < blockConfirmationHeight) fail("Not yet finalized")
+      currFinalizedHeight should be >= blockConfirmationHeight
     }
 
     withClue("3. Tokens received: ") {

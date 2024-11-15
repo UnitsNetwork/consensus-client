@@ -9,6 +9,7 @@ import org.web3j.utils.Convert
 import units.docker.EcContainer
 
 import java.math.BigInteger
+import scala.jdk.OptionConverters.RichOptional
 
 class SyncingTestSuite extends BaseDockerTestSuite {
   private val elSender = elRichAccount1
@@ -34,8 +35,8 @@ class SyncingTestSuite extends BaseDockerTestSuite {
     val blocksWithTxns = List(txn2Receipt, txn3Receipt).map(x => x.getBlockNumber -> x.getBlockHash).toMap
     step(s"Waiting blocks ${blocksWithTxns.mkString(", ")} on contract")
     blocksWithTxns.foreach { case (_, blockHash) =>
-      retry {
-        chainContract.getBlock(BlockHash(blockHash)).get
+      eventually {
+        chainContract.getBlock(BlockHash(blockHash)).value
       }
     }
 
@@ -47,13 +48,13 @@ class SyncingTestSuite extends BaseDockerTestSuite {
 
     step(s"Waiting blocks ${blocksWithTxns.mkString(", ")} disappear")
     blocksWithTxns.foreach { case (_, blockHash) =>
-      retry {
-        if (chainContract.getBlock(BlockHash(blockHash)).nonEmpty) throw new RuntimeException(s"Expected $blockHash to disappear")
+      eventually {
+        chainContract.getBlock(BlockHash(blockHash)) shouldBe empty
       }
     }
 
     blocksWithTxns.foreach { case (height, blockHash) =>
-      retry {
+      eventually {
         val block = ec1.web3j.ethGetBlockByNumber(DefaultBlockParameter.valueOf(height), false).send().getBlock
         block.getHash shouldNot be(blockHash)
       }
@@ -78,7 +79,7 @@ class SyncingTestSuite extends BaseDockerTestSuite {
     ec1.web3j.ethSendRawTransaction(signedTransaction).send()
   }
 
-  private def waitForTxn(txnResult: EthSendTransaction): TransactionReceipt = retry {
-    ec1.web3j.ethGetTransactionReceipt(txnResult.getTransactionHash).send().getTransactionReceipt.get()
+  private def waitForTxn(txnResult: EthSendTransaction): TransactionReceipt = eventually {
+    ec1.web3j.ethGetTransactionReceipt(txnResult.getTransactionHash).send().getTransactionReceipt.toScala.value
   }
 }
