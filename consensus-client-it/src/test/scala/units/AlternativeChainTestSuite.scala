@@ -42,7 +42,7 @@ class AlternativeChainTestSuite extends BaseDockerTestSuite {
           log.debug(s"Failed to send an EL-block confirmation: $e")
           broadcastConfirmation(maxAttempts - 1)
         case Left(e) => fail(s"Can't broadcast an EL-block confirmation: $e")
-        case _       => waves1.api.waitFor(txn.id())
+        case _       => waves1.api.waitForSucceeded(txn.id())
       }
     }
     broadcastConfirmation()

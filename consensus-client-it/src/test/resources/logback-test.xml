@@ -24,6 +24,17 @@
         </encoder>
     </appender>
 
+    <appender name="HTTP" class="ch.qos.logback.core.FileAppender">
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>TRACE</level>
+        </filter>
+        <file>${cc.it.logs.dir:-target/logs}/test-http.log</file>
+        <append>false</append>
+        <encoder>
+            <pattern>${pattern}</pattern>
+        </encoder>
+    </appender>
+
     <!-- TestContainers logs -->
     <logger name="org.rnorth.ducttape.unreliables" level="WARN"/>
     <logger name="com.github.dockerjava" level="WARN"/>
@@ -32,6 +43,11 @@
 
     <!-- Web3j -->
     <logger name="org.web3j.protocol" level="INFO"/>
+
+    <!-- Test classes -->
+    <logger name="com.wavesplatform.api.LoggingBackend" additivity="false" level="TRACE">
+        <appender-ref ref="HTTP"/>
+    </logger>
 
     <root level="TRACE">
         <appender-ref ref="STDOUT"/>

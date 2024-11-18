@@ -38,6 +38,7 @@ object LoggingBackend {
 
   case class LoggingOptions(
       logCall: Boolean = true,
+      logResult: Boolean = true,
       logRequest: Boolean = true,
       logRequestBody: Boolean = true,
       logResponseBody: Boolean = true,
