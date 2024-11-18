@@ -5,7 +5,6 @@ import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.utils.ScorexLogging
 import monix.execution.atomic.AtomicBoolean
-import org.scalatest.concurrent.Eventually
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues}
@@ -17,9 +16,7 @@ import units.docker.*
 import units.docker.WavesNodeContainer.generateWavesGenesisConfig
 import units.el.ElBridgeClient
 import units.eth.Gwei
-import units.test.{CustomMatchers, TestEnvironment}
-
-import scala.concurrent.duration.DurationInt
+import units.test.{CustomMatchers, IntegrationTestEventually, TestEnvironment}
 
 trait BaseDockerTestSuite
     extends AnyFreeSpec
@@ -30,11 +27,9 @@ trait BaseDockerTestSuite
     with EitherValues
     with OptionValues
     with ReportingTestName
-    with Eventually
+    with IntegrationTestEventually
     with Accounts
     with HasConsensusLayerDappTxHelpers {
-  implicit override def patienceConfig: PatienceConfig = PatienceConfig(timeout = 30.seconds, interval = 1.second)
-
   override val currentHitSource: ByteStr = ByteStr.empty
   protected val rewardAmount: Gwei       = Gwei.ofRawGwei(2_000_000_000L)
 

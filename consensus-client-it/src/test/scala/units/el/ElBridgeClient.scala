@@ -10,11 +10,10 @@ import org.web3j.protocol.core.methods.response.TransactionReceipt
 import org.web3j.tx.gas.DefaultGasProvider
 import units.bridge.BridgeContract
 import units.eth.EthAddress
-import units.test.HasRetry
 
 import java.util.Collections
 
-class ElBridgeClient(web3j: Web3j, address: EthAddress) extends HasRetry with ScorexLogging {
+class ElBridgeClient(web3j: Web3j, address: EthAddress) extends ScorexLogging {
   def sendNative(
       sender: Credentials,
       recipient: Address,

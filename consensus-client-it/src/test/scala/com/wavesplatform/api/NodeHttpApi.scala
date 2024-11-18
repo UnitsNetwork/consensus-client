@@ -13,21 +13,20 @@ import com.wavesplatform.state.{DataEntry, EmptyDataEntry, Height, TransactionId
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.Transaction
 import com.wavesplatform.utils.ScorexLogging
-import org.scalatest.concurrent.Eventually.PatienceConfig
+import org.scalatest.matchers.should.Matchers
 import play.api.libs.json.*
 import sttp.client3.*
 import sttp.client3.playJson.*
 import sttp.model.{StatusCode, Uri}
-import units.test.HasRetry
+import units.docker.WavesNodeContainer.AverageBlockDelay
+import units.test.IntegrationTestEventually
 
-import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.util.chaining.scalaUtilChainingOps
 
-class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], averageBlockDelay: FiniteDuration, apiKeyValue: String = DefaultApiKeyValue)
-    extends HasRetry
+class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: String = DefaultApiKeyValue)
+    extends IntegrationTestEventually
+    with Matchers
     with ScorexLogging {
-  protected override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = averageBlockDelay, interval = 1.second)
-
   def blockHeader(atHeight: Int): Option[BlockHeaderResponse] = {
     val loggingOptions: LoggingOptions = LoggingOptions()
     log.debug(s"${loggingOptions.prefix} blockHeader($atHeight)")
@@ -50,14 +49,13 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], averageBlockDe
     val currHeight = heightImpl()(loggingOptions)
     if (currHeight >= atLeast) currHeight
     else {
-      val subsequentPatienceConfig = patienceConfig.copy(timeout = averageBlockDelay * (atLeast - currHeight) * 2.5)
       val subsequentLoggingOptions = loggingOptions.copy(logRequest = false)
       Thread.sleep(patienceConfig.interval.toMillis)
-      retry {
-        heightImpl()(subsequentLoggingOptions).tap { r =>
-          if (r < atLeast) failRetry("")
-        }
-      }(subsequentPatienceConfig)
+      eventually(timeout(AverageBlockDelay * (atLeast - currHeight).min(1) * 2.5)) {
+        val h = heightImpl()(subsequentLoggingOptions)
+        h should be >= atLeast
+        h
+      }
     }
   }
 
@@ -85,11 +83,13 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], averageBlockDe
       throw new RuntimeException(s"Can't broadcast ${txn.id()}: code=${e.error}, message=${e.message}")
     }
 
-    retryWithAttempts { attempt =>
-      val subsequentLoggingOptions = loggingOptions.copy(logRequest = attempt == 1)
+    var attempt = 0
+    eventually {
+      attempt += 1
+      val subsequentLoggingOptions = loggingOptions.copy(logRequest = attempt == 2)
       transactionInfoImpl(TransactionId(txn.id()))(subsequentLoggingOptions) match {
         case Some(r) if r.applicationStatus == ApplicationStatus.Succeeded => r
-        case r => failRetry(s"Expected ${ApplicationStatus.Succeeded} status, got: ${r.map(_.applicationStatus)}")
+        case r => fail(s"Expected ${ApplicationStatus.Succeeded} status, got: ${r.map(_.applicationStatus)}")
       }
     }
   }
@@ -121,13 +121,13 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], averageBlockDe
       .send(backend)
       .body match {
       case Left(HttpError(_, StatusCode.NotFound))     => none
-      case Left(HttpError(body, statusCode))           => failRetry(s"Server returned error $body with status ${statusCode.code}")
-      case Left(DeserializationException(body, error)) => failRetry(s"failed to parse response $body: $error")
+      case Left(HttpError(body, statusCode))           => fail(s"Server returned error $body with status ${statusCode.code}")
+      case Left(DeserializationException(body, error)) => fail(s"failed to parse response $body: $error")
       case Right(r)                                    => r.some
     }
 
   def dataByKey(address: Address, key: String)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Option[DataEntry[?]] = {
-    log.debug(s"${loggingOptions.prefix} getDataByKey($address, $key)")
+    log.debug(s"${loggingOptions.prefix} dataByKey($address, $key)")
     basicRequest
       .get(uri"$apiUri/addresses/data/$address/$key")
       .response(asJson[DataEntry[?]])
@@ -135,8 +135,8 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], averageBlockDe
       .send(backend)
       .body match {
       case Left(HttpError(_, StatusCode.NotFound))     => none
-      case Left(HttpError(body, statusCode))           => failRetry(s"Server returned error $body with status ${statusCode.code}")
-      case Left(DeserializationException(body, error)) => failRetry(s"failed to parse response $body: $error")
+      case Left(HttpError(body, statusCode))           => fail(s"Server returned error $body with status ${statusCode.code}")
+      case Left(DeserializationException(body, error)) => fail(s"failed to parse response $body: $error")
       case Right(response) =>
         response match {
           case _: EmptyDataEntry => none
@@ -154,8 +154,8 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], averageBlockDe
       .send(backend)
       .body match {
       case Left(HttpError(_, StatusCode.NotFound))     => 0L
-      case Left(HttpError(body, statusCode))           => failRetry(s"Server returned error $body with status ${statusCode.code}")
-      case Left(DeserializationException(body, error)) => failRetry(s"failed to parse response $body: $error")
+      case Left(HttpError(body, statusCode))           => fail(s"Server returned error $body with status ${statusCode.code}")
+      case Left(DeserializationException(body, error)) => fail(s"failed to parse response $body: $error")
       case Right(r)                                    => r.balance
     }
   }
@@ -168,8 +168,8 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], averageBlockDe
       .tag(LoggingOptionsTag, loggingOptions)
       .send(backend)
       .body match {
-      case Left(HttpError(body, statusCode))           => failRetry(s"Server returned error $body with status ${statusCode.code}")
-      case Left(DeserializationException(body, error)) => failRetry(s"failed to parse response $body: $error")
+      case Left(HttpError(body, statusCode))           => fail(s"Server returned error $body with status ${statusCode.code}")
+      case Left(DeserializationException(body, error)) => fail(s"failed to parse response $body: $error")
       case Right(r)                                    => r.quantity
     }
   }
@@ -177,10 +177,12 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], averageBlockDe
   def waitForConnectedPeers(atLeast: Int): Unit = {
     implicit val loggingOptions: LoggingOptions = LoggingOptions(logRequestBody = false)
     log.debug(s"${loggingOptions.prefix} waitForConnectedPeers($atLeast)")
-    retryWithAttempts { attempt =>
-      val subsequentLoggingOptions = loggingOptions.copy(logRequest = attempt == 1)
+    var attempt = 0
+    eventually {
+      attempt += 1
+      val subsequentLoggingOptions = loggingOptions.copy(logRequest = attempt == 2)
       connectedPeersImpl()(subsequentLoggingOptions).tap { x =>
-        if (x < atLeast) failRetry(s"Expected at least $atLeast, got $x")
+        if (x < atLeast) fail(s"Expected at least $atLeast, got $x")
       }
     }
   }
@@ -192,8 +194,8 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], averageBlockDe
       .tag(LoggingOptionsTag, loggingOptions)
       .send(backend)
       .body match {
-      case Left(HttpError(body, statusCode))           => failRetry(s"Server returned error $body with status ${statusCode.code}")
-      case Left(DeserializationException(body, error)) => failRetry(s"failed to parse response $body: $error")
+      case Left(HttpError(body, statusCode))           => fail(s"Server returned error $body with status ${statusCode.code}")
+      case Left(DeserializationException(body, error)) => fail(s"failed to parse response $body: $error")
       case Right(r)                                    => r.peers.length
     }
 

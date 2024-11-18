@@ -2,6 +2,7 @@
 target
 .bloop
 .bsp
+.metals
 metals.sbt
 .idea
 docker/data
