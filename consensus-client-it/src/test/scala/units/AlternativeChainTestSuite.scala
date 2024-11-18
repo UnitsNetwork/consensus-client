@@ -21,36 +21,37 @@ class AlternativeChainTestSuite extends BaseDockerTestSuite {
     )
 
     step("Wait miner #2 epoch and issue a block confirmation")
-    @tailrec def broadcastConfirmation(maxAttempts: Int = 5)(implicit
-        loggingOptions: LoggingOptions = LoggingOptions(logCall = false, logRequest = false)
-    ): Unit = {
-      if (maxAttempts == 0) fail("Can't broadcast an EL-block confirmation: all attempts are out")
-
-      chainContract.waitForMinerEpoch(miner21Account)
-      val lastContractBlock = chainContract.getLastBlockMeta(0).value
-      val lastWavesBlock    = waves1.api.blockHeader(waves1.api.height).value
-      val txn = ChainContract.extendMainChain(
-        minerAccount = miner21Account,
-        blockHash = BlockHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
-        parentBlockHash = lastContractBlock.hash,
-        e2cTransfersRootHashHex = EmptyE2CTransfersRootHashHex,
-        lastC2ETransferIndex = -1,
-        vrf = ByteStr.decodeBase58(lastWavesBlock.VRF).get
-      )
-      waves1.api.broadcast(txn) match {
-        case Left(e) if e.error == ScriptExecutionError.Id =>
-          log.debug(s"Failed to send an EL-block confirmation: $e")
-          broadcastConfirmation(maxAttempts - 1)
-        case Left(e) => fail(s"Can't broadcast an EL-block confirmation: $e")
-        case _       => waves1.api.waitForSucceeded(txn.id())
-      }
-    }
-    broadcastConfirmation()
+    broadcastElBlockConfirmation()
 
     step("Wait miner #1 epoch")
     chainContract.waitForMinerEpoch(miner11Account)
 
     step("Checking an alternative chain started")
     chainContract.waitForChainId(1L)
+  }
+
+  @tailrec private def broadcastElBlockConfirmation(maxAttempts: Int = 5)(implicit
+      loggingOptions: LoggingOptions = LoggingOptions(logCall = false, logRequest = false)
+  ): Unit = {
+    if (maxAttempts == 0) fail("Can't broadcast an EL-block confirmation: all attempts are out")
+
+    chainContract.waitForMinerEpoch(miner21Account)
+    val lastContractBlock = chainContract.getLastBlockMeta(0).value
+    val lastWavesBlock    = waves1.api.blockHeader(waves1.api.height).value
+    val txn = ChainContract.extendMainChain(
+      minerAccount = miner21Account,
+      blockHash = BlockHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+      parentBlockHash = lastContractBlock.hash,
+      e2cTransfersRootHashHex = EmptyE2CTransfersRootHashHex,
+      lastC2ETransferIndex = -1,
+      vrf = ByteStr.decodeBase58(lastWavesBlock.VRF).get
+    )
+    waves1.api.broadcast(txn) match {
+      case Left(e) if e.error == ScriptExecutionError.Id =>
+        log.debug(s"Failed to send an EL-block confirmation: $e")
+        broadcastElBlockConfirmation(maxAttempts - 1)
+      case Left(e) => fail(s"Can't broadcast an EL-block confirmation: $e")
+      case _       => waves1.api.waitForSucceeded(txn.id())
+    }
   }
 }
