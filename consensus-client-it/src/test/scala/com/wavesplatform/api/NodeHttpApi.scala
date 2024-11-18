@@ -8,8 +8,9 @@ import com.wavesplatform.api.NodeHttpApi.*
 import com.wavesplatform.api.http.ApiMarshallers.TransactionJsonWrites
 import com.wavesplatform.api.http.TransactionsApiRoute.ApplicationStatus
 import com.wavesplatform.api.http.`X-Api-Key`
+import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.state.DataEntry.Format
-import com.wavesplatform.state.{DataEntry, EmptyDataEntry, Height, TransactionId}
+import com.wavesplatform.state.{DataEntry, EmptyDataEntry, Height}
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.Transaction
 import com.wavesplatform.utils.ScorexLogging
@@ -82,12 +83,15 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
     broadcastImpl(txn)(loggingOptions.copy(logRequestBody = false)).left.foreach { e =>
       throw new RuntimeException(s"Can't broadcast ${txn.id()}: code=${e.error}, message=${e.message}")
     }
+    waitFor(txn.id())
+  }
 
+  def waitFor(txnId: ByteStr)(implicit loggingOptions: LoggingOptions = LoggingOptions()): TransactionInfoResponse = {
     var attempt = 0
     eventually {
       attempt += 1
       val subsequentLoggingOptions = loggingOptions.copy(logRequest = attempt == 2)
-      transactionInfoImpl(TransactionId(txn.id()))(subsequentLoggingOptions) match {
+      transactionInfoImpl(txnId)(subsequentLoggingOptions) match {
         case Some(r) if r.applicationStatus == ApplicationStatus.Succeeded => r
         case r => fail(s"Expected ${ApplicationStatus.Succeeded} status, got: ${r.map(_.applicationStatus)}")
       }
@@ -113,7 +117,7 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
       case _                     => txn.asRight
     }
 
-  protected def transactionInfoImpl(id: TransactionId)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Option[TransactionInfoResponse] =
+  protected def transactionInfoImpl(id: ByteStr)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Option[TransactionInfoResponse] =
     basicRequest
       .get(uri"$apiUri/transactions/info/$id")
       .response(asJson[TransactionInfoResponse])
