@@ -1,29 +1,33 @@
 package units.client
 
 import cats.syntax.option.*
-import com.wavesplatform.account.Address
+import com.wavesplatform.account.{Address, KeyPair}
+import com.wavesplatform.api.LoggingBackend.LoggingOptions
 import com.wavesplatform.api.NodeHttpApi
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.state.DataEntry
 import com.wavesplatform.transaction.Asset.IssuedAsset
+import com.wavesplatform.utils.ScorexLogging
+import org.scalatest.OptionValues
+import org.scalatest.matchers.should.Matchers
 import units.BlockHash
+import units.client.contract.ChainContractClient.DefaultMainChainId
 import units.client.contract.{ChainContractClient, ContractBlock}
+import units.docker.WavesNodeContainer
+import units.test.IntegrationTestEventually
 
 import scala.annotation.tailrec
 
-class HttpChainContractClient(api: NodeHttpApi, override val contract: Address) extends ChainContractClient {
-  override def extractData(key: String): Option[DataEntry[?]] = api.dataByKey(contract, key)
+class HttpChainContractClient(api: NodeHttpApi, override val contract: Address)
+    extends ChainContractClient
+    with IntegrationTestEventually
+    with Matchers
+    with OptionValues
+    with ScorexLogging {
+  override def extractData(key: String): Option[DataEntry[?]] = api.dataByKey(contract, key)(LoggingOptions(logRequest = false))
 
+  private val fiveBlocks      = WavesNodeContainer.AverageBlockDelay * 5
   lazy val token: IssuedAsset = IssuedAsset(ByteStr.decodeBase58(getStringData("tokenId").getOrElse(fail("Call setup first"))).get)
-
-  def computedGenerator: Address = {
-    val rawResult  = api.evaluateExpr(contract, "computedGenerator").result
-    val rawAddress = (rawResult \ "result" \ "value").as[String]
-    Address.fromString(rawAddress) match {
-      case Left(e)  => fail(s"Can't parse computedGenerator address: $rawAddress. Reason: $e")
-      case Right(r) => r
-    }
-  }
 
   def getEpochFirstBlock(epochNumber: Int): Option[ContractBlock] =
     getEpochMeta(epochNumber).flatMap { epochData =>
@@ -45,6 +49,42 @@ class HttpChainContractClient(api: NodeHttpApi, override val contract: Address) 
     getBlock(blockHashInEpoch).flatMap { blockData =>
       if (blockData.height == 0) blockData.some
       else loop(blockData)
+    }
+  }
+
+  def waitForMinerEpoch(minerAccount: KeyPair)(implicit loggingOptions: LoggingOptions = LoggingOptions(logRequest = false)): Unit = {
+    val expectedGenerator = minerAccount.toAddress
+    if (loggingOptions.logCall) log.debug(s"${loggingOptions.prefix} waitMinerEpoch($expectedGenerator)")
+
+    val subsequentLoggingOptions = loggingOptions.copy(logCall = false)
+    eventually(timeout(fiveBlocks)) {
+      val actualGenerator = computedGenerator()(subsequentLoggingOptions)
+      actualGenerator shouldBe expectedGenerator
+    }
+  }
+
+  def waitForHeight(atLeast: Long, chainId: Long = DefaultMainChainId): Unit = {
+    log.debug(s"waitForHeight($atLeast)")
+    eventually {
+      val lastBlock = getLastBlockMeta(chainId).value
+      lastBlock.height should be >= atLeast
+    }
+  }
+
+  def waitForChainId(chainId: Long): Unit = {
+    log.debug(s"waitForChainId($chainId)")
+    eventually {
+      getFirstBlockHash(chainId) shouldBe defined
+    }
+  }
+
+  def computedGenerator()(implicit loggingOptions: LoggingOptions): Address = {
+    if (loggingOptions.logCall) log.debug("computedGenerator")
+    val rawResult  = api.evaluateExpr(contract, "computedGenerator").result
+    val rawAddress = (rawResult \ "result" \ "value").as[String]
+    Address.fromString(rawAddress) match {
+      case Left(e)  => fail(s"Can't parse computedGenerator address: $rawAddress. Reason: $e")
+      case Right(r) => r
     }
   }
 }

@@ -37,6 +37,7 @@ object LoggingBackend {
   val LoggingOptionsTag = "logging"
 
   case class LoggingOptions(
+      logCall: Boolean = true,
       logRequest: Boolean = true,
       logRequestBody: Boolean = true,
       logResponseBody: Boolean = true,

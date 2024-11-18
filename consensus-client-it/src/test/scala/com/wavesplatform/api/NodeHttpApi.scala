@@ -22,15 +22,12 @@ import sttp.model.{StatusCode, Uri}
 import units.docker.WavesNodeContainer.AverageBlockDelay
 import units.test.IntegrationTestEventually
 
-import scala.util.chaining.scalaUtilChainingOps
-
 class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: String = DefaultApiKeyValue)
     extends IntegrationTestEventually
     with Matchers
     with ScorexLogging {
-  def blockHeader(atHeight: Int): Option[BlockHeaderResponse] = {
-    val loggingOptions: LoggingOptions = LoggingOptions()
-    log.debug(s"${loggingOptions.prefix} blockHeader($atHeight)")
+  def blockHeader(atHeight: Int)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Option[BlockHeaderResponse] = {
+    if (loggingOptions.logRequest) log.debug(s"${loggingOptions.prefix} blockHeader($atHeight)")
     basicRequest
       .get(uri"$apiUri/blocks/headers/at/$atHeight")
       .response(asJson[BlockHeaderResponse])
@@ -44,29 +41,23 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
     }
   }
 
-  def waitForHeight(atLeast: Int): Height = {
-    val loggingOptions: LoggingOptions = LoggingOptions()
-    log.debug(s"${loggingOptions.prefix} waitForHeight($atLeast)")
-    val currHeight = heightImpl()(loggingOptions)
+  def waitForHeight(atLeast: Int)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Height = {
+    if (loggingOptions.logCall) log.debug(s"${loggingOptions.prefix} waitForHeight($atLeast)")
+    val subsequentLoggingOptions = loggingOptions.copy(logCall = false, logRequest = false)
+    val currHeight               = height()(subsequentLoggingOptions)
     if (currHeight >= atLeast) currHeight
     else {
-      val subsequentLoggingOptions = loggingOptions.copy(logRequest = false)
       Thread.sleep(patienceConfig.interval.toMillis)
       eventually(timeout(AverageBlockDelay * (atLeast - currHeight).min(1) * 2.5)) {
-        val h = heightImpl()(subsequentLoggingOptions)
+        val h = height()(subsequentLoggingOptions)
         h should be >= atLeast
         h
       }
     }
   }
 
-  def height: Height = {
-    val loggingOptions: LoggingOptions = LoggingOptions()
-    log.debug(s"${loggingOptions.prefix} height")
-    heightImpl()
-  }
-
-  protected def heightImpl()(implicit loggingOptions: LoggingOptions = LoggingOptions()): Height =
+  def height()(implicit loggingOptions: LoggingOptions = LoggingOptions()): Height = {
+    if (loggingOptions.logCall) log.debug(s"${loggingOptions.prefix} height")
     basicRequest
       .get(uri"$apiUri/blocks/height")
       .response(asJson[HeightResponse])
@@ -76,35 +67,33 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
       case Left(e)  => throw e
       case Right(r) => r.height
     }
+  }
 
-  def broadcastAndWait(txn: Transaction): TransactionInfoResponse = {
-    implicit val loggingOptions: LoggingOptions = LoggingOptions(logResponseBody = false)
-    log.debug(s"${loggingOptions.prefix} broadcastAndWait($txn)")
-    broadcastImpl(txn)(loggingOptions.copy(logRequestBody = false)).left.foreach { e =>
+  def broadcastAndWait(
+      txn: Transaction
+  )(implicit loggingOptions: LoggingOptions = LoggingOptions(logResponseBody = false)): TransactionInfoResponse = {
+    if (loggingOptions.logCall) log.debug(s"${loggingOptions.prefix} broadcastAndWait($txn)")
+    broadcast(txn)(loggingOptions.copy(logRequest = false)).left.foreach { e =>
       throw new RuntimeException(s"Can't broadcast ${txn.id()}: code=${e.error}, message=${e.message}")
     }
     waitFor(txn.id())
   }
 
   def waitFor(txnId: ByteStr)(implicit loggingOptions: LoggingOptions = LoggingOptions()): TransactionInfoResponse = {
+    if (loggingOptions.logCall) log.debug(s"${loggingOptions.prefix} waitFor($txnId)")
     var attempt = 0
     eventually {
       attempt += 1
-      val subsequentLoggingOptions = loggingOptions.copy(logRequest = attempt == 2)
-      transactionInfoImpl(txnId)(subsequentLoggingOptions) match {
+      val subsequentLoggingOptions = loggingOptions.copy(logCall = false, logRequest = attempt == 1)
+      transactionInfo(txnId)(subsequentLoggingOptions) match {
         case Some(r) if r.applicationStatus == ApplicationStatus.Succeeded => r
         case r => fail(s"Expected ${ApplicationStatus.Succeeded} status, got: ${r.map(_.applicationStatus)}")
       }
     }
   }
 
-  def broadcast(txn: Transaction): Either[ErrorResponse, Transaction] = {
-    implicit val loggingOptions: LoggingOptions = LoggingOptions()
-    log.debug(s"${loggingOptions.prefix} broadcast($txn)")
-    broadcastImpl(txn)
-  }
-
-  protected def broadcastImpl[T <: Transaction](txn: T)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Either[ErrorResponse, T] =
+  def broadcast[T <: Transaction](txn: T)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Either[ErrorResponse, T] = {
+    if (loggingOptions.logCall) log.debug(s"${loggingOptions.prefix} broadcast($txn)")
     basicRequest
       .post(uri"$apiUri/transactions/broadcast")
       .body(txn: Transaction)
@@ -116,10 +105,12 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
       case Left(e)               => throw new RuntimeException(e)
       case _                     => txn.asRight
     }
+  }
 
-  protected def transactionInfoImpl(id: ByteStr)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Option[TransactionInfoResponse] =
+  def transactionInfo(txnId: ByteStr)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Option[TransactionInfoResponse] = {
+    if (loggingOptions.logCall) log.debug(s"${loggingOptions.prefix} transactionInfo($txnId)")
     basicRequest
-      .get(uri"$apiUri/transactions/info/$id")
+      .get(uri"$apiUri/transactions/info/$txnId")
       .response(asJson[TransactionInfoResponse])
       .tag(LoggingOptionsTag, loggingOptions)
       .send(backend)
@@ -129,9 +120,10 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
       case Left(DeserializationException(body, error)) => fail(s"failed to parse response $body: $error")
       case Right(r)                                    => r.some
     }
+  }
 
-  def dataByKey(address: Address, key: String)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Option[DataEntry[?]] = {
-    log.debug(s"${loggingOptions.prefix} dataByKey($address, $key)")
+  def dataByKey(address: Address, key: String)(implicit loggingOptions: LoggingOptions = LoggingOptions(logRequest = false)): Option[DataEntry[?]] = {
+    if (loggingOptions.logCall) log.debug(s"${loggingOptions.prefix} dataByKey($address, $key)")
     basicRequest
       .get(uri"$apiUri/addresses/data/$address/$key")
       .response(asJson[DataEntry[?]])
@@ -150,7 +142,7 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
   }
 
   def balance(address: Address, asset: IssuedAsset)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Long = {
-    log.debug(s"${loggingOptions.prefix} balance($address, $asset)")
+    if (loggingOptions.logCall) log.debug(s"${loggingOptions.prefix} balance($address, $asset)")
     basicRequest
       .get(uri"$apiUri/assets/balance/$address/$asset")
       .response(asJson[AssetBalanceResponse])
@@ -165,7 +157,7 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
   }
 
   def assetQuantity(asset: IssuedAsset)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Long = {
-    log.debug(s"${loggingOptions.prefix} assetQuantity($asset)")
+    if (loggingOptions.logCall) log.debug(s"${loggingOptions.prefix} assetQuantity($asset)")
     basicRequest
       .get(uri"$apiUri/assets/details/$asset?full=false")
       .response(asJson[AssetDetailsResponse])
@@ -178,34 +170,8 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
     }
   }
 
-  def waitForConnectedPeers(atLeast: Int): Unit = {
-    implicit val loggingOptions: LoggingOptions = LoggingOptions(logRequestBody = false)
-    log.debug(s"${loggingOptions.prefix} waitForConnectedPeers($atLeast)")
-    var attempt = 0
-    eventually {
-      attempt += 1
-      val subsequentLoggingOptions = loggingOptions.copy(logRequest = attempt == 2)
-      connectedPeersImpl()(subsequentLoggingOptions).tap { x =>
-        if (x < atLeast) fail(s"Expected at least $atLeast, got $x")
-      }
-    }
-  }
-
-  protected def connectedPeersImpl()(implicit loggingOptions: LoggingOptions = LoggingOptions()): Int =
-    basicRequest
-      .get(uri"$apiUri/peers/connected")
-      .response(asJson[ConnectedPeersResponse])
-      .tag(LoggingOptionsTag, loggingOptions)
-      .send(backend)
-      .body match {
-      case Left(HttpError(body, statusCode))           => fail(s"Server returned error $body with status ${statusCode.code}")
-      case Left(DeserializationException(body, error)) => fail(s"failed to parse response $body: $error")
-      case Right(r)                                    => r.peers.length
-    }
-
-  def evaluateExpr(address: Address, expr: String): JsObject = {
-    implicit val loggingOptions: LoggingOptions = LoggingOptions()
-    log.debug(s"${loggingOptions.prefix} evaluateExpr($address, '$expr')")
+  def evaluateExpr(address: Address, expr: String)(implicit loggingOptions: LoggingOptions = LoggingOptions(logRequest = false)): JsObject = {
+    if (loggingOptions.logCall) log.debug(s"${loggingOptions.prefix} evaluateExpr($address, '$expr')")
     basicRequest
       .post(uri"$apiUri/utils/script/evaluate/$address")
       .body(Json.obj("expr" -> expr))
@@ -218,9 +184,8 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
     }
   }
 
-  def createWalletAddress(): Unit = {
-    implicit val loggingOptions: LoggingOptions = LoggingOptions()
-    log.debug(s"${loggingOptions.prefix} createWalletAddress")
+  def createWalletAddress()(implicit loggingOptions: LoggingOptions = LoggingOptions()): Unit = {
+    if (loggingOptions.logCall) log.debug(s"${loggingOptions.prefix} createWalletAddress")
     basicRequest
       .post(uri"$apiUri/addresses")
       .header(`X-Api-Key`.name, apiKeyValue)
@@ -229,9 +194,8 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
       .send(backend)
   }
 
-  def rollback(to: Height): Unit = {
-    implicit val loggingOptions: LoggingOptions = LoggingOptions()
-    log.debug(s"${loggingOptions.prefix} rollback($to)")
+  def rollback(to: Height)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Unit = {
+    if (loggingOptions.logCall) log.debug(s"${loggingOptions.prefix} rollback($to)")
     basicRequest
       .post(uri"$apiUri/debug/rollback")
       .header(`X-Api-Key`.name, apiKeyValue)

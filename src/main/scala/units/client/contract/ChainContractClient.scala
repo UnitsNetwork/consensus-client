@@ -61,7 +61,7 @@ trait ChainContractClient {
         val chainHeight = bb.getLong()
         val epoch       = bb.getLong().toInt // blockMeta is set up in a chain contract and RIDE numbers are Longs
         val parentHash  = BlockHash(bb.getByteArray(BlockHashBytesSize))
-        val chainId     = if (bb.remaining() >= 8) bb.getLong() else 0L
+        val chainId     = if (bb.remaining() >= 8) bb.getLong() else DefaultMainChainId
 
         val e2cTransfersRootHash =
           if (bb.remaining() >= ContractBlock.E2CTransfersRootHashLength) bb.getByteArray(ContractBlock.E2CTransfersRootHashLength)
@@ -228,7 +228,7 @@ trait ChainContractClient {
 
   private def getLastBlockHash(chainId: Long): Option[BlockHash] = getChainMeta(chainId).map(_._2)
 
-  private def getFirstBlockHash(chainId: Long): Option[BlockHash] =
+  protected def getFirstBlockHash(chainId: Long): Option[BlockHash] =
     getBlockHash(s"chain${chainId}FirstBlock")
 
   protected def getBinaryData(key: String): Option[ByteStr] =
@@ -263,7 +263,7 @@ trait ChainContractClient {
 
 object ChainContractClient {
   val MinMinerBalance: Long = 20000_00000000L
-  val DefaultMainChainId    = 0
+  val DefaultMainChainId    = 0L
 
   private val AllMinersKey       = "allMiners"
   private val MainChainIdKey     = "mainChainId"

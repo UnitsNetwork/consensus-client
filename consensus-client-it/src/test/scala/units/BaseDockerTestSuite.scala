@@ -1,6 +1,7 @@
 package units
 
 import com.wavesplatform.account.AddressScheme
+import com.wavesplatform.api.LoggingBackend
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.utils.ScorexLogging
@@ -37,7 +38,7 @@ trait BaseDockerTestSuite
 
   protected lazy val wavesGenesisConfigPath = generateWavesGenesisConfig()
 
-  private implicit val httpClientBackend: SttpBackend[Identity, Any] = HttpClientSyncBackend()
+  private implicit val httpClientBackend: SttpBackend[Identity, Any] = new LoggingBackend(HttpClientSyncBackend())
 
   protected lazy val ec1: EcContainer = {
     val constructor = TestEnvironment.ExecutionClient match {
