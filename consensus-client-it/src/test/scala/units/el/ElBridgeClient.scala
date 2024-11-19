@@ -20,7 +20,7 @@ class ElBridgeClient(web3j: Web3j, address: EthAddress) extends ScorexLogging {
       amountInEther: BigInt
   ): TransactionReceipt = {
     val senderAddress = sender.getAddress
-    log.debug(s"sendNative($senderAddress->$recipient: $amountInEther Ether)")
+    log.debug(s"sendNative($senderAddress->$recipient: $amountInEther Wei)")
     val bridgeContract = BridgeContract.load(address.hex, web3j, sender, new DefaultGasProvider)
     bridgeContract.send_sendNative(recipient.publicKeyHash, amountInEther.bigInteger).send()
   }

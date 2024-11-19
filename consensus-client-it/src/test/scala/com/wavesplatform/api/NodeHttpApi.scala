@@ -34,9 +34,11 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
       .tag(LoggingOptionsTag, loggingOptions)
       .send(backend)
       .body match {
-      case Left(HttpError(_, StatusCode.NotFound))     => none
-      case Left(HttpError(body, statusCode))           => throw new RuntimeException(s"Server returned error $body with status ${statusCode.code}")
-      case Left(DeserializationException(body, error)) => throw new RuntimeException(s"failed to parse response $body: $error")
+      case Left(HttpError(_, StatusCode.NotFound)) =>
+        if (loggingOptions.logResult) log.debug(s"${loggingOptions.prefix} None")
+        none
+      case Left(HttpError(body, statusCode))           => fail(s"Server returned error $body with status ${statusCode.code}")
+      case Left(DeserializationException(body, error)) => fail(s"Failed to parse response $body: $error")
       case Right(r) =>
         if (loggingOptions.logResult) log.debug(s"${loggingOptions.prefix} $r")
         r.some
@@ -67,7 +69,7 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
       .tag(LoggingOptionsTag, loggingOptions)
       .send(backend)
       .body match {
-      case Left(e) => throw e
+      case Left(e) => fail(e)
       case Right(r) =>
         if (loggingOptions.logResult) log.debug(s"${loggingOptions.prefix} ${r.height}")
         r.height
@@ -79,7 +81,7 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
   )(implicit loggingOptions: LoggingOptions = LoggingOptions(logResponseBody = false)): TransactionInfoResponse = {
     if (loggingOptions.logCall) log.debug(s"${loggingOptions.prefix} broadcastAndWait")
     broadcast(txn)(loggingOptions.copy(logRequest = false)).left.foreach { e =>
-      throw new RuntimeException(s"Can't broadcast ${txn.id()}: code=${e.error}, message=${e.message}")
+      fail(s"Can't broadcast ${txn.id()}: code=${e.error}, message=${e.message}")
     }
     waitForSucceeded(txn.id())
   }
@@ -94,7 +96,7 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
       .send(backend)
       .body match {
       case Left(HttpError(e, _)) => e.asLeft
-      case Left(e)               => throw new RuntimeException(e)
+      case Left(e)               => fail(e)
       case _                     => txn.asRight
     }
   }
@@ -127,7 +129,7 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
         if (loggingOptions.logResult) log.debug(s"${loggingOptions.prefix} None")
         none
       case Left(HttpError(body, statusCode))           => fail(s"Server returned error $body with status ${statusCode.code}")
-      case Left(DeserializationException(body, error)) => fail(s"failed to parse response $body: $error")
+      case Left(DeserializationException(body, error)) => fail(s"Failed to parse response $body: $error")
       case Right(r) =>
         if (loggingOptions.logResult) log.debug(s"${loggingOptions.prefix} $r")
         r.some
@@ -142,9 +144,11 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
       .tag(LoggingOptionsTag, loggingOptions)
       .send(backend)
       .body match {
-      case Left(HttpError(_, StatusCode.NotFound))     => none
+      case Left(HttpError(_, StatusCode.NotFound)) =>
+        if (loggingOptions.logResult) log.debug(s"${loggingOptions.prefix} None")
+        none
       case Left(HttpError(body, statusCode))           => fail(s"Server returned error $body with status ${statusCode.code}")
-      case Left(DeserializationException(body, error)) => fail(s"failed to parse response $body: $error")
+      case Left(DeserializationException(body, error)) => fail(s"Failed to parse response $body: $error")
       case Right(r) =>
         if (loggingOptions.logResult) log.debug(s"${loggingOptions.prefix} $r")
         r match {
@@ -166,7 +170,7 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
         if (loggingOptions.logResult) log.debug(s"${loggingOptions.prefix} 0")
         0L
       case Left(HttpError(body, statusCode))           => fail(s"Server returned error $body with status ${statusCode.code}")
-      case Left(DeserializationException(body, error)) => fail(s"failed to parse response $body: $error")
+      case Left(DeserializationException(body, error)) => fail(s"Failed to parse response $body: $error")
       case Right(r) =>
         if (loggingOptions.logResult) log.debug(s"${loggingOptions.prefix} ${r.balance}")
         r.balance
@@ -182,8 +186,8 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
       .send(backend)
       .body match {
       case Left(HttpError(body, statusCode))           => fail(s"Server returned error $body with status ${statusCode.code}")
-      case Left(DeserializationException(body, error)) => fail(s"failed to parse response $body: $error")
-      case Right(r)                                    =>
+      case Left(DeserializationException(body, error)) => fail(s"Failed to parse response $body: $error")
+      case Right(r) =>
         if (loggingOptions.logResult) log.debug(s"${loggingOptions.prefix} ${r.quantity}")
         r.quantity
     }
@@ -198,7 +202,7 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
       .tag(LoggingOptionsTag, loggingOptions)
       .send(backend)
       .body match {
-      case Left(e)  => throw new RuntimeException(e)
+      case Left(e) => fail(e)
       case Right(r) =>
         if (loggingOptions.logResult) log.debug(s"${loggingOptions.prefix} ${(r \ "result").getOrElse(r)}")
         r

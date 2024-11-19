@@ -77,7 +77,7 @@ trait BaseDockerTestSuite
     ec1.stop()
   }
 
-  protected def setupNetwork(): Unit = {
+  protected def setupChain(): Unit = {
     log.info("Set script")
     waves1.api.broadcastAndWait(ChainContract.setScript())
 
@@ -110,6 +110,7 @@ trait BaseDockerTestSuite
   override protected def step(text: String): Unit = {
     super.step(text)
     waves1.api.print(text)
+    // ec1.web3j // Hove no idea how to do this
   }
 
   override def beforeAll(): Unit = {
@@ -118,7 +119,7 @@ trait BaseDockerTestSuite
     log.debug(s"Docker network name: ${network.getName}, id: ${network.getId}") // Force create network
 
     startNodes()
-    setupNetwork()
+    setupChain()
   }
 
   override protected def afterAll(): Unit = {

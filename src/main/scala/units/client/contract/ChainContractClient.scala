@@ -258,7 +258,7 @@ trait ChainContractClient {
 
   private def clean(hash: BlockHash): String = hash.drop(2) // Drop "0x"
 
-  protected def fail(reason: String, cause: Throwable = null): Nothing = throw new InconsistentContractData(reason, cause)
+  private def fail(reason: String, cause: Throwable = null): Nothing = throw new InconsistentContractData(reason, cause)
 }
 
 object ChainContractClient {
