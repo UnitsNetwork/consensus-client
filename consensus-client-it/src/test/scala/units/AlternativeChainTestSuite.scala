@@ -21,9 +21,9 @@ class AlternativeChainTestSuite extends BaseDockerTestSuite {
         elRewardAddress = miner21RewardAddress
       )
     )
-    waves1.api.waitForHeight(heightBeforeJoin + 1) // "designatedMiner" calculates correctly
 
     step(s"Wait miner 2 (${miner21Account.toAddress}) epoch and issue a block confirmation")
+    waves1.api.waitForHeight(heightBeforeJoin + 1)
     broadcastElBlockConfirmation(miner21Account)
 
     step(s"Wait miner 1 (${miner11Account.toAddress}) epoch")
@@ -34,7 +34,7 @@ class AlternativeChainTestSuite extends BaseDockerTestSuite {
   }
 
   @tailrec private def broadcastElBlockConfirmation(minerAccount: KeyPair, maxAttempts: Int = 5)(implicit
-      loggingOptions: LoggingOptions = LoggingOptions(logCall = false, logRequest = false)
+      loggingOptions: LoggingOptions = LoggingOptions(logRequest = false)
   ): Unit = {
     if (maxAttempts == 0) fail("Can't broadcast an EL-block confirmation: all attempts are out")
 

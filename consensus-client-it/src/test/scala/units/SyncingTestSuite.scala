@@ -20,7 +20,7 @@ class SyncingTestSuite extends BaseDockerTestSuite {
     val txn1Result = sendTxn(0)
     waitForTxn(txn1Result)
 
-    val height1 = waves1.api.height
+    val height1 = waves1.api.height()
 
     step("Wait for next epoch")
     waves1.api.waitForHeight(height1 + 1)
