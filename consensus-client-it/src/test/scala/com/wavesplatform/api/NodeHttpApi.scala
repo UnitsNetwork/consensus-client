@@ -19,7 +19,7 @@ import play.api.libs.json.*
 import sttp.client3.*
 import sttp.client3.playJson.*
 import sttp.model.{StatusCode, Uri}
-import units.docker.WavesNodeContainer.AverageBlockDelay
+import units.docker.WavesNodeContainer.MaxBlockDelay
 import units.test.IntegrationTestEventually
 
 class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: String = DefaultApiKeyValue)
@@ -52,7 +52,8 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
     if (currHeight >= atLeast) currHeight
     else {
       Thread.sleep(patienceConfig.interval.toMillis)
-      eventually(timeout(AverageBlockDelay * (atLeast - currHeight).min(1) * 2.5)) {
+      val waitBlocks = (atLeast - currHeight).min(1)
+      eventually(timeout(MaxBlockDelay * waitBlocks)) {
         val h = height()(subsequentLoggingOptions)
         h should be >= atLeast
         if (loggingOptions.logResult) log.debug(s"${loggingOptions.prefix} $h")

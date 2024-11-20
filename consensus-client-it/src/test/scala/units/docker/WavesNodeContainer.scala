@@ -74,7 +74,7 @@ object WavesNodeContainer {
 
   val GenesisTemplateFile = new File(s"$ConfigsDir/wavesnode/genesis-template.conf")
   val GenesisTemplate     = ConfigFactory.parseFile(GenesisTemplateFile)
-  val AverageBlockDelay   = GenesisTemplate.getDuration("genesis-generator.average-block-delay").toScala
+  val MaxBlockDelay       = GenesisTemplate.getDuration("genesis-generator.average-block-delay").toScala * 2
 
   def mkKeyPair(seed: String, nonce: Int): SeedKeyPair =
     SeedKeyPair(crypto.secureHash(Bytes.concat(Ints.toByteArray(nonce), seed.getBytes(StandardCharsets.UTF_8))))
@@ -83,7 +83,7 @@ object WavesNodeContainer {
     val templateFile = ConfigsDir.resolve("wavesnode/genesis-template.conf").toAbsolutePath
 
     val origConfig = ConfigFactory.parseFile(templateFile.toFile)
-    val gap        = 1.minute // To force node mining at start, otherwise it schedules
+    val gap        = 25.seconds // To force node mining at start, otherwise it schedules
     val overrides = ConfigFactory.parseString(
       s"""genesis-generator {
          |  timestamp = ${System.currentTimeMillis() - gap.toMillis}

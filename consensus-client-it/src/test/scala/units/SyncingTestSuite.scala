@@ -15,7 +15,8 @@ class SyncingTestSuite extends BaseDockerTestSuite {
   private val elSender = elRichAccount1
   private val amount   = Convert.toWei("1", Convert.Unit.ETHER).toBigInteger
 
-  "L2-381 EL transactions appear after rollback" in {
+  // TODO: Will be removed after fixing geth issues
+  "L2-381 EL transactions appear after rollback" ignore {
     step("Send transaction 1")
     val txn1Result = sendTxn(0)
     waitForTxn(txn1Result)
