@@ -30,13 +30,17 @@ inScope(Global)(
 name       := "consensus-client"
 maintainer := "Units Network Team"
 
-libraryDependencies ++= Seq(
-  "com.wavesplatform"              % "node-testkit"  % "1.5.8" % Test,
-  "com.wavesplatform"              % "node"          % "1.5.8" % Provided,
-  "com.softwaremill.sttp.client3"  % "core_2.13"     % "3.10.1",
-  "com.softwaremill.sttp.client3" %% "play-json"     % "3.10.1",
-  "com.github.jwt-scala"          %% "jwt-play-json" % "10.0.1"
-)
+libraryDependencies ++= {
+  val node = "1.5-3977-SNAPSHOT"
+  val sttp = "3.10.1"
+  Seq(
+    "com.wavesplatform"              % "node-testkit"  % node % Test,
+    "com.wavesplatform"              % "node"          % node % Provided,
+    "com.softwaremill.sttp.client3"  % "core_2.13"     % sttp,
+    "com.softwaremill.sttp.client3" %% "play-json"     % sttp,
+    "com.github.jwt-scala"          %% "jwt-play-json" % "10.0.1"
+  )
+}
 
 Compile / packageDoc / publishArtifact := false
 
