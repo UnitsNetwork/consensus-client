@@ -1,5 +1,6 @@
 package units
 
+import com.typesafe.config.{Config, ConfigException}
 import com.typesafe.scalalogging.StrictLogging
 import com.wavesplatform.block.{Block, MicroBlock}
 import com.wavesplatform.common.state.ByteStr
@@ -8,14 +9,14 @@ import com.wavesplatform.extensions.{Extension, Context as ExtensionContext}
 import com.wavesplatform.state.{Blockchain, StateSnapshot}
 import io.netty.channel.group.DefaultChannelGroup
 import monix.execution.{CancelableFuture, Scheduler}
-import net.ceedubs.ficus.Ficus.*
+import pureconfig.*
+import pureconfig.generic.auto.*
 import units.ConsensusClient.ChainHandler
 import units.client.engine.EngineApiClient
 import units.network.*
 
 import scala.concurrent.Future
 import scala.jdk.CollectionConverters.CollectionHasAsScala
-import scala.util.Try
 
 class ConsensusClient(context: ExtensionContext) extends StrictLogging with Extension with BlockchainUpdateTriggers {
   import scala.concurrent.ExecutionContext.Implicits.global
@@ -29,16 +30,20 @@ class ConsensusClient(context: ExtensionContext) extends StrictLogging with Exte
     val defaultConfig = context.settings.config.getConfig("units.defaults")
 
     val legacyChainConfig =
-      Try(context.settings.config.getConfig("waves.l2")).toOption.map(_.withFallback(defaultConfig).as[ClientConfig]).tapEach { _ =>
+      try {
+        val cfg = context.settings.config.getConfig("waves.l2")
         logger.info("Consensus client settings at waves.l2 path have been deprecated, please update your config file")
+        Some(cfg.withFallback(defaultConfig).resolve())
+      } catch {
+        case _: ConfigException.Missing => Option.empty[Config]
       }
 
     val newChainConfigs = context.settings.config
       .getConfigList("units.chains")
       .asScala
-      .map(cfg => cfg.withFallback(defaultConfig).resolve().as[ClientConfig])
 
-    val allChainConfigs = legacyChainConfig ++ newChainConfigs
+    val allChainConfigs = (legacyChainConfig ++ newChainConfigs)
+      .map(cfg => ConfigSource.fromConfig(cfg.withFallback(defaultConfig).resolve()).loadOrThrow[ClientConfig])
 
     requireUnique(allChainConfigs, _.chainContract, "chain contract addresses")
     requireUnique(allChainConfigs, _.executionClientAddress, "execution client addresses")

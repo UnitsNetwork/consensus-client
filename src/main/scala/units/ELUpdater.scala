@@ -147,23 +147,6 @@ class ELUpdater(
     }
   }
 
-  private def cleanPriorityPool(): Unit = {
-    // A transaction moves to priority pool when a new key block references one of the previous micro blocks.
-    // When we add a new fresh transaction (extendMainChain) to UTX, it is validated against a stale transaction changes.
-    // Removing here, because we have these transactions in PP after the onProcessBlock trigger
-    utx.getPriorityPool.foreach { pp =>
-      val staleTxs = pp.priorityTransactions.filter {
-        case tx: InvokeScriptTransaction => tx.dApp == contractAddress
-        case _                           => false
-      }
-
-      if (staleTxs.nonEmpty) {
-        logger.debug(s"Removing stale transactions: ${staleTxs.map(_.id()).mkString(", ")}")
-        utx.removeAll(staleTxs)
-      }
-    }
-  }
-
   private def callContract(fc: FUNCTION_CALL, blockData: EcBlock, invoker: KeyPair): JobResult[Unit] = {
     val extraFee = if (blockchain.hasPaidVerifier(invoker.toAddress)) ScriptExtraFee else 0
 
@@ -180,7 +163,6 @@ class ELUpdater(
       blockchain.settings.addressSchemeCharacter.toByte
     ).signWith(invoker.privateKey)
     logger.info(s"Invoking $contractAddress '${fc.function.funcName}' for block ${blockData.hash}->${blockData.parentHash}, txId=${tx.id()}")
-    cleanPriorityPool()
 
     broadcastTx(tx).resultE match {
       case Right(true)  => Either.unit
