@@ -28,8 +28,12 @@ class Miner:
 
 class ExtendedNetwork(Network):
     @cached_property
-    def cl_dao(self) -> ChainContract:
+    def cl_dao(self) -> pw.Address:
         return pw.Address(seed="devnet dao", nonce=0)
+
+    @cached_property
+    def cl_registry(self) -> pw.Oracle:
+        return pw.Oracle(seed="devnet registry")
 
     @cached_property
     def cl_chain_contract(self) -> ChainContract:
