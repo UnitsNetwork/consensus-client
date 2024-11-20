@@ -530,12 +530,8 @@ func join(rewardAddressHex: String) = {
 
   let parts = rewardAddressHex.split("0x")
   let rewardAddress = parts[parts.size() - 1].fromBase16String()
-  let networkIsLaunched = match getInteger("launchHeight") {
-    case launchHeight: Int => launchHeight <= height
-    case _ => throw("not launched yet")
-  }
 
-  if (!isContractSetup() || !networkIsLaunched) then
+  if (!isContractSetup()) then
     throw("The contract has not yet set up")
   else if (i.originCaller.wavesBalance().generating < MIN_BALANCE) then
     throw("Insufficient generating balance: " + i.originCaller.wavesBalance().generating.toString() + ". Required: " + MIN_BALANCE.toString())
