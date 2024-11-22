@@ -68,6 +68,6 @@ class C2ETransfersTestSuite extends BaseIntegrationTestSuite {
     )
     if (queueSize > 0) d.appendMicroBlock(TxHelpers.data(d.chainContractAccount, Seq(IntegerDataEntry("nativeTransfersCount", queueSize))))
 
-    d.appendMicroBlockE(d.chainContract.transferUnsafe(transferSenderAccount, destElAddressHex, tokenId.getOrElse(d.token), transferAmount))
+    d.appendMicroBlockE(d.ChainContract.transferUnsafe(transferSenderAccount, destElAddressHex, tokenId.getOrElse(d.token), transferAmount))
   }
 }

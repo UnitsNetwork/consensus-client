@@ -3,7 +3,7 @@ package units.client.engine.model
 import units.eth.EthereumConstants
 import play.api.libs.json.{JsObject, Json, Writes}
 
-case class NewPayloadRequest(payload: JsObject)
+case class NewPayloadRequest(payload: JsObject, id: Int)
 
 object NewPayloadRequest {
   implicit val writes: Writes[NewPayloadRequest] = (o: NewPayloadRequest) => {
@@ -15,7 +15,7 @@ object NewPayloadRequest {
         Json.arr(),
         EthereumConstants.EmptyRootHashHex
       ),
-      "id" -> 1
+      "id" -> o.id
     )
   }
 }

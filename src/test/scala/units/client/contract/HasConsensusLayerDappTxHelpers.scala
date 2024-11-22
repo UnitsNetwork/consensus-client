@@ -7,11 +7,13 @@ import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.test.NumericExt
+import com.wavesplatform.transaction.TxHelpers.defaultSigner
 import com.wavesplatform.transaction.smart.{InvokeScriptTransaction, SetScriptTransaction}
 import com.wavesplatform.transaction.{Asset, TxHelpers}
+import units.BlockHash
 import units.client.L2BlockLike
 import units.client.contract.HasConsensusLayerDappTxHelpers.*
-import units.client.contract.HasConsensusLayerDappTxHelpers.defaultFees.chainContract.*
+import units.client.contract.HasConsensusLayerDappTxHelpers.DefaultFees.ChainContract.*
 import units.eth.{EthAddress, EthereumConstants}
 
 trait HasConsensusLayerDappTxHelpers {
@@ -20,10 +22,16 @@ trait HasConsensusLayerDappTxHelpers {
   def chainContractAccount: KeyPair
   lazy val chainContractAddress: Address = chainContractAccount.toAddress
 
-  object chainContract {
+  object ChainContract {
     def setScript(): SetScriptTransaction = TxHelpers.setScript(chainContractAccount, CompiledChainContract.script, fee = setScriptFee)
 
-    def setup(genesisBlock: L2BlockLike, elMinerReward: Long, daoAddress: Option[Address], daoReward: Long): InvokeScriptTransaction = TxHelpers.invoke(
+    def setup(
+        genesisBlock: L2BlockLike,
+        elMinerReward: Long,
+        daoAddress: Option[Address],
+        daoReward: Long,
+        invoker: KeyPair = defaultSigner
+    ): InvokeScriptTransaction = TxHelpers.invoke(
       dApp = chainContractAddress,
       func = "setup".some,
       args = List(
@@ -32,7 +40,8 @@ trait HasConsensusLayerDappTxHelpers {
         Terms.CONST_STRING(daoAddress.fold("")(_.toString)).explicitGet(),
         Terms.CONST_LONG(daoReward)
       ),
-      fee = setupFee
+      fee = setupFee,
+      invoker = invoker
     )
 
     def join(minerAccount: KeyPair, elRewardAddress: EthAddress): InvokeScriptTransaction = TxHelpers.invoke(
@@ -64,6 +73,28 @@ trait HasConsensusLayerDappTxHelpers {
         args = List(
           Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
           Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
+          Terms.CONST_BYTESTR(vrf).explicitGet(),
+          Terms.CONST_STRING(e2cTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(lastC2ETransferIndex)
+        ),
+        fee = extendMainChainFee
+      )
+
+    def extendMainChain(
+        minerAccount: KeyPair,
+        blockHash: BlockHash,
+        parentBlockHash: BlockHash,
+        e2cTransfersRootHashHex: String,
+        lastC2ETransferIndex: Long,
+        vrf: ByteStr
+    ): InvokeScriptTransaction =
+      TxHelpers.invoke(
+        invoker = minerAccount,
+        dApp = chainContractAddress,
+        func = "extendMainChain".some,
+        args = List(
+          Terms.CONST_STRING(blockHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(parentBlockHash.drop(2)).explicitGet(),
           Terms.CONST_BYTESTR(vrf).explicitGet(),
           Terms.CONST_STRING(e2cTransfersRootHashHex.drop(2)).explicitGet(),
           Terms.CONST_LONG(lastC2ETransferIndex)
@@ -171,13 +202,21 @@ trait HasConsensusLayerDappTxHelpers {
         merkleProof: Seq[Digest],
         transferIndexInBlock: Int,
         amount: Long
+    ): InvokeScriptTransaction = withdraw(sender, block.hash, merkleProof, transferIndexInBlock, amount)
+
+    def withdraw(
+        sender: KeyPair,
+        blockHash: BlockHash,
+        merkleProof: Seq[Digest],
+        transferIndexInBlock: Int,
+        amount: Long
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = sender,
         dApp = chainContractAddress,
         func = "withdraw".some,
         args = List(
-          Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(blockHash.drop(2)).explicitGet(),
           Terms.ARR(merkleProof.map[Terms.EVALUATED](x => Terms.CONST_BYTESTR(ByteStr(x)).explicitGet()).toVector, limited = false).explicitGet(),
           Terms.CONST_LONG(transferIndexInBlock),
           Terms.CONST_LONG(amount)
@@ -190,8 +229,8 @@ trait HasConsensusLayerDappTxHelpers {
 object HasConsensusLayerDappTxHelpers {
   val EmptyE2CTransfersRootHashHex = EthereumConstants.NullHex
 
-  object defaultFees {
-    object chainContract {
+  object DefaultFees {
+    object ChainContract {
       val setScriptFee       = 0.05.waves
       val setupFee           = 2.waves
       val joinFee            = 0.1.waves

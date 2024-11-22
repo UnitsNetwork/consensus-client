@@ -37,7 +37,7 @@ class ConsensusClientDependencies(val config: ClientConfig) extends AutoCloseabl
       httpClientBackend
   }
 
-  val engineApiClient = new LoggedEngineApiClient(new HttpEngineApiClient(config, maybeAuthenticatedBackend))
+  val engineApiClient = new LoggedEngineApiClient(new HttpEngineApiClient(config.jsonRpcClient, maybeAuthenticatedBackend))
 
   val allChannels     = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE)
   val peerDatabase    = new PeerDatabaseImpl(config.network)
