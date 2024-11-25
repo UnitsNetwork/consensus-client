@@ -15,6 +15,10 @@ NETWORK: $NETWORK
 PREFIX: ${PREFIX}
 EOF
 
+# TODO:
+# --rollup.sequencerhttp="$BEDROCK_SEQUENCER_HTTP" \
+# --rollup.disabletxpoolgossip=true \
+
 # --syncmode full, because default "snap" mode and starting concurrently with ec-1 cause a stopped sync
 exec geth \
   --http \
@@ -34,7 +38,8 @@ exec geth \
   --nat="extip:${IP}" \
   --netrestrict="${NETWORK}/${PREFIX}" \
   --bootnodes="${BESU_BOOTNODES}" \
-  --syncmode full \
+  --syncmode="full" \
+  --gcmode="full" \
   --log.file="/root/logs/log" \
   --verbosity=5 \
   --log.format=terminal \

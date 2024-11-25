@@ -8,14 +8,23 @@ import org.web3j.protocol.exceptions.TransactionException
 import org.web3j.utils.Convert
 import units.el.ElBridgeClient
 
+import scala.jdk.OptionConverters.RichOptional
+
 class BridgeE2CTestSuite extends BaseDockerTestSuite {
   private val elSender    = elRichAccount1
   private val clRecipient = clRichAccount1
   private val userAmount  = 1
   private val wavesAmount = UnitsConvert.toWavesAmount(userAmount)
 
-  private def sendNative(amount: BigInt = UnitsConvert.toWei(userAmount)): TransactionReceipt =
-    elBridge.sendNative(elSender, clRecipient.toAddress, amount)
+  private def sendNative(amount: BigInt = UnitsConvert.toWei(userAmount)): TransactionReceipt = {
+    val txnResult = elBridge.sendNative(elSender, clRecipient.toAddress, amount)
+    val r = eventually {
+      ec1.web3j.ethGetTransactionReceipt(txnResult.getTransactionHash).send().getTransactionReceipt.toScala.value
+    }
+
+    if (!r.isStatusOK) fail(s"Expected successful sendNative, got: ${ElBridgeClient.decodeRevertReason(r.getRevertReason)}")
+    r
+  }
 
   private val tenGwei = BigInt(Convert.toWei("10", Convert.Unit.GWEI).toBigIntegerExact)
 
