@@ -8,5 +8,5 @@ object TestEnvironment {
   Files.createDirectories(DefaultLogsDir)
 
   val WavesDockerImage: String = System.getProperty("cc.it.docker.image")
-  val ExecutionClient: String  = System.getProperty("cc.it.ec", "op-geth") // besu | geth | op-geth
+  val ExecutionClient          = Option(System.getProperty("cc.it.ec"))
 }

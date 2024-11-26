@@ -41,11 +41,10 @@ trait BaseDockerTestSuite
   private implicit val httpClientBackend: SttpBackend[Identity, Any] = new LoggingBackend(HttpClientSyncBackend())
 
   protected lazy val ec1: EcContainer = {
-    val constructor = TestEnvironment.ExecutionClient match {
+    val constructor = TestEnvironment.ExecutionClient.getOrElse("op-geth") match {
       case "besu"    => new BesuContainer(_, _, _)
       case "geth"    => new GethContainer(_, _, _)
       case "op-geth" => new OpGethContainer(_, _, _)
-      case x         => throw new RuntimeException(s"Unknown execution client: $x. Only 'geth' or 'besu' supported")
     }
 
     constructor(network, 1, Networks.ipForNode(2) /* ipForNode(1) is assigned to Ryuk */ )
