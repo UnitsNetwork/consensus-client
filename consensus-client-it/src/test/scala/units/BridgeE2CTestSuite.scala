@@ -41,6 +41,10 @@ class BridgeE2CTestSuite extends BaseDockerTestSuite {
   "Positive" - {
     def sendNative(amount: BigInt = UnitsConvert.toWei(userAmount)): TransactionReceipt = {
       val txnResult = elBridge.sendSendNative(elSender, clRecipient.toAddress, amount)
+
+      // To overcome a failed block confirmation in a new epoch issue
+      chainContract.waitForHeight(ec1.web3j.ethBlockNumber().send().getBlockNumber.longValueExact() + 2)
+
       eventually {
         val r = ec1.web3j.ethGetTransactionReceipt(txnResult.getTransactionHash).send().getTransactionReceipt.toScala.value
         if (!r.isStatusOK) fail(s"Expected successful sendNative, got: ${ElBridgeClient.decodeRevertReason(r.getRevertReason)}")
@@ -69,8 +73,6 @@ class BridgeE2CTestSuite extends BaseDockerTestSuite {
         val bridgeBalanceAfter = bridgeBalance
         bridgeBalanceAfter shouldBe bridgeBalanceBefore
       }
-
-      // TODO block can be changed
 
       val blockHash = BlockHash(sendTxnReceipt.getBlockHash)
       step(s"Block with transaction: $blockHash")
