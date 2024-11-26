@@ -20,8 +20,8 @@ services:
     container_name: ec-2
     hostname: ec-2
     extends:
-      file: ./configs/geth/geth.yml
-      service: geth
+      file: ./configs/op-geth/op-geth.yml
+      service: op-geth
     ports:
       - "127.0.0.1:28551:8551" # Engine port
       - "127.0.0.1:28545:8545" # RPC port
