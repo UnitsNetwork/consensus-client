@@ -33,10 +33,11 @@ import monix.execution.ExecutionModel
 import monix.execution.schedulers.TestScheduler
 import monix.reactive.Observable
 import monix.reactive.subjects.PublishSubject
-import net.ceedubs.ficus.Ficus.*
 import org.scalatest.exceptions.TestFailedException
 import org.web3j.abi.datatypes.generated.Uint256
 import play.api.libs.json.*
+import pureconfig.ConfigSource
+import pureconfig.generic.auto.*
 import units.ELUpdater.*
 import units.ELUpdater.State.{ChainStatus, Working}
 import units.ExtensionDomain.*
@@ -58,6 +59,7 @@ class ExtensionDomain(
     blockchainUpdater: BlockchainUpdaterImpl,
     rocksDBWriter: RocksDBWriter,
     settings: WavesSettings,
+    override val chainRegistryAccount: KeyPair,
     elBridgeAddress: EthAddress,
     elMinerDefaultReward: Gwei
 ) extends Domain(rdb, blockchainUpdater, rocksDBWriter, settings)
@@ -67,7 +69,7 @@ class ExtensionDomain(
     with ScorexLogging { self =>
   override val chainContractAccount: KeyPair = KeyPair("chain-contract".getBytes(StandardCharsets.UTF_8))
 
-  val l2Config = settings.config.as[ClientConfig]("units.defaults")
+  val l2Config = ConfigSource.fromConfig(settings.config).at("units.defaults").loadOrThrow[ClientConfig]
   require(l2Config.chainContractAddress == chainContractAddress, "Check settings")
 
   val ecGenesisBlock = EcBlock(

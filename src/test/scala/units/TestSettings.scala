@@ -1,7 +1,7 @@
 package units
 
 import com.typesafe.config.ConfigFactory
-import com.wavesplatform.account.{KeyPair, SeedKeyPair}
+import com.wavesplatform.account.{Address, KeyPair, SeedKeyPair}
 import com.wavesplatform.db.WithState.AddrWithBalance
 import com.wavesplatform.settings.WavesSettings
 import com.wavesplatform.test.{DomainPresets, NumericExt}
@@ -21,15 +21,23 @@ case class TestSettings(
 
   def walletSeed: Array[Byte] = wavesSettings.walletSettings.seed.getOrElse(throw new RuntimeException("No wallet seed")).arr
 
-  def withEnabledElMining: TestSettings = copy(wavesSettings = Waves.WithMining)
+  def withEnabledElMining: TestSettings = copy(wavesSettings =
+    wavesSettings.copy(config = ConfigFactory.parseString("units.defaults.mining-enable = true").withFallback(wavesSettings.config))
+  )
+
+  def withChainRegistry(address: Address): TestSettings = copy(wavesSettings = Waves.withChainRegistry(wavesSettings, Some(address)))
 }
 
 object TestSettings {
-  val Default = TestSettings()
-
   private object Waves {
-    val Default    = DomainPresets.TransactionStateSnapshot
-    val WithMining = Default.copy(config = ConfigFactory.parseString("units.defaults.mining-enable = true").withFallback(Default.config))
+    val Default = withChainRegistry(DomainPresets.TransactionStateSnapshot, None)
+
+    def withChainRegistry(settings: WavesSettings, address: Option[Address]): WavesSettings =
+      settings.copy(blockchainSettings =
+        settings.blockchainSettings.copy(functionalitySettings =
+          settings.blockchainSettings.functionalitySettings.copy(unitsRegistryAddress = address.map(_.toString))
+        )
+      )
   }
 }
 

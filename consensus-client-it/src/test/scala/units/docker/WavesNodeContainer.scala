@@ -41,6 +41,7 @@ class WavesNodeContainer(
         "NODE_NUMBER"       -> s"$number",
         "WAVES_WALLET_SEED" -> Base58.encode(baseSeed.getBytes(StandardCharsets.UTF_8)),
         "JAVA_OPTS" -> List(
+          "-Dwaves.miner.quorum=0",
           s"-Dunits.defaults.chain-contract=$chainContractAddress",
           s"-Dunits.defaults.execution-client-address=$ecEngineApiUrl",
           "-Dlogback.file.level=TRACE",

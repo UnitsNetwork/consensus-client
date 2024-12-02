@@ -11,7 +11,7 @@ class C2ETransfersTestSuite extends BaseIntegrationTestSuite {
   private val validTransferRecipient = "1111111111111111111111111111111111111111"
   private val unrelatedAsset         = TxHelpers.issue(issuer = transferSenderAccount)
 
-  override protected val defaultSettings: TestSettings = TestSettings.Default.copy(
+  override protected val defaultSettings: TestSettings = super.defaultSettings.copy(
     additionalBalances = List(AddrWithBalance(transferSenderAccount.toAddress))
   )
 

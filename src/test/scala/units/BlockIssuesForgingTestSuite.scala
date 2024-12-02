@@ -13,11 +13,11 @@ import scala.concurrent.duration.DurationInt
 class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
   private val transferReceiver = TxHelpers.secondSigner
 
-  private val thisMiner   = ElMinerSettings(Wallet.generateNewAccount(TestSettings.Default.walletSeed, 0))
+  private val thisMiner   = ElMinerSettings(Wallet.generateNewAccount(super.defaultSettings.walletSeed, 0))
   private val otherMiner1 = ElMinerSettings(TxHelpers.signer(2))
   private val otherMiner2 = ElMinerSettings(TxHelpers.signer(3))
 
-  override protected val defaultSettings: TestSettings = TestSettings.Default
+  override protected val defaultSettings: TestSettings = super.defaultSettings
     .copy(
       initialMiners = List(thisMiner, otherMiner1, otherMiner2),
       additionalBalances = List(AddrWithBalance(transferReceiver.toAddress, DefaultFees.ChainContract.withdrawFee))

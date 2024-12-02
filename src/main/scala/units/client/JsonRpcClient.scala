@@ -2,10 +2,9 @@ package units.client
 
 import cats.Id
 import cats.syntax.either.*
-import net.ceedubs.ficus.Ficus.*
-import net.ceedubs.ficus.readers.ArbitraryTypeReader.arbitraryTypeValueReader
-import net.ceedubs.ficus.readers.{Generated, ValueReader}
 import play.api.libs.json.{JsError, JsValue, Reads, Writes}
+import pureconfig.*
+import pureconfig.generic.semiauto.*
 import sttp.client3.*
 import sttp.client3.playJson.*
 import units.ClientError
@@ -79,7 +78,7 @@ object JsonRpcClient {
   }
 
   object Config {
-    implicit val configValueReader: Generated[ValueReader[Config]] = arbitraryTypeValueReader
+    implicit val configValueReader: ConfigReader[Config] = deriveReader
   }
 
   def newRequestId: Int = ThreadLocalRandom.current().nextInt(10000, 100000)

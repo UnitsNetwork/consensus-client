@@ -78,6 +78,9 @@ trait BaseDockerTestSuite
   }
 
   protected def setupChain(): Unit = {
+    log.info("Approve chain on registry")
+    waves1.api.broadcast(ChainRegistry.approve())
+
     log.info("Set script")
     waves1.api.broadcastAndWait(ChainContract.setScript())
 

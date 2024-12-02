@@ -7,7 +7,7 @@ import units.eth.EthAddress
 class BlockBriefValidationTestSuite extends BaseIntegrationTestSuite {
   private val miner = ElMinerSettings(TxHelpers.signer(1))
 
-  override protected val defaultSettings: TestSettings = TestSettings.Default.copy(
+  override protected val defaultSettings: TestSettings = super.defaultSettings.copy(
     initialMiners = List(miner)
   )
 

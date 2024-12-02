@@ -16,7 +16,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
   private val reliable    = ElMinerSettings(TxHelpers.signer(1))
   private val malfunction = ElMinerSettings(TxHelpers.signer(2)) // Prevents a block finalization
 
-  override protected val defaultSettings: TestSettings = TestSettings.Default.copy(
+  override protected val defaultSettings: TestSettings = super.defaultSettings.copy(
     initialMiners = List(reliable, malfunction)
   )
 

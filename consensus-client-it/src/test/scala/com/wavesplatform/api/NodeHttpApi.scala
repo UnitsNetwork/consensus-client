@@ -52,7 +52,7 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
     if (currHeight >= atLeast) currHeight
     else {
       Thread.sleep(patienceConfig.interval.toMillis)
-      val waitBlocks = (atLeast - currHeight).min(1)
+      val waitBlocks = (atLeast - currHeight).max(1)
       eventually(timeout(MaxBlockDelay * waitBlocks)) {
         val h = height()(subsequentLoggingOptions)
         h should be >= atLeast
