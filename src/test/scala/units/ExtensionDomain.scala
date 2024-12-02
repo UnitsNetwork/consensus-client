@@ -67,7 +67,7 @@ class ExtensionDomain(
     with ScorexLogging { self =>
   override val chainContractAccount: KeyPair = KeyPair("chain-contract".getBytes(StandardCharsets.UTF_8))
 
-  val l2Config = settings.config.as[ClientConfig]("waves.l2")
+  val l2Config = settings.config.as[ClientConfig]("units.defaults")
   require(l2Config.chainContractAddress == chainContractAddress, "Check settings")
 
   val ecGenesisBlock = EcBlock(

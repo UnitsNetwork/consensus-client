@@ -3,18 +3,20 @@
 
     <Properties>
         <Property name="root.log.pattern">%date %-5level [%-25.25thread] %35.35c{1.} - %msg%n%throwable</Property>
+        <Property name="root.log.file.level">DEBUG</Property>
     </Properties>
 
     <!-- Example with JSON: https://github.com/Consensys/quorum-dev-quickstart/blob/b72a0f64d685c851bf8be399a8e33bbdf0e09982/files/besu/config/besu/log-config.xml -->
     <Appenders>
         <Console name="Console" target="SYSTEM_OUT">
-            <PatternLayout alwaysWriteExceptions="false" pattern='${root.log.pattern}'/>
+            <PatternLayout alwaysWriteExceptions="false" pattern="${root.log.pattern}"/>
         </Console>
-        <RollingFile name="RollingFile" fileName="/opt/besu/logs/log" filePattern="/opt/besu/logs/%d{MM-dd-yyyy}-%i.log.gz" >
-            <PatternLayout alwaysWriteExceptions="false" pattern='${root.log.pattern}'/>
+        <RollingFile name="RollingFile" fileName="/opt/besu/logs/besu.log"
+                     filePattern="/opt/besu/logs/besu-%d{MM-dd-yyyy}-%i.log.gz">
+            <PatternLayout alwaysWriteExceptions="false" pattern="${root.log.pattern}"/>
             <Policies>
-                <TimeBasedTriggeringPolicy />
-                <SizeBasedTriggeringPolicy size="1000 MB" />
+                <TimeBasedTriggeringPolicy/>
+                <SizeBasedTriggeringPolicy size="1000 MB"/>
             </Policies>
         </RollingFile>
     </Appenders>
@@ -23,25 +25,25 @@
         <Logger name="oshi" level="OFF" additivity="false"/>
 
         <Logger name="io.netty" additivity="false">
-            <AppenderRef ref="RollingFile" level="WARN" />
+            <AppenderRef ref="RollingFile" level="WARN"/>
         </Logger>
 
         <Logger name="io.vertx" additivity="false">
-            <AppenderRef ref="RollingFile" level="WARN" />
+            <AppenderRef ref="RollingFile" level="WARN"/>
         </Logger>
 
         <Logger name="org.hyperledger.besu.ethereum.eth.transactions.BlobCache" additivity="false">
-            <AppenderRef ref="RollingFile" level="WARN" />
+            <AppenderRef ref="RollingFile" level="WARN"/>
         </Logger>
 
         <!-- https://github.com/hyperledger/besu/pull/6825 -->
         <Logger name="io.opentelemetry.extension.trace.propagation.B3PropagatorExtractorMultipleHeaders">
-            <RegexFilter regex="Invalid TraceId in B3 header:.*" onMatch="DENY" onMismatch="NEUTRAL" />
+            <RegexFilter regex="Invalid TraceId in B3 header:.*" onMatch="DENY" onMismatch="NEUTRAL"/>
         </Logger>
 
         <Root>
-            <AppenderRef ref="Console" level="INFO" />
-            <AppenderRef ref="RollingFile" level="DEBUG" />
+            <AppenderRef ref="Console" level="INFO"/>
+            <AppenderRef ref="RollingFile" level="${env:ROOT_LOG_FILE_LEVEL:-DEBUG}"/>
         </Root>
     </Loggers>
 

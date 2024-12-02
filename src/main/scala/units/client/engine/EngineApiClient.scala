@@ -1,13 +1,14 @@
 package units.client.engine
 
 import play.api.libs.json.*
+import units.client.JsonRpcClient.newRequestId
 import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.model.*
 import units.eth.EthAddress
 import units.{BlockHash, JobResult}
 
 trait EngineApiClient {
-  def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus]
+  def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int = newRequestId): JobResult[PayloadStatus]
 
   def forkChoiceUpdateWithPayloadId(
       lastBlockHash: BlockHash,
@@ -15,26 +16,29 @@ trait EngineApiClient {
       unixEpochSeconds: Long,
       suggestedFeeRecipient: EthAddress,
       prevRandao: String,
-      withdrawals: Vector[Withdrawal] = Vector.empty
+      withdrawals: Vector[Withdrawal] = Vector.empty,
+      requestId: Int = newRequestId
   ): JobResult[PayloadId]
 
-  def getPayload(payloadId: PayloadId): JobResult[JsObject]
+  def getPayload(payloadId: PayloadId, requestId: Int = newRequestId): JobResult[JsObject]
 
-  def applyNewPayload(payload: JsObject): JobResult[Option[BlockHash]]
+  def applyNewPayload(payload: JsObject, requestId: Int = newRequestId): JobResult[Option[BlockHash]]
 
-  def getPayloadBodyByHash(hash: BlockHash): JobResult[Option[JsObject]]
+  def getPayloadBodyByHash(hash: BlockHash, requestId: Int = newRequestId): JobResult[Option[JsObject]]
 
-  def getBlockByNumber(number: BlockNumber): JobResult[Option[EcBlock]]
+  def getBlockByNumber(number: BlockNumber, requestId: Int = newRequestId): JobResult[Option[EcBlock]]
 
-  def getBlockByHash(hash: BlockHash): JobResult[Option[EcBlock]]
+  def getBlockByHash(hash: BlockHash, requestId: Int = newRequestId): JobResult[Option[EcBlock]]
 
-  def getBlockByHashJson(hash: BlockHash): JobResult[Option[JsObject]]
+  def getBlockByHashJson(hash: BlockHash, requestId: Int = newRequestId): JobResult[Option[JsObject]]
 
-  def getLastExecutionBlock: JobResult[EcBlock]
+  def getLastExecutionBlock(requestId: Int = newRequestId): JobResult[EcBlock]
 
-  def blockExists(hash: BlockHash): JobResult[Boolean]
+  def blockExists(hash: BlockHash, requestId: Int = newRequestId): JobResult[Boolean]
 
-  def getLogs(hash: BlockHash, address: EthAddress, topic: String): JobResult[List[GetLogsResponseEntry]]
+  def getLogs(hash: BlockHash, address: EthAddress, topic: String, requestId: Int = newRequestId): JobResult[List[GetLogsResponseEntry]]
+
+  def onRetry(requestId: Int): Unit = {}
 }
 
 object EngineApiClient {

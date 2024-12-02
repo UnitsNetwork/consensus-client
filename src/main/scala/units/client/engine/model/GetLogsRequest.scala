@@ -9,7 +9,7 @@ import units.eth.EthAddress
   * @see
   *   https://besu.hyperledger.org/stable/public-networks/reference/api#eth_getlogs
   */
-case class GetLogsRequest(hash: BlockHash, address: EthAddress, topics: List[String])
+case class GetLogsRequest(hash: BlockHash, address: EthAddress, topics: List[String], id: Int)
 object GetLogsRequest {
   implicit val writes: Writes[GetLogsRequest] = (o: GetLogsRequest) => {
     Json.obj(
@@ -22,7 +22,7 @@ object GetLogsRequest {
           "topics"    -> o.topics
         )
       ),
-      "id" -> 1
+      "id" -> o.id
     )
   }
 }

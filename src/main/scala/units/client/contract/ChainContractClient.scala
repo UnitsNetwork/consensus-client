@@ -61,7 +61,7 @@ trait ChainContractClient {
         val chainHeight = bb.getLong()
         val epoch       = bb.getLong().toInt // blockMeta is set up in a chain contract and RIDE numbers are Longs
         val parentHash  = BlockHash(bb.getByteArray(BlockHashBytesSize))
-        val chainId     = if (bb.remaining() >= 8) bb.getLong() else 0L
+        val chainId     = if (bb.remaining() >= 8) bb.getLong() else DefaultMainChainId
 
         val e2cTransfersRootHash =
           if (bb.remaining() >= ContractBlock.E2CTransfersRootHashLength) bb.getByteArray(ContractBlock.E2CTransfersRootHashLength)
@@ -228,16 +228,16 @@ trait ChainContractClient {
 
   private def getLastBlockHash(chainId: Long): Option[BlockHash] = getChainMeta(chainId).map(_._2)
 
-  private def getFirstBlockHash(chainId: Long): Option[BlockHash] =
+  protected def getFirstBlockHash(chainId: Long): Option[BlockHash] =
     getBlockHash(s"chain${chainId}FirstBlock")
 
-  private def getBinaryData(key: String): Option[ByteStr] =
+  protected def getBinaryData(key: String): Option[ByteStr] =
     extractBinaryValue(key, extractData(key))
 
-  private def getStringData(key: String): Option[String] =
+  protected def getStringData(key: String): Option[String] =
     extractStringValue(key, extractData(key))
 
-  private def getLongData(key: String): Option[Long] =
+  protected def getLongData(key: String): Option[Long] =
     extractLongValue(key, extractData(key))
 
   private def extractLongValue(context: String, extractedDataEntry: Option[DataEntry[?]]): Option[Long] =
@@ -263,7 +263,7 @@ trait ChainContractClient {
 
 object ChainContractClient {
   val MinMinerBalance: Long = 20000_00000000L
-  val DefaultMainChainId    = 0
+  val DefaultMainChainId    = 0L
 
   private val AllMinersKey       = "allMiners"
   private val MainChainIdKey     = "mainChainId"

@@ -8,8 +8,9 @@ import units.eth.EthAddress
   */
 case class GetLogsResponseEntry(
     address: EthAddress,
-    data: String,        // Bytes
-    topics: List[String] // TODO type
+    data: String,         // Bytes
+    topics: List[String], // TODO type
+    transactionHash: String
 )
 
 object GetLogsResponseEntry {

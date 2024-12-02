@@ -6,7 +6,7 @@ import com.wavesplatform.settings.*
 import net.ceedubs.ficus.Ficus.*
 import net.ceedubs.ficus.readers.ArbitraryTypeReader.arbitraryTypeValueReader
 import net.ceedubs.ficus.readers.{Generated, ValueReader}
-import net.ceedubs.ficus.readers.namemappers.implicits.hyphenCase
+import units.client.JsonRpcClient
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -22,6 +22,12 @@ case class ClientConfig(
     jwtSecretFile: Option[String]
 ) {
   lazy val chainContractAddress: Address = Address.fromString(chainContract).explicitGet()
+
+  val jsonRpcClient = JsonRpcClient.Config(
+    apiUrl = executionClientAddress,
+    apiRequestRetries = apiRequestRetries,
+    apiRequestRetryWaitTime = apiRequestRetryWaitTime
+  )
 }
 
 object ClientConfig {

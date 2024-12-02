@@ -1,9 +1,9 @@
 package units.client.engine.model
 
-import units.client.engine.EngineApiClient.PayloadId
 import play.api.libs.json.{Json, Writes}
+import units.client.engine.EngineApiClient.PayloadId
 
-case class GetPayloadRequest(payloadId: PayloadId)
+case class GetPayloadRequest(payloadId: PayloadId, id: Int)
 
 object GetPayloadRequest {
   implicit val writes: Writes[GetPayloadRequest] = (o: GetPayloadRequest) => {
@@ -11,7 +11,7 @@ object GetPayloadRequest {
       "jsonrpc" -> "2.0",
       "method"  -> "engine_getPayloadV3",
       "params"  -> Json.arr(o.payloadId),
-      "id"      -> 1
+      "id"      -> o.id
     )
   }
 }

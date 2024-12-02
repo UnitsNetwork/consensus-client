@@ -6,6 +6,18 @@ jobs:
   check-pr:
     name: Check PR
     runs-on: ubuntu-latest
+    env:
+      JAVA_OPTS: -Xss6M -XX:ReservedCodeCacheSize=256M -Dfile.encoding=UTF-8
+      BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+      SBT_IT_TEST_THREADS: 2
+    services:
+      docker:
+        image: docker:latest
+        options: --privileged  # Required for Docker-in-Docker
+        volumes:
+          - /var/run/docker.sock:/var/run/docker.sock
+        ports:
+          - 2375:2375
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -13,5 +25,15 @@ jobs:
           distribution: 'temurin'
           java-version: '11'
           cache: 'sbt'
-      - name: Check PR
-        run: sbt --batch "compile;test"
+      - uses: sbt/setup-sbt@v1
+      - name: Run tests
+        run: |
+          sbt --batch "test;docker;consensus-client-it/test"
+      - name: Archive logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-logs_${{ env.BRANCH_NAME }}_${{ github.run_id }}
+          path: consensus-client-it/target/test-logs
+          if-no-files-found: warn
+          retention-days: 14

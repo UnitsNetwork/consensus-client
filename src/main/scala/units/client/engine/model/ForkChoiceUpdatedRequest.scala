@@ -1,13 +1,13 @@
 package units.client.engine.model
 
+import play.api.libs.json.*
 import units.BlockHash
 import units.client.engine.model.ForkChoiceUpdatedRequest.ForkChoiceAttributes
 import units.eth.{EthAddress, EthereumConstants}
 import units.util.HexBytesConverter.*
-import play.api.libs.json.*
 
 // https://github.com/ethereum/execution-apis/blob/main/src/engine/cancun.md#engine_forkchoiceupdatedv3
-case class ForkChoiceUpdatedRequest(lastBlockHash: BlockHash, finalizedBlockHash: BlockHash, attrs: Option[ForkChoiceAttributes])
+case class ForkChoiceUpdatedRequest(lastBlockHash: BlockHash, finalizedBlockHash: BlockHash, attrs: Option[ForkChoiceAttributes], id: Int)
 
 object ForkChoiceUpdatedRequest {
   case class ForkChoiceAttributes(unixEpochSeconds: Long, suggestedFeeRecipient: EthAddress, prevRandao: String, withdrawals: Vector[Withdrawal])
@@ -30,7 +30,7 @@ object ForkChoiceUpdatedRequest {
           )
           .getOrElse[JsValue](JsNull)
       ),
-      "id" -> 1
+      "id" -> o.id
     )
   }
 }

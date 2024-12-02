@@ -1,6 +1,9 @@
 .DS_Store
 target
+.bloop
 .bsp
+.metals
+metals.sbt
 .idea
 docker/data
 docker/logs
