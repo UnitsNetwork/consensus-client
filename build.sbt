@@ -31,7 +31,7 @@ name       := "consensus-client"
 maintainer := "Units Network Team"
 
 libraryDependencies ++= {
-  val node = "1.5-3977-SNAPSHOT"
+  val node = "1.5-SNAPSHOT"
   val sttp = "3.10.1"
   Seq(
     "com.wavesplatform"              % "node-testkit"  % node % Test,
