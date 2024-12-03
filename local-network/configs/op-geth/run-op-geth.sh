@@ -17,6 +17,7 @@ EOF
 
 # --syncmode full, because default "snap" mode and starting concurrently with ec-1 cause a stopped sync
 exec geth \
+  --config=/tmp/peers.toml \
   --http \
   --http.addr=0.0.0.0 \
   --http.vhosts=* \
@@ -33,7 +34,6 @@ exec geth \
   --nodekey=/etc/secrets/p2p-key \
   --nat="extip:${IP}" \
   --netrestrict="${NETWORK}/${PREFIX}" \
-  --bootnodes="${BESU_BOOTNODES}" \
   --syncmode="full" \
   --gcmode="full" \
   --log.file="/root/logs/log" \

@@ -5,6 +5,7 @@ services:
     entrypoint: /tmp/run.sh
     volumes:
       - ../ec-common/genesis.json:/tmp/genesis.json:ro
+      - ../ec-common/peers-geth.toml:/tmp/peers.toml:ro
       - ./run-op-geth.sh:/tmp/run.sh:ro
     env_file:
       - ../ec-common/peers.env
