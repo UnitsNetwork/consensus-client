@@ -34,8 +34,8 @@ exec geth \
   --nodekey=/etc/secrets/p2p-key \
   --nat="extip:${IP}" \
   --netrestrict="${NETWORK}/${PREFIX}" \
-  --bootnodes="${BESU_BOOTNODES}" \
-  --syncmode full \
+  --syncmode="full" \
+  --gcmode="full" \
   --log.file="/root/logs/log" \
   --verbosity=5 \
   --log.format=terminal \
