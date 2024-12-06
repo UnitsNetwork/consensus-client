@@ -12,8 +12,10 @@ import units.client.engine.{EngineApiClient, HttpEngineApiClient, LoggedEngineAp
 import units.docker.EcContainer.{EnginePort, RpcPort}
 import units.http.OkHttpLogger
 import units.test.TestEnvironment.ConfigsDir
+import units.util.HexBytesConverter
 
 import java.time.Clock
+import javax.crypto.spec.SecretKeySpec
 import scala.io.Source
 
 class GethContainer(network: NetworkImpl, number: Int, ip: String)(implicit httpClientBackend: SttpBackend[Identity, Any])
@@ -35,7 +37,7 @@ class GethContainer(network: NetworkImpl, number: Int, ip: String)(implicit http
         .withStopTimeout(5)
     }
 
-  lazy val jwtSecretKey = {
+  lazy val jwtSecret = {
     val src = Source.fromFile(s"$ConfigsDir/ec-common/jwt-secret-$number.hex")
     try src.getLines().next()
     finally src.close()
@@ -44,7 +46,7 @@ class GethContainer(network: NetworkImpl, number: Int, ip: String)(implicit http
   override lazy val engineApi: EngineApiClient = new LoggedEngineApiClient(
     new HttpEngineApiClient(
       engineApiConfig,
-      new JwtAuthenticationBackend(jwtSecretKey, httpClientBackend)
+      new JwtAuthenticationBackend(jwtSecret, httpClientBackend)
     )
   )
 
@@ -53,8 +55,9 @@ class GethContainer(network: NetworkImpl, number: Int, ip: String)(implicit http
       s"http://${container.getHost}:$rpcPort",
       HttpService.getOkHttpClientBuilder
         .addInterceptor { (chain: Interceptor.Chain) =>
-          val orig     = chain.request()
-          val jwtToken = JwtJson.encode(JwtClaim().issuedNow(Clock.systemUTC), jwtSecretKey, JwtAlgorithm.HS256)
+          val orig      = chain.request()
+          val secretKey = new SecretKeySpec(HexBytesConverter.toBytes(jwtSecret), JwtAlgorithm.HS256.fullName)
+          val jwtToken  = JwtJson.encode(JwtClaim().issuedNow(Clock.systemUTC), secretKey, JwtAlgorithm.HS256)
           val request = orig
             .newBuilder()
             .header("Authorization", s"Bearer $jwtToken")

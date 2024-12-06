@@ -24,6 +24,12 @@ import io.netty.channel.Channel
 import io.netty.channel.group.DefaultChannelGroup
 import monix.execution.cancelables.SerialCancelable
 import monix.execution.{CancelableFuture, Scheduler}
+import org.web3j.abi.FunctionEncoder
+import org.web3j.abi.datatypes.Function
+import org.web3j.crypto.{Credentials, RawTransaction}
+import org.web3j.protocol.{Service, Web3j}
+import org.web3j.tx.RawTransactionManager
+import org.web3j.tx.gas.DefaultGasProvider
 import play.api.libs.json.*
 import units.ELUpdater.State.*
 import units.ELUpdater.State.ChainStatus.{FollowingChain, Mining, WaitForNewChain}
@@ -38,8 +44,13 @@ import units.network.BlocksObserverImpl.BlockWithChannel
 import units.util.HexBytesConverter
 import units.util.HexBytesConverter.toHexNoPrefix
 
+import java.io.InputStream
+import java.math.BigInteger
+import java.util
+import java.util.Collections
 import scala.annotation.tailrec
 import scala.concurrent.duration.*
+import scala.io.Source
 import scala.util.*
 
 class ELUpdater(
@@ -60,6 +71,48 @@ class ELUpdater(
   private val handleNextUpdate    = SerialCancelable()
   private val contractAddress     = config.chainContractAddress
   private val chainContractClient = new ChainContractStateClient(contractAddress, blockchain)
+
+  private val jwtSecret = config.jwtSecretFile match {
+    case Some(jwtSecretFile) => Some(Using(Source.fromFile(jwtSecretFile))(_.getLines().next()).get)
+    case None                => None
+  }
+
+  private lazy val web3j = Web3j.build(
+//    new HttpService(
+//      config.jsonRpcClient.apiUrl,
+//      HttpService.getOkHttpClientBuilder
+//        .addInterceptor { (chain: Interceptor.Chain) =>
+//          val orig = chain.request()
+//          logger.debug(s"Secret is: $jwtSecret")
+//          val request = jwtSecret
+//            .foldLeft(orig.newBuilder()) { case (r, jwtSecret) =>
+//              val secretKey = new SecretKeySpec(HexBytesConverter.toBytes(jwtSecret), JwtAlgorithm.HS256.fullName)
+//              val jwtToken = JwtJson.encode(JwtClaim().issuedNow(Clock.systemUTC), secretKey, JwtAlgorithm.HS256)
+//              logger.debug(s"Token is: $jwtToken")
+//              r.header("Authorization", s"Bearer $jwtToken")
+//            }
+//            .build()
+//
+//          chain.proceed(request)
+//        }
+//        .addInterceptor(OkHttpLogger)
+//        .build()
+//    )
+    new Service(true) {
+      override def performIO(payload: PayloadId): InputStream = InputStream.nullInputStream()
+      override def close(): Unit                              = {}
+    }
+  )
+
+  private val bridgeUserSender = Credentials.create("8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63")
+  private val gasProvider      = new DefaultGasProvider
+  private lazy val txnManager  = new RawTransactionManager(web3j, bridgeUserSender, 1337)
+//  private lazy val bridgeUser = BridgeUserContract.load(
+//    "0x000000000000000000000000000001ssU3d06a7e",
+//    web3j,
+//    bridgeUserSender,
+//    gasProvider
+//  )
 
   private[units] var state: State = Starting
 
@@ -250,7 +303,7 @@ class ELUpdater(
             )
         }
       case Working(_, _, _, _, _, _: Mining | _: FollowingChain, _, _) =>
-      // a new epoch started and we trying to apply a previous epoch payload:
+      // a new epoch started, and we're trying to apply a previous epoch payload:
       // Mining - we mine again
       // FollowingChain - we validate
       case other => logger.debug(s"Unexpected state $other attempting to finish building $payloadId")
@@ -1066,7 +1119,7 @@ class ELUpdater(
             logger.debug(s"Block ${networkBlock.hash} was successfully partially validated")
             broadcastAndConfirmBlock(networkBlock, ch, prevState, nodeChainInfo, returnToMainChainInfo)
           case Left(err) =>
-            logger.error(s"Block ${networkBlock.hash} prevalidation error: ${err.message}, ignoring block")
+            logger.error(s"Block ${networkBlock.hash} prevalidation error: ${err.message}, ignoring block") // TODO partial validation
         }
     }
   }
@@ -1082,7 +1135,7 @@ class ELUpdater(
       .fold[Unit](
         err => logger.error(s"Can't confirm block ${block.hash} of chain ${nodeChainInfo.id}: ${err.message}"),
         _ => {
-          logger.info(s"Successfully confirmed block ${block.hash} of chain ${nodeChainInfo.id}")
+          logger.info(s"Successfully confirmed block ${block.hash} of chain ${nodeChainInfo.id}") // TODO confirmed on EL
           followChainAndRequestNextBlock(
             prevState.epochInfo,
             nodeChainInfo,
@@ -1496,8 +1549,33 @@ class ELUpdater(
         unixEpochSeconds,
         suggestedFeeRecipient,
         prevRandao,
-        withdrawals
+        withdrawals,
+        Vector(mkTransfer(lastBlock.height))
       )
+  }
+
+  private def mkTransfer(parentHeight: Long): String = {
+    val rawTxn = RawTransaction.createTransaction(
+      BigInteger.valueOf(parentHeight), // nonce
+      gasProvider.getGasPrice,
+      gasProvider.getGasLimit,
+      "0x000000000000000000000000000001ssU3d06a7e",
+      BigInteger.ZERO,
+      funcCall("0xFE3B557E8Fb62b89F4916B721be55cEb828dBd73", 1000000)
+    )
+    txnManager.sign(rawTxn)
+  }
+
+  private def funcCall(receiver: String, amount: Long): String = {
+    val function = new Function(
+      "receiveIssued", // BridgeUserContract.FUNC_RECEIVEISSUED,
+      util.Arrays.asList[org.web3j.abi.datatypes.Type[?]](
+        new org.web3j.abi.datatypes.Address(160, receiver),
+        new org.web3j.abi.datatypes.primitive.Long(amount)
+      ),
+      Collections.emptyList
+    )
+    FunctionEncoder.encode(function)
   }
 
   private def canSupportAnotherAltChain(nodeChainInfo: ChainInfo): Boolean = {
@@ -1572,7 +1650,7 @@ object ELUpdater {
 
   case class ChainSwitchInfo(prevChainId: Long, referenceBlock: ContractBlock)
 
-  /** We haven't received a EC-block {@link missedBlock} of a previous epoch when started a mining on a new epoch. We can return to the main chain, if
+  /** We haven't received an EC-block [[missedBlock]] of a previous epoch when started a mining on a new epoch. We can return to the main chain, if we
     * get a missed EC-block.
     */
   case class ReturnToMainChainInfo(missedBlock: ContractBlock, missedBlockParent: EcBlock, chainId: Long)

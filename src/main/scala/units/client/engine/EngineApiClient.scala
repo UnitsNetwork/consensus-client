@@ -17,6 +17,7 @@ trait EngineApiClient {
       suggestedFeeRecipient: EthAddress,
       prevRandao: String,
       withdrawals: Vector[Withdrawal] = Vector.empty,
+      transactions: Vector[String] = Vector.empty,
       requestId: Int = newRequestId
   ): JobResult[PayloadId]
 

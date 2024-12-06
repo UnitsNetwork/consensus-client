@@ -10,7 +10,14 @@ import units.util.HexBytesConverter.*
 case class ForkChoiceUpdatedRequest(lastBlockHash: BlockHash, finalizedBlockHash: BlockHash, attrs: Option[ForkChoiceAttributes], id: Int)
 
 object ForkChoiceUpdatedRequest {
-  case class ForkChoiceAttributes(unixEpochSeconds: Long, suggestedFeeRecipient: EthAddress, prevRandao: String, withdrawals: Vector[Withdrawal])
+  // TODO Type of transactions (signed transactions hex)
+  case class ForkChoiceAttributes(
+      unixEpochSeconds: Long,
+      suggestedFeeRecipient: EthAddress,
+      prevRandao: String,
+      withdrawals: Vector[Withdrawal],
+      transactions: Vector[String]
+  )
 
   implicit val writes: Writes[ForkChoiceUpdatedRequest] = (o: ForkChoiceUpdatedRequest) => {
     Json.obj(
@@ -25,7 +32,8 @@ object ForkChoiceUpdatedRequest {
               "prevRandao"            -> attr.prevRandao,
               "suggestedFeeRecipient" -> attr.suggestedFeeRecipient,
               "withdrawals"           -> attr.withdrawals,
-              "parentBeaconBlockRoot" -> EthereumConstants.EmptyRootHashHex
+              "parentBeaconBlockRoot" -> EthereumConstants.EmptyRootHashHex,
+              "transactions"          -> attr.transactions
             )
           )
           .getOrElse[JsValue](JsNull)

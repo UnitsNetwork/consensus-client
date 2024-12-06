@@ -19,3 +19,15 @@ web3j generate solidity \
   --primitiveTypes \
   -c BridgeContract
 ```
+
+To generate `BridgeUser.java`, run:
+```bash
+web3j generate solidity \
+  --abiFile=setup/el/compiled/BridgeUser.abi \
+  --binFile=setup/el/compiled/BridgeUser.bin \
+  --generateBoth \
+  --outputDir=../../src/main/java/ \
+  -p units.bridge \
+  --primitiveTypes \
+  -c BridgeUserContract
+```

@@ -35,7 +35,8 @@ libraryDependencies ++= Seq(
   "com.wavesplatform"              % "node"          % "1.5.8" % Provided,
   "com.softwaremill.sttp.client3"  % "core_2.13"     % "3.10.1",
   "com.softwaremill.sttp.client3" %% "play-json"     % "3.10.1",
-  "com.github.jwt-scala"          %% "jwt-play-json" % "10.0.1"
+  "com.github.jwt-scala"          %% "jwt-play-json" % "10.0.1",
+  "org.web3j"                      % "core"          % "4.9.8"
 )
 
 Compile / packageDoc / publishArtifact := false

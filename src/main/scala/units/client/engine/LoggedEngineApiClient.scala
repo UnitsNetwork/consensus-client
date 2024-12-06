@@ -24,12 +24,22 @@ class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient
       suggestedFeeRecipient: EthAddress,
       prevRandao: String,
       withdrawals: Vector[Withdrawal],
+      transactions: Vector[String],
       requestId: Int
   ): JobResult[PayloadId] = wrap(
     requestId,
     s"forkChoiceUpdateWithPayloadId(l=$lastBlockHash, f=$finalizedBlockHash, ts=$unixEpochSeconds, m=$suggestedFeeRecipient, " +
-      s"r=$prevRandao, w={${withdrawals.mkString(", ")}}",
-    underlying.forkChoiceUpdateWithPayloadId(lastBlockHash, finalizedBlockHash, unixEpochSeconds, suggestedFeeRecipient, prevRandao, withdrawals, _)
+      s"r=$prevRandao, w={${withdrawals.mkString(", ")}}, t={${transactions.mkString(", ")}})",
+    underlying.forkChoiceUpdateWithPayloadId(
+      lastBlockHash,
+      finalizedBlockHash,
+      unixEpochSeconds,
+      suggestedFeeRecipient,
+      prevRandao,
+      withdrawals,
+      transactions,
+      _
+    )
   )
 
   override def getPayload(payloadId: PayloadId, requestId: Int): JobResult[JsObject] =

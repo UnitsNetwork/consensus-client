@@ -9,6 +9,8 @@ IP=$(echo "$IP_RAW" | cut -d/ -f1)
 NETWORK=$(echo "$IP_RAW" | xargs ipcalc -n | awk -F= '{print $2}')
 PREFIX=$(echo "$IP_RAW" | xargs ipcalc -p | awk -F= '{print $2}')
 
+LOG_FILE="/root/logs/op-geth.log"
+
 tee /root/logs/log <<EOF
 IP: $IP
 NETWORK: $NETWORK
@@ -36,7 +38,7 @@ exec geth \
   --netrestrict="${NETWORK}/${PREFIX}" \
   --bootnodes="${BESU_BOOTNODES}" \
   --syncmode full \
-  --log.file="/root/logs/log" \
+  --log.file="${LOG_FILE}" \
   --verbosity=5 \
   --log.format=terminal \
   --log.rotate \

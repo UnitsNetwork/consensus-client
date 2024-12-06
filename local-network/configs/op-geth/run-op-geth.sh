@@ -9,7 +9,9 @@ IP=$(echo "$IP_RAW" | cut -d/ -f1)
 NETWORK=$(echo "$IP_RAW" | xargs ipcalc -n | awk -F= '{print $2}')
 PREFIX=$(echo "$IP_RAW" | xargs ipcalc -p | awk -F= '{print $2}')
 
-tee /root/logs/log <<EOF
+LOG_FILE="/root/logs/op-geth.log"
+
+tee $LOG_FILE <<EOF
 IP: $IP
 NETWORK: $NETWORK
 PREFIX: ${PREFIX}
@@ -36,7 +38,7 @@ exec geth \
   --netrestrict="${NETWORK}/${PREFIX}" \
   --syncmode="full" \
   --gcmode="full" \
-  --log.file="/root/logs/log" \
+  --log.file="${LOG_FILE}" \
   --verbosity=5 \
   --log.format=terminal \
   --log.rotate \

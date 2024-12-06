@@ -5,16 +5,26 @@ services:
   ec-1:
     container_name: ec-1
     hostname: ec-1
+    # extends:
+    #   file: ./configs/besu/besu.yml
+    #   service: besu
+    # ports:
+    #   - "127.0.0.1:18551:8551" # Engine port - doesn't have all APIs
+    #   - "127.0.0.1:18545:8545" # RPC port, for Metamask e.g.
+    #   - "127.0.0.1:18546:8546" # WebSocket
+    # volumes:
+    #   - ./configs/ec-common/p2p-key-1.hex:/etc/secrets/p2p-key:ro
+    #   - ./logs/ec-1:/opt/besu/logs
     extends:
-      file: ./configs/besu/besu.yml
-      service: besu
+      file: ./configs/op-geth/op-geth.yml
+      service: op-geth
     ports:
-      - "127.0.0.1:18551:8551" # Engine port - doesn't have all APIs
-      - "127.0.0.1:18545:8545" # RPC port, for Metamask e.g.
-      - "127.0.0.1:18546:8546" # WebSocket
+      - "127.0.0.1:18551:8551" # Engine port
+      - "127.0.0.1:18545:8545" # RPC port
     volumes:
       - ./configs/ec-common/p2p-key-1.hex:/etc/secrets/p2p-key:ro
-      - ./logs/ec-1:/opt/besu/logs
+      - ./configs/ec-common/jwt-secret-1.hex:/etc/secrets/jwtsecret:ro
+      - ./logs/ec-1:/root/logs
 
   ec-2:
     container_name: ec-2

@@ -37,13 +37,14 @@ class HttpEngineApiClient(val config: JsonRpcClient.Config, val backend: SttpBac
       suggestedFeeRecipient: EthAddress,
       prevRandao: String,
       withdrawals: Vector[Withdrawal],
+      transactions: Vector[String],
       requestId: Int
   ): JobResult[PayloadId] = {
     sendEngineRequest[ForkChoiceUpdatedRequest, ForkChoiceUpdatedResponse](
       ForkChoiceUpdatedRequest(
         lastBlockHash,
         finalizedBlockHash,
-        Some(ForkChoiceAttributes(unixEpochSeconds, suggestedFeeRecipient, prevRandao, withdrawals)),
+        Some(ForkChoiceAttributes(unixEpochSeconds, suggestedFeeRecipient, prevRandao, withdrawals, transactions)),
         requestId
       ),
       BlockExecutionTimeout,
