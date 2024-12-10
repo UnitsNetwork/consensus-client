@@ -1558,11 +1558,11 @@ class ELUpdater(
   private def mkDepositTransaction(parentHeight: Long): String =
     DepositTransactionBuilder.mkDepositTransaction(
       sourceHash = DepositTransactionBuilder.mkUserDepositedSourceHash(Array.emptyByteArray, 1, parentHeight + 1),
-      from = "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001",
-      to = "0x000000000000000000000000000001ssU3d06a7e",
+      from = "0xf17f52151EbEF6C7334FAD080c5704D77216b732",
+      to = "0x00000000000000000000000000000155c3d06a7e",
       mint = BigInteger.ZERO,
       value = BigInteger.ZERO,
-      gas = gasProvider.getGasLimit,
+      gas = BigInteger.valueOf(100_000L), // TODO: try less
       isSystemTx = false,
       data = HexBytesConverter.toBytes(funcCall("0xFE3B557E8Fb62b89F4916B721be55cEb828dBd73", 1000000))
     )
@@ -1572,7 +1572,7 @@ class ELUpdater(
       "receiveIssued", // BridgeUserContract.FUNC_RECEIVEISSUED,
       util.Arrays.asList[org.web3j.abi.datatypes.Type[?]](
         new org.web3j.abi.datatypes.Address(160, receiver),
-        new org.web3j.abi.datatypes.primitive.Long(amount)
+        new org.web3j.abi.datatypes.generated.Int64(amount)
       ),
       Collections.emptyList
     )
