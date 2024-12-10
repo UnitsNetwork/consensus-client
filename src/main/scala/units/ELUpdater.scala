@@ -26,7 +26,7 @@ import monix.execution.cancelables.SerialCancelable
 import monix.execution.{CancelableFuture, Scheduler}
 import org.web3j.abi.FunctionEncoder
 import org.web3j.abi.datatypes.Function
-import org.web3j.crypto.{Credentials, RawTransaction}
+import org.web3j.crypto.Credentials
 import org.web3j.protocol.{Service, Web3j}
 import org.web3j.tx.RawTransactionManager
 import org.web3j.tx.gas.DefaultGasProvider
@@ -41,6 +41,7 @@ import units.client.engine.model.*
 import units.client.engine.model.Withdrawal.WithdrawalIndex
 import units.eth.{EmptyL2Block, EthAddress, EthereumConstants}
 import units.network.BlocksObserverImpl.BlockWithChannel
+import units.optimism.DepositTransactionBuilder
 import units.util.HexBytesConverter
 import units.util.HexBytesConverter.toHexNoPrefix
 
@@ -1550,21 +1551,21 @@ class ELUpdater(
         suggestedFeeRecipient,
         prevRandao,
         withdrawals,
-        Vector(mkTransfer(lastBlock.height))
+        Vector(mkDepositTransaction(lastBlock.height))
       )
   }
 
-  private def mkTransfer(parentHeight: Long): String = {
-    val rawTxn = RawTransaction.createTransaction(
-      BigInteger.valueOf(parentHeight), // nonce
-      gasProvider.getGasPrice,
-      gasProvider.getGasLimit,
-      "0x000000000000000000000000000001ssU3d06a7e",
-      BigInteger.ZERO,
-      funcCall("0xFE3B557E8Fb62b89F4916B721be55cEb828dBd73", 1000000)
+  private def mkDepositTransaction(parentHeight: Long): String =
+    DepositTransactionBuilder.mkDepositTransaction(
+      sourceHash = DepositTransactionBuilder.mkUserDepositedSourceHash(Array.emptyByteArray, 1, parentHeight + 1),
+      from = "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001",
+      to = "0x000000000000000000000000000001ssU3d06a7e",
+      mint = BigInteger.ZERO,
+      value = BigInteger.ZERO,
+      gas = gasProvider.getGasLimit,
+      isSystemTx = false,
+      data = HexBytesConverter.toBytes(funcCall("0xFE3B557E8Fb62b89F4916B721be55cEb828dBd73", 1000000))
     )
-    txnManager.sign(rawTxn)
-  }
 
   private def funcCall(receiver: String, amount: Long): String = {
     val function = new Function(

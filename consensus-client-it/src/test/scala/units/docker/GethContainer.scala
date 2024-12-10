@@ -27,7 +27,7 @@ class GethContainer(network: NetworkImpl, number: Int, ip: String)(implicit http
     .withFileSystemBind(s"$ConfigsDir/geth/run-geth.sh", "/tmp/run.sh", BindMode.READ_ONLY)
     .withFileSystemBind(s"$ConfigsDir/ec-common/p2p-key-$number.hex", "/etc/secrets/p2p-key", BindMode.READ_ONLY)
     .withFileSystemBind(s"$ConfigsDir/ec-common/jwt-secret-$number.hex", "/etc/secrets/jwtsecret", BindMode.READ_ONLY)
-    .withFileSystemBind(s"$logFile", "/root/logs/log", BindMode.READ_WRITE)
+    .withFileSystemBind(s"$logFile", "/root/logs/geth.log", BindMode.READ_WRITE)
     .withCreateContainerCmdModifier { cmd =>
       cmd
         .withName(s"${network.getName}-$hostName")

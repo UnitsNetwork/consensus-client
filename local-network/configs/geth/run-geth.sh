@@ -9,7 +9,7 @@ IP=$(echo "$IP_RAW" | cut -d/ -f1)
 NETWORK=$(echo "$IP_RAW" | xargs ipcalc -n | awk -F= '{print $2}')
 PREFIX=$(echo "$IP_RAW" | xargs ipcalc -p | awk -F= '{print $2}')
 
-LOG_FILE="/root/logs/op-geth.log"
+LOG_FILE="/root/logs/geth.log"
 
 tee /root/logs/log <<EOF
 IP: $IP
@@ -17,9 +17,13 @@ NETWORK: $NETWORK
 PREFIX: ${PREFIX}
 EOF
 
+EXTRA_ARG=""
+if [ -f /tmp/peers.toml ]; then
+  EXTRA_ARG="--config=/tmp/peers.toml"
+fi
+
 # --syncmode full, because default "snap" mode and starting concurrently with ec-1 cause a stopped sync
-exec geth \
-  --config=/tmp/peers.toml \
+exec geth $EXTRA_ARG \
   --http \
   --http.addr=0.0.0.0 \
   --http.vhosts=* \

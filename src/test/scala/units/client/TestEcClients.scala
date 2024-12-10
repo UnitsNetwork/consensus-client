@@ -86,6 +86,7 @@ class TestEcClients private (
           suggestedFeeRecipient: EthAddress,
           prevRandao: String,
           withdrawals: Vector[Withdrawal],
+          transactions: Vector[String],
           requestId: Int
       ): JobResult[PayloadId] =
         forgingBlocks

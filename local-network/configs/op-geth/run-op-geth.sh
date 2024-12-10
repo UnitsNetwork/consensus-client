@@ -17,9 +17,13 @@ NETWORK: $NETWORK
 PREFIX: ${PREFIX}
 EOF
 
+EXTRA_ARG=""
+if [ -f /tmp/peers.toml ]; then
+  EXTRA_ARG="--config=/tmp/peers.toml"
+fi
+
 # --syncmode full, because default "snap" mode and starting concurrently with ec-1 cause a stopped sync
-exec geth \
-  --config=/tmp/peers.toml \
+exec geth $EXTRA_ARG \
   --http \
   --http.addr=0.0.0.0 \
   --http.vhosts=* \
