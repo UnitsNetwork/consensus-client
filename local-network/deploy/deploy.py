@@ -23,7 +23,13 @@ while True:
     log.info(f"Wait for {min_peers} peers, now: {r}")
     sleep(2)
 
+log.info(f"Registry address: {network.cl_registry.oracleAddress}")
 log.info(f"Chain contract address: {network.cl_chain_contract.oracleAddress}")
+
+log.info("Approve chain contract on registry")
+network.cl_registry.storeData(
+    f"unit_{network.cl_chain_contract.oracleAddress}_approved", "boolean", True
+)
 
 script_info = network.cl_chain_contract.oracleAcc.scriptInfo()
 if script_info["script"] is None:
