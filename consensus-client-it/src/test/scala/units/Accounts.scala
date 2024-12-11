@@ -9,6 +9,7 @@ import units.eth.EthAddress
 import java.nio.charset.StandardCharsets
 
 trait Accounts {
+  val chainRegistryAccount: KeyPair = mkKeyPair("devnet registry", 0)
   val chainContractAccount: KeyPair = mkKeyPair("devnet cc", 0)
 
   val miner11Account       = mkKeyPair("devnet-1", 0)
