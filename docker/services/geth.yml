@@ -2,17 +2,26 @@ services:
   geth-init:
     container_name: geth-init
     image: ethereum/client-go:stable
-    entrypoint: /tmp/init-geth.sh
+    entrypoint: /bin/sh -c
+    command:
+      - |
+        if [ ! -d /root/.ethereum/geth ] ; then
+          geth init /tmp/genesis.json
+        else
+          echo geth already initialized
+        fi
     volumes:
       - ../genesis-${NETWORK}.json:/tmp/genesis.json
       - ../data/geth:/root/.ethereum
-      - ../init-geth.sh:/tmp/init-geth.sh
   geth:
     container_name: geth
     image: ethereum/client-go:stable
     pull_policy: always
     stop_grace_period: 5m
+    restart: unless-stopped
     command:
+      - --config=/etc/config.toml
+      - --syncmode=full
       - --verbosity=4
       - --http
       - --http.addr=0.0.0.0
@@ -26,11 +35,11 @@ services:
       - --ws.origins=*
       - --authrpc.addr=0.0.0.0
       - --authrpc.vhosts=*
-      - --discovery.dns=enrtree://AIRIZFFZSCSIVHXTKA44WYZQJMR75FLTGWJ5TUNEW5IP7QKZDLBRK@${NETWORK}-nodes.unit0.dev
-      - --networkid=${NETWORK_ID}
       - --authrpc.jwtsecret=/etc/secrets/jwtsecret
       - --nodekey=/etc/secrets/p2p-key
-      - --miner.gaslimit=15000000
+    environment:
+      - GETH_MINER_GASLIMIT=${GAS_LIMIT}
+      - GETH_NETWORKID=${NETWORK_ID}
     logging:
       driver: local
       options:
@@ -39,11 +48,12 @@ services:
     volumes:
       - ../data/secrets:/etc/secrets:ro
       - ../data/geth:/root/.ethereum
+      - ../geth-${NETWORK}:/etc/config.toml
     ports:
       - '30303:30303/tcp'
       - '30303:30303/udp'
     healthcheck:
       test: 'wget -qO /dev/null --header "content-type: application/json" --post-data {\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}  http://127.0.0.1:8545'
-      interval: 5s
+      interval: 10s
       timeout: 1s
       retries: 10
