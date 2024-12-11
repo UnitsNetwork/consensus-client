@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 
 if [ ! -d /root/.ethereum/geth ] ; then
-  geth init /tmp/genesis.json 2>&1 | tee /root/logs/init.log
+  geth init --state.scheme=hash /tmp/genesis.json 2>&1 | tee /root/logs/init.log
 fi
 
 IP_RAW=$(ip -4 addr show dev eth0 | awk '/inet / {print $2}')
@@ -17,13 +17,11 @@ NETWORK: $NETWORK
 PREFIX: ${PREFIX}
 EOF
 
-EXTRA_ARG=""
-if [ -f /tmp/peers.toml ]; then
-  EXTRA_ARG="--config=/tmp/peers.toml"
-fi
-
-# --syncmode full, because default "snap" mode and starting concurrently with ec-1 cause a stopped sync
-exec geth $EXTRA_ARG \
+# Also see: https://docs.blockscout.com/setup/requirements/client-settings#geth
+#   Notes: http.api=shh is not supported anymore: https://github.com/ethereum/go-ethereum/releases/tag/v1.9.21
+# --syncmode="full", because default "snap" mode and starting concurrently with ec-1 cause a stopped sync
+# --bootnodes="" in the end to disable the default list, so we won't connect to predefined nodes
+exec geth \
   --http \
   --http.addr=0.0.0.0 \
   --http.vhosts=* \
@@ -41,9 +39,11 @@ exec geth $EXTRA_ARG \
   --nat="extip:${IP}" \
   --netrestrict="${NETWORK}/${PREFIX}" \
   --syncmode="full" \
-  --gcmode="full" \
+  --gcmode="archive" \
   --log.file="${LOG_FILE}" \
   --verbosity=5 \
   --log.format=terminal \
   --log.rotate \
-  --log.compress
+  --log.compress \
+  --bootnodes="" \
+  $EXTRA_ARGS

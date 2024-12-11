@@ -35,10 +35,15 @@ services:
     ports:
       - "127.0.0.1:28551:8551" # Engine port
       - "127.0.0.1:28545:8545" # RPC port
+    environment:
+      EXTRA_ARGS: "--config=/tmp/peers.toml"
     volumes:
       - ./configs/ec-common/p2p-key-2.hex:/etc/secrets/p2p-key:ro
       - ./configs/ec-common/jwt-secret-2.hex:/etc/secrets/jwtsecret:ro
       - ./logs/ec-2:/root/logs
+    depends_on:
+      ec-1:
+        condition: service_healthy
 
   wavesnode-1:
     container_name: wavesnode-1
