@@ -1555,6 +1555,7 @@ class ELUpdater(
       )
   }
 
+  // See https://specs.optimism.io/protocol/deposits.html#execution
   private def mkDepositTransaction(parentHeight: Long): String =
     DepositTransactionBuilder.mkDepositTransaction(
       sourceHash = DepositTransactionBuilder.mkUserDepositedSourceHash(Array.emptyByteArray, 1, parentHeight + 1),
@@ -1562,8 +1563,8 @@ class ELUpdater(
       to = "0x00000000000000000000000000000155c3d06a7e",
       mint = BigInteger.ZERO,
       value = BigInteger.ZERO,
-      gas = BigInteger.valueOf(100_000L), // TODO: try less
-      isSystemTx = false,
+      gas = BigInteger.valueOf(100_000L), // Should be enough to run this function
+      isSystemTx = true, // Gas won't be consumed
       data = HexBytesConverter.toBytes(funcCall("0xFE3B557E8Fb62b89F4916B721be55cEb828dBd73", 1000000))
     )
 
