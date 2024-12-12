@@ -47,15 +47,16 @@ class ExtendedNetwork(Network):
                     "0x7dbcf9c6c3583b76669100f9be3caf6d722bc9f9"
                 ),
             ),
-            Miner(
-                account=pw.Address(
-                    seed="devnet-2",
-                    nonce=0,
-                ),
-                el_reward_address_hex=HexStr(
-                    "0xcf0b9e13fdd593f4ca26d36afcaa44dd3fdccbed"
-                ),
-            ),
+            # TODO: Until fixed an issue with rollback
+            # Miner(
+            #     account=pw.Address(
+            #         seed="devnet-2",
+            #         nonce=0,
+            #     ),
+            #     el_reward_address_hex=HexStr(
+            #         "0xcf0b9e13fdd593f4ca26d36afcaa44dd3fdccbed"
+            #     ),
+            # ),
         ]
 
     @cached_property
