@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-contract BridgeUser {
+contract IssuedTokenBridge {
     // See explanation in bridge.sol
     uint256 public constant EL_TO_CL_RATIO = 10 ** 10; // 10 * 1 Gwei = 10 Gwei
 
@@ -15,37 +15,36 @@ contract BridgeUser {
 
     // wavesRecipient is a public key hash of recipient account.
     // effectively is it Waves address without 2 first bytes (version and chain id) and last 4 bytes (checksum).
-    event SentIssued(bytes20 wavesRecipient, int64 amount);
-    event ReceivedIssued(address indexed receiver, uint256 amount);
+    event SentIssued(bytes20 wavesRecipient, int64 clAmount);
+    event ReceivedIssued(address receiver, uint256 elAmount);
 
     // wavesRecipient is a public key hash of recipient account.
-    function sendIssued(bytes20 wavesRecipient, uint256 amount) external {
-        require(amount >= MIN_AMOUNT_IN_WEI, string.concat("Sent value ", uint2str(amount), " must be greater or equal to ", uint2str(MIN_AMOUNT_IN_WEI)));
-        require(amount <= MAX_AMOUNT_IN_WEI, string.concat("Sent value ", uint2str(amount), " must be less or equal to ", uint2str(MAX_AMOUNT_IN_WEI)));
+    function sendIssued(bytes20 wavesRecipient, uint256 elAmount) external {
+        require(elAmount >= MIN_AMOUNT_IN_WEI, string.concat("Sent value ", uint2str(elAmount), " must be greater or equal to ", uint2str(MIN_AMOUNT_IN_WEI)));
+        require(elAmount <= MAX_AMOUNT_IN_WEI, string.concat("Sent value ", uint2str(elAmount), " must be less or equal to ", uint2str(MAX_AMOUNT_IN_WEI)));
 
         uint256 balance = balances[msg.sender];
         require(balance > 0, string.concat("Insufficient funds, only ", uint2str(balance), " available"));
 
-        uint256 ccAmount = amount / EL_TO_CL_RATIO;
-        require(ccAmount * EL_TO_CL_RATIO == amount, string.concat("Sent value ", uint2str(amount), " must be a multiple of ", uint2str(EL_TO_CL_RATIO)));
+        uint256 clAmount = elAmount / EL_TO_CL_RATIO;
+        require(clAmount * EL_TO_CL_RATIO == elAmount, string.concat("Sent value ", uint2str(elAmount), " must be a multiple of ", uint2str(EL_TO_CL_RATIO)));
 
         uint blockNumber = block.number;
         require(transfersPerBlock[blockNumber] < MAX_TRANSFERS_IN_BLOCK, string.concat("Max transfers limit of ", uint2str(uint(MAX_TRANSFERS_IN_BLOCK)), " reached in this block. Try again later"));
         transfersPerBlock[blockNumber]++;
 
-        balances[msg.sender] -= amount;
-        emit SentIssued(wavesRecipient, int64(uint64(ccAmount)));
+        balances[msg.sender] -= elAmount;
+        emit SentIssued(wavesRecipient, int64(uint64(clAmount)));
     }
 
-    function receiveIssued(address receiver, int64 amount) external {
-        // TODO: check caller address?
-        require(amount > 0, "Receive value must be greater or equal to 0");
+    function receiveIssued(address receiver, int64 clAmount) external {
+        require(clAmount > 0, "Receive value must be greater or equal to 0");
 
-        uint256 convertedAmount = uint256(int256(amount)) * EL_TO_CL_RATIO;
-        require(convertedAmount <= MAX_AMOUNT_IN_WEI, "Amount exceeds maximum allowable value");
+        uint256 elAmount = uint256(int256(clAmount)) * EL_TO_CL_RATIO;
+        require(elAmount <= MAX_AMOUNT_IN_WEI, "Amount exceeds maximum allowable value");
 
-        balances[receiver] += convertedAmount;
-        emit ReceivedIssued(receiver, convertedAmount);
+        balances[receiver] += elAmount;
+        emit ReceivedIssued(receiver, elAmount);
     }
 
     function uint2str(uint _i) internal pure returns (string memory _uintAsString) {

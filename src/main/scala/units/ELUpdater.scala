@@ -6,6 +6,7 @@ import com.typesafe.scalalogging.StrictLogging
 import com.wavesplatform.account.{Address, KeyPair}
 import com.wavesplatform.common.merkle.Digest
 import com.wavesplatform.common.state.ByteStr
+import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.crypto
 import com.wavesplatform.lang.ValidationError
 import com.wavesplatform.lang.v1.compiler.Terms.FUNCTION_CALL
@@ -24,8 +25,6 @@ import io.netty.channel.Channel
 import io.netty.channel.group.DefaultChannelGroup
 import monix.execution.cancelables.SerialCancelable
 import monix.execution.{CancelableFuture, Scheduler}
-import org.web3j.abi.FunctionEncoder
-import org.web3j.abi.datatypes.Function
 import play.api.libs.json.*
 import units.ELUpdater.State.*
 import units.ELUpdater.State.ChainStatus.{FollowingChain, Mining, WaitForNewChain}
@@ -35,15 +34,12 @@ import units.client.engine.EngineApiClient
 import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.model.*
 import units.client.engine.model.Withdrawal.WithdrawalIndex
-import units.el.{Bridge, DepositTransactionBuilder}
+import units.el.{Bridge, IssuedTokenBridge}
 import units.eth.{EmptyL2Block, EthAddress, EthereumConstants}
 import units.network.BlocksObserverImpl.BlockWithChannel
 import units.util.HexBytesConverter
 import units.util.HexBytesConverter.toHexNoPrefix
 
-import java.math.BigInteger
-import java.util
-import java.util.Collections
 import scala.annotation.tailrec
 import scala.concurrent.duration.*
 import scala.util.*
@@ -1503,33 +1499,16 @@ class ELUpdater(
         suggestedFeeRecipient,
         prevRandao,
         withdrawals,
-        Vector(mkDepositTransaction(lastBlock.height))
+        Vector(
+          IssuedTokenBridge.mkDepositTransaction(
+            transferNumber = lastBlock.height + 1,
+            elContractAddress = EthAddress.unsafeFrom("0x00000000000000000000000000000155c3d06a7e"),
+            sender = Address.fromString("3FXuAZ1a4mKgmsjYf8yHDMXULbYz8pkuNb8").explicitGet(),
+            recipient = EthAddress.unsafeFrom("0xFE3B557E8Fb62b89F4916B721be55cEb828dBd73"),
+            amountInWaves = 1
+          )
+        )
       )
-  }
-
-  // See https://specs.optimism.io/protocol/deposits.html#execution
-  private def mkDepositTransaction(parentHeight: Long): String =
-    DepositTransactionBuilder.mkDepositTransaction(
-      sourceHash = DepositTransactionBuilder.mkUserDepositedSourceHash(Array.emptyByteArray, 1, parentHeight + 1),
-      from = "0xf17f52151EbEF6C7334FAD080c5704D77216b732",
-      to = "0x00000000000000000000000000000155c3d06a7e",
-      mint = BigInteger.ZERO,
-      value = BigInteger.ZERO,
-      gas = BigInteger.valueOf(100_000L), // Should be enough to run this function
-      isSystemTx = true,                  // Gas won't be consumed
-      data = HexBytesConverter.toBytes(funcCall("0xFE3B557E8Fb62b89F4916B721be55cEb828dBd73", 1000000))
-    )
-
-  private def funcCall(receiver: String, amount: Long): String = {
-    val function = new Function(
-      "receiveIssued", // BridgeUserContract.FUNC_RECEIVEISSUED,
-      util.Arrays.asList[org.web3j.abi.datatypes.Type[?]](
-        new org.web3j.abi.datatypes.Address(160, receiver),
-        new org.web3j.abi.datatypes.generated.Int64(amount)
-      ),
-      Collections.emptyList
-    )
-    FunctionEncoder.encode(function)
   }
 
   private def canSupportAnotherAltChain(nodeChainInfo: ChainInfo): Boolean = {

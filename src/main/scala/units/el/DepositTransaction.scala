@@ -7,10 +7,32 @@ import org.web3j.utils.Numeric
 
 import java.math.BigInteger
 
-object DepositTransactionBuilder {
-  // https://eips.ethereum.org/EIPS/eip-2718
-  // https://specs.optimism.io/protocol/deposits.html#the-deposited-transaction-type
-  def mkDepositTransaction(
+object DepositTransaction {
+
+  /** @param sourceHash
+    *   Uniquely identifies the origin of the deposit
+    * @param from
+    *   The address of the sender account
+    * @param to
+    *   The address of the recipient account, or the null (zero-length) address if the deposited transaction is a contract creation
+    * @param mint
+    *   The ETH value to mint on EL
+    * @param value
+    *   The ETH value to send to the recipient account
+    * @param gas
+    *   The gas limit for the EL transaction
+    * @param isSystemTx
+    *   If true, the transaction does not interact with the L2 block gas pool
+    * @param data
+    *   The calldata
+    * @return
+    *   HEX-coded transaction bytes
+    * @see
+    *   https://specs.optimism.io/protocol/deposits.html#the-deposited-transaction-type
+    * @see
+    *   https://eips.ethereum.org/EIPS/eip-2718
+    */
+  def create(
       sourceHash: Array[Byte],
       from: String,
       to: String,
@@ -38,9 +60,6 @@ object DepositTransactionBuilder {
     Numeric.toHexString(transactionBytes)
   }
 
-  // https: //specs.optimism.io/protocol/deposits.html#source-hash-computation
-  // TODO: blockNumber is not a part of spec
-  def mkUserDepositedSourceHash(l1BlockHash: Array[Byte], l1LogIndex: Long, blockNumber: Long): Array[Byte] = {
-    Keccak256.hash(Longs.toByteArray(blockNumber)) // YOLO
-  }
+  def mkUserDepositedSourceHash(transferNumber: Long): Array[Byte] =
+    Keccak256.hash(Longs.toByteArray(transferNumber))
 }
