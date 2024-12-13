@@ -6,7 +6,6 @@ tee /opt/besu/logs/besu.log <<EOF
 IP: $IP
 EOF
 
-# https://besu.hyperledger.org/public-networks/reference/cli/options
 # --p2p-host="ec-1" # Doesn't work: https://github.com/hyperledger/besu/issues/4380
 besu \
   --config-file=/config/besu.conf \
