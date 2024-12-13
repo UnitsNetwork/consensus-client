@@ -21,15 +21,47 @@ services:
     container_name: ec-2
     hostname: ec-2
     extends:
-      file: ./configs/geth/geth.yml
-      service: geth
+      file: ./configs/besu/besu.yml
+      service: besu
     ports:
-      - "127.0.0.1:28551:8551" # Engine port
-      - "127.0.0.1:28545:8545" # RPC port
+      - "127.0.0.1:28551:8551"
+      - "127.0.0.1:28545:8545"
+      - "127.0.0.1:28546:8546"
     environment:
       NODE_NUMBER: 2
     volumes:
-      - ./logs/ec-2:/root/logs
+      - ./logs/ec-2:/opt/besu/logs
+
+  # Make sure, you have enough RAM to run additional nodes
+  # ec-3:
+  #   container_name: ec-3
+  #   hostname: ec-3
+  #   extends:
+  #     file: ./configs/besu/besu.yml
+  #     service: besu
+  #   environment:
+  #     NODE_NUMBER: 3
+  #   ports:
+  #     - "127.0.0.1:38551:8551"
+  #     - "127.0.0.1:38545:8545"
+  #     - "127.0.0.1:38546:8546"
+  #   volumes:
+  #     - ./logs/ec-3:/opt/besu/logs
+
+  # Geth is not recommended for now, because of rollback issue
+  # ec-4:
+  #   container_name: ec-4
+  #   hostname: ec-4
+  #   extends:
+  #     file: ./configs/geth/geth.yml
+  #     service: geth
+  #   environment:
+  #     NODE_NUMBER: 4
+  #   ports:
+  #     - "127.0.0.1:48551:8551"
+  #     - "127.0.0.1:48545:8545"
+  #   volumes:
+  #     - ./logs/ec-4:/root/logs
 
   wavesnode-1:
     container_name: wavesnode-1
@@ -70,6 +102,48 @@ services:
         condition: service_healthy
       update-genesis:
         condition: service_completed_successfully
+
+  # wavesnode-3:
+  #   container_name: wavesnode-3
+  #   hostname: wavesnode-3
+  #   extends:
+  #     file: ./configs/wavesnode/wavesnode.yml
+  #     service: wavesnode
+  #   image: ${WAVES_NODE_IMAGE_3:-${WAVES_NODE_IMAGE:-consensus-client:local}}
+  #   ports:
+  #     - "127.0.0.1:36869:6869"
+  #   environment:
+  #     NODE_NUMBER: 3
+  #     WAVES_WALLET_SEED: HnyGuCEnV1C # devnet-3, addr: 3Fkh3dNmLS6NQtVbHcrADegwLo9DviBL5Ro
+  #     JAVA_OPTS: -Dwaves.miner.enable=no
+  #   volumes:
+  #     - ./logs/wavesnode-3:/var/log/waves
+  #   depends_on:
+  #     ec-3:
+  #       condition: service_healthy
+  #     update-genesis:
+  #       condition: service_completed_successfully
+
+  # wavesnode-4:
+  #   container_name: wavesnode-4
+  #   hostname: wavesnode-4
+  #   extends:
+  #     file: ./configs/wavesnode/wavesnode.yml
+  #     service: wavesnode
+  #   image: ${WAVES_NODE_IMAGE_4:-${WAVES_NODE_IMAGE:-consensus-client:local}}
+  #   ports:
+  #     - "127.0.0.1:46869:6869"
+  #   environment:
+  #     NODE_NUMBER: 4
+  #     WAVES_WALLET_SEED: HnyGuCEnV1D # devnet-4, addr: 3FXMRA1tPsn8LApkqVEQJgzsVdMBrnnd8vp
+  #     JAVA_OPTS: -Dwaves.miner.enable=no
+  #   volumes:
+  #     - ./logs/wavesnode-4:/var/log/waves
+  #   depends_on:
+  #     ec-3:
+  #       condition: service_healthy
+  #     update-genesis:
+  #       condition: service_completed_successfully
 
   update-genesis:
     container_name: update-genesis
