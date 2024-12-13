@@ -10,8 +10,9 @@ import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.utils.ScorexLogging
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues}
-import units.Bridge.ElSentNativeEvent
 import units.client.engine.model.GetLogsResponseEntry
+import units.el.Bridge
+import units.el.Bridge.ElSentNativeEvent
 import units.eth.{EthAddress, Gwei}
 import units.test.CustomMatchers
 import units.util.HexBytesConverter

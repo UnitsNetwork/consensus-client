@@ -5,6 +5,7 @@ import com.wavesplatform.transaction.TxHelpers
 import units.ELUpdater.State.ChainStatus.{FollowingChain, WaitForNewChain}
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.client.engine.model.{EcBlock, GetLogsResponseEntry}
+import units.el.Bridge
 import units.eth.EthAddress
 import units.util.HexBytesConverter
 

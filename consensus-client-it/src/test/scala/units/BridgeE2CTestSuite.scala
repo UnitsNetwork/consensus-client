@@ -5,7 +5,7 @@ import com.wavesplatform.utils.EthEncoding
 import org.web3j.protocol.core.DefaultBlockParameterName
 import org.web3j.protocol.core.methods.response.TransactionReceipt
 import org.web3j.utils.Convert
-import units.el.ElBridgeClient
+import units.el.{Bridge, ElBridgeClient}
 
 import scala.jdk.OptionConverters.RichOptional
 

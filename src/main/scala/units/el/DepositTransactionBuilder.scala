@@ -1,4 +1,4 @@
-package units.optimism
+package units.el
 
 import com.google.common.primitives.Longs
 import com.wavesplatform.crypto.Keccak256

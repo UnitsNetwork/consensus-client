@@ -26,10 +26,6 @@ import monix.execution.cancelables.SerialCancelable
 import monix.execution.{CancelableFuture, Scheduler}
 import org.web3j.abi.FunctionEncoder
 import org.web3j.abi.datatypes.Function
-import org.web3j.crypto.Credentials
-import org.web3j.protocol.{Service, Web3j}
-import org.web3j.tx.RawTransactionManager
-import org.web3j.tx.gas.DefaultGasProvider
 import play.api.libs.json.*
 import units.ELUpdater.State.*
 import units.ELUpdater.State.ChainStatus.{FollowingChain, Mining, WaitForNewChain}
@@ -39,19 +35,17 @@ import units.client.engine.EngineApiClient
 import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.model.*
 import units.client.engine.model.Withdrawal.WithdrawalIndex
+import units.el.{Bridge, DepositTransactionBuilder}
 import units.eth.{EmptyL2Block, EthAddress, EthereumConstants}
 import units.network.BlocksObserverImpl.BlockWithChannel
-import units.optimism.DepositTransactionBuilder
 import units.util.HexBytesConverter
 import units.util.HexBytesConverter.toHexNoPrefix
 
-import java.io.InputStream
 import java.math.BigInteger
 import java.util
 import java.util.Collections
 import scala.annotation.tailrec
 import scala.concurrent.duration.*
-import scala.io.Source
 import scala.util.*
 
 class ELUpdater(
@@ -72,48 +66,6 @@ class ELUpdater(
   private val handleNextUpdate    = SerialCancelable()
   private val contractAddress     = config.chainContractAddress
   private val chainContractClient = new ChainContractStateClient(contractAddress, blockchain)
-
-  private val jwtSecret = config.jwtSecretFile match {
-    case Some(jwtSecretFile) => Some(Using(Source.fromFile(jwtSecretFile))(_.getLines().next()).get)
-    case None                => None
-  }
-
-  private lazy val web3j = Web3j.build(
-//    new HttpService(
-//      config.jsonRpcClient.apiUrl,
-//      HttpService.getOkHttpClientBuilder
-//        .addInterceptor { (chain: Interceptor.Chain) =>
-//          val orig = chain.request()
-//          logger.debug(s"Secret is: $jwtSecret")
-//          val request = jwtSecret
-//            .foldLeft(orig.newBuilder()) { case (r, jwtSecret) =>
-//              val secretKey = new SecretKeySpec(HexBytesConverter.toBytes(jwtSecret), JwtAlgorithm.HS256.fullName)
-//              val jwtToken = JwtJson.encode(JwtClaim().issuedNow(Clock.systemUTC), secretKey, JwtAlgorithm.HS256)
-//              logger.debug(s"Token is: $jwtToken")
-//              r.header("Authorization", s"Bearer $jwtToken")
-//            }
-//            .build()
-//
-//          chain.proceed(request)
-//        }
-//        .addInterceptor(OkHttpLogger)
-//        .build()
-//    )
-    new Service(true) {
-      override def performIO(payload: PayloadId): InputStream = InputStream.nullInputStream()
-      override def close(): Unit                              = {}
-    }
-  )
-
-  private val bridgeUserSender = Credentials.create("8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63")
-  private val gasProvider      = new DefaultGasProvider
-  private lazy val txnManager  = new RawTransactionManager(web3j, bridgeUserSender, 1337)
-//  private lazy val bridgeUser = BridgeUserContract.load(
-//    "0x000000000000000000000000000001ssU3d06a7e",
-//    web3j,
-//    bridgeUserSender,
-//    gasProvider
-//  )
 
   private[units] var state: State = Starting
 
@@ -1564,7 +1516,7 @@ class ELUpdater(
       mint = BigInteger.ZERO,
       value = BigInteger.ZERO,
       gas = BigInteger.valueOf(100_000L), // Should be enough to run this function
-      isSystemTx = true, // Gas won't be consumed
+      isSystemTx = true,                  // Gas won't be consumed
       data = HexBytesConverter.toBytes(funcCall("0xFE3B557E8Fb62b89F4916B721be55cEb828dBd73", 1000000))
     )
 

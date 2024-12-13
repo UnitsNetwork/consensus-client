@@ -1,4 +1,4 @@
-package units
+package units.el
 
 import cats.syntax.traverse.*
 import com.wavesplatform.account.{Address, AddressScheme}

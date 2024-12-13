@@ -12,6 +12,7 @@ import org.web3j.abi.datatypes.Event
 import org.web3j.abi.datatypes.generated.Bytes20
 import units.ELUpdater.State.ChainStatus.{Mining, WaitForNewChain}
 import units.client.contract.HasConsensusLayerDappTxHelpers.DefaultFees
+import units.el.Bridge
 import units.eth.EthAddress
 import units.util.HexBytesConverter
 
