@@ -8,12 +8,13 @@ services:
     extends:
       file: ./configs/besu/besu.yml
       service: besu
+    environment:
+      NODE_NUMBER: 1
     ports:
       - "127.0.0.1:18551:8551" # Engine port - doesn't have all APIs
       - "127.0.0.1:18545:8545" # RPC port, for Metamask e.g.
       - "127.0.0.1:18546:8546" # WebSocket
     volumes:
-      - ./configs/ec-common/p2p-key-1.hex:/etc/secrets/p2p-key:ro
       - ./logs/ec-1:/opt/besu/logs
 
   ec-2:
@@ -25,9 +26,9 @@ services:
     ports:
       - "127.0.0.1:28551:8551" # Engine port
       - "127.0.0.1:28545:8545" # RPC port
+    environment:
+      NODE_NUMBER: 2
     volumes:
-      - ./configs/ec-common/p2p-key-2.hex:/etc/secrets/p2p-key:ro
-      - ./configs/ec-common/jwt-secret-2.hex:/etc/secrets/jwtsecret:ro
       - ./logs/ec-2:/root/logs
 
   wavesnode-1:
