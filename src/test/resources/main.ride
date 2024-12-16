@@ -28,6 +28,7 @@ let finalizedBlockKey       = "finalizedBlock"
 let tokenIdKey              = "tokenId"
 let elBridgeAddressKey      = "elBridgeAddress"
 let nativeTransfersCountKey = "nativeTransfersCount"
+let issuedTransfersCountKey = "issuedTransfersCount"
 let daoAddressKey           = "daoAddress"
 let daoRewardKey            = "daoReward"
 
@@ -62,6 +63,13 @@ func nativeTransferKey(index: Int) = "nativeTransfer_" + index.toString()
 # destElAddressHex - without 0x
 func mkNativeTransferEntry(index: Int, destElAddressHex: String, amount: Int) = {
   StringEntry(nativeTransferKey(index), "0x" + destElAddressHex + SEP + amount.toString())
+}
+
+let issuedTransfersCount = this.getInteger(issuedTransfersCountKey).valueOrElse(0)
+func issuedTransferKey(index: Int) = "issuedTransfer_" + index.toString()
+# destElAddressHex - without 0x
+func mkIssuedTransferEntry(index: Int, destElAddressHex: String, amount: Int, assetIndex: Int) = {
+  StringEntry(issuedTransferKey(index), "0x" + destElAddressHex + SEP + amount.toString() + SEP + assetIndex.toString())
 }
 
 func ensureCorrectTransfers(refTransferIndex: Int, transferIndex: Int, expectReward: Boolean) = {
@@ -620,6 +628,33 @@ func transfer(destElAddressHex: String) = {
     IntegerEntry(nativeTransfersCountKey, nativeTransfersCount + 1),
     mkNativeTransferEntry(nativeTransfersCount, destElAddressHex, t.amount),
     Burn(tokenId, t.amount)
+  ]
+}
+
+# destElAddressHex - without 0x
+@Callable(i)
+func transferIssued(destElAddressHex: String) = {
+  strict checkAddress = if (destElAddressHex.size() == ETH_ADDRESS_STR_SIZE)
+    then fromBase16String(destElAddressHex)
+    else throw("Address should have " + ETH_ADDRESS_STR_SIZE.toString() + " characters, got " + destElAddressHex.size().toString())
+
+  strict checkPayment = if (size(i.payments) == 1) then true else throw("Expected one payment as a transfer amount, got " + i.payments.size().toString())
+
+  let t = i.payments[0]
+  # TODO: check the registry and get index
+  # strict checkAssetId = match t.assetId {
+  #  case assetId: ByteVector =>
+  #    if (assetId == tokenId) then true
+  #    else throw("Expected " + tokenIdStr + " in the payment, got " + assetId.toBase58String())
+  #  case _ => throw("Expected " + tokenIdStr + " in the payment, got Waves")
+  # }
+
+  # TODO: check the queue size?
+
+  [
+    IntegerEntry(issuedTransfersCountKey, issuedTransfersCount + 1),
+    mkIssuedTransferEntry(issuedTransfersCount, destElAddressHex, t.amount, 0) # TODO index of asset in registry instead of 0
+    # We don't burn tokens, because they can be transferred back
   ]
 }
 

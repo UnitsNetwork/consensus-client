@@ -26,7 +26,10 @@ trait Accounts {
   val elBridgeAddress = EthAddress.unsafeFrom("0x0000000000000000000000000000000000006a7e")
 
   val elRichAccount1 = Credentials.create("8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63")
+  val elRichAddress1 = EthAddress.unsafeFrom(elRichAccount1.getAddress)
+
   val elRichAccount2 = Credentials.create("ae6ae8e5ccbfb04590405997ee2d52d2b330726137b875053c36d94e974d162f")
+  val elRichAddress2 = EthAddress.unsafeFrom(elRichAccount2.getAddress)
 
   protected def mkKeyPair(seed: String, nonce: Int): SeedKeyPair =
     SeedKeyPair(crypto.secureHash(Bytes.concat(Ints.toByteArray(nonce), seed.getBytes(StandardCharsets.UTF_8))))

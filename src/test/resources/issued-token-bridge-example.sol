@@ -16,7 +16,7 @@ contract IssuedTokenBridge {
     // wavesRecipient is a public key hash of recipient account.
     // effectively is it Waves address without 2 first bytes (version and chain id) and last 4 bytes (checksum).
     event SentIssued(bytes20 wavesRecipient, int64 clAmount);
-    event ReceivedIssued(address receiver, uint256 elAmount);
+    event ReceivedIssued(address recipient, uint256 elAmount);
 
     // wavesRecipient is a public key hash of recipient account.
     function sendIssued(bytes20 wavesRecipient, uint256 elAmount) external {
@@ -37,14 +37,14 @@ contract IssuedTokenBridge {
         emit SentIssued(wavesRecipient, int64(uint64(clAmount)));
     }
 
-    function receiveIssued(address receiver, int64 clAmount) external {
+    function receiveIssued(address recipient, int64 clAmount) external {
         require(clAmount > 0, "Receive value must be greater or equal to 0");
 
         uint256 elAmount = uint256(int256(clAmount)) * EL_TO_CL_RATIO;
         require(elAmount <= MAX_AMOUNT_IN_WEI, "Amount exceeds maximum allowable value");
 
-        balances[receiver] += elAmount;
-        emit ReceivedIssued(receiver, elAmount);
+        balances[recipient] += elAmount;
+        emit ReceivedIssued(recipient, elAmount);
     }
 
     function uint2str(uint _i) internal pure returns (string memory _uintAsString) {
