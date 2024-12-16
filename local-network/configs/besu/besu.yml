@@ -2,7 +2,7 @@ services:
   besu:
     image: hyperledger/besu:latest
     volumes:
-      - ../ec-common/genesis.json:/genesis.json:ro
+      - ../ec-common/:/etc/secrets/:ro
       - .:/config:ro
       - ./run-besu.sh:/tmp/run.sh:ro
     env_file:

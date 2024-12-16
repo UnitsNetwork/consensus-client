@@ -60,6 +60,24 @@ class ExtendedNetwork(Network):
                     "0xcf0b9e13fdd593f4ca26d36afcaa44dd3fdccbed"
                 ),
             ),
+            # Miner(
+            #     account=pw.Address(
+            #         seed="devnet-3",
+            #         nonce=0,
+            #     ),
+            #     el_reward_address_hex=HexStr(
+            #         "0xf1FE6d7bfebead68A8C06cCcee97B61d7DAA0338"
+            #     ),
+            # ),
+            # Miner(
+            #     account=pw.Address(
+            #         seed="devnet-4",
+            #         nonce=0,
+            #     ),
+            #     el_reward_address_hex=HexStr(
+            #         "0x10eDdE5dc07eF63E6bb7018758e6fcB5320d8cAa"
+            #     ),
+            # ),
         ]
 
     @cached_property
