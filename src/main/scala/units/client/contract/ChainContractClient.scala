@@ -67,13 +67,15 @@ trait ChainContractClient {
           if (bb.remaining() >= ContractBlock.E2CTransfersRootHashLength) bb.getByteArray(ContractBlock.E2CTransfersRootHashLength)
           else Array.emptyByteArray
 
-        val lastC2ETransferIndex = if (bb.remaining() >= 8) bb.getLong() else -1L
+        val lastC2ETransferIndex       = if (bb.remaining() >= 8) bb.getLong() else -1L
+        val lastC2EIssuedTransferIndex = if (bb.remaining() >= 8) bb.getLong() else -1L
 
         require(
           !bb.hasRemaining,
           s"Not parsed ${bb.remaining()} bytes from ${blockMeta.base64}, read data: " +
             s"chainHeight=$chainHeight, epoch=$epoch, parentHash=$parentHash, chainId=$chainId, " +
-            s"e2cTransfersRootHash=${HexBytesConverter.toHex(e2cTransfersRootHash)}, lastC2ETransferIndex=$lastC2ETransferIndex"
+            s"e2cTransfersRootHash=${HexBytesConverter.toHex(e2cTransfersRootHash)}, lastC2ETransferIndex=$lastC2ETransferIndex, " +
+            s"lastC2EIssuedTransferIndex=$lastC2EIssuedTransferIndex"
         )
 
         val epochMeta = getEpochMeta(epoch).getOrElse(fail(s"Can't find epoch meta for epoch $epoch"))
@@ -90,7 +92,8 @@ trait ChainContractClient {
           minerRewardElAddress,
           chainId,
           e2cTransfersRootHash,
-          lastC2ETransferIndex
+          lastC2ETransferIndex,
+          lastC2EIssuedTransferIndex
         )
       } catch {
         case e: Throwable => fail(s"Can't read a block $hash meta, bytes: ${blockMeta.base64}, remaining: ${bb.remaining()}", e)
@@ -209,12 +212,12 @@ trait ChainContractClient {
     }
   }
 
-  def getNativeTransfers(fromIndex: Long, maxItems: Long): Vector[ContractTransfer] =
+  def getNativeTransfers(fromIndex: Long, maxItems: Long): Vector[ContractNativeTransfer] =
     (fromIndex until math.min(fromIndex + maxItems, getNativeTransfersCount)).map(requireNativeTransfer).toVector
 
   private def getNativeTransfersCount: Long = getLongData("nativeTransfersCount").getOrElse(0L)
 
-  private def requireNativeTransfer(atIndex: Long): ContractTransfer = {
+  private def requireNativeTransfer(atIndex: Long): ContractNativeTransfer = {
     val key   = s"nativeTransfer_$atIndex"
     val raw   = getStringData(key).getOrElse(fail(s"Expected a native transfer at '$key', got nothing"))
     val parts = raw.split(Sep)
@@ -223,8 +226,26 @@ trait ChainContractClient {
     val destElAddress = EthAddress.unsafeFrom(parts(0))
     val amount        = parts(1).toLongOption.getOrElse(fail(s"Expected an integer amount of a native transfer, got: ${parts(1)}"))
 
-    ContractTransfer(atIndex, destElAddress, amount)
+    ContractNativeTransfer(atIndex, destElAddress, amount)
   }
+
+  def getIssuedTransfers(fromIndex: Long, maxItems: Long): Vector[ContractIssuedTransfer] =
+    (fromIndex until math.min(fromIndex + maxItems, getIssuedTransfersCount)).map(requireIssuedTransfer).toVector
+
+  private def requireIssuedTransfer(atIndex: Long): ContractIssuedTransfer = {
+    val key   = s"issuedTransfer_$atIndex"
+    val raw   = getStringData(key).getOrElse(fail(s"Expected an issued token transfer at '$key', got nothing"))
+    val parts = raw.split(Sep)
+    if (parts.length != 3) fail(s"Expected three elements in an issued token transfer, got ${parts.length}: $raw")
+
+    val destElAddress = EthAddress.unsafeFrom(parts(0))
+    val amount        = parts(1).toLongOption.getOrElse(fail(s"Expected an integer amount of an issued token transfer, got: ${parts(1)}"))
+    val tokenIndex    = parts(2).toLongOption.getOrElse(fail(s"Expected an index of issued token in a transfer, got: ${parts(2)}"))
+
+    ContractIssuedTransfer(atIndex, destElAddress, amount, tokenIndex)
+  }
+
+  private def getIssuedTransfersCount: Long = getLongData("issuedTransfersCount").getOrElse(0L)
 
   private def getLastBlockHash(chainId: Long): Option[BlockHash] = getChainMeta(chainId).map(_._2)
 
@@ -270,12 +291,15 @@ object ChainContractClient {
   private val BlockHashBytesSize = 32
   private val Sep                = ","
 
-  val MaxC2ETransfers = 16
+  val MaxC2ENativeTransfers = 16
+  val MaxC2EIssuedTransfers = 32 // TODO: move to chain contract?
 
   private class InconsistentContractData(message: String, cause: Throwable = null)
       extends IllegalStateException(s"Probably, your have to upgrade your client. $message", cause)
 
   case class EpochContractMeta(miner: Address, prevEpoch: Int, lastBlockHash: BlockHash)
 
-  case class ContractTransfer(index: Long, destElAddress: EthAddress, amount: Long)
+  case class ContractNativeTransfer(index: Long, destElAddress: EthAddress, amount: Long)
+
+  case class ContractIssuedTransfer(index: Long, destElAddress: EthAddress, amount: Long, tokenIndex: Long) // TODO Type for tokenIndex
 }

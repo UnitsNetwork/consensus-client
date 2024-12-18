@@ -53,9 +53,9 @@ object IssuedTokenBridge {
   }
 
   // See https://specs.optimism.io/protocol/deposits.html#execution
-  def mkDepositTransaction(transferNumber: Long, elContractAddress: EthAddress, sender: Address, recipient: EthAddress, amountInWaves: Long): String =
-    DepositTransaction.create(
-      sourceHash = DepositTransaction.mkUserDepositedSourceHash(transferNumber),
+  def mkDepositTransaction(transferIndex: Long, elContractAddress: EthAddress, sender: Address, recipient: EthAddress, amountInWaves: Long): DepositedTransaction =
+    DepositedTransaction.create(
+      sourceHash = DepositedTransaction.mkUserDepositedSourceHash(transferIndex),
       from = sender.toEthAddress,
       to = elContractAddress.hex,
       mint = BigInteger.ZERO,

@@ -32,6 +32,11 @@ let issuedTransfersCountKey = "issuedTransfersCount"
 let daoAddressKey           = "daoAddress"
 let daoRewardKey            = "daoReward"
 
+let issuedTransfersActivationHeightKey = "issuedTransfersActivationHeight"
+let issuedTransfersActivated = height >= getInteger(issuedTransfersActivationHeightKey).valueOrElse(INT_MAX)
+func requireIssuedTransfersActivated()    = if (issuedTransfersActivated) then true else throw("Issued tokens transfers must be activated")
+func requireIssuedTransfersNotActivated() = if (issuedTransfersActivated) then throw("Issued tokens transfers must not be activated") else true
+
 func pad(i: Int) = {
   let s = i.toString()
   match s.size() {
@@ -137,22 +142,27 @@ func blockMeta(blockId: String) = {
   let blockParent = meta.drop(16).take(BLOCK_HASH_SIZE) # _3
   let chainId     = meta.toInt(16 + BLOCK_HASH_SIZE) # _4
 
-  let baseOffset     = 24 + BLOCK_HASH_SIZE
-  let remainingBytes = metaSize - baseOffset
-  let e2cTransfersRootHash = if (remainingBytes >= ROOT_HASH_SIZE) # _5
-    then meta.drop(baseOffset).take(ROOT_HASH_SIZE)
+  let baseOffset1 = 24 + BLOCK_HASH_SIZE
+  let remainingBytes1 = metaSize - baseOffset1
+  let e2cTransfersRootHash = if (remainingBytes1 >= ROOT_HASH_SIZE) # _5
+    then meta.drop(baseOffset1).take(ROOT_HASH_SIZE)
     else base16''
 
-  let lastC2ETransferIndex = if (remainingBytes == 8 || remainingBytes > ROOT_HASH_SIZE) # _6
-    then meta.toInt(baseOffset + e2cTransfersRootHash.size())
+  let baseOffset2 = baseOffset1 + e2cTransfersRootHash.size()
+  let lastC2ENativeTransferIndex = meta.toInt(baseOffset2) # _6
+
+  let baseOffset3 = baseOffset2 + 8
+  let remainingBytes3 = metaSize - baseOffset3
+  let lastC2EIssuedTransferIndex = if (remainingBytes3 == 8) # _7
+    then meta.toInt(baseOffset3)
     else -1
 
-  (blockHeight, blockEpoch, blockParent, chainId, e2cTransfersRootHash, lastC2ETransferIndex)
+  (blockHeight, blockEpoch, blockParent, chainId, e2cTransfersRootHash, lastC2ENativeTransferIndex, lastC2EIssuedTransferIndex)
 }
 
 func mkBlockMetaEntry(
   blockHashHex: String, blockHeight: Int, blockParentHex: String, chainId: Int,
-  e2cTransfersRootHashHex: String, lastC2ETransferIndex: Int
+  e2cTransfersRootHashHex: String, lastC2ENativeTransferIndex: Int, lastC2EIssuedTransferIndex: Int
 ) = {
   let e2cTransfersRootHashBytes = e2cTransfersRootHashHex.fromBase16String()
   let rootHashBytesSize = e2cTransfersRootHashBytes.size()
@@ -160,7 +170,7 @@ func mkBlockMetaEntry(
     else throw("Transfers root hash should have 0 or " + ROOT_HASH_SIZE.toString() + " bytes, got " + rootHashBytesSize.toString())
 
   let blockMetaBytes = blockHeight.toBytes() + height.toBytes() + blockParentHex.fromBase16String() +
-    chainId.toBytes() + e2cTransfersRootHashBytes + lastC2ETransferIndex.toBytes()
+    chainId.toBytes() + e2cTransfersRootHashBytes + lastC2ENativeTransferIndex.toBytes() + lastC2EIssuedTransferIndex.toBytes()
 
   BinaryEntry(blockMetaK + blockHashHex, blockMetaBytes)
 }
@@ -361,6 +371,171 @@ func getUpdateFinalizedBlockAction(caller: Address, newBlockHashHex: String, pre
   )
 }
 
+func extendMainChain_base(
+  originCaller: Address,
+  blockHashHex: String,
+  referenceHex: String,
+  vrf: ByteVector,
+  e2cTransfersRootHashHex: String,
+  lastC2ENativeTransferIndex: Int,
+  lastC2EIssuedTransferIndex: Int
+) = {
+  strict checkBlockHash = validateBlockHash(blockHashHex)
+  strict checkEpoch     = ensureCorrectEpoch(vrf)
+  strict checkChain     = ensureExpectedOrInactiveChain(originCaller, mainChainId, unit)
+  strict checkReference = isReferenceCorrect(referenceHex, mainChainLastBlock)
+  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._6, lastC2ENativeTransferIndex, true)
+
+  strict thisEpochMeta = match epochMeta(height) {
+    case _: Unit => StringEntry(epochMetaKey(height), originCaller.toString() + SEP + mainChainEpoch.toString() + SEP + blockHashHex)
+    case other => throw("Epoch already started")
+  }
+
+  strict checkGenerator = ensureMiningEpoch(originCaller)
+
+  let updateFinalizedBlock = getUpdateFinalizedBlockAction(originCaller, blockHashHex, mainChainEpoch)
+
+  let newChainHeight = mainChainHeight + 1
+  [
+    mkBlockMetaEntry(blockHashHex, newChainHeight, mainChainLastBlock, mainChainId, e2cTransfersRootHashHex, lastC2ENativeTransferIndex, lastC2EIssuedTransferIndex),
+    mkChainMetaEntry(mainChainId, newChainHeight, blockHashHex),
+    IntegerEntry(minerChainIdKey(originCaller), mainChainId),
+    IntegerEntry(chainLastHeightKey(mainChainId, originCaller), newChainHeight),
+    thisEpochMeta
+  ] ++ updateFinalizedBlock
+}
+
+func startAltChain_base(
+  originCaller: Address,
+  blockHashHex: String,
+  referenceHex: String,
+  vrf: ByteVector,
+  e2cTransfersRootHashHex: String,
+  lastC2ENativeTransferIndex: Int,
+  lastC2EIssuedTransferIndex: Int
+) = {
+  strict checkBlockHash = validateBlockHash(blockHashHex)
+  strict checkEpoch     = ensureCorrectEpoch(vrf)
+  let (refChainHeight, refEpoch, refIgnored1, refIgnored2, refIgnored3, refTransferIndex) = blockMeta(referenceHex)
+  let finalizedEpoch = blockMeta(getStringValue(finalizedBlockKey))._2
+  let epochRef = if (refEpoch >= finalizedEpoch)
+    then refEpoch
+    else throw("Can not start alt chain from epoch " + refEpoch.toString() + ", epoch " + finalizedEpoch.toString() + " is finalized")
+
+  strict checkChain     = ensureExpectedOrInactiveChain(originCaller, mainChainId, referenceHex)
+  strict checkTransfers = ensureCorrectTransfers(refTransferIndex, lastC2ENativeTransferIndex, true)
+  let newChainId        = getInteger(lastChainIdKey).valueOrElse(0) + 1
+  let newChainHeight    = refChainHeight + 1
+
+  let thisEpochMeta = match epochMeta(height) {
+    case _: Unit => StringEntry(epochMetaKey(height), originCaller.toString() + SEP + epochRef.toString() + SEP + blockHashHex)
+    case other => throw("Epoch already started")
+  }
+
+  strict checkGenerator = ensureMiningEpoch(originCaller)
+
+  [
+    thisEpochMeta,
+    mkBlockMetaEntry(blockHashHex, newChainHeight, referenceHex, newChainId, e2cTransfersRootHashHex, lastC2ENativeTransferIndex, lastC2EIssuedTransferIndex),
+    StringEntry(chainFirstBlockIdKey(newChainId), blockHashHex),
+    mkChainMetaEntry(newChainId, newChainHeight, blockHashHex),
+    IntegerEntry(minerChainIdKey(originCaller), newChainId),
+    IntegerEntry(chainLastHeightKey(newChainId, originCaller), newChainHeight),
+    IntegerEntry(chainLastHeightKey(mainChainId, originCaller), newChainHeight),
+    StringEntry(supportersKey(newChainId), originCaller.toString()),
+    IntegerEntry(lastChainIdKey, newChainId)
+  ]
+}
+
+func extendAltChain_base(
+  originCaller: Address,
+  blockHashHex: String,
+  referenceHex: String,
+  vrf: ByteVector,
+  chainId: Int,
+  e2cTransfersRootHashHex: String,
+  lastC2ENativeTransferIndex: Int,
+  lastC2EIssuedTransferIndex: Int
+) = {
+  # 1. if this is the first block of a new epoch in a fork, store total supporting balance of a fork.
+  # 2. if this fork's total supporting balance is >= 1/2 of the total balance, make this the new main chain.
+  # 2.1. update new max rollback height.
+  # 2.2. cancel all other active forks (!)
+
+  strict checkBlockHash   = validateBlockHash(blockHashHex)
+  strict checkEpoch       = ensureCorrectEpoch(vrf)
+  let chainFirstBlockMeta = blockMeta(getStringValue(chainFirstBlockIdKey(chainId)))
+  strict checkChain       = ensureExpectedOrInactiveChain(originCaller, chainId, chainFirstBlockMeta._3.toBase16String())
+  let (chainHeight, chainLastBlock) = chainMeta(chainId)
+  strict checkReference = isReferenceCorrect(referenceHex, chainLastBlock)
+  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._6, lastC2ENativeTransferIndex, true)
+
+  let newChainHeight  = chainHeight + 1
+
+  let prevEpoch = blockMeta(referenceHex)._2
+
+  let updateMainChainData =
+    if (supportingBalance(chainId) > computedTotalBalance / 2) then {
+      let lastChainId          = getInteger(lastChainIdKey).valueOrElse(0)
+      let updateFinalizedBlock = getUpdateFinalizedBlockAction(originCaller, blockHashHex, prevEpoch)
+      [
+        IntegerEntry(chainForkedHeightKey(mainChainId), chainFirstBlockMeta._1),
+        IntegerEntry(mainChainIdKey, chainId),
+        IntegerEntry(firstValidAltChainIdKey, lastChainId + 1)
+      ] ++ updateFinalizedBlock
+    }
+    else []
+
+  strict thisEpochMeta = match epochMeta(height) {
+    case _: Unit => StringEntry(epochMetaKey(height), originCaller.toString() + SEP + prevEpoch.toString() + SEP + blockHashHex)
+    case other => throw("Epoch already started")
+  }
+
+  strict checkGenerator   = ensureMiningEpoch(originCaller)
+
+  let updateMainChainLastMinedBlock = if (updateMainChainData == [] && minerChainId(originCaller).valueOrElse(0) != chainId) then {
+    [IntegerEntry(chainLastHeightKey(mainChainId, originCaller), chainFirstBlockMeta._1)]
+  } else []
+  [
+    mkBlockMetaEntry(blockHashHex, newChainHeight, referenceHex, chainId, e2cTransfersRootHashHex, lastC2ENativeTransferIndex, lastC2EIssuedTransferIndex),
+    mkChainMetaEntry(chainId, newChainHeight, blockHashHex),
+    thisEpochMeta,
+    IntegerEntry(minerChainIdKey(originCaller), chainId),
+    IntegerEntry(chainLastHeightKey(chainId, originCaller), newChainHeight)
+  ] ++ updateMainChainData ++ addSupporter(chainId, originCaller) ++ updateMainChainLastMinedBlock
+}
+
+func appendBlock_base(
+  originCaller: Address,
+  blockHashHex: String,
+  referenceHex: String,
+  e2cTransfersRootHashHex: String,
+  lastC2ENativeTransferIndex: Int,
+  lastC2EIssuedTransferIndex: Int
+) = {
+  strict checkCaller = if (thisEpochMiner == originCaller)
+    then true
+    else match thisEpochMiner {
+      case epochMiner: Address => throw("not allowed to forge blocks in this epoch, expected from " + epochMiner.toString())
+      case _                   => throw("not allowed to forge blocks in this epoch, epoch miner is absent")
+    }
+
+  let chainId = minerChainId(originCaller).valueOrElse(mainChainId)
+
+  let (chainHeight, lastBlockId) = chainMeta(chainId)
+  strict checkReference = isReferenceCorrect(referenceHex, lastBlockId)
+  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._6, lastC2ENativeTransferIndex, false)
+
+  let newChainHeight    = chainHeight + 1
+  strict checkBlockHash = validateBlockHash(blockHashHex)
+  [
+    mkBlockMetaEntry(blockHashHex, newChainHeight, lastBlockId, chainId, e2cTransfersRootHashHex, lastC2ENativeTransferIndex, lastC2EIssuedTransferIndex),
+    IntegerEntry(chainLastHeightKey(chainId, originCaller), newChainHeight),
+    mkChainMetaEntry(chainId, newChainHeight, blockHashHex),
+    StringEntry(epochMetaKey(height), thisEpochMiner.value().toString() + SEP + thisEpochRef.toString() + SEP + blockHashHex)
+  ]
+}
+
 @Callable(i)
 func extendMainChain(
   blockHashHex: String,
@@ -369,29 +544,21 @@ func extendMainChain(
   e2cTransfersRootHashHex: String,
   lastC2ETransferIndex: Int
 ) = {
-  strict checkBlockHash = validateBlockHash(blockHashHex)
-  strict checkEpoch     = ensureCorrectEpoch(vrf)
-  strict checkChain     = ensureExpectedOrInactiveChain(i.originCaller, mainChainId, unit)
-  strict checkReference = isReferenceCorrect(referenceHex, mainChainLastBlock)
-  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._6, lastC2ETransferIndex, true)
+  strict check = requireIssuedTransfersNotActivated()
+  extendMainChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, -1)
+}
 
-  strict thisEpochMeta = match epochMeta(height) {
-    case _: Unit => StringEntry(epochMetaKey(height), i.originCaller.toString() + SEP + mainChainEpoch.toString() + SEP + blockHashHex)
-    case other => throw("Epoch already started")
-  }
-
-  strict checkGenerator = ensureMiningEpoch(i.originCaller)
-
-  let updateFinalizedBlock = getUpdateFinalizedBlockAction(i.originCaller, blockHashHex, mainChainEpoch)
-
-  let newChainHeight = mainChainHeight + 1
-  [
-    mkBlockMetaEntry(blockHashHex, newChainHeight, mainChainLastBlock, mainChainId, e2cTransfersRootHashHex, lastC2ETransferIndex),
-    mkChainMetaEntry(mainChainId, newChainHeight, blockHashHex),
-    IntegerEntry(minerChainIdKey(i.originCaller), mainChainId),
-    IntegerEntry(chainLastHeightKey(mainChainId, i.originCaller), newChainHeight),
-    thisEpochMeta
-  ] ++ updateFinalizedBlock
+@Callable(i)
+func extendMainChain_v2(
+  blockHashHex: String,
+  referenceHex: String,
+  vrf: ByteVector,
+  e2cTransfersRootHashHex: String,
+  lastC2ENativeTransferIndex: Int,
+  lastC2EIssuedTransferIndex: Int
+) = {
+  strict check = requireIssuedTransfersActivated()
+  extendMainChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ENativeTransferIndex, lastC2EIssuedTransferIndex)
 }
 
 @Callable(i)
@@ -402,37 +569,21 @@ func startAltChain(
   e2cTransfersRootHashHex: String,
   lastC2ETransferIndex: Int
 ) = {
-  strict checkBlockHash = validateBlockHash(blockHashHex)
-  strict checkEpoch     = ensureCorrectEpoch(vrf)
-  let (refChainHeight, refEpoch, refIgnored1, refIgnored2, refIgnored3, refTransferIndex) = blockMeta(referenceHex)
-  let finalizedEpoch = blockMeta(getStringValue(finalizedBlockKey))._2
-  let epochRef = if (refEpoch >= finalizedEpoch)
-    then refEpoch
-    else throw("Can not start alt chain from epoch " + refEpoch.toString() + ", epoch " + finalizedEpoch.toString() + " is finalized")
+  strict check = requireIssuedTransfersNotActivated()
+  startAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, -1)
+}
 
-  strict checkChain     = ensureExpectedOrInactiveChain(i.originCaller, mainChainId, referenceHex)
-  strict checkTransfers = ensureCorrectTransfers(refTransferIndex, lastC2ETransferIndex, true)
-  let newChainId        = getInteger(lastChainIdKey).valueOrElse(0) + 1
-  let newChainHeight    = refChainHeight + 1
-
-  let thisEpochMeta = match epochMeta(height) {
-    case _: Unit => StringEntry(epochMetaKey(height), i.originCaller.toString() + SEP + epochRef.toString() + SEP + blockHashHex)
-    case other => throw("Epoch already started")
-  }
-
-  strict checkGenerator = ensureMiningEpoch(i.originCaller)
-
-  [
-    thisEpochMeta,
-    mkBlockMetaEntry(blockHashHex, newChainHeight, referenceHex, newChainId, e2cTransfersRootHashHex, lastC2ETransferIndex),
-    StringEntry(chainFirstBlockIdKey(newChainId), blockHashHex),
-    mkChainMetaEntry(newChainId, newChainHeight, blockHashHex),
-    IntegerEntry(minerChainIdKey(i.originCaller), newChainId),
-    IntegerEntry(chainLastHeightKey(newChainId, i.originCaller), newChainHeight),
-    IntegerEntry(chainLastHeightKey(mainChainId, i.originCaller), newChainHeight),
-    StringEntry(supportersKey(newChainId), i.originCaller.toString()),
-    IntegerEntry(lastChainIdKey, newChainId)
-  ]
+@Callable(i)
+func startAltChain_v2(
+  blockHashHex: String,
+  referenceHex: String,
+  vrf: ByteVector,
+  e2cTransfersRootHashHex: String,
+  lastC2ENativeTransferIndex: Int,
+  lastC2EIssuedTransferIndex: Int
+) = {
+  strict check = requireIssuedTransfersActivated()
+  startAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ENativeTransferIndex, lastC2EIssuedTransferIndex)
 }
 
 @Callable(i)
@@ -444,52 +595,22 @@ func extendAltChain(
   e2cTransfersRootHashHex: String,
   lastC2ETransferIndex: Int
 ) = {
-  # 1. if this is the first block of a new epoch in a fork, store total supporting balance of a fork.
-  # 2. if this fork's total supporting balance is >= 1/2 of the total balance, make this the new main chain.
-  # 2.1. update new max rollback height.
-  # 2.2. cancel all other active forks (!)
+  strict check = requireIssuedTransfersNotActivated()
+  extendAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, chainId, e2cTransfersRootHashHex, lastC2ETransferIndex, -1)
+}
 
-  strict checkBlockHash   = validateBlockHash(blockHashHex)
-  strict checkEpoch       = ensureCorrectEpoch(vrf)
-  let chainFirstBlockMeta = blockMeta(getStringValue(chainFirstBlockIdKey(chainId)))
-  strict checkChain       = ensureExpectedOrInactiveChain(i.originCaller, chainId, chainFirstBlockMeta._3.toBase16String())
-  let (chainHeight, chainLastBlock) = chainMeta(chainId)
-  strict checkReference = isReferenceCorrect(referenceHex, chainLastBlock)
-  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._6, lastC2ETransferIndex, true)
-
-  let newChainHeight  = chainHeight + 1
-
-  let prevEpoch = blockMeta(referenceHex)._2
-
-  let updateMainChainData =
-    if (supportingBalance(chainId) > computedTotalBalance / 2) then {
-      let lastChainId          = getInteger(lastChainIdKey).valueOrElse(0)
-      let updateFinalizedBlock = getUpdateFinalizedBlockAction(i.originCaller, blockHashHex, prevEpoch)
-      [
-        IntegerEntry(chainForkedHeightKey(mainChainId), chainFirstBlockMeta._1),
-        IntegerEntry(mainChainIdKey, chainId),
-        IntegerEntry(firstValidAltChainIdKey, lastChainId + 1)
-      ] ++ updateFinalizedBlock
-    }
-    else []
-
-  strict thisEpochMeta = match epochMeta(height) {
-    case _: Unit => StringEntry(epochMetaKey(height), i.originCaller.toString() + SEP + prevEpoch.toString() + SEP + blockHashHex)
-    case other => throw("Epoch already started")
-  }
-
-  strict checkGenerator   = ensureMiningEpoch(i.originCaller)
-
-  let updateMainChainLastMinedBlock = if (updateMainChainData == [] && minerChainId(i.originCaller).valueOrElse(0) != chainId) then {
-    [IntegerEntry(chainLastHeightKey(mainChainId, i.originCaller), chainFirstBlockMeta._1)]
-  } else []
-  [
-    mkBlockMetaEntry(blockHashHex, newChainHeight, referenceHex, chainId, e2cTransfersRootHashHex, lastC2ETransferIndex),
-    mkChainMetaEntry(chainId, newChainHeight, blockHashHex),
-    thisEpochMeta,
-    IntegerEntry(minerChainIdKey(i.originCaller), chainId),
-    IntegerEntry(chainLastHeightKey(chainId, i.originCaller), newChainHeight)
-  ] ++ updateMainChainData ++ addSupporter(chainId, i.originCaller) ++ updateMainChainLastMinedBlock
+@Callable(i)
+func extendAltChain_v2(
+  blockHashHex: String,
+  referenceHex: String,
+  vrf: ByteVector,
+  chainId: Int,
+  e2cTransfersRootHashHex: String,
+  lastC2ENativeTransferIndex: Int,
+  lastC2EIssuedTransferIndex: Int
+) = {
+  strict check = requireIssuedTransfersActivated()
+  extendAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, chainId, e2cTransfersRootHashHex, lastC2ENativeTransferIndex, lastC2EIssuedTransferIndex)
 }
 
 @Callable(i)
@@ -499,27 +620,20 @@ func appendBlock(
   e2cTransfersRootHashHex: String,
   lastC2ETransferIndex: Int
 ) = {
-  strict checkCaller = if (thisEpochMiner == i.originCaller)
-    then true
-    else match thisEpochMiner {
-      case epochMiner: Address => throw("not allowed to forge blocks in this epoch, expected from " + epochMiner.toString())
-      case _                   => throw("not allowed to forge blocks in this epoch, epoch miner is absent")
-    }
+  strict check = requireIssuedTransfersNotActivated()
+  appendBlock_base(i.originCaller, blockHashHex, referenceHex, e2cTransfersRootHashHex, lastC2ETransferIndex, -1)
+}
 
-  let chainId = minerChainId(i.originCaller).valueOrElse(mainChainId)
-
-  let (chainHeight, lastBlockId) = chainMeta(chainId)
-  strict checkReference = isReferenceCorrect(referenceHex, lastBlockId)
-  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._6, lastC2ETransferIndex, false)
-
-  let newChainHeight    = chainHeight + 1
-  strict checkBlockHash = validateBlockHash(blockHashHex)
-  [
-    mkBlockMetaEntry(blockHashHex, newChainHeight, lastBlockId, chainId, e2cTransfersRootHashHex, lastC2ETransferIndex),
-    IntegerEntry(chainLastHeightKey(chainId, i.originCaller), newChainHeight),
-    mkChainMetaEntry(chainId, newChainHeight, blockHashHex),
-    StringEntry(epochMetaKey(height), thisEpochMiner.value().toString() + SEP + thisEpochRef.toString() + SEP + blockHashHex)
-  ]
+@Callable(i)
+func appendBlock_v2(
+  blockHashHex: String,
+  referenceHex: String,
+  e2cTransfersRootHashHex: String,
+  lastC2ENativeTransferIndex: Int,
+  lastC2EIssuedTransferIndex: Int
+) = {
+  strict check = requireIssuedTransfersActivated()
+  appendBlock_base(i.originCaller, blockHashHex, referenceHex, e2cTransfersRootHashHex, lastC2ENativeTransferIndex, lastC2EIssuedTransferIndex)
 }
 
 @Callable(i)
@@ -732,7 +846,8 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: Stri
       genesisBlockReferenceHash,
       0, # chainId
       base16''.toBase16String(), # e2cTransfersRootHashHex
-      -1 # lastC2ETransferIndex
+      -1, # lastC2ENativeTransferIndex
+      -1 # lastC2EIssuedTransferIndex
     )
 
     let daoEntries = if daoAddress == "" then [] else [

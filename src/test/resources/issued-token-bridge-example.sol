@@ -38,6 +38,7 @@ contract IssuedTokenBridge {
     }
 
     function receiveIssued(address recipient, int64 clAmount) external {
+        // TODO: only miner can do this
         require(clAmount > 0, "Receive value must be greater or equal to 0");
 
         uint256 elAmount = uint256(int256(clAmount)) * EL_TO_CL_RATIO;

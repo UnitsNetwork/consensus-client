@@ -4,10 +4,11 @@ import com.google.common.primitives.Longs
 import com.wavesplatform.crypto.Keccak256
 import org.web3j.rlp.{RlpEncoder, RlpList, RlpString}
 import org.web3j.utils.Numeric
+import supertagged.TaggedType
 
 import java.math.BigInteger
 
-object DepositTransaction {
+object DepositedTransaction extends TaggedType[String] {
 
   /** @param sourceHash
     *   Uniquely identifies the origin of the deposit
@@ -41,7 +42,7 @@ object DepositTransaction {
       gas: BigInteger,
       isSystemTx: Boolean,
       data: Array[Byte]
-  ): String = {
+  ): Type = {
     val transactionType = 0x7e.toByte
 
     val rlpList = new RlpList(
@@ -57,7 +58,7 @@ object DepositTransaction {
 
     val rlpEncoded       = RlpEncoder.encode(rlpList)
     val transactionBytes = Array(transactionType) ++ rlpEncoded
-    Numeric.toHexString(transactionBytes)
+    DepositedTransaction(Numeric.toHexString(transactionBytes))
   }
 
   def mkUserDepositedSourceHash(transferNumber: Long): Array[Byte] =
