@@ -6,7 +6,6 @@ import com.typesafe.scalalogging.StrictLogging
 import com.wavesplatform.account.{Address, KeyPair}
 import com.wavesplatform.common.merkle.Digest
 import com.wavesplatform.common.state.ByteStr
-import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.crypto
 import com.wavesplatform.lang.ValidationError
 import com.wavesplatform.lang.v1.compiler.Terms.FUNCTION_CALL
@@ -327,7 +326,7 @@ class ELUpdater(
       IssuedTokenBridge.mkDepositTransaction(
         transferIndex = x.index,
         elContractAddress = EthAddress.unsafeFrom("0x00000000000000000000000000000155c3d06a7e"),
-        sender = Address.fromString("3FXuAZ1a4mKgmsjYf8yHDMXULbYz8pkuNb8").explicitGet(), // TODO
+        sender = epochInfo.miner, // Address.fromString("3FXuAZ1a4mKgmsjYf8yHDMXULbYz8pkuNb8").explicitGet(), // TODO should be a user
         recipient = x.destElAddress,
         amountInWaves = x.amount
       )

@@ -32,7 +32,7 @@ object IssuedTokenBridge {
 
     val Topic = org.web3j.abi.EventEncoder.encode(EventDef)
 
-    def decodeArgs(ethEventData: String): Either[String, ElReceivedIssuedEvent] =
+    def decodeLog(ethEventData: String): Either[String, ElReceivedIssuedEvent] =
       try {
         FunctionReturnDecoder.decode(ethEventData, EventDef.getNonIndexedParameters).asScala.toList match {
           case (recipient: Web3JAddress) :: (rawReceivedAmount: Uint256) :: Nil =>
@@ -53,7 +53,13 @@ object IssuedTokenBridge {
   }
 
   // See https://specs.optimism.io/protocol/deposits.html#execution
-  def mkDepositTransaction(transferIndex: Long, elContractAddress: EthAddress, sender: Address, recipient: EthAddress, amountInWaves: Long): DepositedTransaction =
+  def mkDepositTransaction(
+      transferIndex: Long,
+      elContractAddress: EthAddress,
+      sender: Address,
+      recipient: EthAddress,
+      amountInWaves: Long
+  ): DepositedTransaction =
     DepositedTransaction.create(
       sourceHash = DepositedTransaction.mkUserDepositedSourceHash(transferIndex),
       from = sender.toEthAddress,
@@ -69,7 +75,7 @@ object IssuedTokenBridge {
     val function = new Function(
       ReceiveIssuedFunction,
       util.Arrays.asList[org.web3j.abi.datatypes.Type[?]](
-        new org.web3j.abi.datatypes.Address(160, receiver.hexNoPrefix),
+        new org.web3j.abi.datatypes.Address(receiver.hexNoPrefix),
         new org.web3j.abi.datatypes.generated.Int64(amount)
       ),
       Collections.emptyList

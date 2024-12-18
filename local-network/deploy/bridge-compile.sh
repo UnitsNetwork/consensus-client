@@ -6,11 +6,8 @@ cd "${DIR}" || exit
 SOLC_VERSION=0.8.26
 solc-select use $SOLC_VERSION --always-install
 
-echo "Compile bridge.sol"
+echo "Compile contracts"
 # abi to run contract functions
 # bin-runtime is "code" field in genesis.json
 # storage-layout helps to fill "storage" field in genesis.json
-solc --abi --bin --bin-runtime --storage-layout ./setup/el/bridge.sol --optimize --optimize-runs 200 --overwrite -o ./setup/el/compiled/
-
-# echo "Compile bridge-user-example.sol"
-# solc --abi --bin --bin-runtime --storage-layout ./setup/el/bridge-user-example.sol --optimize --optimize-runs 200 --overwrite -o ./setup/el/compiled/
+solc --abi --bin --bin-runtime --storage-layout ./setup/el/*.sol --optimize --optimize-runs 200 --overwrite -o ./setup/el/compiled/

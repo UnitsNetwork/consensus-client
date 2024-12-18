@@ -12,12 +12,12 @@ class IssuedTokenBridgeC2ETestSuite extends BaseDockerTestSuite {
   private val elReceiver        = elRichAccount1
   private val elReceiverAddress = EthAddress.unsafeFrom(elReceiver.getAddress)
 
-  private val issueAssetTxn = TxHelpers.issue(clSender)
-  private val issueAsset    = IssuedAsset(issueAssetTxn.id())
+  private lazy val issueAssetTxn = TxHelpers.issue(clSender)
+  private lazy val issueAsset    = IssuedAsset(issueAssetTxn.id())
 
   private val issuedAssetBridge = EthAddress.unsafeFrom("0x00000000000000000000000000000155c3d06a7e")
 
-  private val transferAmount = 10_000L
+  private val userAmount = BigDecimal("0.55")
 
   "Checking balances in CL->EL transfers" in {
     // step("Try to transfer an asset without registration")
@@ -26,7 +26,9 @@ class IssuedTokenBridgeC2ETestSuite extends BaseDockerTestSuite {
     val elCurrHeight = ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact()
 
     step("Try to transfer the asset")
-    waves1.api.broadcastAndWait(ChainContract.transfer(clSender, elRichAddress1, issueAsset, 1, ChainContract.TransferIssuedFunctionName))
+    waves1.api.broadcastAndWait(
+      ChainContract.transfer(clSender, elRichAddress1, issueAsset, UnitsConvert.toWavesAmount(userAmount), ChainContract.TransferIssuedFunctionName)
+    )
 
     val withdrawal = Iterator
       .from(elCurrHeight + 1)
@@ -36,12 +38,12 @@ class IssuedTokenBridgeC2ETestSuite extends BaseDockerTestSuite {
           ec1.engineApi.getLogs(block.hash, issuedAssetBridge, IssuedTokenBridge.ElReceivedIssuedEvent.Topic).value
         }
       }
-      .map(event => IssuedTokenBridge.ElReceivedIssuedEvent.decodeArgs(event.data).explicitGet())
+      .map(event => IssuedTokenBridge.ElReceivedIssuedEvent.decodeLog(event.data).explicitGet())
       .find(_.recipient == elReceiverAddress)
       .head
 
     withClue("2. Expected amount: ") {
-      withdrawal.amount shouldBe BigInt(1) // TODO wrong number
+      withdrawal.amount shouldBe UnitsConvert.toWei(userAmount)
     }
   }
 
