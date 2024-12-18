@@ -32,8 +32,8 @@ let issuedTransfersCountKey = "issuedTransfersCount"
 let daoAddressKey           = "daoAddress"
 let daoRewardKey            = "daoReward"
 
-let issuedTransfersActivationHeightKey = "issuedTransfersActivationHeight"
-let issuedTransfersActivated = height >= getInteger(issuedTransfersActivationHeightKey).valueOrElse(INT_MAX)
+let issuedTransfersActivationEpochKey = "issuedTransfersActivationEpoch"
+let issuedTransfersActivated = height >= getInteger(issuedTransfersActivationEpochKey).valueOrElse(INT_MAX)
 func requireIssuedTransfersActivated()    = if (issuedTransfersActivated) then true else throw("Issued tokens transfers must be activated")
 func requireIssuedTransfersNotActivated() = if (issuedTransfersActivated) then throw("Issued tokens transfers must not be activated") else true
 
@@ -864,7 +864,8 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: Stri
       StringEntry(finalizedBlockKey, genesisBlockHashHex),
       issue,
       StringEntry(tokenIdKey, tokenId.toBase58String()),
-      StringEntry(elBridgeAddressKey, "0x0000000000000000000000000000000000006a7e")
+      StringEntry(elBridgeAddressKey, "0x0000000000000000000000000000000000006a7e"),
+      IntegerEntry(issuedTransfersActivationEpochKey, 0)
     ] ++ daoEntries
   }
 }

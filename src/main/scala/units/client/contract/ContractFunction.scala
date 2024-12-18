@@ -10,27 +10,37 @@ import org.web3j.utils.Numeric.cleanHexPrefix
 import units.util.HexBytesConverter.toHexNoPrefix
 import units.{BlockHash, ClientError, JobResult}
 
-abstract class ContractFunction(name: String, reference: BlockHash, extraArgs: Either[CommonError, List[EVALUATED]]) {
-  def toFunctionCall(blockHash: BlockHash, transfersRootHash: Digest, lastC2ETransferIndex: Long): JobResult[FUNCTION_CALL] = (for {
+abstract class ContractFunction(baseName: String, extraArgs: Either[CommonError, List[EVALUATED]]) {
+  def reference: BlockHash
+  def version: Int
+  def name: String = if (version >= 2) s"${baseName}_v$version" else baseName
+
+  def toFunctionCall(
+      blockHash: BlockHash,
+      transfersRootHash: Digest,
+      lastC2ENativeTransferIndex: Long,
+      lastC2EIssuedTransferIndex: Long
+  ): JobResult[FUNCTION_CALL] = (for {
     hash <- CONST_STRING(cleanHexPrefix(blockHash))
     ref  <- CONST_STRING(cleanHexPrefix(reference))
     trh  <- CONST_STRING(toHexNoPrefix(transfersRootHash))
     xtra <- extraArgs
   } yield FUNCTION_CALL(
     FunctionHeader.User(name),
-    List(hash, ref) ++ xtra ++ List(trh, CONST_LONG(lastC2ETransferIndex))
+    List(hash, ref) ++ xtra ++ List(trh, CONST_LONG(lastC2ENativeTransferIndex)) ++
+      (if (version >= 2) List(CONST_LONG(lastC2EIssuedTransferIndex)) else Nil)
   )).leftMap(e => ClientError(s"Error building function call for $name: $e"))
 }
 
 object ContractFunction {
-  case class ExtendMainChain(reference: BlockHash, vrf: ByteStr)
-      extends ContractFunction("extendMainChain", reference, CONST_BYTESTR(vrf).map(v => List(v)))
+  case class ExtendMainChain(reference: BlockHash, vrf: ByteStr, version: Int)
+      extends ContractFunction("extendMainChain", CONST_BYTESTR(vrf).map(v => List(v)))
 
-  case class AppendBlock(reference: BlockHash) extends ContractFunction("appendBlock", reference, Right(Nil))
+  case class AppendBlock(reference: BlockHash, version: Int) extends ContractFunction("appendBlock", Right(Nil))
 
-  case class ExtendAltChain(reference: BlockHash, vrf: ByteStr, chainId: Long)
-      extends ContractFunction("extendAltChain", reference, CONST_BYTESTR(vrf).map(v => List(v, CONST_LONG(chainId))))
+  case class ExtendAltChain(reference: BlockHash, vrf: ByteStr, chainId: Long, version: Int)
+      extends ContractFunction("extendAltChain", CONST_BYTESTR(vrf).map(v => List(v, CONST_LONG(chainId))))
 
-  case class StartAltChain(reference: BlockHash, vrf: ByteStr)
-      extends ContractFunction("startAltChain", reference, CONST_BYTESTR(vrf).map(v => List(v)))
+  case class StartAltChain(reference: BlockHash, vrf: ByteStr, version: Int)
+      extends ContractFunction("startAltChain", CONST_BYTESTR(vrf).map(v => List(v)))
 }

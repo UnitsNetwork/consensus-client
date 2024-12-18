@@ -240,7 +240,7 @@ class ELUpdater(
               )
               ecBlock = newBlock.toEcBlock
               transfersRootHash <- getE2CTransfersRootHash(ecBlock.hash, chainContractOptions.elBridgeAddress)
-              funcCall          <- contractFunction.toFunctionCall(ecBlock.hash, transfersRootHash, m.lastC2ETransferIndex)
+              funcCall <- contractFunction.toFunctionCall(ecBlock.hash, transfersRootHash, m.lastC2ENativeTransferIndex, m.lastC2EIssuedTransferIndex)
               _ <- callContract(
                 funcCall,
                 ecBlock,
@@ -411,7 +411,7 @@ class ELUpdater(
               miningData.payloadId,
               parentBlock.hash,
               miningData.nextBlockUnixTs,
-              newState.options.startEpochChainFunction(parentBlock.hash, epochInfo.hitSource, nodeChainInfo.toOption),
+              newState.options.startEpochChainFunction(epochInfo.number, parentBlock.hash, epochInfo.hitSource, nodeChainInfo.toOption),
               newState.options
             )
           )
@@ -438,9 +438,9 @@ class ELUpdater(
           parentBlock,
           finalizedBlock,
           nextBlockUnixTs,
-          m.lastC2ETransferIndex,
+          m.lastC2ENativeTransferIndex,
           m.lastElWithdrawalIndex,
-          m.lastIssuedC2ETransferIndex,
+          m.lastC2EIssuedTransferIndex,
           chainContractOptions,
           None
         ).fold[Unit](
@@ -455,8 +455,9 @@ class ELUpdater(
               lastEcBlock = parentBlock,
               chainStatus = m.copy(
                 currentPayloadId = miningData.payloadId,
-                lastC2ETransferIndex = miningData.lastC2ENativeTransferIndex,
-                lastElWithdrawalIndex = miningData.lastElWithdrawalIndex
+                lastC2ENativeTransferIndex = miningData.lastC2ENativeTransferIndex,
+                lastElWithdrawalIndex = miningData.lastElWithdrawalIndex,
+                lastC2EIssuedTransferIndex = miningData.lastC2EIssuedTransferIndex
               )
             )
             setState("11", newState)
@@ -465,7 +466,7 @@ class ELUpdater(
                 miningData.payloadId,
                 parentBlock.hash,
                 miningData.nextBlockUnixTs,
-                chainContractOptions.appendFunction(parentBlock.hash),
+                chainContractOptions.appendFunction(epochInfo.number, parentBlock.hash),
                 chainContractOptions
               )
             )
@@ -1585,9 +1586,9 @@ object ELUpdater {
           keyPair: KeyPair,
           currentPayloadId: String,
           nodeChainInfo: Either[ChainSwitchInfo, ChainInfo],
-          lastC2ETransferIndex: Long,
+          lastC2ENativeTransferIndex: Long,
           lastElWithdrawalIndex: WithdrawalIndex,
-          lastIssuedC2ETransferIndex: Long
+          lastC2EIssuedTransferIndex: Long
       ) extends ChainStatus {
         override def lastContractBlock: ContractBlock = nodeChainInfo match {
           case Left(chainSwitchInfo) => chainSwitchInfo.referenceBlock

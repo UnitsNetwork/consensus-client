@@ -192,7 +192,9 @@ trait ChainContractClient {
       .getOrElse(throw new IllegalStateException("minerReward is empty on contract")),
     elBridgeAddress = getStringData("elBridgeAddress")
       .map(EthAddress.unsafeFrom)
-      .getOrElse(throw new IllegalStateException("elBridgeAddress is empty on contract"))
+      .getOrElse(throw new IllegalStateException("elBridgeAddress is empty on contract")),
+    issuedTransfersActivationEpoch = getLongData("issuedTransfersActivationEpoch")
+      .getOrElse(Long.MaxValue)
   )
 
   private def getChainMeta(chainId: Long): Option[(Int, BlockHash)] = {
