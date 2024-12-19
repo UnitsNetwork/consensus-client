@@ -1,8 +1,10 @@
 package units
 
+import com.wavesplatform.api.http.ApiError.ScriptExecutionError
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.TxHelpers
+import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import units.client.engine.model.BlockNumber
 import units.el.IssuedTokenBridge
 import units.eth.EthAddress
@@ -21,16 +23,20 @@ class IssuedTokenBridgeC2ETestSuite extends BaseDockerTestSuite {
 
   // TODO: Test Waves asset too
   "Checking balances in CL->EL transfers" in {
-    // step("Try to transfer an asset without registration")
+    step("1. Try to transfer an asset without registration")
+    def transferTxn: InvokeScriptTransaction =
+      ChainContract.transfer(clSender, elRichAddress1, issueAsset, UnitsConvert.toWavesAmount(userAmount), ChainContract.TransferIssuedFunctionName)
+    waves1.api.broadcast(transferTxn) match {
+      case Left(e) if e.error == ScriptExecutionError.Id && e.message.contains("not found") =>
+      case r                                                                                => fail(s"Unexpected outcome: $r")
+    }
 
-    step("Enable the asset in the registry")
+    step("2. Enable the asset in the registry")
     waves1.api.broadcastAndWait(ChainContract.registerIssuedToken(issueAsset, issuedAssetBridge))
 
-    step("Try to transfer the asset")
+    step("3. Try to transfer the asset")
     val elCurrHeight = ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact()
-    waves1.api.broadcastAndWait(
-      ChainContract.transfer(clSender, elRichAddress1, issueAsset, UnitsConvert.toWavesAmount(userAmount), ChainContract.TransferIssuedFunctionName)
-    )
+    waves1.api.broadcastAndWait(transferTxn)
 
     val withdrawal = Iterator
       .from(elCurrHeight + 1)
@@ -44,7 +50,7 @@ class IssuedTokenBridgeC2ETestSuite extends BaseDockerTestSuite {
       .find(_.recipient == elReceiverAddress)
       .head
 
-    withClue("2. Expected amount: ") {
+    withClue("Expected amount: ") {
       withdrawal.amount shouldBe UnitsConvert.toWei(userAmount)
     }
 
