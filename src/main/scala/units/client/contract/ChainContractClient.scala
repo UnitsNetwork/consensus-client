@@ -8,6 +8,7 @@ import com.wavesplatform.consensus.{FairPoSCalculator, PoSCalculator}
 import com.wavesplatform.lang.Global
 import com.wavesplatform.serialization.ByteBufferOps
 import com.wavesplatform.state.{BinaryDataEntry, Blockchain, DataEntry, EmptyDataEntry, IntegerDataEntry, StringDataEntry}
+import com.wavesplatform.transaction.Asset
 import units.BlockHash
 import units.client.contract.ChainContractClient.*
 import units.eth.{EthAddress, Gwei}
@@ -238,16 +239,36 @@ trait ChainContractClient {
     val key   = s"issuedTransfer_$atIndex"
     val raw   = getStringData(key).getOrElse(fail(s"Expected an issued token transfer at '$key', got nothing"))
     val parts = raw.split(Sep)
-    if (parts.length != 3) fail(s"Expected three elements in an issued token transfer, got ${parts.length}: $raw")
+    if (parts.length != 3) fail(s"Expected 3 elements in an issued token transfer, got ${parts.length}: $raw")
 
     val destElAddress = EthAddress.unsafeFrom(parts(0))
     val amount        = parts(1).toLongOption.getOrElse(fail(s"Expected an integer amount of an issued token transfer, got: ${parts(1)}"))
-    val tokenIndex    = parts(2).toLongOption.getOrElse(fail(s"Expected an index of issued token in a transfer, got: ${parts(2)}"))
+    val tokenIndex    = parts(2).toIntOption.getOrElse(fail(s"Expected an index of issued token in a transfer, got: ${parts(2)}"))
 
-    ContractIssuedTransfer(atIndex, destElAddress, amount, tokenIndex)
+    val asset     = getRegisteredAsset(tokenIndex)
+    val assetData = getRegisteredAssetData(asset)
+
+    ContractIssuedTransfer(atIndex, destElAddress, amount, assetData.erc20Address)
   }
 
   private def getIssuedTransfersCount: Long = getLongData("issuedTransfersCount").getOrElse(0L)
+
+  private def getRegisteredAssetData(asset: Asset): Registry.RegisteredAsset = {
+    val raw   = getStringData(s"registryAsset_${Registry.stringifyAsset(asset)}").getOrElse(fail(s"Can't find a registered asset $asset"))
+    val parts = raw.split(Sep)
+    if (parts.length != 2) fail(s"Expected 2 elements in a registry entry, got ${parts.length}: $raw")
+
+    val tokenIndex   = parts(0).toIntOption.getOrElse(fail(s"Expected an index of issued token in a transfer, got: ${parts(2)}"))
+    val erc20Address = EthAddress.unsafeFrom(s"0x${parts(1)}")
+
+    Registry.RegisteredAsset(asset, tokenIndex, erc20Address)
+  }
+
+  private def getRegisteredAsset(registryIndex: Int): Asset =
+    getStringData(s"registryIndex_$registryIndex") match {
+      case None          => fail(s"Can't find a registered asset at $registryIndex")
+      case Some(assetId) => Registry.parseAsset(assetId)
+    }
 
   private def getLastBlockHash(chainId: Long): Option[BlockHash] = getChainMeta(chainId).map(_._2)
 
@@ -280,8 +301,6 @@ trait ChainContractClient {
   }
 
   private def clean(hash: BlockHash): String = hash.drop(2) // Drop "0x"
-
-  private def fail(reason: String, cause: Throwable = null): Nothing = throw new InconsistentContractData(reason, cause)
 }
 
 object ChainContractClient {
@@ -296,8 +315,6 @@ object ChainContractClient {
   val MaxC2ENativeTransfers = 16
   val MaxC2EIssuedTransfers = 32 // TODO: move to chain contract?
 
-  val WavesTokenName = "WAVES"
-
   private class InconsistentContractData(message: String, cause: Throwable = null)
       extends IllegalStateException(s"Probably, your have to upgrade your client. $message", cause)
 
@@ -306,4 +323,18 @@ object ChainContractClient {
   case class ContractNativeTransfer(index: Long, destElAddress: EthAddress, amount: Long)
 
   case class ContractIssuedTransfer(index: Long, destElAddress: EthAddress, amount: Long, erc20Address: EthAddress)
+
+  object Registry {
+    val WavesTokenName = "WAVES"
+
+    case class RegisteredAsset(asset: Asset, index: Long, erc20Address: EthAddress)
+
+    def parseAsset(rawAssetId: String): Asset =
+      if (rawAssetId == WavesTokenName) Asset.Waves
+      else Asset.IssuedAsset(ByteStr.decodeBase58(rawAssetId).getOrElse(fail(s"Can't decode an issued asset id: $rawAssetId")))
+
+    def stringifyAsset(asset: Asset): String = asset.fold(WavesTokenName)(_.id.toString)
+  }
+
+  private def fail(reason: String, cause: Throwable = null): Nothing = throw new InconsistentContractData(reason, cause)
 }

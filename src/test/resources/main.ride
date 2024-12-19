@@ -33,7 +33,9 @@ let nativeTransfersCountKey = "nativeTransfersCount"
 let issuedTransfersCountKey = "issuedTransfersCount"
 let daoAddressKey           = "daoAddress"
 let daoRewardKey            = "daoReward"
-let issuedTokenRegistryK    = "registry_"
+
+let issuedTokenRegistryK       = "registryAsset_" # Asset Id -> Settings (index, ERC20 address)
+let issuedTokenRegistryIndexK  = "registryIndex_" # Index -> Asset Id
 let issuedTokenRegistrySizeKey = "registrySize"
 
 # assetIdBase58OrWaves - "Asset ID in Base58" | WAVES_TOKEN_NAME
@@ -42,6 +44,7 @@ func mkIssuedTokenRegistryEntry(assetIdBase58OrWaves: String, erc20AddressHex: S
   let currentIndex = getInteger(issuedTokenRegistrySizeKey).valueOrElse(0)
   [
     StringEntry(issuedTokenRegistryK + assetIdBase58OrWaves, currentIndex.toString() + SEP + erc20AddressHex),
+    StringEntry(issuedTokenRegistryIndexK + currentIndex.toString(), assetIdBase58OrWaves),
     IntegerEntry(issuedTokenRegistrySizeKey, currentIndex + 1)
   ]
 }

@@ -68,7 +68,7 @@ trait HasConsensusLayerDappTxHelpers {
         dApp = chainContractAddress,
         func = "registerIssuedToken".some,
         args = List(
-          Terms.CONST_STRING(asset.fold(ChainContractClient.WavesTokenName)(_.id.toString)),
+          Terms.CONST_STRING(asset.fold(ChainContractClient.Registry.WavesTokenName)(_.id.toString)),
           Terms.CONST_STRING(erc20Address.hexNoPrefix)
         ).map(_.explicitGet())
       )
