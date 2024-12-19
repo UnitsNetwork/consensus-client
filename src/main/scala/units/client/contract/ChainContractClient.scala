@@ -296,6 +296,8 @@ object ChainContractClient {
   val MaxC2ENativeTransfers = 16
   val MaxC2EIssuedTransfers = 32 // TODO: move to chain contract?
 
+  val WavesTokenName = "WAVES"
+
   private class InconsistentContractData(message: String, cause: Throwable = null)
       extends IllegalStateException(s"Probably, your have to upgrade your client. $message", cause)
 
@@ -303,5 +305,5 @@ object ChainContractClient {
 
   case class ContractNativeTransfer(index: Long, destElAddress: EthAddress, amount: Long)
 
-  case class ContractIssuedTransfer(index: Long, destElAddress: EthAddress, amount: Long, tokenIndex: Long) // TODO Type for tokenIndex
+  case class ContractIssuedTransfer(index: Long, destElAddress: EthAddress, amount: Long, erc20Address: EthAddress)
 }

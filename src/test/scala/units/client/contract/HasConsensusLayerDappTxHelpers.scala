@@ -62,6 +62,17 @@ trait HasConsensusLayerDappTxHelpers {
       fee = leaveFee
     )
 
+    def registerIssuedToken(asset: Asset, erc20Address: EthAddress, invoker: KeyPair = chainContractAccount): InvokeScriptTransaction =
+      TxHelpers.invoke(
+        invoker = invoker,
+        dApp = chainContractAddress,
+        func = "registerIssuedToken".some,
+        args = List(
+          Terms.CONST_STRING(asset.fold(ChainContractClient.WavesTokenName)(_.id.toString)),
+          Terms.CONST_STRING(erc20Address.hexNoPrefix)
+        ).map(_.explicitGet())
+      )
+
     def extendMainChain(
         minerAccount: KeyPair,
         block: L2BlockLike,

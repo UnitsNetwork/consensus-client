@@ -325,8 +325,8 @@ class ELUpdater(
     val depositedTransactions = issuedTransfers.map { x =>
       IssuedTokenBridge.mkDepositTransaction(
         transferIndex = x.index,
-        elContractAddress = EthAddress.unsafeFrom("0x00000000000000000000000000000155c3d06a7e"),
-        sender = epochInfo.miner, // Address.fromString("3FXuAZ1a4mKgmsjYf8yHDMXULbYz8pkuNb8").explicitGet(), // TODO should be a user
+        elContractAddress = x.erc20Address,
+        sender = epochInfo.miner, // Address.fromString("3FXuAZ1a4mKgmsjYf8yHDMXULbYz8pkuNb8").explicitGet(), // TODO should be a user?
         recipient = x.destElAddress,
         amountInWaves = x.amount
       )

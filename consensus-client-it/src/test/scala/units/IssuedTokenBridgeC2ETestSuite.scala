@@ -19,13 +19,15 @@ class IssuedTokenBridgeC2ETestSuite extends BaseDockerTestSuite {
 
   private val userAmount = BigDecimal("0.55")
 
+  // TODO: Test Waves asset too
   "Checking balances in CL->EL transfers" in {
     // step("Try to transfer an asset without registration")
-    // step("Enable the asset in the registry")
 
-    val elCurrHeight = ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact()
+    step("Enable the asset in the registry")
+    waves1.api.broadcastAndWait(ChainContract.registerIssuedToken(issueAsset, issuedAssetBridge))
 
     step("Try to transfer the asset")
+    val elCurrHeight = ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact()
     waves1.api.broadcastAndWait(
       ChainContract.transfer(clSender, elRichAddress1, issueAsset, UnitsConvert.toWavesAmount(userAmount), ChainContract.TransferIssuedFunctionName)
     )
@@ -45,6 +47,8 @@ class IssuedTokenBridgeC2ETestSuite extends BaseDockerTestSuite {
     withClue("2. Expected amount: ") {
       withdrawal.amount shouldBe UnitsConvert.toWei(userAmount)
     }
+
+    // TODO check the balance
   }
 
   override def beforeAll(): Unit = {

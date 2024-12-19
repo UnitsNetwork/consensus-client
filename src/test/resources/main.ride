@@ -8,10 +8,12 @@ let MIN_BALANCE          = 20_000 * WAVES
 let SEP                  = ","
 let BLOCK_HASH_SIZE      = 32
 let PUBLIC_KEY_HASH_SIZE = 20
+let ASSET_ID_SIZE        = 32
 let ROOT_HASH_SIZE       = 32
 let WITHDRAW_PROOFS_SIZE = 10
 let ETH_ADDRESS_STR_SIZE = 40
 let MAX_CL_TO_EL_TRANSFERS = 16
+let WAVES_TOKEN_NAME = "WAVES"
 
 # 1024 symbols
 let zeroesStr = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
@@ -31,6 +33,25 @@ let nativeTransfersCountKey = "nativeTransfersCount"
 let issuedTransfersCountKey = "issuedTransfersCount"
 let daoAddressKey           = "daoAddress"
 let daoRewardKey            = "daoReward"
+let issuedTokenRegistryK    = "registry_"
+let issuedTokenRegistrySizeKey = "registrySize"
+
+# assetIdBase58OrWaves - "Asset ID in Base58" | WAVES_TOKEN_NAME
+# erc20AddressHex without 0x
+func mkIssuedTokenRegistryEntry(assetIdBase58OrWaves: String, erc20AddressHex: String) = {
+  let currentIndex = getInteger(issuedTokenRegistrySizeKey).valueOrElse(0)
+  [
+    StringEntry(issuedTokenRegistryK + assetIdBase58OrWaves, currentIndex.toString() + SEP + erc20AddressHex),
+    IntegerEntry(issuedTokenRegistrySizeKey, currentIndex + 1)
+  ]
+}
+
+# assetIdBase58OrWaves - "Asset ID in Base58" | WAVES_TOKEN_NAME
+func getIssuedTokenIndexInRegistry(assetIdBase58OrWaves: String) = {
+  let key = issuedTokenRegistryK + assetIdBase58OrWaves
+  let entry = getStringValue(key).split(SEP)
+  entry[0].parseIntValue()
+}
 
 let issuedTransfersActivationEpochKey = "issuedTransfersActivationEpoch"
 let issuedTransfersActivated = height >= getInteger(issuedTransfersActivationEpochKey).valueOrElse(INT_MAX)
@@ -73,8 +94,8 @@ func mkNativeTransferEntry(index: Int, destElAddressHex: String, amount: Int) = 
 let issuedTransfersCount = this.getInteger(issuedTransfersCountKey).valueOrElse(0)
 func issuedTransferKey(index: Int) = "issuedTransfer_" + index.toString()
 # destElAddressHex - without 0x
-func mkIssuedTransferEntry(index: Int, destElAddressHex: String, amount: Int, assetIndex: Int) = {
-  StringEntry(issuedTransferKey(index), "0x" + destElAddressHex + SEP + amount.toString() + SEP + assetIndex.toString())
+func mkIssuedTransferEntry(index: Int, destElAddressHex: String, amount: Int, tokenIndex: Int) = {
+  StringEntry(issuedTransferKey(index), "0x" + destElAddressHex + SEP + amount.toString() + SEP + tokenIndex.toString())
 }
 
 func ensureCorrectTransfers(refTransferIndex: Int, transferIndex: Int, expectReward: Boolean) = {
@@ -755,19 +776,18 @@ func transferIssued(destElAddressHex: String) = {
   strict checkPayment = if (size(i.payments) == 1) then true else throw("Expected one payment as a transfer amount, got " + i.payments.size().toString())
 
   let t = i.payments[0]
-  # TODO: check the registry and get index
-  # strict checkAssetId = match t.assetId {
-  #  case assetId: ByteVector =>
-  #    if (assetId == tokenId) then true
-  #    else throw("Expected " + tokenIdStr + " in the payment, got " + assetId.toBase58String())
-  #  case _ => throw("Expected " + tokenIdStr + " in the payment, got Waves")
-  # }
+  let assetIdBase58OrWaves = match t.assetId {
+    case assetId: ByteVector => assetId.toBase58String()
+    case _ => WAVES_TOKEN_NAME
+  }
+
+  let tokenIndex = getIssuedTokenIndexInRegistry(assetIdBase58OrWaves)
 
   # TODO: check the queue size?
 
   [
     IntegerEntry(issuedTransfersCountKey, issuedTransfersCount + 1),
-    mkIssuedTransferEntry(issuedTransfersCount, destElAddressHex, t.amount, 0) # TODO index of asset in registry instead of 0
+    mkIssuedTransferEntry(issuedTransfersCount, destElAddressHex, t.amount, tokenIndex)
     # We don't burn tokens, because they can be transferred back
   ]
 }
@@ -821,6 +841,24 @@ func withdraw(blockHashHex: String, merkleProof: List[ByteVector], transferIndex
       }
     } else throw("Expected " + blockHashHex + " to be either on the main chain or relate to it")
   }
+}
+
+# assetIdBase58OrWaves - "Asset ID in Base58" | WAVES_TOKEN_NAME
+@Callable(i)
+func registerIssuedToken(assetIdBase58OrWaves: String, erc20AddressHex: String) = {
+  strict checkAssetId =
+    if (assetIdBase58OrWaves == WAVES_TOKEN_NAME || assetIdBase58OrWaves.fromBase58String().size() == ASSET_ID_SIZE) then true
+    else throw("Invalid asset: " + assetIdBase58OrWaves)
+
+  strict checkCaller = if (i.originCaller == this) then true else throw("Only owner of chain contract can do this")
+
+  strict checkAddressLength = if (erc20AddressHex.size() == ETH_ADDRESS_STR_SIZE)
+    then true
+    else throw("Invalid ERC20 address: " + erc20AddressHex)
+
+  strict checkAddressDecoded = erc20AddressHex.fromBase16String()
+
+  mkIssuedTokenRegistryEntry(assetIdBase58OrWaves, erc20AddressHex)
 }
 
 # genesisBlockHashHex without 0x
