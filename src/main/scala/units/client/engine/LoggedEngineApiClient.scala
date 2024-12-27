@@ -66,8 +66,13 @@ class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient
   override def blockExists(hash: BlockHash, requestId: Int): JobResult[Boolean] =
     wrap(requestId, s"blockExists($hash)", underlying.blockExists(hash, _))
 
-  override def getLogs(hash: BlockHash, address: EthAddress, topic: String, requestId: Int): JobResult[List[GetLogsResponseEntry]] =
-    wrap(requestId, s"getLogs($hash, a=$address, t=$topic)", underlying.getLogs(hash, address, topic, _), _.view.map(_.data).mkString("{", ", ", "}"))
+  override def getLogs(hash: BlockHash, addresses: List[EthAddress], topics: List[String], requestId: Int): JobResult[List[GetLogsResponseEntry]] =
+    wrap(
+      requestId,
+      s"getLogs($hash, a={${addresses.mkString(", ")}}, t={${topics.mkString(", ")}})",
+      underlying.getLogs(hash, addresses, topics, _),
+      _.view.map(_.data).mkString("{", ", ", "}")
+    )
 
   override def onRetry(requestId: Int): Unit = {
     underlying.onRetry(requestId)

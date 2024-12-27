@@ -112,9 +112,9 @@ class HttpEngineApiClient(val config: JsonRpcClient.Config, val backend: SttpBac
       .leftMap(err => ClientError(s"Error getting block by number $number: $err"))
   }
 
-  override def getLogs(hash: BlockHash, address: EthAddress, topic: String, requestId: Int): JobResult[List[GetLogsResponseEntry]] =
+  override def getLogs(hash: BlockHash, addresses: List[EthAddress], topics: List[String], requestId: Int): JobResult[List[GetLogsResponseEntry]] =
     sendRequest[GetLogsRequest, List[GetLogsResponseEntry]](
-      GetLogsRequest(hash, address, List(topic), requestId),
+      GetLogsRequest(hash, addresses, topics, requestId),
       NonBlockExecutionTimeout,
       requestId
     )

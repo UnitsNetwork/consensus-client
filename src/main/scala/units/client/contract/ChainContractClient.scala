@@ -216,7 +216,8 @@ trait ChainContractClient {
   }
 
   def getNativeTransfers(fromIndex: Long, maxItems: Long): Vector[ContractNativeTransfer] =
-    (fromIndex until math.min(fromIndex + maxItems, getNativeTransfersCount)).map(requireNativeTransfer).toVector
+    if (maxItems == 0) Vector.empty
+    else (fromIndex until math.min(fromIndex + maxItems, getNativeTransfersCount)).map(requireNativeTransfer).toVector
 
   private def getNativeTransfersCount: Long = getLongData("nativeTransfersCount").getOrElse(0L)
 
@@ -233,7 +234,8 @@ trait ChainContractClient {
   }
 
   def getIssuedTransfers(fromIndex: Long, maxItems: Long): Vector[ContractIssuedTransfer] =
-    (fromIndex until math.min(fromIndex + maxItems, getIssuedTransfersCount)).map(requireIssuedTransfer).toVector
+    if (maxItems == 0) Vector.empty
+    else (fromIndex until math.min(fromIndex + maxItems, getIssuedTransfersCount)).map(requireIssuedTransfer).toVector
 
   private def requireIssuedTransfer(atIndex: Long): ContractIssuedTransfer = {
     val key   = s"issuedTransfer_$atIndex"

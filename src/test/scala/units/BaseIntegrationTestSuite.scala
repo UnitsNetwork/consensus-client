@@ -13,7 +13,7 @@ import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues}
 import units.client.engine.model.GetLogsResponseEntry
 import units.el.Bridge
 import units.el.Bridge.ElSentNativeEvent
-import units.eth.{EthAddress, Gwei}
+import units.eth.{EthAddress, EthNumber, Gwei}
 import units.test.CustomMatchers
 import units.util.HexBytesConverter
 
@@ -109,5 +109,5 @@ trait BaseIntegrationTestSuite
   protected def step(name: String): Unit = log.info(s"========= $name =========")
 
   protected def getLogsResponseEntry(event: ElSentNativeEvent): GetLogsResponseEntry =
-    GetLogsResponseEntry(elBridgeAddress, Bridge.ElSentNativeEvent.encodeArgs(event), List(Bridge.ElSentNativeEventTopic), "")
+    GetLogsResponseEntry(EthNumber(0), elBridgeAddress, Bridge.ElSentNativeEvent.encodeArgs(event), List(Bridge.ElSentNativeEventTopic), "")
 }

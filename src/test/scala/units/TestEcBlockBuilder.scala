@@ -3,7 +3,7 @@ package units
 import org.web3j.abi.datatypes.generated.Uint256
 import units.client.TestEcClients
 import units.client.engine.model.{EcBlock, GetLogsResponseEntry, Withdrawal}
-import units.el.Bridge
+import units.el.{Bridge, IssuedTokenBridge}
 import units.eth.{EthAddress, EthereumConstants, Gwei}
 
 import java.nio.charset.StandardCharsets
@@ -16,23 +16,27 @@ class TestEcBlockBuilder private (
     private var block: EcBlock,
     parentBlock: EcBlock
 ) {
-  def updateBlock(f: EcBlock => EcBlock): TestEcBlockBuilder = {
+  def updateBlock(f: EcBlock => EcBlock): this.type = {
     block = f(block)
     this
   }
 
-  def rewardPrevMiner(elWithdrawalIndex: Int = 0): TestEcBlockBuilder = rewardMiner(parentBlock.minerRewardL2Address, elWithdrawalIndex)
+  def rewardPrevMiner(elWithdrawalIndex: Int = 0): this.type = rewardMiner(parentBlock.minerRewardL2Address, elWithdrawalIndex)
 
-  def rewardMiner(minerRewardL2Address: EthAddress, elWithdrawalIndex: Int = 0): TestEcBlockBuilder = {
+  def rewardMiner(minerRewardL2Address: EthAddress, elWithdrawalIndex: Int = 0): this.type = {
     block = block.copy(withdrawals = Vector(Withdrawal(elWithdrawalIndex, minerRewardL2Address, elMinerDefaultReward)))
     this
   }
 
-  def build(): EcBlock = block
-  def buildAndSetLogs(logs: List[GetLogsResponseEntry] = Nil): EcBlock = {
-    testEcClients.setBlockLogs(block.hash, elBridgeAddress, Bridge.ElSentNativeEventTopic, logs)
-    block
+  def setLogs(nativeTopicLogs: List[GetLogsResponseEntry] = Nil, issuedTopicLogs: List[GetLogsResponseEntry] = Nil): this.type = {
+    testEcClients.setBlockLogs(block.hash, elBridgeAddress, Bridge.ElSentNativeEventTopic, nativeTopicLogs)
+    testEcClients.setBlockLogs(block.hash, elBridgeAddress, IssuedTokenBridge.ElReceivedIssuedEvent.Topic, issuedTopicLogs)
+    this
   }
+
+  def build(): EcBlock = block
+  def buildAndSetLogs(nativeTopicLogs: List[GetLogsResponseEntry] = Nil, issuedTopicLogs: List[GetLogsResponseEntry] = Nil): EcBlock =
+    setLogs(nativeTopicLogs, issuedTopicLogs).block
 }
 
 object TestEcBlockBuilder {

@@ -51,10 +51,9 @@ class TestEcClients private (
     forgingBlocks.transform(ForgingBlock(ecBlock) :: _)
 
   private val logs = Atomic(Map.empty[GetLogsRequest, List[GetLogsResponseEntry]])
-  def setBlockLogs(hash: BlockHash, address: EthAddress, topic: String, blockLogs: List[GetLogsResponseEntry]): Unit = {
-    val request = GetLogsRequest(hash, address, List(topic), 0)
-    logs.transform(_.updated(request, blockLogs))
-  }
+  def setBlockLogs(hash: BlockHash, address: EthAddress, topic: String, blockLogs: List[GetLogsResponseEntry]): Unit =
+    setBlockLogs(GetLogsRequest(hash, List(address), List(topic), 0), blockLogs)
+  def setBlockLogs(request: GetLogsRequest, response: List[GetLogsResponseEntry]): Unit = logs.transform(_.updated(request, response))
 
   private val getLogsCalls = Atomic(Set.empty[BlockHash])
 
@@ -154,10 +153,15 @@ class TestEcClients private (
 
       override def blockExists(hash: BlockHash, requestId: Int): JobResult[Boolean] = notImplementedMethodJob("blockExists")
 
-      override def getLogs(hash: BlockHash, address: EthAddress, topic: String, requestId: Int): JobResult[List[GetLogsResponseEntry]] = {
-        val request = GetLogsRequest(hash, address, List(topic), 0) // requestId is ignored, see setBlockLogs
+      override def getLogs(
+          hash: BlockHash,
+          addresses: List[EthAddress],
+          topics: List[String],
+          requestId: Int
+      ): JobResult[List[GetLogsResponseEntry]] = {
+        val request = GetLogsRequest(hash, addresses, topics, 0) // requestId is ignored, see setBlockLogs
         getLogsCalls.transform(_ + hash)
-        logs.get().getOrElse(request, notImplementedCase("call setBlockLogs"))
+        logs.get().getOrElse(request, notImplementedCase(s"call setBlockLogs with $request)"))
       }.asRight
     }
   )

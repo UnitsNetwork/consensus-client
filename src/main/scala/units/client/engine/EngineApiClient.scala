@@ -37,7 +37,12 @@ trait EngineApiClient {
 
   def blockExists(hash: BlockHash, requestId: Int = newRequestId): JobResult[Boolean]
 
-  def getLogs(hash: BlockHash, address: EthAddress, topic: String, requestId: Int = newRequestId): JobResult[List[GetLogsResponseEntry]]
+  def getLogs(
+      hash: BlockHash,
+      addresses: List[EthAddress],
+      topics: List[String],
+      requestId: Int = newRequestId
+  ): JobResult[List[GetLogsResponseEntry]]
 
   def onRetry(requestId: Int): Unit = {}
 }

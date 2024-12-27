@@ -1226,7 +1226,7 @@ class ELUpdater(
 
   private def getE2CTransfersRootHash(hash: BlockHash, elBridgeAddress: EthAddress): JobResult[Digest] =
     for {
-      elRawLogs <- engineApiClient.getLogs(hash, elBridgeAddress, Bridge.ElSentNativeEventTopic)
+      elRawLogs <- engineApiClient.getLogs(hash, List(elBridgeAddress), List(Bridge.ElSentNativeEventTopic))
       rootHash <- {
         val relatedElRawLogs = elRawLogs.filter(x => x.address == elBridgeAddress && x.topics.contains(Bridge.ElSentNativeEventTopic))
         Bridge
@@ -1330,6 +1330,24 @@ class ELUpdater(
     } yield Some(lastElWithdrawalIndex)
   }
 
+  private def validateC2EIssuedTransfers(contractBlock: ContractBlock, ecBlock: EcBlock): JobResult[Unit] = {
+    val parentContractBlock = chainContractClient
+      .getBlock(contractBlock.parentHash)
+      .getOrElse(
+        throw new RuntimeException(s"Can't find a parent block ${contractBlock.parentHash} of block ${contractBlock.hash} on chain contract")
+      )
+
+    val firstWithdrawalIndex = parentContractBlock.lastC2EIssuedTransferIndex + 1
+
+    val maxItems = math.min(
+      MaxC2EIssuedTransfersInBlock,
+      math.max(0, contractBlock.lastC2EIssuedTransferIndex - parentContractBlock.lastC2EIssuedTransferIndex)
+    )
+
+    val expectedTransfers = chainContractClient.getIssuedTransfers(firstWithdrawalIndex, maxItems)
+    validateC2EIssuedTransfers(ecBlock, expectedTransfers).leftMap(ClientError(_))
+  }
+
   private def validateBlockFull(
       networkBlock: NetworkL2Block,
       contractBlock: ContractBlock,
@@ -1360,6 +1378,8 @@ class ELUpdater(
         _                            <- validateE2CTransfers(contractBlock, prevState.options.elBridgeAddress)
         updatedLastElWithdrawalIndex <- validateWithdrawals(contractBlock, ecBlock, prevState.fullValidationStatus, prevState.options)
         _                            <- validateRandao(ecBlock, contractBlock.epoch)
+        _                            <- validateWithdrawals(contractBlock, ecBlock, prevState.fullValidationStatus, prevState.options)
+        _                            <- validateC2EIssuedTransfers(contractBlock, ecBlock)
       } yield updatedLastElWithdrawalIndex
 
     validationResult.map { lastElWithdrawalIndex =>
@@ -1505,6 +1525,50 @@ class ELUpdater(
       }
       .map(_ => ())
 
+  private def validateC2EIssuedTransfers(
+      ecBlock: EcBlock, // TODO: actualTransfers. Check size above
+      expectedTransfers: Seq[ChainContractClient.ContractIssuedTransfer]
+  ): Either[String, Unit] =
+    for {
+      rawActualTransfers <- engineApiClient
+        .getLogs(
+          hash = ecBlock.hash,
+          addresses = expectedTransfers.map(_.erc20Address).toList,
+          List(IssuedTokenBridge.ReceiveIssuedFunction)
+        )
+        .leftMap(_.message)
+      actualTransfers <- rawActualTransfers
+        .traverse { rawActualTransfer =>
+          IssuedTokenBridge.ElReceivedIssuedEvent
+            .decodeLog(rawActualTransfer.data)
+            .map((rawActualTransfer.address, rawActualTransfer.logIndex, _))
+        }
+      _ <- actualTransfers
+        .sortBy { case (_, index, _) => index } // Because API doesn't guarantee the order of events
+        .zip(expectedTransfers)
+        .zipWithIndex
+        .traverse { case (((actualErc20Address, logIndex, actualTransfer), expected), i) =>
+          def errorPrefix = s"C2E issued transfer #$i (logIndex=$logIndex)"
+          for {
+            _ <- Either.cond(
+              actualErc20Address == expected.erc20Address,
+              (),
+              s"$errorPrefix: got ERC20 address: $actualErc20Address, expected: ${expected.erc20Address}"
+            )
+            _ <- Either.cond(
+              actualTransfer.recipient == expected.destElAddress,
+              (),
+              s"$errorPrefix: got address: ${actualTransfer.recipient}, expected: ${expected.destElAddress}"
+            )
+            _ <- Either.cond(
+              actualTransfer.amount == expected.amount,
+              (),
+              s"$errorPrefix: got amount: ${actualTransfer.amount}, expected ${expected.amount}"
+            )
+          } yield ()
+        }
+    } yield ()
+
   private def confirmBlock(block: L2BlockLike, finalizedBlock: L2BlockLike): JobResult[PayloadStatus] = {
     val finalizedBlockHash = if (finalizedBlock.height > block.height) block.hash else finalizedBlock.hash
     engineApiClient.forkChoiceUpdate(block.hash, finalizedBlockHash)
@@ -1554,6 +1618,7 @@ object ELUpdater {
   val ClChangedProcessingDelay: FiniteDuration        = 50.millis
   val MiningRetryInterval: FiniteDuration             = 5.seconds
   val WaitRequestedBlockTimeout: FiniteDuration       = 2.seconds
+  val MaxC2EIssuedTransfersInBlock                    = 100
 
   case class EpochInfo(number: Int, miner: Address, rewardAddress: EthAddress, hitSource: ByteStr, prevEpochLastBlockHash: Option[BlockHash])
 
