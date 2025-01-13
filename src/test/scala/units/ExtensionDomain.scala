@@ -125,8 +125,8 @@ class ExtensionDomain(
     ecClients.engineApi,
     blockObserver,
     allChannels,
-    globalScheduler,
-    eluScheduler,
+    globalScheduler.withUncaughtExceptionReporter(e => log.error("Global error", e)),
+    eluScheduler.withUncaughtExceptionReporter(e => log.error("ELUpdater error", e)),
     () => {}
   )
   triggers = triggers.appended(new BlockchainUpdateTriggers {
@@ -324,7 +324,7 @@ class ExtensionDomain(
   def advanceElu(x: FiniteDuration, name: String = "advanceElu"): Unit = {
     log.trace(s"$name($x)")
     testTime.advance(x)
-    eluScheduler.tick(x)
+    eluSchedulerTick(x)
   }
 
   def triggerScheduledTasks(silent: Boolean = false): Unit = {
@@ -340,8 +340,22 @@ class ExtensionDomain(
   private def advanceAllTasks(x: FiniteDuration, triggerSchedulers: Boolean = true): Unit = {
     testTime.advance(x)
     if (triggerSchedulers) {
-      globalScheduler.tick(x)
-      eluScheduler.tick(x)
+      globalSchedulerTick(x)
+      eluSchedulerTick(x)
+    }
+  }
+
+  private def globalSchedulerTick(x: FiniteDuration): Unit = {
+    globalScheduler.tick(x)
+    Option(globalScheduler.state.lastReportedError).foreach { e =>
+      log.error("Global error", e)
+    }
+  }
+
+  private def eluSchedulerTick(x: FiniteDuration): Unit = {
+    eluScheduler.tick(x)
+    Option(eluScheduler.state.lastReportedError).foreach { e =>
+      log.error("ELUpdater error", e)
     }
   }
 

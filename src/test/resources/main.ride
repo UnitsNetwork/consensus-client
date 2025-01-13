@@ -35,7 +35,7 @@ let daoAddressKey           = "daoAddress"
 let daoRewardKey            = "daoReward"
 
 let issuedTokenRegistryK       = "registryAsset_" # Asset Id -> Settings (index, ERC20 address)
-let issuedTokenRegistryIndexK  = "registryIndex_" # Index -> Asset Id
+let issuedTokenRegistryIndexK  = "registryIndex_" # Index (starts from 0) -> Asset Id
 let issuedTokenRegistrySizeKey = "registrySize"
 
 # assetIdBase58OrWaves - "Asset ID in Base58" | WAVES_TOKEN_NAME

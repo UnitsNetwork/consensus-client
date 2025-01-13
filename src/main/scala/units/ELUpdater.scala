@@ -1345,7 +1345,12 @@ class ELUpdater(
     )
 
     val expectedTransfers = chainContractClient.getIssuedTransfers(firstWithdrawalIndex, maxItems)
-    validateC2EIssuedTransfers(ecBlock, expectedTransfers).leftMap(ClientError(_))
+    val bridgeAddresses =
+      if (expectedTransfers.isEmpty) chainContractClient.getAllRegisteredAssetData.map(_.erc20Address) // To check, there is no transfers
+      else expectedTransfers.map(_.erc20Address).toList
+
+    if (bridgeAddresses.isEmpty) Right(())
+    else validateC2EIssuedTransfers(ecBlock, expectedTransfers, bridgeAddresses).leftMap(ClientError(_))
   }
 
   private def validateBlockFull(
@@ -1526,14 +1531,15 @@ class ELUpdater(
       .map(_ => ())
 
   private def validateC2EIssuedTransfers(
-      ecBlock: EcBlock, // TODO: actualTransfers. Check size above
-      expectedTransfers: Seq[ChainContractClient.ContractIssuedTransfer]
+      ecBlock: EcBlock,
+      expectedTransfers: Seq[ChainContractClient.ContractIssuedTransfer],
+      bridgeAddresses: List[EthAddress]
   ): Either[String, Unit] =
     for {
       rawActualTransfers <- engineApiClient
         .getLogs(
           hash = ecBlock.hash,
-          addresses = expectedTransfers.map(_.erc20Address).toList,
+          addresses = bridgeAddresses,
           List(IssuedTokenBridge.ReceiveIssuedFunction)
         )
         .leftMap(_.message)
@@ -1543,6 +1549,11 @@ class ELUpdater(
             .decodeLog(rawActualTransfer.data)
             .map((rawActualTransfer.address, rawActualTransfer.logIndex, _))
         }
+      _ <- Either.cond(
+        actualTransfers.size == expectedTransfers.size,
+        (),
+        s"Expected ${expectedTransfers.size} transfers, got: ${actualTransfers.size}"
+      )
       _ <- actualTransfers
         .sortBy { case (_, index, _) => index } // Because API doesn't guarantee the order of events
         .zip(expectedTransfers)

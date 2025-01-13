@@ -29,7 +29,9 @@ class TestEcBlockBuilder private (
   }
 
   def setLogs(nativeTopicLogs: List[GetLogsResponseEntry] = Nil, issuedTopicLogs: List[GetLogsResponseEntry] = Nil): this.type = {
+    // TODO instead of elBridgeAddress, use *TopicLogs.address
     testEcClients.setBlockLogs(block.hash, elBridgeAddress, Bridge.ElSentNativeEventTopic, nativeTopicLogs)
+    // TODO elBridgeAddress?
     testEcClients.setBlockLogs(block.hash, elBridgeAddress, IssuedTokenBridge.ElReceivedIssuedEvent.Topic, issuedTopicLogs)
     this
   }

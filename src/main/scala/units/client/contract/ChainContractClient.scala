@@ -266,6 +266,13 @@ trait ChainContractClient {
     Registry.RegisteredAsset(asset, tokenIndex, erc20Address)
   }
 
+  def getIssuedTokenRegistrySize: Int = getLongData("registrySize").getOrElse(0L).toInt
+
+  def getAllRegisteredAssetData: List[Registry.RegisteredAsset] = (0 until getIssuedTokenRegistrySize).view
+    .map(getRegisteredAsset)
+    .map(getRegisteredAssetData)
+    .toList
+
   private def getRegisteredAsset(registryIndex: Int): Asset =
     getStringData(s"registryIndex_$registryIndex") match {
       case None          => fail(s"Can't find a registered asset at $registryIndex")
