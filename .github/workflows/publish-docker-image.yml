@@ -1,4 +1,5 @@
 name: Publish Docker image
+run-name: Publish branch ${{ github.ref_name }} to tag ${{ inputs.dockerTag }}
 
 on:
   workflow_dispatch:
@@ -10,7 +11,7 @@ on:
      baseImage:
        description: 'Base image'
        required: true
-       default: 'wavesplatform/wavesnode:1.5.7'
+       default: 'wavesplatform/wavesnode:1.5.8'
        type: string
 
 env:
@@ -31,6 +32,7 @@ jobs:
           distribution: 'temurin'
           java-version: '11'
           cache: 'sbt'
+      - uses: sbt/setup-sbt@v1
       - run: sbt --mem 4096 --batch buildTarballsForDocker
       - uses: docker/login-action@v3
         with:
@@ -60,8 +62,3 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - uses: actions/attest-build-provenance@v1
-        with:
-          subject-name: ${{ env.IMAGE_NAME}}
-          subject-digest: ${{ steps.push.outputs.digest }}
-          push-to-registry: true
