@@ -7,12 +7,10 @@ on:
      dockerTag:
        description: 'Docker tag'
        required: true
-       type: string
      baseImage:
        description: 'Base image'
        required: true
        default: 'wavesplatform/wavesnode:1.5.9'
-       type: string
 
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}
@@ -45,11 +43,13 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAME }}
           flavor: latest=false
-          tags: type=raw,value=${{ inputs.dockerTag }}
+          tags: | 
+            type=sha
+            type=raw,value=${{ inputs.dockerTag }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.licenses=MIT
-            org.opencontainers.image.description="Unit Zero Node"
+            org.opencontainers.image.description=Unit Zero Node
       - uses: docker/build-push-action@v5
         id: push
         with:
