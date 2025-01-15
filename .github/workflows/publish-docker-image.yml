@@ -11,7 +11,7 @@ on:
      baseImage:
        description: 'Base image'
        required: true
-       default: 'wavesplatform/wavesnode:1.5.8'
+       default: 'wavesplatform/wavesnode:1.5.9'
        type: string
 
 env:
