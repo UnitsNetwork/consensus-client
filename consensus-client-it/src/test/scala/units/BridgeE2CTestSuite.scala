@@ -5,7 +5,7 @@ import com.wavesplatform.utils.EthEncoding
 import org.web3j.protocol.core.DefaultBlockParameterName
 import org.web3j.protocol.core.methods.response.TransactionReceipt
 import org.web3j.utils.Convert
-import units.el.{Bridge, ElNativeTokenBridgeClient}
+import units.el.{Bridge, ElNativeTokenBridgeClient, EvmEncoding}
 
 import scala.jdk.OptionConverters.RichOptional
 
@@ -47,7 +47,7 @@ class BridgeE2CTestSuite extends BaseDockerTestSuite {
 
       eventually {
         val r = ec1.web3j.ethGetTransactionReceipt(txnResult.getTransactionHash).send().getTransactionReceipt.toScala.value
-        if (!r.isStatusOK) fail(s"Expected successful sendNative, got: ${ElNativeTokenBridgeClient.decodeRevertReason(r.getRevertReason)}")
+        if (!r.isStatusOK) fail(s"Expected successful sendNative, got: ${EvmEncoding.decodeRevertReason(r.getRevertReason)}")
         r
       }
     }

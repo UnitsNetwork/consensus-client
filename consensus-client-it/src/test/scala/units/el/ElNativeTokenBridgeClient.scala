@@ -2,8 +2,6 @@ package units.el
 
 import com.wavesplatform.account.Address
 import com.wavesplatform.utils.ScorexLogging
-import org.web3j.abi.datatypes.{AbiTypes, Type}
-import org.web3j.abi.{FunctionReturnDecoder, TypeReference}
 import org.web3j.crypto.{Credentials, RawTransaction}
 import org.web3j.protocol.Web3j
 import org.web3j.protocol.core.DefaultBlockParameterName
@@ -14,9 +12,7 @@ import org.web3j.tx.RawTransactionManager
 import org.web3j.tx.gas.DefaultGasProvider
 import units.bridge.BridgeContract
 import units.docker.EcContainer
-import units.eth.EthAddress
-
-import java.util.Collections
+import units.eth.{EthAddress, EthereumConstants}
 
 class ElNativeTokenBridgeClient(web3j: Web3j, address: EthAddress, gasProvider: DefaultGasProvider = new DefaultGasProvider) extends ScorexLogging {
   def sendSendNative(
@@ -71,22 +67,5 @@ class ElNativeTokenBridgeClient(web3j: Web3j, address: EthAddress, gasProvider: 
 }
 
 object ElNativeTokenBridgeClient {
-  val BurnAddress = EthAddress.unsafeFrom("0x0000000000000000000000000000000000000000")
-
-  def decodeRevertReason(hexRevert: String): String =
-    if (Option(hexRevert).isEmpty) "???"
-    else {
-      val cleanHex       = if (hexRevert.startsWith("0x")) hexRevert.drop(2) else hexRevert
-      val errorSignature = "08c379a0" // Error(string)
-
-      if (!cleanHex.startsWith(errorSignature)) throw new RuntimeException(s"Not a revert reason: $hexRevert")
-
-      val strType           = TypeReference.create(AbiTypes.getType("string").asInstanceOf[Class[Type[?]]])
-      val revertReasonTypes = Collections.singletonList(strType)
-
-      val encodedReason = "0x" + cleanHex.drop(8)
-      val decoded       = FunctionReturnDecoder.decode(encodedReason, revertReasonTypes)
-      if (decoded.isEmpty) throw new RuntimeException(s"Unknown revert reason: $hexRevert")
-      else decoded.get(0).getValue.asInstanceOf[String]
-    }
+  val BurnAddress = EthereumConstants.ZeroAddress
 }
