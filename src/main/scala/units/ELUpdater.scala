@@ -323,7 +323,7 @@ class ELUpdater(
     )
 
     val depositedTransactions = issuedTransfers.map { x =>
-      IssuedTokenBridge.mkDepositTransaction(
+      IssuedTokenBridge.mkDepositedTransaction(
         transferIndex = x.index,
         elContractAddress = x.erc20Address,
         sender = epochInfo.miner, // Address.fromString("3FXuAZ1a4mKgmsjYf8yHDMXULbYz8pkuNb8").explicitGet(), // TODO should be a user?
@@ -1349,7 +1349,7 @@ class ELUpdater(
       if (expectedTransfers.isEmpty) chainContractClient.getAllRegisteredAssetData.map(_.erc20Address) // To check, there is no transfers
       else expectedTransfers.map(_.erc20Address).toList
 
-    if (bridgeAddresses.isEmpty) Right(())
+    if (bridgeAddresses.isEmpty) Either.unit
     else validateC2EIssuedTransfers(ecBlock, expectedTransfers, bridgeAddresses).leftMap(ClientError(_))
   }
 

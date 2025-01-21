@@ -31,7 +31,7 @@ if script_info["script"] is None:
 
     with open("setup/waves/main.ride", "r", encoding="utf-8") as file:
         source = file.read()
-    r = network.cl_chain_contract.setScript(source)
+    r = network.cl_chain_contract.setScript(source, 4_100_000)
     waves.force_success(log, r, "Can not set the chain contract script")
 
 if not network.cl_chain_contract.isContractSetup():
@@ -44,8 +44,7 @@ if not network.cl_chain_contract.isContractSetup():
     log.info(f"Genesis block hash: {el_genesis_block_hash}")
 
     r = network.cl_chain_contract.setup(
-      el_genesis_block_hash,
-      daoAddress = network.cl_dao.address
+        el_genesis_block_hash, daoAddress=network.cl_dao.address
     )
     waves.force_success(log, r, "Can not setup the chain contract")
 

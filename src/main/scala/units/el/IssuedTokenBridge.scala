@@ -53,7 +53,7 @@ object IssuedTokenBridge {
   }
 
   // See https://specs.optimism.io/protocol/deposits.html#execution
-  def mkDepositTransaction(
+  def mkDepositedTransaction(
       transferIndex: Long,
       elContractAddress: EthAddress,
       sender: Address,
