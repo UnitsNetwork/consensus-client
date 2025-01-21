@@ -1350,12 +1350,12 @@ class ELUpdater(
     )
 
     val expectedTransfers = chainContractClient.getIssuedTransfers(firstWithdrawalIndex, maxItems)
-    val bridgeAddresses =
+    val tokenAddresses =
       if (expectedTransfers.isEmpty) chainContractClient.getAllRegisteredAssetData.map(_.erc20Address) // To check, there is no transfers
       else expectedTransfers.map(_.erc20Address).toList
 
-    if (bridgeAddresses.isEmpty) Either.unit
-    else validateC2EIssuedTransfers(ecBlock, expectedTransfers, bridgeAddresses).leftMap(ClientError(_))
+    if (tokenAddresses.isEmpty) Either.unit
+    else validateC2EIssuedTransfers(ecBlock, expectedTransfers, tokenAddresses).leftMap(ClientError(_))
   }
 
   private def validateBlockFull(
@@ -1538,13 +1538,13 @@ class ELUpdater(
   private def validateC2EIssuedTransfers(
       ecBlock: EcBlock,
       expectedTransfers: Seq[ChainContractClient.ContractIssuedTransfer],
-      bridgeAddresses: List[EthAddress]
+      tokenAddresses: List[EthAddress]
   ): Either[String, Unit] =
     for {
       rawActualTransfers <- engineApiClient
         .getLogs(
           hash = ecBlock.hash,
-          addresses = bridgeAddresses,
+          addresses = tokenAddresses,
           List(IssuedTokenBridge.ReceiveIssuedFunction)
         )
         .leftMap(_.message)

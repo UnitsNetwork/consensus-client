@@ -51,8 +51,6 @@ class TestEcClients private (
     forgingBlocks.transform(ForgingBlock(ecBlock) :: _)
 
   private val logs = Atomic(Map.empty[GetLogsRequest, List[GetLogsResponseEntry]])
-  def setBlockLogs(hash: BlockHash, address: EthAddress, topic: String, blockLogs: List[GetLogsResponseEntry]): Unit =
-    setBlockLogs(GetLogsRequest(hash, List(address), List(topic), 0), blockLogs)
   def setBlockLogs(request: GetLogsRequest, response: List[GetLogsResponseEntry]): Unit = logs.transform(_.updated(request, response))
 
   private val getLogsCalls = Atomic(Set.empty[BlockHash])

@@ -2,7 +2,7 @@ package units
 
 import org.web3j.abi.datatypes.generated.Uint256
 import units.client.TestEcClients
-import units.client.engine.model.{EcBlock, GetLogsResponseEntry, Withdrawal}
+import units.client.engine.model.{EcBlock, GetLogsRequest, GetLogsResponseEntry, Withdrawal}
 import units.el.{Bridge, IssuedTokenBridge}
 import units.eth.{EthAddress, EthereumConstants, Gwei}
 
@@ -29,10 +29,14 @@ class TestEcBlockBuilder private (
   }
 
   def setLogs(nativeTopicLogs: List[GetLogsResponseEntry] = Nil, issuedTopicLogs: List[GetLogsResponseEntry] = Nil): this.type = {
-    // TODO instead of elBridgeAddress, use *TopicLogs.address
-    testEcClients.setBlockLogs(block.hash, elBridgeAddress, Bridge.ElSentNativeEventTopic, nativeTopicLogs)
-    // TODO elBridgeAddress?
-    testEcClients.setBlockLogs(block.hash, elBridgeAddress, IssuedTokenBridge.ElReceivedIssuedEvent.Topic, issuedTopicLogs)
+    testEcClients.setBlockLogs(
+      GetLogsRequest(block.hash, List(elBridgeAddress), List(Bridge.ElSentNativeEventTopic), 0),
+      nativeTopicLogs
+    )
+    testEcClients.setBlockLogs(
+      GetLogsRequest(block.hash, issuedTopicLogs.map(_.address), List(IssuedTokenBridge.ElReceivedIssuedEvent.Topic), 0),
+      issuedTopicLogs
+    )
     this
   }
 
