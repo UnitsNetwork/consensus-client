@@ -1,5 +1,6 @@
 package units
 
+import com.wavesplatform.account.KeyPair
 import com.wavesplatform.database.{RDB, loadActiveLeases}
 import com.wavesplatform.db.WithDomain
 import com.wavesplatform.db.WithState.AddrWithBalance
@@ -17,6 +18,7 @@ import units.eth.{EthAddress, EthNumber, Gwei}
 import units.test.CustomMatchers
 import units.util.HexBytesConverter
 
+import java.nio.charset.StandardCharsets
 import java.util.concurrent.ThreadLocalRandom
 
 trait BaseIntegrationTestSuite
@@ -28,15 +30,19 @@ trait BaseIntegrationTestSuite
     with EitherValues
     with OptionValues
     with CustomMatchers {
-  protected def defaultSettings      = TestSettings.Default
+  protected val chainRegistryAccount: KeyPair = KeyPair("chain-registry".getBytes(StandardCharsets.UTF_8))
+
   protected val elMinerDefaultReward = Gwei.ofRawGwei(2_000_000_000L)
   protected val elBridgeAddress      = EthAddress.unsafeFrom("0x0000000000000000000000000000000000006a7e")
+
+  protected def defaultSettings = TestSettings().withChainRegistry(chainRegistryAccount.toAddress)
 
   protected def withExtensionDomain[R](settings: TestSettings = defaultSettings)(f: ExtensionDomain => R): R =
     withExtensionDomainUninitialized(settings) { d =>
       log.debug("EL init")
       val txs =
         List(
+          d.ChainRegistry.approve(),
           d.ChainContract.setScript(),
           d.ChainContract.setup(
             d.ecGenesisBlock,
@@ -52,7 +58,7 @@ trait BaseIntegrationTestSuite
       f(d)
     }
 
-  private def withExtensionDomainUninitialized[R](settings: TestSettings)(test: ExtensionDomain => R): R =
+  protected def withExtensionDomainUninitialized[R](settings: TestSettings = defaultSettings)(test: ExtensionDomain => R): R =
     withRocksDBWriter(settings.wavesSettings) { blockchain =>
       var d: ExtensionDomain = null
       val bcu = new BlockchainUpdaterImpl(
@@ -69,6 +75,7 @@ trait BaseIntegrationTestSuite
           blockchainUpdater = bcu,
           rocksDBWriter = blockchain,
           settings = settings.wavesSettings,
+          chainRegistryAccount = chainRegistryAccount,
           elBridgeAddress = elBridgeAddress,
           elMinerDefaultReward = elMinerDefaultReward
         )
@@ -77,6 +84,7 @@ trait BaseIntegrationTestSuite
 
         val balances = List(
           AddrWithBalance(TxHelpers.defaultAddress, 1_000_000.waves),
+          AddrWithBalance(d.chainRegistryAddress, 10.waves),
           AddrWithBalance(d.chainContractAddress, 10.waves)
         ) ++ settings.finalAdditionalBalances
 

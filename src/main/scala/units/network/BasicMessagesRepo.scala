@@ -29,8 +29,6 @@ object GetPeersSpec extends MessageSpec[GetPeers.type] {
 }
 
 object PeersSpec extends InetSocketAddressSeqSpec[KnownPeers] {
-  override val messageCode: Message.MessageCode = 2: Byte
-
   override protected def unwrap(v: KnownPeers): Seq[InetSocketAddress] = v.peers
 
   override protected def wrap(addresses: Seq[InetSocketAddress]): KnownPeers = KnownPeers(addresses)

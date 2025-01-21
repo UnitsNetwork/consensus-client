@@ -10,9 +10,9 @@ import com.wavesplatform.crypto
 import com.wavesplatform.lang.ValidationError
 import com.wavesplatform.lang.v1.compiler.Terms.FUNCTION_CALL
 import com.wavesplatform.network.ChannelGroupExt
-import com.wavesplatform.state.Blockchain
 import com.wavesplatform.state.diffs.FeeValidation.{FeeConstants, FeeUnit, ScriptExtraFee}
 import com.wavesplatform.state.diffs.TransactionDiffer.TransactionValidationError
+import com.wavesplatform.state.{Blockchain, BooleanDataEntry}
 import com.wavesplatform.transaction.TxValidationError.InvokeRejectError
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import com.wavesplatform.transaction.smart.script.trace.TracedResult
@@ -51,6 +51,7 @@ class ELUpdater(
     config: ClientConfig,
     time: Time,
     wallet: Wallet,
+    registryAddress: Option[Address],
     requestBlockFromPeers: BlockHash => CancelableFuture[BlockWithChannel],
     broadcastTx: Transaction => TracedResult[ValidationError, Boolean],
     scheduler: Scheduler,
@@ -148,23 +149,6 @@ class ELUpdater(
     }
   }
 
-  private def cleanPriorityPool(): Unit = {
-    // A transaction moves to priority pool when a new key block references one of the previous micro blocks.
-    // When we add a new fresh transaction (extendMainChain) to UTX, it is validated against a stale transaction changes.
-    // Removing here, because we have these transactions in PP after the onProcessBlock trigger
-    utx.getPriorityPool.foreach { pp =>
-      val staleTxs = pp.priorityTransactions.filter {
-        case tx: InvokeScriptTransaction => tx.dApp == contractAddress
-        case _                           => false
-      }
-
-      if (staleTxs.nonEmpty) {
-        logger.debug(s"Removing stale transactions: ${staleTxs.map(_.id()).mkString(", ")}")
-        utx.removeAll(staleTxs)
-      }
-    }
-  }
-
   private def callContract(fc: FUNCTION_CALL, blockData: EcBlock, invoker: KeyPair): JobResult[Unit] = {
     val extraFee = if (blockchain.hasPaidVerifier(invoker.toAddress)) ScriptExtraFee else 0
 
@@ -181,7 +165,6 @@ class ELUpdater(
       blockchain.settings.addressSchemeCharacter.toByte
     ).signWith(invoker.privateKey)
     logger.info(s"Invoking $contractAddress '${fc.function.funcName}' for block ${blockData.hash}->${blockData.parentHash}, txId=${tx.id()}")
-    cleanPriorityPool()
 
     broadcastTx(tx).resultE match {
       case Right(true)  => Either.unit
@@ -518,10 +501,32 @@ class ELUpdater(
   }
 
   private def handleConsensusLayerChanged(): Unit = {
-    state match {
-      case Starting                => updateStartingState()
-      case w: Working[ChainStatus] => updateWorkingState(w)
-      case other                   => logger.debug(s"Unprocessed state: $other")
+    def stopMining(): Unit = setState("26", Starting)
+
+    isChainEnabled match {
+      case Left(e) =>
+        logger.warn(s"$contractAddress chain is disabled: $e")
+        stopMining()
+
+      case Right(false) =>
+        logger.warn(s"$contractAddress chain is disabled")
+        stopMining()
+
+      case Right(true) =>
+        state match {
+          case Starting                => updateStartingState()
+          case w: Working[ChainStatus] => updateWorkingState(w)
+          case other                   => logger.debug(s"Unprocessed state: $other")
+        }
+    }
+  }
+
+  private def isChainEnabled: Either[String, Boolean] = registryAddress.fold(true.asRight[String]) { registryAddress =>
+    val key = registryKey(contractAddress)
+    blockchain.accountData(registryAddress, key) match {
+      case Some(BooleanDataEntry(_, isEnabled)) => isEnabled.asRight
+      case None                                 => false.asRight
+      case Some(x)                              => s"Expected '$key' to be a boolean, got: $x".asLeft
     }
   }
 
@@ -1717,4 +1722,6 @@ object ELUpdater {
     val msg = hitSource.arr ++ HexBytesConverter.toBytes(parentHash)
     HexBytesConverter.toHex(crypto.secureHash(msg))
   }
+
+  def registryKey(chainContract: Address): String = s"unit_${chainContract}_approved"
 }

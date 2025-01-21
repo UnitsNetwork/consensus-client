@@ -9,7 +9,7 @@ git.uncommittedSignifier := Some("DIRTY")
 inScope(Global)(
   Seq(
     onChangedBuildSource := ReloadOnSourceChanges,
-    scalaVersion         := "2.13.15",
+    scalaVersion         := "2.13.16",
     organization         := "network.units",
     organizationName     := "Units Network",
     resolvers ++= Resolver.sonatypeOssRepos("releases") ++ Resolver.sonatypeOssRepos("snapshots") ++ Seq(Resolver.mavenLocal),
@@ -30,14 +30,18 @@ inScope(Global)(
 name       := "consensus-client"
 maintainer := "Units Network Team"
 
-libraryDependencies ++= Seq(
-  "com.wavesplatform"              % "node-testkit"  % "1.5.8" % Test,
-  "com.wavesplatform"              % "node"          % "1.5.8" % Provided,
-  "com.softwaremill.sttp.client3"  % "core_2.13"     % "3.10.1",
-  "com.softwaremill.sttp.client3" %% "play-json"     % "3.10.1",
-  "com.github.jwt-scala"          %% "jwt-play-json" % "10.0.1",
-  "org.web3j"                      % "core"          % "4.9.8"
-)
+libraryDependencies ++= {
+  val node        = "1.5.10-SNAPSHOT"
+  val sttpVersion = "3.10.2"
+  Seq(
+    "com.wavesplatform"              % "node-testkit"  % node % Test,
+    "com.wavesplatform"              % "node"          % node % Provided,
+    "com.softwaremill.sttp.client3"  % "core_2.13"     % sttpVersion,
+    "com.softwaremill.sttp.client3" %% "play-json"     % sttpVersion,
+    "com.github.jwt-scala"          %% "jwt-play-json" % "10.0.1",
+    "org.web3j"                      % "core"          % "4.9.8"
+  )
+}
 
 Compile / packageDoc / publishArtifact := false
 

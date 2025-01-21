@@ -25,7 +25,7 @@ class ConsensusClientDependencies(val config: ClientConfig) extends AutoCloseabl
   val globalScheduler: Scheduler = monix.execution.Scheduler.global
     .withUncaughtExceptionReporter((ex: Throwable) => log.warn("Error in Global Scheduler", ex))
   val eluScheduler: SchedulerService =
-    Scheduler.singleThread(s"el-updater-${config.chainContract}", reporter = { e => log.warn("Exception in ELUpdater", e) })
+    NonInterruptingScheduledExecutor(s"el-updater-${config.chainContract}", reporter = { e => log.warn("Exception in ELUpdater", e) })
 
   private val httpClientBackend = HttpClientSyncBackend()
   private val maybeAuthenticatedBackend = config.jwtSecretFile match {
