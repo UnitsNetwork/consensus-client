@@ -18,7 +18,7 @@ import units.eth.EthAddress
 
 import java.util.Collections
 
-class ElBridgeClient(web3j: Web3j, address: EthAddress, gasProvider: DefaultGasProvider = new DefaultGasProvider) extends ScorexLogging {
+class ElNativeTokenBridgeClient(web3j: Web3j, address: EthAddress, gasProvider: DefaultGasProvider = new DefaultGasProvider) extends ScorexLogging {
   def sendSendNative(
       sender: Credentials,
       recipient: Address,
@@ -70,7 +70,7 @@ class ElBridgeClient(web3j: Web3j, address: EthAddress, gasProvider: DefaultGasP
   }
 }
 
-object ElBridgeClient {
+object ElNativeTokenBridgeClient {
   val BurnAddress = EthAddress.unsafeFrom("0x0000000000000000000000000000000000000000")
 
   def decodeRevertReason(hexRevert: String): String =

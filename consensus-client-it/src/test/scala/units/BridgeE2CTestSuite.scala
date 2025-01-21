@@ -5,7 +5,7 @@ import com.wavesplatform.utils.EthEncoding
 import org.web3j.protocol.core.DefaultBlockParameterName
 import org.web3j.protocol.core.methods.response.TransactionReceipt
 import org.web3j.utils.Convert
-import units.el.{Bridge, ElBridgeClient}
+import units.el.{Bridge, ElNativeTokenBridgeClient}
 
 import scala.jdk.OptionConverters.RichOptional
 
@@ -19,7 +19,7 @@ class BridgeE2CTestSuite extends BaseDockerTestSuite {
 
   "Negative" - {
     def test(amount: BigInt, expectedError: String): Unit = {
-      val e = elBridge.callRevertedSendNative(elSender, clRecipient.toAddress, amount)
+      val e = elNativeTokenBridge.callRevertedSendNative(elSender, clRecipient.toAddress, amount)
       e should include(expectedError)
     }
 
@@ -40,20 +40,20 @@ class BridgeE2CTestSuite extends BaseDockerTestSuite {
 
   "Positive" - {
     def sendNative(amount: BigInt = UnitsConvert.toWei(userAmount)): TransactionReceipt = {
-      val txnResult = elBridge.sendSendNative(elSender, clRecipient.toAddress, amount)
+      val txnResult = elNativeTokenBridge.sendSendNative(elSender, clRecipient.toAddress, amount)
 
       // To overcome a failed block confirmation in a new epoch issue
       chainContract.waitForHeight(ec1.web3j.ethBlockNumber().send().getBlockNumber.longValueExact() + 2)
 
       eventually {
         val r = ec1.web3j.ethGetTransactionReceipt(txnResult.getTransactionHash).send().getTransactionReceipt.toScala.value
-        if (!r.isStatusOK) fail(s"Expected successful sendNative, got: ${ElBridgeClient.decodeRevertReason(r.getRevertReason)}")
+        if (!r.isStatusOK) fail(s"Expected successful sendNative, got: ${ElNativeTokenBridgeClient.decodeRevertReason(r.getRevertReason)}")
         r
       }
     }
 
     "L2-325 Sent tokens burned" in {
-      def burnedTokens       = ec1.web3j.ethGetBalance(ElBridgeClient.BurnAddress.hex, DefaultBlockParameterName.LATEST).send().getBalance
+      def burnedTokens       = ec1.web3j.ethGetBalance(ElNativeTokenBridgeClient.BurnAddress.hex, DefaultBlockParameterName.LATEST).send().getBalance
       val burnedTokensBefore = BigInt(burnedTokens)
 
       val transferAmount = tenGwei
