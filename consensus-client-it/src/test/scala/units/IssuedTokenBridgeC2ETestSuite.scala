@@ -43,7 +43,7 @@ class IssuedTokenBridgeC2ETestSuite extends BaseDockerTestSuite {
       .flatMap { h =>
         eventually {
           val block = ec1.engineApi.getBlockByNumber(BlockNumber.Number(h)).toOption.flatten.value
-          ec1.engineApi.getLogs(block.hash, issuedAssetBridge, IssuedTokenBridge.ElReceivedIssuedEvent.Topic).value
+          ec1.engineApi.getLogs(block.hash, List(issuedAssetBridge), List(IssuedTokenBridge.ElReceivedIssuedEvent.Topic)).value
         }
       }
       .map(event => IssuedTokenBridge.ElReceivedIssuedEvent.decodeLog(event.data).explicitGet())

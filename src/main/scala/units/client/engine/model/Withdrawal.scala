@@ -6,6 +6,7 @@ import units.util.HexBytesConverter.*
 import play.api.libs.functional.syntax.*
 import play.api.libs.json.*
 
+// https://github.com/ethereum/execution-apis/blob/main/src/engine/shanghai.md#withdrawalv1
 case class Withdrawal(index: WithdrawalIndex, address: EthAddress, amount: Gwei)
 
 object Withdrawal {

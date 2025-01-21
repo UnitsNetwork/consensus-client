@@ -77,7 +77,7 @@ class BridgeE2CTestSuite extends BaseDockerTestSuite {
       val blockHash = BlockHash(sendTxnReceipt.getBlockHash)
       step(s"Block with transaction: $blockHash")
 
-      val logsInBlock = ec1.engineApi.getLogs(blockHash, elBridgeAddress, Bridge.ElSentNativeEventTopic).explicitGet()
+      val logsInBlock = ec1.engineApi.getLogs(blockHash, List(elBridgeAddress), List(Bridge.ElSentNativeEventTopic)).explicitGet()
 
       val transferEvents = logsInBlock.map { x =>
         Bridge.ElSentNativeEvent.decodeArgs(x.data).explicitGet()
