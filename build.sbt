@@ -99,8 +99,10 @@ inTask(docker)(
       ImageName(s"consensus-client:${gitCurrentBranch.value}"), // Integration tests
       ImageName("consensus-client:local")                       // local-network
     ),
-    dockerfile   := NativeDockerfile(baseDirectory.value / "docker" / "Dockerfile"),
-    buildOptions := BuildOptions(cache = true)
+    dockerfile := NativeDockerfile(baseDirectory.value / "docker" / "Dockerfile"),
+    buildOptions := BuildOptions(
+      pullBaseImage = BuildOptions.Pull.IfMissing
+    )
   )
 )
 

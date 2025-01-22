@@ -2,9 +2,9 @@ package units.el
 
 import com.wavesplatform.account.Address
 import com.wavesplatform.transaction.utils.EthConverters.EthereumAddressExt
-import org.web3j.abi.datatypes.generated.Int64
+import org.web3j.abi.datatypes.generated.{Bytes20, Int64}
 import org.web3j.abi.datatypes.{Event, Function, Address as Web3JAddress}
-import org.web3j.abi.{FunctionEncoder, FunctionReturnDecoder, TypeReference}
+import org.web3j.abi.{FunctionEncoder, FunctionReturnDecoder, TypeEncoder, TypeReference}
 import units.eth.EthAddress
 import units.util.HexBytesConverter
 
@@ -19,20 +19,73 @@ object IssuedTokenBridge {
   val ReceiveIssuedFunction = "receiveIssued"
   val ReceiveIssuedGas      = BigInteger.valueOf(100_000L) // Should be enough to run this function
 
-  // TODO move to tests?
-  case class ElReceivedIssuedEvent(recipient: EthAddress, amount: Long)
-  object ElReceivedIssuedEvent {
-    private val RecipientType = new TypeReference[Web3JAddress](false) {}
-    private val ElAmountType  = new TypeReference[Int64](false) {}
+  case class ERC20BridgeInitiated(wavesRecipient: Address, clAmount: Long)
+  object ERC20BridgeInitiated extends BridgeMerkleTree[ERC20BridgeInitiated] {
+    override val exactTransfersNumber = 1024
+
+    private val WavesRecipientType = new TypeReference[Bytes20](false) {}
+    private val ClAmountType       = new TypeReference[Int64](false) {}
 
     private val EventDef: Event = new Event(
-      "ReceivedIssued",
-      List[TypeReference[?]](RecipientType, ElAmountType).asJava
+      "ERC20BridgeInitiated",
+      List[TypeReference[?]](WavesRecipientType, ClAmountType).asJava
     )
 
     val Topic = org.web3j.abi.EventEncoder.encode(EventDef)
 
-    def decodeLog(ethEventData: String): Either[String, ElReceivedIssuedEvent] =
+    override def encodeArgs(args: ERC20BridgeInitiated): Array[Byte] = {
+      val wavesRecipient = new Bytes20(args.wavesRecipient.publicKeyHash)
+      require(wavesRecipient.getClass == WavesRecipientType.getClassType) // Make sure types are correct
+
+      val clAmount = new Int64(args.clAmount)
+      require(clAmount.getClass == ClAmountType.getClassType)
+
+      HexBytesConverter.toBytes(TypeEncoder.encode(wavesRecipient) + TypeEncoder.encode(clAmount))
+    }
+
+    override def decodeLog(ethEventData: String): Either[String, ERC20BridgeInitiated] =
+      try {
+        FunctionReturnDecoder.decode(ethEventData, EventDef.getNonIndexedParameters).asScala.toList match {
+          case (wavesRecipient: Bytes20) :: (clAmount: Int64) :: Nil =>
+            for {
+              wavesRecipient <- Try(Address(wavesRecipient.getValue)).toEither.left.map(e => s"Can't decode address: ${e.getMessage}")
+              clAmount       <- Try(clAmount.getValue.longValueExact()).toEither.left.map(e => s"Can't decode amount: ${e.getMessage}")
+              _              <- Either.cond(clAmount > 0, (), s"Transfer amount must be positive, got: $clAmount")
+            } yield new ERC20BridgeInitiated(wavesRecipient, clAmount)
+          case xs =>
+            Left(
+              s"Expected (wavesRecipient: ${WavesRecipientType.getClassType.getSimpleName}, elAmount: ${ClAmountType.getClassType.getSimpleName}) fields, " +
+                s"got: ${xs.mkString(", ")}"
+            )
+        }
+      } catch {
+        case NonFatal(e) => Left(s"Can't decode event: ${e.getMessage}, data=$ethEventData")
+      }
+  }
+
+  case class ERC20BridgeFinalized(recipient: EthAddress, clAmount: Long)
+  object ERC20BridgeFinalized {
+    private val RecipientType = new TypeReference[Web3JAddress](false) {}
+    private val ClAmountType  = new TypeReference[Int64](false) {}
+
+    private val EventDef: Event = new Event(
+      "ERC20BridgeFinalized",
+      List[TypeReference[?]](RecipientType, ClAmountType).asJava
+    )
+
+    val Topic = org.web3j.abi.EventEncoder.encode(EventDef)
+
+    def encodeArgs(args: ERC20BridgeFinalized): String = {
+      val recipient = new Web3JAddress(args.recipient.hex)
+      require(recipient.getClass == RecipientType.getClassType) // Make sure types are correct
+
+      val amount = new Int64(args.clAmount)
+      require(amount.getClass == ClAmountType.getClassType)
+
+      TypeEncoder.encode(recipient) + TypeEncoder.encode(amount)
+    }
+
+    def decodeLog(ethEventData: String): Either[String, ERC20BridgeFinalized] =
       try {
         FunctionReturnDecoder.decode(ethEventData, EventDef.getNonIndexedParameters).asScala.toList match {
           case (recipient: Web3JAddress) :: (rawReceivedAmount: Int64) :: Nil =>
@@ -40,10 +93,10 @@ object IssuedTokenBridge {
               elRecipient <- Try(EthAddress.unsafeFrom(recipient.getValue)).toEither.left.map(e => s"Can't decode address: ${e.getMessage}")
               amount      <- Try(rawReceivedAmount.getValue.longValueExact()).toEither.left.map(e => s"Can't decode amount: ${e.getMessage}")
               _           <- Either.cond(amount > 0, amount, s"Transfer amount must be positive, got: $amount")
-            } yield new ElReceivedIssuedEvent(elRecipient, amount)
+            } yield new ERC20BridgeFinalized(elRecipient, amount)
           case xs =>
             Left(
-              s"Expected (recipient: ${RecipientType.getClassType.getSimpleName}, elAmount: ${ElAmountType.getClassType.getSimpleName}) fields, " +
+              s"Expected (recipient: ${RecipientType.getClassType.getSimpleName}, clAmount: ${ClAmountType.getClassType.getSimpleName}) fields, " +
                 s"got: ${xs.mkString(", ")}"
             )
         }

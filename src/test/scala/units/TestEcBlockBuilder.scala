@@ -34,7 +34,7 @@ class TestEcBlockBuilder private (
       nativeTopicLogs
     )
     testEcClients.setBlockLogs(
-      GetLogsRequest(block.hash, issuedTopicLogs.map(_.address), List(IssuedTokenBridge.ElReceivedIssuedEvent.Topic), 0),
+      GetLogsRequest(block.hash, issuedTopicLogs.map(_.address), List(IssuedTokenBridge.ERC20BridgeFinalized.Topic), 0),
       issuedTopicLogs
     )
     this

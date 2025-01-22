@@ -9,7 +9,7 @@ import units.el.{Bridge, ElNativeTokenBridgeClient, EvmEncoding}
 
 import scala.jdk.OptionConverters.RichOptional
 
-class BridgeE2CTestSuite extends BaseDockerTestSuite {
+class NativeTokenBridgeE2CTestSuite extends BaseDockerTestSuite {
   private val elSender    = elRichAccount1
   private val clRecipient = clRichAccount1
   private val userAmount  = 1
@@ -65,7 +65,7 @@ class BridgeE2CTestSuite extends BaseDockerTestSuite {
 
     "L2-379 Checking balances in EL->CL transfers" in {
       step("Broadcast Bridge.sendNative transaction")
-      def bridgeBalance       = ec1.web3j.ethGetBalance(elBridgeAddress.hex, DefaultBlockParameterName.LATEST).send().getBalance
+      def bridgeBalance       = ec1.web3j.ethGetBalance(elNativeTokenBridgeAddress.hex, DefaultBlockParameterName.LATEST).send().getBalance
       val bridgeBalanceBefore = bridgeBalance
       val sendTxnReceipt      = sendNative()
 
@@ -77,10 +77,10 @@ class BridgeE2CTestSuite extends BaseDockerTestSuite {
       val blockHash = BlockHash(sendTxnReceipt.getBlockHash)
       step(s"Block with transaction: $blockHash")
 
-      val logsInBlock = ec1.engineApi.getLogs(blockHash, List(elBridgeAddress), List(Bridge.ElSentNativeEventTopic)).explicitGet()
+      val logsInBlock = ec1.engineApi.getLogs(blockHash, List(elNativeTokenBridgeAddress), List(Bridge.ElSentNativeEventTopic)).explicitGet()
 
       val transferEvents = logsInBlock.map { x =>
-        Bridge.ElSentNativeEvent.decodeArgs(x.data).explicitGet()
+        Bridge.ElSentNativeEvent.decodeLog(x.data).explicitGet()
       }
       step(s"Transfer events: ${transferEvents.mkString(", ")}")
 

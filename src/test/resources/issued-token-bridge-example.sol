@@ -15,11 +15,20 @@ contract IssuedTokenBridge {
 
     // wavesRecipient is a public key hash of recipient account.
     // effectively is it Waves address without 2 first bytes (version and chain id) and last 4 bytes (checksum).
-    event SentIssued(bytes20 wavesRecipient, int64 clAmount);
-    event ReceivedIssued(address recipient, int64 clAmount);
+    event ERC20BridgeInitiated(bytes20 wavesRecipient, int64 clAmount);
+    event ERC20BridgeFinalized(address recipient, int64 clAmount);
+
+    function burn(address recipient, uint256 elAmount) internal {
+        balances[recipient] -= elAmount;
+    }
+
+    // TODO: external for testing purposes, will be internal
+    function mint(address recipient, uint256 elAmount) public {
+        balances[recipient] += elAmount;
+    }
 
     // wavesRecipient is a public key hash of recipient account.
-    function sendIssued(bytes20 wavesRecipient, uint256 elAmount) external {
+    function bridgeERC20(bytes20 wavesRecipient, uint256 elAmount) external {
         require(elAmount >= MIN_AMOUNT_IN_WEI, string.concat("Sent value ", uint2str(elAmount), " must be greater or equal to ", uint2str(MIN_AMOUNT_IN_WEI)));
         require(elAmount <= MAX_AMOUNT_IN_WEI, string.concat("Sent value ", uint2str(elAmount), " must be less or equal to ", uint2str(MAX_AMOUNT_IN_WEI)));
 
@@ -33,19 +42,19 @@ contract IssuedTokenBridge {
         require(transfersPerBlock[blockNumber] < MAX_TRANSFERS_IN_BLOCK, string.concat("Max transfers limit of ", uint2str(uint(MAX_TRANSFERS_IN_BLOCK)), " reached in this block. Try again later"));
         transfersPerBlock[blockNumber]++;
 
-        balances[msg.sender] -= elAmount;
-        emit SentIssued(wavesRecipient, int64(uint64(clAmount)));
+        burn(msg.sender, elAmount);
+        emit ERC20BridgeInitiated(wavesRecipient, int64(uint64(clAmount)));
     }
 
-    function receiveIssued(address recipient, int64 clAmount) external {
+    function finalizeBridgeERC20(address recipient, int64 clAmount) external {
         // TODO: only miner can do this
         require(clAmount > 0, "Receive value must be greater or equal to 0");
 
         uint256 elAmount = uint256(int256(clAmount)) * EL_TO_CL_RATIO;
         require(elAmount <= MAX_AMOUNT_IN_WEI, "Amount exceeds maximum allowable value");
 
-        balances[recipient] += elAmount;
-        emit ReceivedIssued(recipient, clAmount);
+        mint(recipient, elAmount);
+        emit ERC20BridgeFinalized(recipient, clAmount);
     }
 
     function uint2str(uint _i) internal pure returns (string memory _uintAsString) {

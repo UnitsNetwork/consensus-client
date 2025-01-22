@@ -2,7 +2,7 @@ package units.el
 
 import cats.syntax.traverse.*
 import com.wavesplatform.account.{Address, AddressScheme}
-import com.wavesplatform.common.merkle.{Digest, Merkle, Message}
+import com.wavesplatform.common.merkle.{Digest, Merkle}
 import com.wavesplatform.utils.EthEncoding
 import org.web3j.abi.datatypes.Event
 import org.web3j.abi.datatypes.generated.{Bytes20, Int64}
@@ -32,6 +32,7 @@ object Bridge {
     */
   case class ElSentNativeEvent(wavesAddress: Address, amount: Long)
 
+  // TODO BridgeMerkleTree
   object ElSentNativeEvent {
     def encodeArgs(args: ElSentNativeEvent): String = {
       val wavesAddress = new Bytes20(args.wavesAddress.publicKeyHash)
@@ -43,7 +44,7 @@ object Bridge {
       TypeEncoder.encode(wavesAddress) + TypeEncoder.encode(amount)
     }
 
-    def decodeArgs(ethEventData: String, chainId: Byte = AddressScheme.current.chainId): Either[String, ElSentNativeEvent] =
+    def decodeLog(ethEventData: String, chainId: Byte = AddressScheme.current.chainId): Either[String, ElSentNativeEvent] =
       try {
         FunctionReturnDecoder.decode(ethEventData, ElSentNativeEventDef.getNonIndexedParameters).asScala.toList match {
           case (publicKeyHash: Bytes20) :: (rawTransferAmount: Int64) :: Nil =>
@@ -66,7 +67,7 @@ object Bridge {
   def mkTransfersHash(elRawLogs: Seq[GetLogsResponseEntry]): Either[String, Digest] = {
     for {
       bridgeEvents <- elRawLogs.traverse { l =>
-        ElSentNativeEvent.decodeArgs(l.data).left.map { e =>
+        ElSentNativeEvent.decodeLog(l.data).left.map { e =>
           s"Log decoding error in ${l.data}: $e. Try to upgrade your consensus client"
         }
       }
@@ -88,13 +89,6 @@ object Bridge {
       val levels = Merkle.mkLevels(padData(data, ExactTransfersNumber))
       Merkle.mkProofs(transferIndex, levels)
     }
-
-  private val emptyData: Message = Array[Byte](0)
-  def padData(data: Seq[Message], size: Int): Seq[Message] = {
-    require(data.size <= size, s"data.size=${data.size} must be <= size=$size")
-    if (data.size == size) data
-    else data ++ Array.fill(size - data.size)(emptyData)
-  }
 
   def clToGweiNativeTokenAmount(amountInWavesToken: Long): Gwei =
     Gwei.ofRawGwei(BigInteger.valueOf(amountInWavesToken).multiply(BigInteger.valueOf(10))) // 1 unit is 10 Gwei (see bridge.sol)

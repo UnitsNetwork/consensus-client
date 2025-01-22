@@ -1550,7 +1550,7 @@ class ELUpdater(
         .leftMap(_.message)
       actualTransfers <- rawActualTransfers
         .traverse { rawActualTransfer =>
-          IssuedTokenBridge.ElReceivedIssuedEvent
+          IssuedTokenBridge.ERC20BridgeFinalized
             .decodeLog(rawActualTransfer.data)
             .map((rawActualTransfer.address, rawActualTransfer.logIndex, _))
         }
@@ -1577,9 +1577,9 @@ class ELUpdater(
               s"$errorPrefix: got address: ${actualTransfer.recipient}, expected: ${expected.destElAddress}"
             )
             _ <- Either.cond(
-              actualTransfer.amount == expected.amount,
+              actualTransfer.clAmount == expected.amount,
               (),
-              s"$errorPrefix: got amount: ${actualTransfer.amount}, expected ${expected.amount}"
+              s"$errorPrefix: got amount: ${actualTransfer.clAmount}, expected ${expected.amount}"
             )
           } yield ()
         }

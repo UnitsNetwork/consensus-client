@@ -11,11 +11,11 @@ import com.wavesplatform.test.NumericExt
 import com.wavesplatform.transaction.TxHelpers.defaultSigner
 import com.wavesplatform.transaction.smart.{InvokeScriptTransaction, SetScriptTransaction}
 import com.wavesplatform.transaction.{Asset, DataTransaction, TxHelpers}
-import units.{BlockHash, ELUpdater}
 import units.client.L2BlockLike
 import units.client.contract.HasConsensusLayerDappTxHelpers.*
 import units.client.contract.HasConsensusLayerDappTxHelpers.DefaultFees.ChainContract.*
 import units.eth.{EthAddress, EthereumConstants}
+import units.{BlockHash, ELUpdater}
 
 trait HasConsensusLayerDappTxHelpers {
   def currentHitSource: ByteStr
@@ -260,6 +260,28 @@ trait HasConsensusLayerDappTxHelpers {
           Terms.ARR(merkleProof.map[Terms.EVALUATED](x => Terms.CONST_BYTESTR(ByteStr(x)).explicitGet()).toVector, limited = false).explicitGet(),
           Terms.CONST_LONG(transferIndexInBlock),
           Terms.CONST_LONG(amount)
+        ),
+        fee = withdrawFee
+      )
+
+    def withdrawIssued(
+        sender: KeyPair,
+        blockHash: BlockHash,
+        merkleProof: Seq[Digest],
+        transferIndexInBlock: Int,
+        amount: Long,
+        asset: Asset
+    ): InvokeScriptTransaction =
+      TxHelpers.invoke(
+        invoker = sender,
+        dApp = chainContractAddress,
+        func = "withdrawIssued".some,
+        args = List(
+          Terms.CONST_STRING(blockHash.drop(2)).explicitGet(),
+          Terms.ARR(merkleProof.map[Terms.EVALUATED](x => Terms.CONST_BYTESTR(ByteStr(x)).explicitGet()).toVector, limited = false).explicitGet(),
+          Terms.CONST_LONG(transferIndexInBlock),
+          Terms.CONST_LONG(amount),
+          Terms.CONST_STRING(asset.fold("WAVES")(_.id.toString)).explicitGet()
         ),
         fee = withdrawFee
       )

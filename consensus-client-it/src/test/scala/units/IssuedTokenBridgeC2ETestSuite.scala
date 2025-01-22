@@ -17,8 +17,6 @@ class IssuedTokenBridgeC2ETestSuite extends BaseDockerTestSuite {
   private lazy val issueAssetTxn = TxHelpers.issue(clSender)
   private lazy val issueAsset    = IssuedAsset(issueAssetTxn.id())
 
-  private val issuedAssetBridge = EthAddress.unsafeFrom("0x00000000000000000000000000000155c3d06a7e")
-
   private val userAmount = BigDecimal("0.55")
 
   // TODO: Test Waves asset too
@@ -32,7 +30,7 @@ class IssuedTokenBridgeC2ETestSuite extends BaseDockerTestSuite {
     }
 
     step("2. Enable the asset in the registry")
-    waves1.api.broadcastAndWait(ChainContract.registerIssuedToken(issueAsset, issuedAssetBridge))
+    waves1.api.broadcastAndWait(ChainContract.registerIssuedToken(issueAsset, elIssuedTokenBridgeAddress))
 
     step("3. Try to transfer the asset")
     val elCurrHeight = ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact()
@@ -43,15 +41,15 @@ class IssuedTokenBridgeC2ETestSuite extends BaseDockerTestSuite {
       .flatMap { h =>
         eventually {
           val block = ec1.engineApi.getBlockByNumber(BlockNumber.Number(h)).toOption.flatten.value
-          ec1.engineApi.getLogs(block.hash, List(issuedAssetBridge), List(IssuedTokenBridge.ElReceivedIssuedEvent.Topic)).value
+          ec1.engineApi.getLogs(block.hash, List(elIssuedTokenBridgeAddress), List(IssuedTokenBridge.ERC20BridgeFinalized.Topic)).value
         }
       }
-      .map(event => IssuedTokenBridge.ElReceivedIssuedEvent.decodeLog(event.data).explicitGet())
+      .map(event => IssuedTokenBridge.ERC20BridgeFinalized.decodeLog(event.data).explicitGet())
       .find(_.recipient == elReceiverAddress)
       .head
 
     withClue("Expected amount: ") {
-      withdrawal.amount shouldBe UnitsConvert.toWei(userAmount)
+      withdrawal.clAmount shouldBe UnitsConvert.toWei(userAmount)
     }
 
     // TODO check the balance
