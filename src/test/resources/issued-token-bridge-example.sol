@@ -15,8 +15,8 @@ contract IssuedTokenBridge {
 
     // wavesRecipient is a public key hash of recipient account.
     // effectively is it Waves address without 2 first bytes (version and chain id) and last 4 bytes (checksum).
-    event ERC20BridgeInitiated(bytes20 wavesRecipient, int64 clAmount);
-    event ERC20BridgeFinalized(address recipient, int64 clAmount);
+    event ERC20BridgeInitiated(bytes20 wavesRecipient, int64 clAmount, address assetId);
+    event ERC20BridgeFinalized(address recipient, int64 clAmount, address assetId);
 
     function burn(address recipient, uint256 elAmount) internal {
         balances[recipient] -= elAmount;
@@ -43,7 +43,7 @@ contract IssuedTokenBridge {
         transfersPerBlock[blockNumber]++;
 
         burn(msg.sender, elAmount);
-        emit ERC20BridgeInitiated(wavesRecipient, int64(uint64(clAmount)));
+        emit ERC20BridgeInitiated(wavesRecipient, int64(uint64(clAmount)), address(this));
     }
 
     function finalizeBridgeERC20(address recipient, int64 clAmount) external {
@@ -54,7 +54,7 @@ contract IssuedTokenBridge {
         require(elAmount <= MAX_AMOUNT_IN_WEI, "Amount exceeds maximum allowable value");
 
         mint(recipient, elAmount);
-        emit ERC20BridgeFinalized(recipient, clAmount);
+        emit ERC20BridgeFinalized(recipient, clAmount, address(this));
     }
 
     function uint2str(uint _i) internal pure returns (string memory _uintAsString) {

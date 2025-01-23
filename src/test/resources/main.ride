@@ -38,6 +38,14 @@ let issuedTokenRegistryK       = "registryAsset_" # Asset Id -> Settings (index,
 let issuedTokenRegistryIndexK  = "registryIndex_" # Index (starts from 0) -> Asset Id
 let issuedTokenRegistrySizeKey = "registrySize"
 
+func parseAssetId(assetIdBase58OrWaves: String) =
+  if (assetIdBase58OrWaves == WAVES_TOKEN_NAME) then unit
+  else {
+    let assetId = assetIdBase58OrWaves.fromBase58String()
+    if (assetId.size() == ASSET_ID_SIZE) then assetId
+    else throw("Invalid asset: " + assetIdBase58OrWaves)
+  }
+
 # assetIdBase58OrWaves - "Asset ID in Base58" | WAVES_TOKEN_NAME
 # erc20AddressHex without 0x
 func mkIssuedTokenRegistryEntry(assetIdBase58OrWaves: String, erc20AddressHex: String) = {
@@ -54,6 +62,16 @@ func getIssuedTokenIndexInRegistry(assetIdBase58OrWaves: String) = {
   let key = issuedTokenRegistryK + assetIdBase58OrWaves
   let entry = getStringValue(key).split(SEP)
   entry[0].parseIntValue()
+}
+
+func getIssuedTokenSettings(assetIdBase58OrWaves: String) = {
+  match getString(issuedTokenRegistryK + assetIdBase58OrWaves) {
+    case x: String =>
+      let parts = x.split(SEP)
+      strict correctLength = parts.size() >= 2 || throw("Invalid token data: " + x)
+      (parts[0], parts[1]) # index, erc20AddressHex
+    case _ => unit
+  }
 }
 
 let issuedTransfersActivationEpochKey = "issuedTransfersActivationEpoch"
@@ -94,6 +112,7 @@ func mkNativeTransferEntry(index: Int, destElAddressHex: String, amount: Int) = 
   StringEntry(nativeTransferKey(index), "0x" + destElAddressHex + SEP + amount.toString())
 }
 
+func blockE2CIssuedTransfersKey(blockHashHex: String) = "E2CI_0x" + blockHashHex
 let issuedTransfersCount = this.getInteger(issuedTransfersCountKey).valueOrElse(0)
 func issuedTransferKey(index: Int) = "issuedTransfer_" + index.toString()
 # destElAddressHex - without 0x
@@ -560,6 +579,30 @@ func appendBlock_base(
   ]
 }
 
+func commonWithdrawChecks(blockHashHex: String, merkleProof: List[ByteVector], transferIndexInBlock: Int, amount: Int) = {
+  let withdrawBlockMeta        = blockMeta(blockHashHex)
+  let withdrawBlockHeight      = withdrawBlockMeta._1
+  let finalizedBlockHeight     = blockMeta(getStringValue(finalizedBlockKey))._1
+  let mainChainLastBlockHeight = blockMeta(mainChainLastBlock)._1
+
+  strict afterFinalized   = withdrawBlockHeight < finalizedBlockHeight || throw("EL block #" + withdrawBlockHeight.toString() + " is not finalized. The current finalized is #" + finalizedBlockHeight.toString())
+  strict rightProofsSize  = merkleProof.size() == WITHDRAW_PROOFS_SIZE || throw("Expected " + WITHDRAW_PROOFS_SIZE.toString() + " proofs, got " + merkleProof.size().toString())
+  strict nonNegativeIndex = transferIndexInBlock >= 0 || throw("Transfer index in block should be nonnegative, got " + transferIndexInBlock.toString())
+  strict positiveAmount   = amount > 0 || throw("Amount should be positive, got " + amount.toString())
+
+  let withdrawBlockChainId = withdrawBlockMeta._4
+  let isMainChain          = withdrawBlockChainId == mainChainId
+
+  # A chain forked after a block with withdrawal
+  let relatesToMainChain   = match getInteger(chainForkedHeightKey(withdrawBlockChainId)) {
+    case forkedHeight: Int => withdrawBlockHeight < forkedHeight
+    case _ => throw(blockHashHex + " is on an alternative chain #" + withdrawBlockChainId.toString() + " that was not approved by majority. Wait for some blocks")
+  }
+
+  strict isOnMainChain = isMainChain || relatesToMainChain || throw("Expected " + blockHashHex + " to be either on the main chain or relate to it")
+  withdrawBlockMeta
+}
+
 @Callable(i)
 func extendMainChain(
   blockHashHex: String,
@@ -798,62 +841,84 @@ func transferIssued(destElAddressHex: String) = {
 # blockHashHex without 0x
 @Callable(i)
 func withdraw(blockHashHex: String, merkleProof: List[ByteVector], transferIndexInBlock: Int, amount: Int) = {
-  let withdrawBlockMeta        = blockMeta(blockHashHex)
-  let withdrawBlockHeight      = withdrawBlockMeta._1
-  let finalizedBlockHeight     = blockMeta(getStringValue(finalizedBlockKey))._1
-  let mainChainLastBlockHeight = blockMeta(mainChainLastBlock)._1
-  if (withdrawBlockHeight > finalizedBlockHeight) then throw("EL block #" + withdrawBlockHeight.toString() + " is not finalized. The current finalized is #" + finalizedBlockHeight.toString())
-  else if (merkleProof.size() != WITHDRAW_PROOFS_SIZE) then throw("Expected " + WITHDRAW_PROOFS_SIZE.toString() + " proofs, got " + merkleProof.size().toString())
-  else if (transferIndexInBlock < 0) then throw("Transfer index in block should be nonnegative, got " + transferIndexInBlock.toString())
-  else if (amount <= 0) then throw("Amount should be positive, got " + amount.toString())
-  else {
-    let withdrawBlockChainId = withdrawBlockMeta._4
-    let isMainChain          = withdrawBlockChainId == mainChainId
+  strict withdrawBlockMeta = commonWithdrawChecks(blockHashHex, merkleProof, transferIndexInBlock, amount)
 
-    # A chain forked after a block with withdrawal
-    let relatesToMainChain   = match getInteger(chainForkedHeightKey(withdrawBlockChainId)) {
-      case forkedHeight: Int => withdrawBlockHeight < forkedHeight
-      case _ => throw(blockHashHex + " is on an alternative chain #" + withdrawBlockChainId.toString() + " that was not approved by majority. Wait for some blocks")
-    }
+  let recipient       = i.originCaller
+  let recipientPkHash = recipient.bytes.drop(2) # Drop version and networkChainId
+    .take(PUBLIC_KEY_HASH_SIZE)
 
-    if (isMainChain || relatesToMainChain) then {
-      let recipient       = i.originCaller
-      let recipientPkHash = recipient.bytes.drop(2) # Drop version and networkChainId
-        .take(PUBLIC_KEY_HASH_SIZE)
+  let zeroAmountBytes   = base16'0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'
+  let amountBytes       = amount.toBytes()
+  let elEventData       = recipientPkHash + zeroAmountBytes.take(zeroAmountBytes.size() - amountBytes.size()) + amountBytes
+  let elEventDataDigest = blake2b256_16Kb(elEventData)
 
-      let zeroAmountBytes   = base16'0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'
-      let amountBytes       = amount.toBytes()
-      let elEventData       = recipientPkHash + zeroAmountBytes.take(zeroAmountBytes.size() - amountBytes.size()) + amountBytes
-      let elEventDataDigest = blake2b256_16Kb(elEventData)
+  let calculatedRootHash = createMerkleRoot(merkleProof, elEventDataDigest, transferIndexInBlock)
+  let expectedRootHash   = withdrawBlockMeta._5
+  strict equalHashes = calculatedRootHash == expectedRootHash || throw(
+    "Expected root hash: " + expectedRootHash.toBase16String() + ", got: " + calculatedRootHash.toBase16String() +
+    ". Event data digest: " + elEventDataDigest.toBase64String() + ". Check your withdraw arguments"
+  )
 
-      let calculatedRootHash = createMerkleRoot(merkleProof, elEventDataDigest, transferIndexInBlock)
-      let expectedRootHash   = withdrawBlockMeta._5
-      if (calculatedRootHash == expectedRootHash) then {
-        let tokenId      = getStringValue(tokenIdKey).fromBase58String()
-        let transfersKey = blockE2CTransfersKey(blockHashHex)
-        [
-          Reissue(tokenId, amount, true),
-          ScriptTransfer(recipient, amount, tokenId),
-          StringEntry(transfersKey, setOrFail(getString(transfersKey).valueOrElse(""), transferIndexInBlock))
-        ]
-      } else {
-        throw(
-          "Expected root hash: " + expectedRootHash.toBase16String() + ", got: " + calculatedRootHash.toBase16String() +
-          ". Event data digest: " + elEventDataDigest.toBase64String() + ". Check your withdraw arguments"
-        )
-      }
-    } else throw("Expected " + blockHashHex + " to be either on the main chain or relate to it")
+  let tokenId      = getStringValue(tokenIdKey).fromBase58String()
+  let transfersKey = blockE2CTransfersKey(blockHashHex)
+  [
+    Reissue(tokenId, amount, true),
+    ScriptTransfer(recipient, amount, tokenId),
+    StringEntry(transfersKey, setOrFail(getString(transfersKey).valueOrElse(""), transferIndexInBlock))
+  ]
+}
+
+# blockHashHex without 0x
+# assetIdBase58OrWaves - "Asset ID in Base58" | WAVES_TOKEN_NAME
+@Callable(i)
+func withdrawIssued(blockHashHex: String, merkleProof: List[ByteVector], transferIndexInBlock: Int, amount: Int, assetIdBase58OrWaves: String) = {
+  strict assetId        = parseAssetId(assetIdBase58OrWaves)
+  let tokenSettings     = getIssuedTokenSettings(assetIdBase58OrWaves).valueOrErrorMessage(assetIdBase58OrWaves + " is not registered")
+  let tokenErc20Address = tokenSettings._2.fromBase16String()
+
+  strict withdrawBlockMeta = commonWithdrawChecks(blockHashHex, merkleProof, transferIndexInBlock, amount)
+
+  let recipient       = i.originCaller
+  let recipientPkHash = recipient.bytes.drop(2) # Drop version and networkChainId
+    .take(PUBLIC_KEY_HASH_SIZE)
+
+  let zeroAmountBytes   = base16'0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'
+  let amountBytes       = amount.toBytes()
+  let elEventData       = recipientPkHash + zeroAmountBytes.take(zeroAmountBytes.size() - amountBytes.size()) + amountBytes + tokenErc20Address # TODO: padding?
+  let elEventDataDigest = blake2b256_16Kb(elEventData)
+
+  let calculatedRootHash = createMerkleRoot(merkleProof, elEventDataDigest, transferIndexInBlock)
+  let expectedRootHash   = withdrawBlockMeta._5
+  strict equalHashes     = calculatedRootHash == expectedRootHash || throw(
+    "Expected root hash: " + expectedRootHash.toBase16String() + ", got: " + calculatedRootHash.toBase16String() +
+    ". Event data digest: " + elEventDataDigest.toBase64String() + ". Check your withdraw arguments"
+  )
+
+  let preActions = match assetId {
+    case assetId: ByteVector =>
+      let asset = assetInfo(assetId).valueOrErrorMessage("Unknown asset " + assetIdBase58OrWaves)
+      if (asset.issuer == this) then [Reissue(assetId, amount, true)]
+      else []
+    case _ => []
   }
+
+  let transfersKey = blockE2CIssuedTransfersKey(blockHashHex)
+  preActions ++ [
+    ScriptTransfer(recipient, amount, assetId),
+    StringEntry(transfersKey, setOrFail(getString(transfersKey).valueOrElse(""), transferIndexInBlock))
+  ]
 }
 
 # assetIdBase58OrWaves - "Asset ID in Base58" | WAVES_TOKEN_NAME
 @Callable(i)
 func registerIssuedToken(assetIdBase58OrWaves: String, erc20AddressHex: String) = {
-  strict checkAssetId =
-    if (assetIdBase58OrWaves == WAVES_TOKEN_NAME || assetIdBase58OrWaves.fromBase58String().size() == ASSET_ID_SIZE) then true
-    else throw("Invalid asset: " + assetIdBase58OrWaves)
-
   strict checkCaller = if (i.originCaller == this) then true else throw("Only owner of chain contract can do this")
+
+  strict assetId = parseAssetId(assetIdBase58OrWaves)
+  strict assetExists = match assetId {
+    case assetId: ByteVector => assetInfo(assetId).isDefined()
+    case _ => true
+  }
 
   strict checkAddressLength = if (erc20AddressHex.size() == ETH_ADDRESS_STR_SIZE)
     then true
