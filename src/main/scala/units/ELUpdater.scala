@@ -221,8 +221,15 @@ class ELUpdater(
                 ClientError(s"Failed to broadcast block ${newBlock.hash}: ${err.toString}")
               )
               ecBlock = newBlock.toEcBlock
-              transfersRootHash <- getE2CTransfersRootHash(ecBlock.hash, chainContractOptions.elBridgeAddress)
-              funcCall <- contractFunction.toFunctionCall(ecBlock.hash, transfersRootHash, m.lastC2ENativeTransferIndex, m.lastC2EIssuedTransferIndex)
+              nativeTransfersRootHash <- getE2CNativeTransfersRootHash(ecBlock.hash, chainContractOptions.elNativeBridgeAddress)
+              issuedTransfersRootHash <- getE2CNativeTransfersRootHash(ecBlock.hash, chainContractOptions.elIssuedBridgeAddress)
+              funcCall <- contractFunction.toFunctionCall(
+                ecBlock.hash,
+                nativeTransfersRootHash,
+                m.lastC2ENativeTransferIndex,
+                issuedTransfersRootHash,
+                m.lastC2EIssuedTransferIndex
+              )
               _ <- callContract(
                 funcCall,
                 ecBlock,
@@ -1229,7 +1236,7 @@ class ELUpdater(
         }
     }
 
-  private def getE2CTransfersRootHash(hash: BlockHash, elBridgeAddress: EthAddress): JobResult[Digest] =
+  private def getE2CNativeTransfersRootHash(hash: BlockHash, elBridgeAddress: EthAddress): JobResult[Digest] =
     for {
       elRawLogs <- engineApiClient.getLogs(hash, List(elBridgeAddress), List(Bridge.ElSentNativeEventTopic))
       rootHash <- {
@@ -1241,6 +1248,26 @@ class ELUpdater(
             if (rootHash.isEmpty) rootHash
             else {
               logger.debug(s"EL->CL transfers root hash of $hash: ${EthEncoding.toHexString(rootHash)}")
+              rootHash
+            }
+          }
+      }
+    } yield rootHash
+
+  // TODO: Use
+  private def getE2CIssuedTransfersRootHash(hash: BlockHash, elIssuedTokenBridgeAddress: EthAddress): JobResult[Digest] =
+    for {
+      elRawLogs <- engineApiClient.getLogs(hash, List(elIssuedTokenBridgeAddress), List(IssuedTokenBridge.ERC20BridgeInitiated.Topic))
+      rootHash <- {
+        val relatedElRawLogs =
+          elRawLogs.filter(x => x.address == elIssuedTokenBridgeAddress && x.topics.contains(IssuedTokenBridge.ERC20BridgeInitiated.Topic))
+        IssuedTokenBridge.ERC20BridgeInitiated
+          .mkTransfersHash(relatedElRawLogs)
+          .leftMap(e => ClientError(e))
+          .map { rootHash =>
+            if (rootHash.isEmpty) rootHash
+            else {
+              logger.debug(s"EL->CL issued tokens transfers root hash of $hash: ${EthEncoding.toHexString(rootHash)}")
               rootHash
             }
           }
@@ -1284,15 +1311,15 @@ class ELUpdater(
   }
 
   private def validateE2CTransfers(contractBlock: ContractBlock, elBridgeAddress: EthAddress): JobResult[Unit] =
-    getE2CTransfersRootHash(contractBlock.hash, elBridgeAddress).flatMap { elRootHash =>
+    getE2CNativeTransfersRootHash(contractBlock.hash, elBridgeAddress).flatMap { elRootHash =>
       // elRootHash is the source of true
-      if (java.util.Arrays.equals(contractBlock.e2cTransfersRootHash, elRootHash)) Either.unit
+      if (java.util.Arrays.equals(contractBlock.e2cNativeTransfersRootHash, elRootHash)) Either.unit
       else
         Left(
           ClientError(
             s"EL to CL transfers hash of ${contractBlock.hash} are different: " +
               s"EL=${toHexNoPrefix(elRootHash)}, " +
-              s"CL=${toHexNoPrefix(contractBlock.e2cTransfersRootHash)}"
+              s"CL=${toHexNoPrefix(contractBlock.e2cNativeTransfersRootHash)}"
           )
         )
     }
@@ -1385,7 +1412,7 @@ class ELUpdater(
           (),
           ClientError(s"Miner in EC block ${ecBlock.minerRewardL2Address} should be equal to miner on contract ${contractBlock.minerRewardL2Address}")
         )
-        _                            <- validateE2CTransfers(contractBlock, prevState.options.elBridgeAddress)
+        _                            <- validateE2CTransfers(contractBlock, prevState.options.elNativeBridgeAddress)
         updatedLastElWithdrawalIndex <- validateWithdrawals(contractBlock, ecBlock, prevState.fullValidationStatus, prevState.options)
         _                            <- validateRandao(ecBlock, contractBlock.epoch)
         _                            <- validateWithdrawals(contractBlock, ecBlock, prevState.fullValidationStatus, prevState.options)

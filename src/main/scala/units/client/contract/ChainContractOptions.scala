@@ -8,7 +8,12 @@ import units.eth.{EthAddress, Gwei}
 /** @note
   *   Make sure you have an activation gap: a new feature should not be activated suddenly during nearest blocks.
   */
-case class ChainContractOptions(miningReward: Gwei, elBridgeAddress: EthAddress, issuedTransfersActivationEpoch: Long) {
+case class ChainContractOptions(
+    miningReward: Gwei,
+    elNativeBridgeAddress: EthAddress,
+    elIssuedBridgeAddress: EthAddress,
+    issuedTransfersActivationEpoch: Long
+) {
   def startEpochChainFunction(epoch: Int, reference: BlockHash, vrf: ByteStr, chainInfo: Option[ChainInfo]): ContractFunction =
     chainInfo match {
       case Some(chainInfo) =>

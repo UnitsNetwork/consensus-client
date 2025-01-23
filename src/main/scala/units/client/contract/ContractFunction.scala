@@ -17,18 +17,20 @@ abstract class ContractFunction(baseName: String, extraArgs: Either[CommonError,
 
   def toFunctionCall(
       blockHash: BlockHash,
-      transfersRootHash: Digest,
+      nativeTransfersRootHash: Digest,
       lastC2ENativeTransferIndex: Long,
+      issuedTransfersRootHash: Digest,
       lastC2EIssuedTransferIndex: Long
   ): JobResult[FUNCTION_CALL] = (for {
     hash <- CONST_STRING(cleanHexPrefix(blockHash))
     ref  <- CONST_STRING(cleanHexPrefix(reference))
-    trh  <- CONST_STRING(toHexNoPrefix(transfersRootHash))
+    ntrh <- CONST_STRING(toHexNoPrefix(nativeTransfersRootHash))
+    itrh <- CONST_STRING(toHexNoPrefix(issuedTransfersRootHash))
     xtra <- extraArgs
   } yield FUNCTION_CALL(
     FunctionHeader.User(name),
-    List(hash, ref) ++ xtra ++ List(trh, CONST_LONG(lastC2ENativeTransferIndex)) ++
-      (if (version >= 2) List(CONST_LONG(lastC2EIssuedTransferIndex)) else Nil)
+    List(hash, ref) ++ xtra ++ List(ntrh, CONST_LONG(lastC2ENativeTransferIndex)) ++
+      (if (version >= 2) List(itrh, CONST_LONG(lastC2EIssuedTransferIndex)) else Nil)
   )).leftMap(e => ClientError(s"Error building function call for $name: $e"))
 }
 

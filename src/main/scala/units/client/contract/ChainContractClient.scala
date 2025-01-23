@@ -64,38 +64,80 @@ trait ChainContractClient {
         val parentHash  = BlockHash(bb.getByteArray(BlockHashBytesSize))
         val chainId     = if (bb.remaining() >= 8) bb.getLong() else DefaultMainChainId
 
-        val e2cTransfersRootHash =
-          if (bb.remaining() >= ContractBlock.E2CTransfersRootHashLength) bb.getByteArray(ContractBlock.E2CTransfersRootHashLength)
-          else Array.emptyByteArray
+        if (epoch < getIssuedTransfersActivationEpoch) {
+          val e2cNativeTransfersRootHash =
+            if (bb.remaining() >= ContractBlock.E2CTransfersRootHashLength) bb.getByteArray(ContractBlock.E2CTransfersRootHashLength)
+            else Array.emptyByteArray
 
-        val lastC2ETransferIndex       = if (bb.remaining() >= 8) bb.getLong() else -1L
-        val lastC2EIssuedTransferIndex = if (bb.remaining() >= 8) bb.getLong() else -1L
+          val lastC2ENativeTransferIndex = if (bb.remaining() >= 8) bb.getLong() else -1L
 
-        require(
-          !bb.hasRemaining,
-          s"Not parsed ${bb.remaining()} bytes from ${blockMeta.base64}, read data: " +
-            s"chainHeight=$chainHeight, epoch=$epoch, parentHash=$parentHash, chainId=$chainId, " +
-            s"e2cTransfersRootHash=${HexBytesConverter.toHex(e2cTransfersRootHash)}, lastC2ETransferIndex=$lastC2ETransferIndex, " +
-            s"lastC2EIssuedTransferIndex=$lastC2EIssuedTransferIndex"
-        )
+          require(
+            !bb.hasRemaining,
+            s"Not parsed ${bb.remaining()} bytes from ${blockMeta.base64}, read data: " +
+              s"chainHeight=$chainHeight, epoch=$epoch, parentHash=$parentHash, chainId=$chainId, " +
+              s"e2cNativeTransfersRootHash=${HexBytesConverter.toHex(e2cNativeTransfersRootHash)}, lastC2ENativeTransferIndex=$lastC2ENativeTransferIndex"
+          )
 
-        val epochMeta = getEpochMeta(epoch).getOrElse(fail(s"Can't find epoch meta for epoch $epoch"))
+          val epochMeta = getEpochMeta(epoch).getOrElse(fail(s"Can't find epoch meta for epoch $epoch"))
 
-        val minerRewardElAddress =
-          if (chainHeight == 0) EthAddress.empty
-          else getElRewardAddress(epochMeta.miner).getOrElse(fail(s"Can't find a reward address for generator ${epochMeta.miner}"))
+          val minerRewardElAddress =
+            if (chainHeight == 0) EthAddress.empty
+            else getElRewardAddress(epochMeta.miner).getOrElse(fail(s"Can't find a reward address for generator ${epochMeta.miner}"))
 
-        ContractBlock(
-          hash,
-          parentHash,
-          epoch,
-          chainHeight,
-          minerRewardElAddress,
-          chainId,
-          e2cTransfersRootHash,
-          lastC2ETransferIndex,
-          lastC2EIssuedTransferIndex
-        )
+          ContractBlock(
+            hash,
+            parentHash,
+            epoch,
+            chainHeight,
+            minerRewardElAddress,
+            chainId,
+            e2cNativeTransfersRootHash,
+            lastC2ENativeTransferIndex,
+            Array.emptyByteArray,
+            -1
+          )
+        } else {
+          val transfersFlag = bb.getByte
+
+          val e2cNativeTransfersRootHash =
+            if ((transfersFlag & NativeTransfersFlag) == NativeTransfersFlag) bb.getByteArray(ContractBlock.E2CTransfersRootHashLength)
+            else Array.emptyByteArray
+
+          val lastC2ENativeTransferIndex = bb.getLong()
+
+          val e2cIssuedTransfersRootHash =
+            if ((transfersFlag & IssuedTransfersFlag) == IssuedTransfersFlag) bb.getByteArray(ContractBlock.E2CTransfersRootHashLength)
+            else Array.emptyByteArray
+
+          val lastC2EIssuedTransferIndex = bb.getLong()
+
+          require(
+            !bb.hasRemaining,
+            s"Not parsed ${bb.remaining()} bytes from ${blockMeta.base64}, read data: " +
+              s"chainHeight=$chainHeight, epoch=$epoch, parentHash=$parentHash, chainId=$chainId, " +
+              s"e2cNativeTransfersRootHash=${HexBytesConverter.toHex(e2cNativeTransfersRootHash)}, lastC2ENativeTransferIndex=$lastC2ENativeTransferIndex, " +
+              s"e2cIssuedTransfersRootHash=${HexBytesConverter.toHex(e2cIssuedTransfersRootHash)}, lastC2EIssuedTransferIndex=$lastC2EIssuedTransferIndex"
+          )
+
+          val epochMeta = getEpochMeta(epoch).getOrElse(fail(s"Can't find epoch meta for epoch $epoch"))
+
+          val minerRewardElAddress =
+            if (chainHeight == 0) EthAddress.empty
+            else getElRewardAddress(epochMeta.miner).getOrElse(fail(s"Can't find a reward address for generator ${epochMeta.miner}"))
+
+          ContractBlock(
+            hash,
+            parentHash,
+            epoch,
+            chainHeight,
+            minerRewardElAddress,
+            chainId,
+            e2cNativeTransfersRootHash,
+            lastC2ENativeTransferIndex,
+            e2cIssuedTransfersRootHash,
+            lastC2EIssuedTransferIndex
+          )
+        }
       } catch {
         case e: Throwable => fail(s"Can't read a block $hash meta, bytes: ${blockMeta.base64}, remaining: ${bb.remaining()}", e)
       }
@@ -191,12 +233,16 @@ trait ChainContractClient {
     miningReward = getLongData("minerReward")
       .map(Gwei.ofRawGwei)
       .getOrElse(throw new IllegalStateException("minerReward is empty on contract")),
-    elBridgeAddress = getStringData("elBridgeAddress")
+    elNativeBridgeAddress = getStringData("elBridgeAddress")
       .map(EthAddress.unsafeFrom)
       .getOrElse(throw new IllegalStateException("elBridgeAddress is empty on contract")),
-    issuedTransfersActivationEpoch = getLongData("issuedTransfersActivationEpoch")
-      .getOrElse(Long.MaxValue)
+    elIssuedBridgeAddress = getStringData("elIssuedBridgeAddress")
+      .map(EthAddress.unsafeFrom)
+      .getOrElse(throw new IllegalStateException("elIssuedBridgeAddress is empty on contract")),
+    issuedTransfersActivationEpoch = getIssuedTransfersActivationEpoch
   )
+
+  private def getIssuedTransfersActivationEpoch: Long = getLongData("issuedTransfersActivationEpoch").getOrElse(Long.MaxValue)
 
   private def getChainMeta(chainId: Long): Option[(Int, BlockHash)] = {
     val key = f"chain_$chainId%08d"
@@ -323,6 +369,9 @@ object ChainContractClient {
 
   val MaxC2ENativeTransfers = 16
   val MaxC2EIssuedTransfers = 32 // TODO: move to chain contract?
+
+  val NativeTransfersFlag = 1
+  val IssuedTransfersFlag = 2
 
   private class InconsistentContractData(message: String, cause: Throwable = null)
       extends IllegalStateException(s"Probably, your have to upgrade your client. $message", cause)
