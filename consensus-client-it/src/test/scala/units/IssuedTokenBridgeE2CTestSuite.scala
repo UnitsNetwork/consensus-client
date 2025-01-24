@@ -22,6 +22,10 @@ class IssuedTokenBridgeE2CTestSuite extends BaseDockerTestSuite {
   private val wavesAmount = UnitsConvert.toWavesAmount(userAmount)
   private val ethAmount   = UnitsConvert.toWei(userAmount)
 
+  private val testTransfers     = 2
+  private val enoughEthAmount   = ethAmount * testTransfers
+  private val enoughWavesAmount = wavesAmount * testTransfers
+
   private lazy val issueAssetTxn = TxHelpers.issue(clTokenOwner)
   private lazy val issueAsset    = IssuedAsset(issueAssetTxn.id())
 
@@ -64,9 +68,7 @@ class IssuedTokenBridgeE2CTestSuite extends BaseDockerTestSuite {
 
     "Checking balances in EL->CL transfers" in {
       step("Broadcast IssuedTokenBridge.sendBridge transaction")
-      def bridgeBalance       = elIssuedTokenBridge.getBalance(elIssuedTokenBridgeAddress)
-      val bridgeBalanceBefore = bridgeBalance
-      val sendTxnReceipt      = sendBridge(ethAmount)
+      val sendTxnReceipt = sendBridge(ethAmount)
 
       val blockHash = BlockHash(sendTxnReceipt.getBlockHash)
       step(s"Block with transaction: $blockHash")
@@ -80,7 +82,9 @@ class IssuedTokenBridgeE2CTestSuite extends BaseDockerTestSuite {
       step(s"Transfer events: ${transferEvents.mkString(", ")}")
 
       val sendTxnLogIndex = logsInBlock.indexWhere(_.transactionHash == sendTxnReceipt.getTransactionHash)
-      val transferProofs  = IssuedTokenBridge.ERC20BridgeInitiated.mkTransferProofs(transferEvents, sendTxnLogIndex).reverse
+      sendTxnLogIndex shouldBe >=(0)
+
+      val transferProofs = IssuedTokenBridge.ERC20BridgeInitiated.mkTransferProofs(transferEvents, sendTxnLogIndex).reverse
 
       step(s"Wait block $blockHash on contract")
       val blockConfirmationHeight = eventually {
@@ -96,17 +100,17 @@ class IssuedTokenBridgeE2CTestSuite extends BaseDockerTestSuite {
 
       withClue("3. Tokens received: ") {
         step(
-          s"Broadcast withdraw transaction: transferIndexInBlock=$sendTxnLogIndex, amount=$wavesAmount, " +
+          s"Broadcast withdrawIssued transaction: transferIndexInBlock=$sendTxnLogIndex, amount=$wavesAmount, " +
             s"merkleProof={${transferProofs.map(EthEncoding.toHexString).mkString(",")}}"
         )
 
-        def receiverBalance: Long = waves1.api.balance(clRecipient.toAddress, chainContract.token)
+        def receiverBalance: Long = waves1.api.balance(clRecipient.toAddress, issueAsset)
         val receiverBalanceBefore = receiverBalance
 
         waves1.api.broadcastAndWait(
           ChainContract.withdrawIssued(
             sender = clRecipient,
-            blockHash = BlockHash(sendTxnReceipt.getBlockHash),
+            blockHash = blockHash,
             merkleProof = transferProofs,
             transferIndexInBlock = sendTxnLogIndex,
             amount = wavesAmount,
@@ -124,12 +128,13 @@ class IssuedTokenBridgeE2CTestSuite extends BaseDockerTestSuite {
     super.beforeAll()
 
     step("Prepare: mint EL token")
-    elIssuedTokenBridge.sendMint(elSender, EthAddress.unsafeFrom(elSender.getAddress), ethAmount * 2) // Will be enough for all tests
+    elIssuedTokenBridge.sendMint(elSender, EthAddress.unsafeFrom(elSender.getAddress), enoughEthAmount)
 
     step("Prepare: issue CL asset")
     waves1.api.broadcastAndWait(issueAssetTxn)
 
-    step("Prepare: enable the asset in the registry")
+    step("Prepare: move assets and enable the asset in the registry")
+    waves1.api.broadcast(TxHelpers.transfer(clTokenOwner, chainContractAddress, enoughWavesAmount, issueAsset))
     waves1.api.broadcastAndWait(ChainContract.registerIssuedToken(issueAsset, elIssuedTokenBridgeAddress))
   }
 }

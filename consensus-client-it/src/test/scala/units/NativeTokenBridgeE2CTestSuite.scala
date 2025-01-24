@@ -85,6 +85,8 @@ class NativeTokenBridgeE2CTestSuite extends BaseDockerTestSuite {
       step(s"Transfer events: ${transferEvents.mkString(", ")}")
 
       val sendTxnLogIndex = logsInBlock.indexWhere(_.transactionHash == sendTxnReceipt.getTransactionHash)
+      sendTxnLogIndex shouldBe >=(0)
+
       val transferProofs  = Bridge.mkTransferProofs(transferEvents, sendTxnLogIndex).reverse
 
       step(s"Wait block $blockHash on contract")

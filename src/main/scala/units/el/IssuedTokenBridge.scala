@@ -29,7 +29,7 @@ object IssuedTokenBridge {
 
     private val EventDef: Event = new Event(
       "ERC20BridgeInitiated",
-      List[TypeReference[?]](WavesRecipientType, ClAmountType).asJava
+      List[TypeReference[?]](WavesRecipientType, ClAmountType, AssetAddressType).asJava
     )
 
     val Topic = org.web3j.abi.EventEncoder.encode(EventDef)
@@ -76,7 +76,7 @@ object IssuedTokenBridge {
 
     private val EventDef: Event = new Event(
       "ERC20BridgeFinalized",
-      List[TypeReference[?]](RecipientType, ClAmountType).asJava
+      List[TypeReference[?]](RecipientType, ClAmountType, AssetAddressType).asJava
     )
 
     val Topic = org.web3j.abi.EventEncoder.encode(EventDef)

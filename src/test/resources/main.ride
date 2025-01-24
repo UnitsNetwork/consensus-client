@@ -20,19 +20,20 @@ let zeroesStr = "000000000000000000000000000000000000000000000000000000000000000
 
 let offsets_100 = "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::".split_4C("")
 
-let allMinersKey            = "allMiners"
-let mainChainIdKey          = "mainChainId"
-let lastChainIdKey          = "lastChainId"
-let firstValidAltChainIdKey = "firstValidAltChainId"
-let minerRewardKey          = "minerReward" # In Gwei. Changing the value is unexpected and isn't held by code
-let blockMetaK              = "block_0x"
-let finalizedBlockKey       = "finalizedBlock"
-let tokenIdKey              = "tokenId"
-let elBridgeAddressKey      = "elBridgeAddress"
-let nativeTransfersCountKey = "nativeTransfersCount"
-let issuedTransfersCountKey = "issuedTransfersCount"
-let daoAddressKey           = "daoAddress"
-let daoRewardKey            = "daoReward"
+let allMinersKey             = "allMiners"
+let mainChainIdKey           = "mainChainId"
+let lastChainIdKey           = "lastChainId"
+let firstValidAltChainIdKey  = "firstValidAltChainId"
+let minerRewardKey           = "minerReward" # In Gwei. Changing the value is unexpected and isn't held by code
+let blockMetaK               = "block_0x"
+let finalizedBlockKey        = "finalizedBlock"
+let tokenIdKey               = "tokenId"
+let elNativeBridgeAddressKey = "elBridgeAddress"
+let elIssuedBridgeAddressKey = "elIssuedBridgeAddress"
+let nativeTransfersCountKey  = "nativeTransfersCount"
+let issuedTransfersCountKey  = "issuedTransfersCount"
+let daoAddressKey            = "daoAddress"
+let daoRewardKey             = "daoReward"
 
 let issuedTokenRegistryK       = "registryAsset_" # Asset Id -> Settings (index, ERC20 address)
 let issuedTokenRegistryIndexK  = "registryIndex_" # Index (starts from 0) -> Asset Id
@@ -177,9 +178,10 @@ let allMiners      = match allMinersStr {
   case raw: String => raw.split_4C(SEP)
 }
 
+let BLOCK_TRANSFERS_NONE        = 0
 let BLOCK_TRANSFERS_ONLY_NATIVE = 1
 let BLOCK_TRANSFERS_ONLY_ISSUED = 2
-let BLOCK_TRANSFERS_BOTH = 3
+let BLOCK_TRANSFERS_BOTH        = 3
 
 func blockMeta(blockId: String) = {
   let meta     = getBinaryValue(blockMetaK + blockId)
@@ -200,11 +202,12 @@ func blockMeta(blockId: String) = {
     let baseOffset2 = baseOffset1 + e2cTransfersRootHash.size()
     let lastC2ENativeTransferIndex = meta.toInt(baseOffset2) # _6
 
-    (blockHeight, blockEpoch, blockParent, chainId, e2cTransfersRootHash, lastC2ENativeTransferIndex, "", -1)
+    (blockHeight, blockEpoch, blockParent, chainId, e2cTransfersRootHash, lastC2ENativeTransferIndex, base16'', -1)
   } else {
-    let transfersFlag = meta.take(1).toBase16String().parseInt()
+    let baseOffset0 = 24 + BLOCK_HASH_SIZE
+    let transfersFlag = meta.drop(baseOffset0).take(1).toBase16String().parseInt()
 
-    let baseOffset1 = 24 + BLOCK_HASH_SIZE + 1
+    let baseOffset1 = baseOffset0 + 1
     let e2cNativeTransfersRootHash = if (transfersFlag == BLOCK_TRANSFERS_ONLY_NATIVE || transfersFlag == BLOCK_TRANSFERS_BOTH) # _5
       then meta.drop(baseOffset1).take(ROOT_HASH_SIZE)
       else base16''
@@ -225,6 +228,7 @@ func blockMeta(blockId: String) = {
 }
 
 func mkBlockMetaEntry(
+  issuedTransfersActivationEpoch: Int,
   blockHashHex: String, blockHeight: Int, blockParentHex: String, chainId: Int,
   e2cNativeTransfersRootHashHex: String, lastC2ENativeTransferIndex: Int,
   e2cIssuedTransfersRootHashHex: String, lastC2EIssuedTransferIndex: Int
@@ -241,12 +245,20 @@ func mkBlockMetaEntry(
          e2cNatveTransfersRootHashBytes + lastC2ENativeTransferIndex.toBytes()
     }
     else {
+      let transfersFlag =
+        if (e2cNativeTransfersRootHashHex == "" && e2cIssuedTransfersRootHashHex == "") then BLOCK_TRANSFERS_NONE
+        else if (e2cNativeTransfersRootHashHex == "") then BLOCK_TRANSFERS_ONLY_ISSUED
+        else if (e2cIssuedTransfersRootHashHex == "") then BLOCK_TRANSFERS_ONLY_NATIVE
+        else BLOCK_TRANSFERS_BOTH
+
+      let transfersFlagBytes = ("0" + transfersFlag.toString()).fromBase16String()
+
       let e2cIssuedTransfersRootHashBytes = e2cIssuedTransfersRootHashHex.fromBase16String()
       let issuedRootHashBytesSize         = e2cIssuedTransfersRootHashBytes.size()
       strict issuedRootHashIsValid        = issuedRootHashBytesSize == 0 || issuedRootHashBytesSize == ROOT_HASH_SIZE ||
         throw("Issued transfers root hash should have 0 or " + ROOT_HASH_SIZE.toString() + " bytes, got " + issuedRootHashBytesSize.toString())
 
-      blockHeight.toBytes() + height.toBytes() + blockParentHex.fromBase16String() + chainId.toBytes() +
+      blockHeight.toBytes() + height.toBytes() + blockParentHex.fromBase16String() + chainId.toBytes() + transfersFlagBytes +
          e2cNatveTransfersRootHashBytes + lastC2ENativeTransferIndex.toBytes() +
          e2cIssuedTransfersRootHashBytes + lastC2EIssuedTransferIndex.toBytes()
     }
@@ -477,7 +489,7 @@ func extendMainChain_base(
 
   let newChainHeight = mainChainHeight + 1
   [
-    mkBlockMetaEntry(blockHashHex, newChainHeight, mainChainLastBlock, mainChainId, e2cNativeTransfersRootHashHex, lastC2ENativeTransferIndex, e2cIssuedTransfersRootHashHex, lastC2EIssuedTransferIndex),
+    mkBlockMetaEntry(issuedTransfersActivationEpoch, blockHashHex, newChainHeight, mainChainLastBlock, mainChainId, e2cNativeTransfersRootHashHex, lastC2ENativeTransferIndex, e2cIssuedTransfersRootHashHex, lastC2EIssuedTransferIndex),
     mkChainMetaEntry(mainChainId, newChainHeight, blockHashHex),
     IntegerEntry(minerChainIdKey(originCaller), mainChainId),
     IntegerEntry(chainLastHeightKey(mainChainId, originCaller), newChainHeight),
@@ -517,7 +529,7 @@ func startAltChain_base(
 
   [
     thisEpochMeta,
-    mkBlockMetaEntry(blockHashHex, newChainHeight, referenceHex, newChainId, e2cNativeTransfersRootHashHex, lastC2ENativeTransferIndex, e2cIssuedTransfersRootHashHex, lastC2EIssuedTransferIndex),
+    mkBlockMetaEntry(issuedTransfersActivationEpoch, blockHashHex, newChainHeight, referenceHex, newChainId, e2cNativeTransfersRootHashHex, lastC2ENativeTransferIndex, e2cIssuedTransfersRootHashHex, lastC2EIssuedTransferIndex),
     StringEntry(chainFirstBlockIdKey(newChainId), blockHashHex),
     mkChainMetaEntry(newChainId, newChainHeight, blockHashHex),
     IntegerEntry(minerChainIdKey(originCaller), newChainId),
@@ -579,7 +591,7 @@ func extendAltChain_base(
     [IntegerEntry(chainLastHeightKey(mainChainId, originCaller), chainFirstBlockMeta._1)]
   } else []
   [
-    mkBlockMetaEntry(blockHashHex, newChainHeight, referenceHex, chainId, e2cNativeTransfersRootHashHex, lastC2ENativeTransferIndex, e2cIssuedTransfersRootHashHex, lastC2EIssuedTransferIndex),
+    mkBlockMetaEntry(issuedTransfersActivationEpoch, blockHashHex, newChainHeight, referenceHex, chainId, e2cNativeTransfersRootHashHex, lastC2ENativeTransferIndex, e2cIssuedTransfersRootHashHex, lastC2EIssuedTransferIndex),
     mkChainMetaEntry(chainId, newChainHeight, blockHashHex),
     thisEpochMeta,
     IntegerEntry(minerChainIdKey(originCaller), chainId),
@@ -612,7 +624,7 @@ func appendBlock_base(
   let newChainHeight    = chainHeight + 1
   strict checkBlockHash = validateBlockHash(blockHashHex)
   [
-    mkBlockMetaEntry(blockHashHex, newChainHeight, lastBlockId, chainId, e2cNativeTransfersRootHashHex, lastC2ENativeTransferIndex, e2cIssuedTransfersRootHashHex, lastC2EIssuedTransferIndex),
+    mkBlockMetaEntry(issuedTransfersActivationEpoch, blockHashHex, newChainHeight, lastBlockId, chainId, e2cNativeTransfersRootHashHex, lastC2ENativeTransferIndex, e2cIssuedTransfersRootHashHex, lastC2EIssuedTransferIndex),
     IntegerEntry(chainLastHeightKey(chainId, originCaller), newChainHeight),
     mkChainMetaEntry(chainId, newChainHeight, blockHashHex),
     StringEntry(epochMetaKey(height), thisEpochMiner.value().toString() + SEP + thisEpochRef.toString() + SEP + blockHashHex)
@@ -891,8 +903,12 @@ func withdraw(blockHashHex: String, merkleProof: List[ByteVector], transferIndex
   let recipientPkHash = recipient.bytes.drop(2) # Drop version and networkChainId
     .take(PUBLIC_KEY_HASH_SIZE)
 
-  let zeroAmountBytes   = base16'0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'
-  let amountBytes       = amount.toBytes()
+  # zeroAmountBytes: 36 bytes padding
+  let zeroAmountBytes = base16'0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'
+  let amountBytes     = amount.toBytes()
+
+  # recipientPkHash: 20 + 12 right padding bytes (see TypeEncoder.encodeBytes)
+  # amountBytes:     24 left padding (see TypeEncoder.encodeNumeric) + 8 bytes
   let elEventData       = recipientPkHash + zeroAmountBytes.take(zeroAmountBytes.size() - amountBytes.size()) + amountBytes
   let elEventDataDigest = blake2b256_16Kb(elEventData)
 
@@ -926,13 +942,18 @@ func withdrawIssued(blockHashHex: String, merkleProof: List[ByteVector], transfe
   let recipientPkHash = recipient.bytes.drop(2) # Drop version and networkChainId
     .take(PUBLIC_KEY_HASH_SIZE)
 
-  let zeroAmountBytes   = base16'0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'
-  let amountBytes       = amount.toBytes()
-  let elEventData       = recipientPkHash + zeroAmountBytes.take(zeroAmountBytes.size() - amountBytes.size()) + amountBytes + tokenErc20Address # TODO: padding?
+  # zeroAmountBytes: 36 bytes padding max
+  let zeroAmountBytes = base16'000000000000000000000000000000000000000000000000000000000000000000000000'
+  let amountBytes     = amount.toBytes()
+
+  # recipientPkHash:   20 + 12 right padding bytes (see TypeEncoder.encodeBytes)
+  # amountBytes:       24 left padding (see TypeEncoder.encodeNumeric) + 8 bytes
+  # tokenErc20Address: 12 left padding (see TypeEncoder.encodeAddress) + 20 bytes
+  let elEventData       = recipientPkHash + zeroAmountBytes.take(36) + amountBytes + zeroAmountBytes.take(12) + tokenErc20Address
   let elEventDataDigest = blake2b256_16Kb(elEventData)
 
   let calculatedRootHash = createMerkleRoot(merkleProof, elEventDataDigest, transferIndexInBlock)
-  let expectedRootHash   = withdrawBlockMeta._5
+  let expectedRootHash   = withdrawBlockMeta._7
   strict equalHashes     = calculatedRootHash == expectedRootHash || throw(
     "Expected root hash: " + expectedRootHash.toBase16String() + ", got: " + calculatedRootHash.toBase16String() +
     ". Event data digest: " + elEventDataDigest.toBase64String() + ". Check your withdraw arguments"
@@ -991,6 +1012,7 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: Stri
     let tokenId = calculateAssetId(issue)
 
     let genesisBlockMeta = mkBlockMetaEntry(
+      0, # issuedTransfersActivationEpoch
       genesisBlockHashHex,
       0, # blockHeight
       genesisBlockReferenceHash,
@@ -1015,7 +1037,8 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: Stri
       StringEntry(finalizedBlockKey, genesisBlockHashHex),
       issue,
       StringEntry(tokenIdKey, tokenId.toBase58String()),
-      StringEntry(elBridgeAddressKey, "0x0000000000000000000000000000000000006a7e"),
+      StringEntry(elNativeBridgeAddressKey, "0x0000000000000000000000000000000000006a7e"),
+      StringEntry(elIssuedBridgeAddressKey, "0x00000000000000000000000000000155c3d06a7e"),
       IntegerEntry(issuedTransfersActivationEpochKey, 0)
     ] ++ daoEntries
   }

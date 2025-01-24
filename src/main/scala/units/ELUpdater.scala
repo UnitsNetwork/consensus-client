@@ -222,7 +222,7 @@ class ELUpdater(
               )
               ecBlock = newBlock.toEcBlock
               nativeTransfersRootHash <- getE2CNativeTransfersRootHash(ecBlock.hash, chainContractOptions.elNativeBridgeAddress)
-              issuedTransfersRootHash <- getE2CNativeTransfersRootHash(ecBlock.hash, chainContractOptions.elIssuedBridgeAddress)
+              issuedTransfersRootHash <- getE2CIssuedTransfersRootHash(ecBlock.hash, chainContractOptions.elIssuedBridgeAddress)
               funcCall <- contractFunction.toFunctionCall(
                 ecBlock.hash,
                 nativeTransfersRootHash,
@@ -1254,7 +1254,6 @@ class ELUpdater(
       }
     } yield rootHash
 
-  // TODO: Use
   private def getE2CIssuedTransfersRootHash(hash: BlockHash, elIssuedTokenBridgeAddress: EthAddress): JobResult[Digest] =
     for {
       elRawLogs <- engineApiClient.getLogs(hash, List(elIssuedTokenBridgeAddress), List(IssuedTokenBridge.ERC20BridgeInitiated.Topic))
@@ -1310,16 +1309,30 @@ class ELUpdater(
     }
   }
 
-  private def validateE2CTransfers(contractBlock: ContractBlock, elBridgeAddress: EthAddress): JobResult[Unit] =
+  private def validateE2CNativeTransfers(contractBlock: ContractBlock, elBridgeAddress: EthAddress): JobResult[Unit] =
     getE2CNativeTransfersRootHash(contractBlock.hash, elBridgeAddress).flatMap { elRootHash =>
       // elRootHash is the source of true
       if (java.util.Arrays.equals(contractBlock.e2cNativeTransfersRootHash, elRootHash)) Either.unit
       else
         Left(
           ClientError(
-            s"EL to CL transfers hash of ${contractBlock.hash} are different: " +
+            s"EL to CL native transfers hash of ${contractBlock.hash} are different: " +
               s"EL=${toHexNoPrefix(elRootHash)}, " +
               s"CL=${toHexNoPrefix(contractBlock.e2cNativeTransfersRootHash)}"
+          )
+        )
+    }
+
+  private def validateE2CIssuedTransfers(contractBlock: ContractBlock, elBridgeAddress: EthAddress): JobResult[Unit] =
+    getE2CIssuedTransfersRootHash(contractBlock.hash, elBridgeAddress).flatMap { elRootHash =>
+      // elRootHash is the source of true
+      if (java.util.Arrays.equals(contractBlock.e2cIssuedTransfersRootHash, elRootHash)) Either.unit
+      else
+        Left(
+          ClientError(
+            s"EL to CL issued transfers hash of ${contractBlock.hash} are different: " +
+              s"EL=${toHexNoPrefix(elRootHash)}, " +
+              s"CL=${toHexNoPrefix(contractBlock.e2cIssuedTransfersRootHash)}"
           )
         )
     }
@@ -1412,7 +1425,8 @@ class ELUpdater(
           (),
           ClientError(s"Miner in EC block ${ecBlock.minerRewardL2Address} should be equal to miner on contract ${contractBlock.minerRewardL2Address}")
         )
-        _                            <- validateE2CTransfers(contractBlock, prevState.options.elNativeBridgeAddress)
+        _                            <- validateE2CNativeTransfers(contractBlock, prevState.options.elNativeBridgeAddress)
+        _                            <- validateE2CIssuedTransfers(contractBlock, prevState.options.elIssuedBridgeAddress)
         updatedLastElWithdrawalIndex <- validateWithdrawals(contractBlock, ecBlock, prevState.fullValidationStatus, prevState.options)
         _                            <- validateRandao(ecBlock, contractBlock.epoch)
         _                            <- validateWithdrawals(contractBlock, ecBlock, prevState.fullValidationStatus, prevState.options)
