@@ -12,7 +12,7 @@ import org.scalatest.{BeforeAndAfterAll, EitherValues}
 import play.api.libs.json.{JsDefined, JsObject, JsString, Json}
 import units.client.contract.CompiledChainContract.script
 
-class ChainContractCompilationTestSuite extends AnyFreeSpec with BaseSuite with BeforeAndAfterAll with EitherValues {
+class ChainContractPureTestSuite extends AnyFreeSpec with BaseSuite with BeforeAndAfterAll with EitherValues {
   private val dAppAcc  = TxHelpers.signer(0)
   private val dAppAddr = dAppAcc.toAddress
 

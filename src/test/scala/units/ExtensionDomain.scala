@@ -41,7 +41,7 @@ import pureconfig.generic.auto.*
 import units.ELUpdater.*
 import units.ELUpdater.State.{ChainStatus, Working}
 import units.ExtensionDomain.*
-import units.client.contract.HasConsensusLayerDappTxHelpers
+import units.client.contract.{ChainContractStateClient, HasConsensusLayerDappTxHelpers}
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.client.engine.model.{EcBlock, TestEcBlocks}
 import units.client.{L2BlockLike, TestEcClients}
@@ -86,7 +86,8 @@ class ExtensionDomain(
     withdrawals = Vector.empty
   )
 
-  val ecClients = new TestEcClients(ecGenesisBlock, blockchain)
+  val chainContractClient = new ChainContractStateClient(chainContractAddress, blockchainUpdater)
+  val ecClients           = new TestEcClients(ecGenesisBlock, blockchain)
 
   val globalScheduler = TestScheduler(ExecutionModel.AlwaysAsyncExecution)
   val eluScheduler    = TestScheduler(ExecutionModel.AlwaysAsyncExecution)

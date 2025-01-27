@@ -44,7 +44,7 @@ trait HasConsensusLayerDappTxHelpers {
     val TransferNativeFunctionName = "transfer"
     val TransferIssuedFunctionName = "transferIssued"
 
-    def setScript(): SetScriptTransaction = TxHelpers.setScript(chainContractAccount, CompiledChainContract.script, fee = setScriptFee)
+    def setScript(): SetScriptTransaction = TxHelpers.setScript(chainContractAccount, CompiledChainContract.script, fee = setScriptFee, version = 2)
 
     def setup(
         genesisBlock: L2BlockLike,
@@ -81,14 +81,44 @@ trait HasConsensusLayerDappTxHelpers {
     )
 
     def registerToken(asset: Asset, erc20Address: EthAddress, invoker: KeyPair = chainContractAccount): InvokeScriptTransaction =
+      registerToken(asset, erc20Address.hexNoPrefix, invoker)
+
+    def registerToken(asset: Asset, erc20AddressHex: String, invoker: KeyPair): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = invoker,
         dApp = chainContractAddress,
         func = "registerToken".some,
         args = List(
           Terms.CONST_STRING(asset.fold(ChainContractClient.Registry.WavesTokenName)(_.id.toString)),
-          Terms.CONST_STRING(erc20Address.hexNoPrefix)
+          Terms.CONST_STRING(erc20AddressHex)
         ).map(_.explicitGet())
+      )
+
+    def createAndRegisterToken(
+        erc20Address: EthAddress,
+        name: String,
+        description: String,
+        decimals: Int,
+        invoker: KeyPair = chainContractAccount
+    ): InvokeScriptTransaction = createAndRegisterToken(erc20Address.hexNoPrefix, name, description, decimals, invoker)
+
+    def createAndRegisterToken(
+        erc20AddressHex: String,
+        name: String,
+        description: String,
+        decimals: Int,
+        invoker: KeyPair
+    ): InvokeScriptTransaction =
+      TxHelpers.invoke(
+        invoker = invoker,
+        dApp = chainContractAddress,
+        func = "createAndRegisterToken".some,
+        args = List(
+          Terms.CONST_STRING(erc20AddressHex).explicitGet(),
+          Terms.CONST_STRING(name).explicitGet(),
+          Terms.CONST_STRING(description).explicitGet(),
+          Terms.CONST_LONG(decimals)
+        )
       )
 
     def extendMainChain(

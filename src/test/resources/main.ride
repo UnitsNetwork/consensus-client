@@ -49,7 +49,7 @@ func parseAssetId(assetIdBase58OrWaves: String) =
 
 # assetIdBase58OrWaves - "Asset ID in Base58" | WAVES_TOKEN_NAME
 # erc20AddressHex without 0x
-func mkIssuedTokenRegistryEntry(assetIdBase58OrWaves: String, erc20AddressHex: String) = {
+func mkIssuedTokenRegistryEntries(assetIdBase58OrWaves: String, erc20AddressHex: String) = {
   let currentIndex = getInteger(issuedTokenRegistrySizeKey).valueOrElse(0)
   [
     StringEntry(issuedTokenRegistryK + assetIdBase58OrWaves, currentIndex.toString() + SEP + erc20AddressHex),
@@ -878,9 +878,13 @@ func transferIssued(destElAddressHex: String) = {
   strict checkPayment = if (size(i.payments) == 1) then true else throw("Expected one payment as a transfer amount, got " + i.payments.size().toString())
 
   let t = i.payments[0]
-  let assetIdBase58OrWaves = match t.assetId {
-    case assetId: ByteVector => assetId.toBase58String()
-    case _ => WAVES_TOKEN_NAME
+  let (assetIdBase58OrWaves, preActions) = match t.assetId {
+    case assetId: ByteVector =>
+      let asset = assetInfo(assetId).valueOrErrorMessage("Unexpected error: unknown asset")
+      let assetIdStr = assetId.toBase58String()
+      if (asset.issuer == this) then (assetIdStr, [Burn(assetId, t.amount)])
+      else (assetIdStr, [])
+    case _ => (WAVES_TOKEN_NAME, [])
   }
 
   let tokenIndex = getIssuedTokenIndexInRegistry(assetIdBase58OrWaves)
@@ -981,14 +985,28 @@ func registerToken(assetIdBase58OrWaves: String, erc20AddressHex: String) = {
 
   strict assetId = parseAssetId(assetIdBase58OrWaves)
   strict assetExists = match assetId {
-    case assetId: ByteVector => assetInfo(assetId).isDefined()
+    case assetId: ByteVector => assetInfo(assetId).isDefined() || throw("Unknown asset " + assetIdBase58OrWaves)
     case _ => true
   }
 
   strict validAddressLength = erc20AddressHex.size() == ETH_ADDRESS_STR_SIZE || throw("Invalid ERC20 address: " + erc20AddressHex)
   strict validAddress       = erc20AddressHex.fromBase16String()
 
-  mkIssuedTokenRegistryEntry(assetIdBase58OrWaves, erc20AddressHex)
+  mkIssuedTokenRegistryEntries(assetIdBase58OrWaves, erc20AddressHex)
+}
+
+# erc20AddressHex without 0x
+@Callable(i)
+func createAndRegisterToken(erc20AddressHex: String, name: String, description: String, decimals: Int) = {
+  strict validCaller = i.originCaller == this || throw("Only owner of chain contract can do this")
+
+  strict validAddressLength = erc20AddressHex.size() == ETH_ADDRESS_STR_SIZE || throw("Invalid ERC20 address: " + erc20AddressHex)
+  strict validAddress       = erc20AddressHex.fromBase16String()
+
+  let issue   = Issue(name, description, 0, decimals, true)
+  let assetId = calculateAssetId(issue)
+
+  mkIssuedTokenRegistryEntries(assetId.toBase58String(), erc20AddressHex)
 }
 
 # genesisBlockHashHex without 0x
