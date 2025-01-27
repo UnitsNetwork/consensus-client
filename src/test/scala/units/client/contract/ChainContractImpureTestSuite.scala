@@ -1,8 +1,8 @@
 package units.client.contract
 
-import com.wavesplatform.transaction.TxHelpers
-import units.BaseIntegrationTestSuite
+import com.wavesplatform.transaction.{Asset, TxHelpers}
 import units.eth.EthAddress
+import units.{BaseIntegrationTestSuite, ExtensionDomain}
 
 class ChainContractImpureTestSuite extends BaseIntegrationTestSuite {
   private val bridgeAddress = EthAddress.from("0x00000000000000000000000000000155C3d06a7E").value
@@ -41,16 +41,27 @@ class ChainContractImpureTestSuite extends BaseIntegrationTestSuite {
       d.appendMicroBlockE(txn2).left.value.getMessage should include(s"EL asset is already registered: ${bridgeAddress.hexNoPrefix}")
     }
 
-    "Can't register a CL token twice" in withExtensionDomain() { d =>
-      val issueTxn = TxHelpers.issue(d.chainRegistryAccount, 1, 8)
-      val asset = issueTxn.asset
-      d.appendMicroBlock(issueTxn)
+    "Can't register a CL token twice" - {
+      "WAVES" in withExtensionDomain() { d =>
+        val issueTxn = TxHelpers.issue(d.chainRegistryAccount, 1, 8)
+        d.appendMicroBlock(issueTxn)
+        test(d, Asset.Waves)
+      }
 
-      val txn1 = d.ChainContract.registerToken(asset, bridgeAddress)
-      d.appendMicroBlock(txn1)
+      "Issued" in withExtensionDomain() { d =>
+        val issueTxn = TxHelpers.issue(d.chainRegistryAccount, 1, 8)
+        d.appendMicroBlock(issueTxn)
+        test(d, issueTxn.asset)
+      }
 
-      val txn2 = d.ChainContract.registerToken(asset, EthAddress.from("0x10000000000000000000000000000155C3d06a7E").value)
-      d.appendMicroBlockE(txn2).left.value.getMessage should include(s"CL asset is already registered: $asset")
+      def test(d: ExtensionDomain, asset: Asset): Unit = {
+        val txn1 = d.ChainContract.registerToken(asset, bridgeAddress)
+        d.appendMicroBlock(txn1)
+
+        val txn2 = d.ChainContract.registerToken(asset, EthAddress.from("0x10000000000000000000000000000155C3d06a7E").value)
+        val name = asset.fold(ChainContractClient.Registry.WavesTokenName)(_.id.toString)
+        d.appendMicroBlockE(txn2).left.value.getMessage should include(s"CL asset is already registered: $name")
+      }
     }
 
     "Registers a token" in withExtensionDomain() { d =>
