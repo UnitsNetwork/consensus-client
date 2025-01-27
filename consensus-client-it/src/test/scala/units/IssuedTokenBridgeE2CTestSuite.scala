@@ -135,6 +135,6 @@ class IssuedTokenBridgeE2CTestSuite extends BaseDockerTestSuite {
 
     step("Prepare: move assets and enable the asset in the registry")
     waves1.api.broadcast(TxHelpers.transfer(clTokenOwner, chainContractAddress, enoughWavesAmount, issueAsset))
-    waves1.api.broadcastAndWait(ChainContract.registerIssuedToken(issueAsset, elIssuedTokenBridgeAddress))
+    waves1.api.broadcastAndWait(ChainContract.registerToken(issueAsset, elIssuedTokenBridgeAddress))
   }
 }

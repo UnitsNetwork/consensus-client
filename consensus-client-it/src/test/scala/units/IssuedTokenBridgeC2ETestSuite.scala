@@ -30,7 +30,7 @@ class IssuedTokenBridgeC2ETestSuite extends BaseDockerTestSuite {
     }
 
     step("2. Enable the asset in the registry")
-    waves1.api.broadcastAndWait(ChainContract.registerIssuedToken(issueAsset, elIssuedTokenBridgeAddress))
+    waves1.api.broadcastAndWait(ChainContract.registerToken(issueAsset, elIssuedTokenBridgeAddress))
 
     step("3. Try to transfer the asset")
     val elCurrHeight = ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact()

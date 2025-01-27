@@ -976,7 +976,7 @@ func withdrawIssued(blockHashHex: String, merkleProof: List[ByteVector], transfe
 
 # assetIdBase58OrWaves - "Asset ID in Base58" | WAVES_TOKEN_NAME
 @Callable(i)
-func registerIssuedToken(assetIdBase58OrWaves: String, erc20AddressHex: String) = {
+func registerToken(assetIdBase58OrWaves: String, erc20AddressHex: String) = {
   strict validCaller = i.originCaller == this || throw("Only owner of chain contract can do this")
 
   strict assetId = parseAssetId(assetIdBase58OrWaves)
