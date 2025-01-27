@@ -35,8 +35,9 @@ let issuedTransfersCountKey  = "issuedTransfersCount"
 let daoAddressKey            = "daoAddress"
 let daoRewardKey             = "daoReward"
 
-let issuedTokenRegistryK       = "registryAsset_" # Asset Id -> Settings (index, ERC20 address)
-let issuedTokenRegistryIndexK  = "registryIndex_" # Index (starts from 0) -> Asset Id
+let issuedTokenRegistryK       = "registryAsset_"  # Asset Id -> Settings (index, ERC20 address)
+let issuedTokenRegistryELK     = "registryAssetE_" # ERC20 address -> Index
+let issuedTokenRegistryIndexK  = "registryIndex_"  # Index (starts from 0) -> Asset Id
 let issuedTokenRegistrySizeKey = "registrySize"
 
 func parseAssetId(assetIdBase58OrWaves: String) =
@@ -54,6 +55,7 @@ func mkIssuedTokenRegistryEntries(assetIdBase58OrWaves: String, erc20AddressHex:
   [
     StringEntry(issuedTokenRegistryK + assetIdBase58OrWaves, currentIndex.toString() + SEP + erc20AddressHex),
     StringEntry(issuedTokenRegistryIndexK + currentIndex.toString(), assetIdBase58OrWaves),
+    IntegerEntry(issuedTokenRegistryELK + erc20AddressHex, currentIndex),
     IntegerEntry(issuedTokenRegistrySizeKey, currentIndex + 1)
   ]
 }
@@ -74,6 +76,8 @@ func getIssuedTokenSettings(assetIdBase58OrWaves: String) = {
     case _ => unit
   }
 }
+
+func isTokenRegistered(erc20AddressHex: String) = getInteger(issuedTokenRegistryELK + erc20AddressHex).isDefined()
 
 let issuedTransfersActivationEpochKey = "issuedTransfersActivationEpoch"
 let issuedTransfersActivationEpoch    = getInteger(issuedTransfersActivationEpochKey).valueOrElse(INT_MAX)
@@ -983,6 +987,8 @@ func withdrawIssued(blockHashHex: String, merkleProof: List[ByteVector], transfe
 func registerToken(assetIdBase58OrWaves: String, erc20AddressHex: String) = {
   strict validCaller = i.originCaller == this || throw("Only owner of chain contract can do this")
 
+  strict notRegistered = isTokenRegistered(erc20AddressHex) && throw("Already registered: " + erc20AddressHex)
+
   strict assetId = parseAssetId(assetIdBase58OrWaves)
   strict assetExists = match assetId {
     case assetId: ByteVector => assetInfo(assetId).isDefined() || throw("Unknown asset " + assetIdBase58OrWaves)
@@ -1002,6 +1008,8 @@ func createAndRegisterToken(erc20AddressHex: String, name: String, description: 
 
   strict validAddressLength = erc20AddressHex.size() == ETH_ADDRESS_STR_SIZE || throw("Invalid ERC20 address: " + erc20AddressHex)
   strict validAddress       = erc20AddressHex.fromBase16String()
+
+  strict notRegistered = isTokenRegistered(erc20AddressHex) && throw("Already registered: " + erc20AddressHex)
 
   let issue   = Issue(name, description, 0, decimals, true)
   let assetId = calculateAssetId(issue)
