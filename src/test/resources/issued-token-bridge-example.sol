@@ -12,18 +12,32 @@ contract IssuedTokenBridge {
 
     mapping(address => uint256) public balances;
     mapping(uint => uint16) public transfersPerBlock;
+    mapping(address => bool) public tokenRegistry;
 
     // wavesRecipient is a public key hash of recipient account.
     // effectively is it Waves address without 2 first bytes (version and chain id) and last 4 bytes (checksum).
     event ERC20BridgeInitiated(bytes20 wavesRecipient, int64 clAmount, address assetId);
     event ERC20BridgeFinalized(address recipient, int64 clAmount, address assetId);
 
+    event RegistryUpdated(address[] added, address[] removed);
+
+    function updateTokenRegistry(address[] calldata added) external {
+        // TODO: only miner can do this
+        for (uint256 i = 0; i < added.length; i++) {
+            tokenRegistry[added[i]] = true;
+        }
+
+        emit RegistryUpdated(added, new address[](0));
+    }
+
     function burn(address recipient, uint256 elAmount) internal {
+        // TODO: only bridge can do this
         balances[recipient] -= elAmount;
     }
 
     // TODO: external for testing purposes, will be internal
     function mint(address recipient, uint256 elAmount) public {
+        // TODO: only bridge can do this
         balances[recipient] += elAmount;
     }
 

@@ -62,5 +62,7 @@ object DepositedTransaction extends TaggedType[String] {
   }
 
   def mkUserDepositedSourceHash(transferIndex: Long): Array[Byte] =
-    Keccak256.hash(Longs.toByteArray(transferIndex))
+    mkUserDepositedSourceHash(Longs.toByteArray(transferIndex))
+
+  def mkUserDepositedSourceHash(raw: Array[Byte]): Array[Byte] = Keccak256.hash(raw)
 }

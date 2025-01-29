@@ -65,12 +65,12 @@ class ChainContractImpureTestSuite extends BaseIntegrationTestSuite {
     }
 
     "Registers a token" in withExtensionDomain() { d =>
-      d.chainContractClient.getIssuedTokenRegistrySize shouldBe 0
+      d.chainContractClient.getAssetRegistrySize shouldBe 0
 
       val issueTxn = TxHelpers.issue(d.chainRegistryAccount, 1, 8)
       d.appendMicroBlock(issueTxn, d.ChainContract.registerToken(issueTxn.asset, bridgeAddress))
 
-      d.chainContractClient.getIssuedTokenRegistrySize shouldBe 1
+      d.chainContractClient.getAssetRegistrySize shouldBe 1
     }
   }
 
@@ -103,12 +103,12 @@ class ChainContractImpureTestSuite extends BaseIntegrationTestSuite {
     }
 
     "Registers a token" in withExtensionDomain() { d =>
-      d.chainContractClient.getIssuedTokenRegistrySize shouldBe 0
+      d.chainContractClient.getAssetRegistrySize shouldBe 0
 
       val txn = d.ChainContract.createAndRegisterToken(bridgeAddress, "test", "test", 8)
       d.appendMicroBlock(txn)
 
-      d.chainContractClient.getIssuedTokenRegistrySize shouldBe 1
+      d.chainContractClient.getAssetRegistrySize shouldBe 1
     }
   }
 }

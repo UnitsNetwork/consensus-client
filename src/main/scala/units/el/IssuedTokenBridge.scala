@@ -1,11 +1,10 @@
 package units.el
 
 import com.wavesplatform.account.Address
-import com.wavesplatform.transaction.utils.EthConverters.EthereumAddressExt
+import org.web3j.abi.*
 import org.web3j.abi.datatypes.generated.{Bytes20, Int64}
-import org.web3j.abi.datatypes.{Event, Function, Address as Web3JAddress}
-import org.web3j.abi.{FunctionEncoder, FunctionReturnDecoder, TypeEncoder, TypeReference}
-import units.eth.EthAddress
+import org.web3j.abi.datatypes.{Event, Function, Type, Address as Web3JAddress, DynamicArray as Web3JArray}
+import units.eth.{EthAddress, EthereumConstants}
 import units.util.HexBytesConverter
 
 import java.math.BigInteger
@@ -16,8 +15,11 @@ import scala.util.Try
 import scala.util.control.NonFatal
 
 object IssuedTokenBridge {
-  val ReceiveIssuedFunction = "receiveIssued"
-  val ReceiveIssuedGas      = BigInteger.valueOf(100_000L) // Should be enough to run this function
+  val FinalizeBridgeErc20Function = "finalizeBridgeERC20"
+  val FinalizeBridgeErc20Gas      = BigInteger.valueOf(100_000L) // Should be enough to run this function
+
+  val UpdateTokenRegistryFunction = "updateTokenRegistry"
+  val UpdateTokenRegistryGas      = BigInteger.valueOf(100_000L)
 
   case class ERC20BridgeInitiated(wavesRecipient: Address, clAmount: Long, assetAddress: EthAddress)
   object ERC20BridgeInitiated extends BridgeMerkleTree[ERC20BridgeInitiated] {
@@ -32,7 +34,7 @@ object IssuedTokenBridge {
       List[TypeReference[?]](WavesRecipientType, ClAmountType, AssetAddressType).asJava
     )
 
-    val Topic = org.web3j.abi.EventEncoder.encode(EventDef)
+    val Topic = EventEncoder.encode(EventDef)
 
     override def encodeArgs(args: ERC20BridgeInitiated): Array[Byte] = {
       val wavesRecipient = new Bytes20(args.wavesRecipient.publicKeyHash)
@@ -79,7 +81,7 @@ object IssuedTokenBridge {
       List[TypeReference[?]](RecipientType, ClAmountType, AssetAddressType).asJava
     )
 
-    val Topic = org.web3j.abi.EventEncoder.encode(EventDef)
+    val Topic = EventEncoder.encode(EventDef)
 
     def encodeArgs(args: ERC20BridgeFinalized): String = {
       val recipient = new Web3JAddress(args.recipient.hex)
@@ -116,30 +118,52 @@ object IssuedTokenBridge {
   }
 
   // See https://specs.optimism.io/protocol/deposits.html#execution
-  def mkDepositedTransaction(
+  def mkFinalizeBridgeErc20Transaction(
       transferIndex: Long,
       elContractAddress: EthAddress,
-      sender: Address,
       recipient: EthAddress,
       amountInWaves: Long
   ): DepositedTransaction =
     DepositedTransaction.create(
       sourceHash = DepositedTransaction.mkUserDepositedSourceHash(transferIndex),
-      from = sender.toEthAddress,
+      from = EthereumConstants.ZeroAddress.hexNoPrefix,
       to = elContractAddress.hex,
       mint = BigInteger.ZERO,
       value = BigInteger.ZERO,
-      gas = ReceiveIssuedGas,
+      gas = FinalizeBridgeErc20Gas,
       isSystemTx = true, // Gas won't be consumed
-      data = HexBytesConverter.toBytes(receiveIssuedCall(recipient, amountInWaves))
+      data = HexBytesConverter.toBytes(finalizeBridgeErc20Call(recipient, amountInWaves))
     )
 
-  def receiveIssuedCall(receiver: EthAddress, amount: Long): String = {
+  def finalizeBridgeErc20Call(receiver: EthAddress, amount: Long): String = {
     val function = new Function(
-      ReceiveIssuedFunction,
-      util.Arrays.asList[org.web3j.abi.datatypes.Type[?]](
-        new org.web3j.abi.datatypes.Address(receiver.hexNoPrefix),
-        new org.web3j.abi.datatypes.generated.Int64(amount)
+      FinalizeBridgeErc20Function,
+      util.Arrays.asList[Type[?]](
+        new Web3JAddress(receiver.hexNoPrefix),
+        new Int64(amount)
+      ),
+      Collections.emptyList
+    )
+    FunctionEncoder.encode(function)
+  }
+
+  def mkUpdateTokenRegistry(added: List[EthAddress], elBridgeAddress: EthAddress): DepositedTransaction =
+    DepositedTransaction.create(
+      sourceHash = DepositedTransaction.mkUserDepositedSourceHash(HexBytesConverter.toBytes(added.last.hex)),
+      from = EthereumConstants.ZeroAddress.hexNoPrefix,
+      to = elBridgeAddress.hex,
+      mint = BigInteger.ZERO,
+      value = BigInteger.ZERO,
+      gas = UpdateTokenRegistryGas,
+      isSystemTx = true, // Gas won't be consumed
+      data = HexBytesConverter.toBytes(updateTokenRegistryCall(added))
+    )
+
+  def updateTokenRegistryCall(added: List[EthAddress]): String = {
+    val function = new Function(
+      UpdateTokenRegistryFunction,
+      util.Arrays.asList[Type[?]](
+        new Web3JArray(classOf[Web3JAddress], added.map(x => new Web3JAddress(x.hexNoPrefix))*)
       ),
       Collections.emptyList
     )

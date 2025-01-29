@@ -49,7 +49,7 @@ class IssuedTokenBridgeC2ETestSuite extends BaseDockerTestSuite {
       .head
 
     withClue("Expected amount: ") {
-      withdrawal.clAmount shouldBe UnitsConvert.toWei(userAmount)
+      withdrawal.clAmount shouldBe UnitsConvert.toWavesAmount(userAmount)
     }
 
     // TODO check the balance

@@ -228,7 +228,8 @@ class ELUpdater(
                 nativeTransfersRootHash,
                 m.lastC2ENativeTransferIndex,
                 issuedTransfersRootHash,
-                m.lastC2EIssuedTransferIndex
+                m.lastC2EIssuedTransferIndex,
+                m.lastAssetRegistryIndex
               )
               _ <- callContract(
                 funcCall,
@@ -288,14 +289,15 @@ class ELUpdater(
       lastC2ETransferIndex: Long,
       lastElWithdrawalIndex: WithdrawalIndex,
       lastC2EIssuedTransferIndex: Long,
+      lastAssetRegistryIndex: Int,
       chainContractOptions: ChainContractOptions,
       prevEpochMinerRewardAddress: Option[EthAddress]
   ): JobResult[MiningData] = {
-    val firstElWithdrawalIndex = lastElWithdrawalIndex + 1
+    val startElWithdrawalIndex = lastElWithdrawalIndex + 1
     val startC2ETransferIndex  = lastC2ETransferIndex + 1
 
     val rewardWithdrawal = prevEpochMinerRewardAddress
-      .map(Withdrawal(firstElWithdrawalIndex, _, chainContractOptions.miningReward))
+      .map(Withdrawal(startElWithdrawalIndex, _, chainContractOptions.miningReward))
       .toVector
 
     val transfers = chainContractClient.getNativeTransfers(
@@ -303,7 +305,7 @@ class ELUpdater(
       maxItems = ChainContractClient.MaxC2ENativeTransfers - rewardWithdrawal.size
     )
 
-    val nativeTransferWithdrawals = toWithdrawals(transfers, rewardWithdrawal.lastOption.fold(firstElWithdrawalIndex)(_.index + 1))
+    val nativeTransferWithdrawals = toWithdrawals(transfers, rewardWithdrawal.lastOption.fold(startElWithdrawalIndex)(_.index + 1))
     val withdrawals               = rewardWithdrawal ++ nativeTransferWithdrawals
 
     val startC2EIssuedTransferIndex = lastC2EIssuedTransferIndex + 1
@@ -312,11 +314,26 @@ class ELUpdater(
       maxItems = ChainContractClient.MaxC2EIssuedTransfers
     )
 
-    val depositedTransactions = issuedTransfers.map { x =>
-      IssuedTokenBridge.mkDepositedTransaction(
+    val startAssetRegistryIndex = lastAssetRegistryIndex + 1
+    val assetRegistrySize       = chainContractClient.getAssetRegistrySize
+    val addedAssets =
+      if (startAssetRegistryIndex == assetRegistrySize) Nil
+      else chainContractClient.getRegisteredAssets(startAssetRegistryIndex until assetRegistrySize)
+
+    val updateTokenRegistryTransaction =
+      if (addedAssets.isEmpty) None
+      else
+        Some(
+          IssuedTokenBridge.mkUpdateTokenRegistry(
+            added = addedAssets.map(_.erc20Address),
+            elBridgeAddress = chainContractOptions.elIssuedBridgeAddress
+          )
+        )
+
+    val depositedTransactions = updateTokenRegistryTransaction.toVector ++ issuedTransfers.map { x =>
+      IssuedTokenBridge.mkFinalizeBridgeErc20Transaction(
         transferIndex = x.index,
         elContractAddress = x.erc20Address,
-        sender = epochInfo.miner, // Address.fromString("3FXuAZ1a4mKgmsjYf8yHDMXULbYz8pkuNb8").explicitGet(), // TODO should be a user?
         recipient = x.destElAddress,
         amountInWaves = x.amount
       )
@@ -341,7 +358,8 @@ class ELUpdater(
         nextBlockUnixTs = nextBlockUnixTs,
         lastC2ENativeTransferIndex = transfers.lastOption.fold(lastC2ETransferIndex)(_.index),
         lastElWithdrawalIndex = lastElWithdrawalIndex + withdrawals.size,
-        lastC2EIssuedTransferIndex = lastC2EIssuedTransferIndex + depositedTransactions.size
+        lastC2EIssuedTransferIndex = lastC2EIssuedTransferIndex + depositedTransactions.size,
+        lastAssetRegistryIndex = addedAssets.lastOption.fold(lastAssetRegistryIndex)(_.index)
       )
     }
   }
@@ -377,6 +395,7 @@ class ELUpdater(
             lastC2ETransferIndex,
             elWithdrawalIndexBefore,
             prevState.lastContractBlock.lastC2EIssuedTransferIndex,
+            prevState.lastContractBlock.lastAssetRegistryIndex,
             prevState.options,
             Option.unless(parentBlock.height == EthereumConstants.GenesisBlockHeight)(parentBlock.minerRewardL2Address)
           )
@@ -390,7 +409,8 @@ class ELUpdater(
               nodeChainInfo,
               miningData.lastC2ENativeTransferIndex,
               miningData.lastElWithdrawalIndex,
-              miningData.lastC2EIssuedTransferIndex
+              miningData.lastC2EIssuedTransferIndex,
+              miningData.lastAssetRegistryIndex
             )
           )
 
@@ -430,6 +450,7 @@ class ELUpdater(
           m.lastC2ENativeTransferIndex,
           m.lastElWithdrawalIndex,
           m.lastC2EIssuedTransferIndex,
+          m.lastAssetRegistryIndex,
           chainContractOptions,
           None
         ).fold[Unit](
@@ -446,7 +467,8 @@ class ELUpdater(
                 currentPayloadId = miningData.payloadId,
                 lastC2ENativeTransferIndex = miningData.lastC2ENativeTransferIndex,
                 lastElWithdrawalIndex = miningData.lastElWithdrawalIndex,
-                lastC2EIssuedTransferIndex = miningData.lastC2EIssuedTransferIndex
+                lastC2EIssuedTransferIndex = miningData.lastC2EIssuedTransferIndex,
+                lastAssetRegistryIndex = miningData.lastAssetRegistryIndex
               )
             )
             setState("11", newState)
@@ -1391,7 +1413,7 @@ class ELUpdater(
 
     val expectedTransfers = chainContractClient.getIssuedTransfers(firstWithdrawalIndex, maxItems)
     val tokenAddresses =
-      if (expectedTransfers.isEmpty) chainContractClient.getAllRegisteredAssetData.map(_.erc20Address) // To check, there is no transfers
+      if (expectedTransfers.isEmpty) chainContractClient.getAllRegisteredAssets.map(_.erc20Address) // To check, there is no transfers
       else expectedTransfers.map(_.erc20Address).toList
 
     if (tokenAddresses.isEmpty) Either.unit
@@ -1586,7 +1608,7 @@ class ELUpdater(
         .getLogs(
           hash = ecBlock.hash,
           addresses = tokenAddresses,
-          List(IssuedTokenBridge.ReceiveIssuedFunction)
+          topics = List(IssuedTokenBridge.ERC20BridgeFinalized.Topic)
         )
         .leftMap(_.message)
       actualTransfers <- rawActualTransfers
@@ -1709,7 +1731,8 @@ object ELUpdater {
           nodeChainInfo: Either[ChainSwitchInfo, ChainInfo],
           lastC2ENativeTransferIndex: Long,
           lastElWithdrawalIndex: WithdrawalIndex,
-          lastC2EIssuedTransferIndex: Long
+          lastC2EIssuedTransferIndex: Long,
+          lastAssetRegistryIndex: Int
       ) extends ChainStatus {
         override def lastContractBlock: ContractBlock = nodeChainInfo match {
           case Left(chainSwitchInfo) => chainSwitchInfo.referenceBlock
@@ -1746,7 +1769,8 @@ object ELUpdater {
       nextBlockUnixTs: Long,
       lastC2ENativeTransferIndex: Long,
       lastElWithdrawalIndex: WithdrawalIndex,
-      lastC2EIssuedTransferIndex: Long
+      lastC2EIssuedTransferIndex: Long,
+      lastAssetRegistryIndex: Int
   )
 
   private case class BlockForValidation(contractBlock: ContractBlock, ecBlock: EcBlock) {

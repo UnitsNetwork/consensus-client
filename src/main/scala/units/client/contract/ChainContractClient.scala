@@ -94,6 +94,7 @@ trait ChainContractClient {
             e2cNativeTransfersRootHash,
             lastC2ENativeTransferIndex,
             Array.emptyByteArray,
+            -1,
             -1
           )
         } else {
@@ -111,12 +112,15 @@ trait ChainContractClient {
 
           val lastC2EIssuedTransferIndex = bb.getLong()
 
+          val lastAssetRegistryIndex = bb.getLong()
+
           require(
             !bb.hasRemaining,
             s"Not parsed ${bb.remaining()} bytes from ${blockMeta.base64}, read data: " +
               s"chainHeight=$chainHeight, epoch=$epoch, parentHash=$parentHash, chainId=$chainId, " +
               s"e2cNativeTransfersRootHash=${HexBytesConverter.toHex(e2cNativeTransfersRootHash)}, lastC2ENativeTransferIndex=$lastC2ENativeTransferIndex, " +
-              s"e2cIssuedTransfersRootHash=${HexBytesConverter.toHex(e2cIssuedTransfersRootHash)}, lastC2EIssuedTransferIndex=$lastC2EIssuedTransferIndex"
+              s"e2cIssuedTransfersRootHash=${HexBytesConverter.toHex(e2cIssuedTransfersRootHash)}, lastC2EIssuedTransferIndex=$lastC2EIssuedTransferIndex, " +
+              s"lastAssetRegistryIndex=$lastAssetRegistryIndex"
           )
 
           val epochMeta = getEpochMeta(epoch).getOrElse(fail(s"Can't find epoch meta for epoch $epoch"))
@@ -135,7 +139,9 @@ trait ChainContractClient {
             e2cNativeTransfersRootHash,
             lastC2ENativeTransferIndex,
             e2cIssuedTransfersRootHash,
-            lastC2EIssuedTransferIndex
+            lastC2EIssuedTransferIndex,
+            if (lastAssetRegistryIndex.isValidInt) lastAssetRegistryIndex.toInt
+            else fail(s"$lastAssetRegistryIndex is not a valid int")
           )
         }
       } catch {
@@ -302,7 +308,7 @@ trait ChainContractClient {
   private def getIssuedTransfersCount: Long = getLongData("issuedTransfersCount").getOrElse(0L)
 
   private def getRegisteredAssetData(asset: Asset): Registry.RegisteredAsset = {
-    val raw   = getStringData(s"registryAsset_${Registry.stringifyAsset(asset)}").getOrElse(fail(s"Can't find a registered asset $asset"))
+    val raw   = getStringData(s"assetRegistry_${Registry.stringifyAsset(asset)}").getOrElse(fail(s"Can't find a registered asset $asset"))
     val parts = raw.split(Sep)
     if (parts.length != 2) fail(s"Expected 2 elements in a registry entry, got ${parts.length}: $raw")
 
@@ -312,15 +318,18 @@ trait ChainContractClient {
     Registry.RegisteredAsset(asset, tokenIndex, erc20Address)
   }
 
-  def getIssuedTokenRegistrySize: Int = getLongData("registrySize").getOrElse(0L).toInt
+  def getAssetRegistrySize: Int = getLongData("assetRegistrySize").getOrElse(0L).toInt
 
-  def getAllRegisteredAssetData: List[Registry.RegisteredAsset] = (0 until getIssuedTokenRegistrySize).view
-    .map(getRegisteredAsset)
-    .map(getRegisteredAssetData)
-    .toList
+  def getAllRegisteredAssets: List[Registry.RegisteredAsset] = getRegisteredAssets(0 until getAssetRegistrySize)
+
+  def getRegisteredAssets(indexes: Range): List[Registry.RegisteredAsset] =
+    indexes.view
+      .map(getRegisteredAsset)
+      .map(getRegisteredAssetData)
+      .toList
 
   private def getRegisteredAsset(registryIndex: Int): Asset =
-    getStringData(s"registryIndex_$registryIndex") match {
+    getStringData(s"assetRegistryIndex_$registryIndex") match {
       case None          => fail(s"Can't find a registered asset at $registryIndex")
       case Some(assetId) => Registry.parseAsset(assetId)
     }
@@ -385,7 +394,7 @@ object ChainContractClient {
   object Registry {
     val WavesTokenName = "WAVES"
 
-    case class RegisteredAsset(asset: Asset, index: Long, erc20Address: EthAddress)
+    case class RegisteredAsset(asset: Asset, index: Int, erc20Address: EthAddress)
 
     def parseAsset(rawAssetId: String): Asset =
       if (rawAssetId == WavesTokenName) Asset.Waves
