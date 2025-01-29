@@ -22,9 +22,6 @@ class MessageCodec(peerDatabase: PeerDatabase) extends MessageToMessageCodec[Raw
       case GetPeers      => RawBytes.from(GetPeersSpec, GetPeers)
       case k: KnownPeers => RawBytes.from(PeersSpec, k)
       case g: GetBlock   => RawBytes.from(GetBlockL2Spec, g)
-
-      case _ =>
-        throw new IllegalArgumentException(s"Can't send message $msg to $ctx (unsupported)")
     }
 
     out.add(encodedMsg)

@@ -5,13 +5,13 @@ import com.typesafe.scalalogging.StrictLogging
 import com.wavesplatform.block.{Block, MicroBlock}
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2
+import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.events.BlockchainUpdateTriggers
 import com.wavesplatform.extensions.{Extension, Context as ExtensionContext}
 import com.wavesplatform.state.{Blockchain, StateSnapshot}
 import io.netty.channel.group.DefaultChannelGroup
 import monix.execution.{CancelableFuture, Scheduler}
 import pureconfig.ConfigSource
-import pureconfig.generic.auto.*
 import units.ConsensusClient.ChainHandler
 import units.client.engine.EngineApiClient
 import units.network.*
