@@ -1295,6 +1295,44 @@ class ELUpdater(
       }
     } yield rootHash
 
+  private def validateAssetRegistryUpdate(
+      hash: BlockHash,
+      contractBlock: ContractBlock,
+      parentContractBlock: ContractBlock,
+      elIssuedTokenBridgeAddress: EthAddress
+  ): JobResult[Unit] =
+    for {
+      elRawLogs <- engineApiClient.getLogs(hash, List(elIssuedTokenBridgeAddress), List(IssuedTokenBridge.RegistryUpdated.Topic))
+      relatedElRawLogs = elRawLogs.filter(x => x.address == elIssuedTokenBridgeAddress && x.topics.contains(IssuedTokenBridge.RegistryUpdated.Topic))
+      elRawLog <- relatedElRawLogs match {
+        case x :: Nil => x.asRight
+        case xs       => ClientError(s"Expected one event, got ${xs.size}").asLeft
+      }
+      elEvent <- IssuedTokenBridge.RegistryUpdated.decodeLog(elRawLog.data).leftMap(ClientError(_))
+      expectedAddedAssets = {
+        val startAssetRegistryIndex = parentContractBlock.lastAssetRegistryIndex + 1
+        if (startAssetRegistryIndex == contractBlock.lastAssetRegistryIndex) Nil
+        else chainContractClient.getRegisteredAssets(startAssetRegistryIndex to contractBlock.lastAssetRegistryIndex)
+      }
+      _ <- Either.cond(
+        elEvent.added.size == expectedAddedAssets.size,
+        true,
+        ClientError(s"Expected ${expectedAddedAssets.size} added assets, got ${elEvent.added.size}")
+      )
+      _ <- elEvent.added.zip(expectedAddedAssets).zipWithIndex.traverse { case ((actual, expected), i) =>
+        Either.cond(
+          actual == expected.erc20Address,
+          (),
+          ClientError(s"Added asset #$i: expected ${expected.erc20Address}, got $actual")
+        )
+      }
+      _ <- Either.cond(
+        elEvent.removed.isEmpty,
+        true,
+        ClientError(s"Removing assets is not supported, got ${elEvent.removed.size} addresses")
+      )
+    } yield ()
+
   private def skipFinalizedBlocksValidation(curState: Working[ChainStatus]) = {
     if (curState.finalizedBlock.height > curState.fullValidationStatus.lastValidatedBlock.height) {
       val newState = curState.copy(fullValidationStatus = FullValidationStatus(curState.finalizedBlock, None))
@@ -1397,13 +1435,7 @@ class ELUpdater(
     } yield Some(lastElWithdrawalIndex)
   }
 
-  private def validateC2EIssuedTransfers(contractBlock: ContractBlock, ecBlock: EcBlock): JobResult[Unit] = {
-    val parentContractBlock = chainContractClient
-      .getBlock(contractBlock.parentHash)
-      .getOrElse(
-        throw new RuntimeException(s"Can't find a parent block ${contractBlock.parentHash} of block ${contractBlock.hash} on chain contract")
-      )
-
+  private def validateC2EIssuedTransfers(contractBlock: ContractBlock, ecBlock: EcBlock, parentContractBlock: ContractBlock): JobResult[Unit] = {
     val firstWithdrawalIndex = parentContractBlock.lastC2EIssuedTransferIndex + 1
 
     val maxItems = math.min(
@@ -1447,12 +1479,16 @@ class ELUpdater(
           (),
           ClientError(s"Miner in EC block ${ecBlock.minerRewardL2Address} should be equal to miner on contract ${contractBlock.minerRewardL2Address}")
         )
-        _                            <- validateE2CNativeTransfers(contractBlock, prevState.options.elNativeBridgeAddress)
-        _                            <- validateE2CIssuedTransfers(contractBlock, prevState.options.elIssuedBridgeAddress)
+        parentContractBlock <- chainContractClient
+          .getBlock(contractBlock.parentHash)
+          .toRight(ClientError(s"Can't find a parent block ${contractBlock.parentHash} of block ${contractBlock.hash} on chain contract"))
+        _ <- validateE2CNativeTransfers(contractBlock, prevState.options.elNativeBridgeAddress)
+        _ <- validateE2CIssuedTransfers(contractBlock, prevState.options.elIssuedBridgeAddress)
+        _ <- validateAssetRegistryUpdate(ecBlock.hash, contractBlock, parentContractBlock, prevState.options.elIssuedBridgeAddress)
         updatedLastElWithdrawalIndex <- validateWithdrawals(contractBlock, ecBlock, prevState.fullValidationStatus, prevState.options)
         _                            <- validateRandao(ecBlock, contractBlock.epoch)
         _                            <- validateWithdrawals(contractBlock, ecBlock, prevState.fullValidationStatus, prevState.options)
-        _                            <- validateC2EIssuedTransfers(contractBlock, ecBlock)
+        _                            <- validateC2EIssuedTransfers(contractBlock, ecBlock, parentContractBlock)
       } yield updatedLastElWithdrawalIndex
 
     validationResult.map { lastElWithdrawalIndex =>

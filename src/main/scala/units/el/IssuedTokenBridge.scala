@@ -61,8 +61,8 @@ object IssuedTokenBridge {
             } yield new ERC20BridgeInitiated(wavesRecipient, clAmount, assetAddress)
           case xs =>
             Left(
-              s"Expected (wavesRecipient: ${WavesRecipientType.getClassType.getSimpleName}, elAmount: ${ClAmountType.getClassType.getSimpleName}) fields, " +
-                s"got: ${xs.mkString(", ")}"
+              s"Expected (wavesRecipient: ${WavesRecipientType.getClassType.getSimpleName}, elAmount: ${ClAmountType.getClassType.getSimpleName}," +
+                s"assetAddress: ${AssetAddressType.getClassType.getSimpleName}) fields, got: ${xs.mkString(", ")}"
             )
         }
       } catch {
@@ -108,7 +108,49 @@ object IssuedTokenBridge {
             } yield new ERC20BridgeFinalized(recipient, amount, assetAddress)
           case xs =>
             Left(
-              s"Expected (recipient: ${RecipientType.getClassType.getSimpleName}, clAmount: ${ClAmountType.getClassType.getSimpleName}) fields, " +
+              s"Expected (recipient: ${RecipientType.getClassType.getSimpleName}, clAmount: ${ClAmountType.getClassType.getSimpleName}, " +
+                s"assetAddress: ${AssetAddressType.getClassType.getSimpleName}) fields, got: ${xs.mkString(", ")}"
+            )
+        }
+      } catch {
+        case NonFatal(e) => Left(s"Can't decode event: ${e.getMessage}, data=$ethEventData")
+      }
+  }
+
+  case class RegistryUpdated(added: List[EthAddress], removed: List[EthAddress])
+  object RegistryUpdated {
+    private val AddressesType = new TypeReference[Web3JArray[Web3JAddress]](false) {}
+
+    private val EventDef: Event = new Event(
+      "RegistryUpdated",
+      List[TypeReference[?]](AddressesType, AddressesType).asJava
+    )
+
+    val Topic = EventEncoder.encode(EventDef)
+
+    def encodeArgs(args: RegistryUpdated): String = {
+      val added   = new Web3JArray(classOf[Web3JAddress], args.added.map(x => new Web3JAddress(x.hexNoPrefix)).asJava)
+      val removed = new Web3JArray(classOf[Web3JAddress], args.removed.map(x => new Web3JAddress(x.hexNoPrefix)).asJava)
+
+      TypeEncoder.encode(added) + TypeEncoder.encode(removed)
+    }
+
+    def decodeLog(ethEventData: String): Either[String, RegistryUpdated] =
+      try {
+        FunctionReturnDecoder.decode(ethEventData, EventDef.getNonIndexedParameters).asScala.toList match {
+          case (added: Web3JArray[Web3JAddress @unchecked]) :: (removed: Web3JArray[Web3JAddress @unchecked]) :: Nil
+              if added.getComponentType == classOf[Web3JAddress] && removed.getComponentType == classOf[Web3JAddress] =>
+            for {
+              added <- Try(added.getValue.asScala.map(x => EthAddress.unsafeFrom(x.getValue)).toList).toEither.left.map(e =>
+                s"Can't decode added: ${e.getMessage}"
+              )
+              removed <- Try(removed.getValue.asScala.map(x => EthAddress.unsafeFrom(x.getValue)).toList).toEither.left.map(e =>
+                s"Can't decode removed: ${e.getMessage}"
+              )
+            } yield new RegistryUpdated(added, removed)
+          case xs =>
+            Left(
+              s"Expected (added: ${AddressesType.getClassType.getSimpleName}, removed: ${AddressesType.getClassType.getSimpleName}) fields, " +
                 s"got: ${xs.mkString(", ")}"
             )
         }
