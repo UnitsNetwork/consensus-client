@@ -72,6 +72,12 @@ class ElIssuedTokenBridgeClient(
     bridgeContract.send_bridgeERC20(recipient.publicKeyHash, amountInEther.bigInteger).encodeFunctionCall()
   }
 
+  def isRegistered(assetAddress: EthAddress): Boolean = {
+    val txnManager     = new RawTransactionManager(web3j, defaultSender, EcContainer.ChainId)
+    val bridgeContract = IssuedTokenBridgeContract.load(address.hex, web3j, txnManager, gasProvider)
+    bridgeContract.call_tokenRegistry(assetAddress.hexNoPrefix).send()
+  }
+
   def sendMint(
       sender: Credentials,
       recipient: EthAddress,

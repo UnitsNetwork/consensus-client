@@ -24,10 +24,10 @@ class IssuedTokenBridgeC2ETestSuite extends BaseDockerTestSuite {
     step("1. Try to transfer an asset without registration")
     def transferTxn: InvokeScriptTransaction =
       ChainContract.transfer(clSender, elRichAddress1, issueAsset, UnitsConvert.toWavesAmount(userAmount), ChainContract.TransferIssuedFunctionName)
-    waves1.api.broadcast(transferTxn) match {
-      case Left(e) if e.error == ScriptExecutionError.Id && e.message.contains("not found") =>
-      case r                                                                                => fail(s"Unexpected outcome: $r")
-    }
+
+    val rejected = waves1.api.broadcast(transferTxn).left.value
+    rejected.error shouldBe ScriptExecutionError.Id
+    rejected.message should include(s"Can't find in a registry: $issueAsset")
 
     step("2. Enable the asset in the registry")
     waves1.api.broadcastAndWait(ChainContract.registerToken(issueAsset, elIssuedTokenBridgeAddress))

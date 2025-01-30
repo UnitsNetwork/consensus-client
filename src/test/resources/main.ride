@@ -48,12 +48,10 @@ func parseAssetId(assetIdBase58OrWaves: String) =
     else throw("Invalid asset: " + assetIdBase58OrWaves)
   }
 
-func getAssetRegistrySize() = getInteger(assetRegistrySizeKey).valueOrElse(0)
-
 # assetIdBase58OrWaves - "Asset ID in Base58" | WAVES_TOKEN_NAME
 # erc20AddressHex without 0x
 func mkAssetRegistryEntries(assetIdBase58OrWaves: String, erc20AddressHex: String) = {
-  let currIndex = getAssetRegistrySize()
+  let currIndex = getInteger(assetRegistrySizeKey).valueOrElse(0)
   [
     StringEntry(assetRegistryK + assetIdBase58OrWaves, currIndex.toString() + SEP + erc20AddressHex),
     StringEntry(assetRegistryIndexK + currIndex.toString(), assetIdBase58OrWaves),
@@ -62,15 +60,8 @@ func mkAssetRegistryEntries(assetIdBase58OrWaves: String, erc20AddressHex: Strin
   ]
 }
 
-# assetIdBase58OrWaves - "Asset ID in Base58" | WAVES_TOKEN_NAME
-func mkAssetRegistryIndex(assetIdBase58OrWaves: String) = {
-  let key = assetRegistryK + assetIdBase58OrWaves
-  let entry = getStringValue(key).split(SEP)
-  entry[0].parseIntValue()
-}
-
 func getIssuedTokenSettings(assetIdBase58OrWaves: String) = {
-  let x = getString(assetRegistryK + assetIdBase58OrWaves).valueOrErrorMessage("Can't find in registry: " + assetIdBase58OrWaves)
+  let x = getString(assetRegistryK + assetIdBase58OrWaves).valueOrErrorMessage("Can't find in a registry: " + assetIdBase58OrWaves)
   let parts = x.split(SEP)
   strict correctLength = parts.size() >= 2 || throw("Invalid asset data: " + x)
   (parts[0].parseIntValue(), parts[1]) # index, erc20AddressHex
@@ -903,7 +894,7 @@ func transferIssued(destElAddressHex: String) = {
     case _ => (WAVES_TOKEN_NAME, [])
   }
 
-  let tokenIndex = mkAssetRegistryIndex(assetIdBase58OrWaves)
+  let (tokenIndex, ignored) = getIssuedTokenSettings(assetIdBase58OrWaves)
 
   # TODO: check the queue size?
 

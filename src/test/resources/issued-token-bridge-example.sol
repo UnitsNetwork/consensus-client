@@ -54,8 +54,11 @@ contract IssuedTokenBridge {
 
         uint blockNumber = block.number;
         require(transfersPerBlock[blockNumber] < MAX_TRANSFERS_IN_BLOCK, string.concat("Max transfers limit of ", uint2str(uint(MAX_TRANSFERS_IN_BLOCK)), " reached in this block. Try again later"));
-        transfersPerBlock[blockNumber]++;
 
+        // TODO Move up after moving tests
+        require(tokenRegistry[address(this)], "Token is not registered");
+
+        transfersPerBlock[blockNumber]++;
         burn(msg.sender, elAmount);
         emit ERC20BridgeInitiated(wavesRecipient, int64(uint64(clAmount)), address(this));
     }

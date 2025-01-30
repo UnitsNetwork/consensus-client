@@ -50,6 +50,8 @@ class IssuedTokenBridgeE2CTestSuite extends BaseDockerTestSuite {
         test(biggerAmount, s"Sent value $biggerAmount must be less or equal to $maxAmountInWei")
       }
     }
+
+    "Can't transfer without registration" in test(ethAmount, "Token is not registered")
   }
 
   "Positive" - {
@@ -61,12 +63,18 @@ class IssuedTokenBridgeE2CTestSuite extends BaseDockerTestSuite {
 
       eventually {
         val r = ec1.web3j.ethGetTransactionReceipt(txnResult.getTransactionHash).send().getTransactionReceipt.toScala.value
-        if (!r.isStatusOK) fail(s"Expected successful sendBridge, got: ${EvmEncoding.decodeRevertReason(r.getRevertReason)}")
+        if (!r.isStatusOK) fail(s"Expected successful sendBridge, got: tx=${EvmEncoding.decodeRevertReason(r.getRevertReason)}")
         r
       }
     }
 
     "Checking balances in EL->CL transfers" in {
+      step("Register token")
+      waves1.api.broadcastAndWait(ChainContract.registerToken(issueAsset, elIssuedTokenBridgeAddress))
+      eventually {
+        elIssuedTokenBridge.isRegistered(elIssuedTokenBridgeAddress) shouldBe true
+      }
+
       step("Broadcast IssuedTokenBridge.sendBridge transaction")
       val sendTxnReceipt = sendBridge(ethAmount)
 
@@ -135,6 +143,5 @@ class IssuedTokenBridgeE2CTestSuite extends BaseDockerTestSuite {
 
     step("Prepare: move assets and enable the asset in the registry")
     waves1.api.broadcast(TxHelpers.transfer(clTokenOwner, chainContractAddress, enoughWavesAmount, issueAsset))
-    waves1.api.broadcastAndWait(ChainContract.registerToken(issueAsset, elIssuedTokenBridgeAddress))
   }
 }
