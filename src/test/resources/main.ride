@@ -35,7 +35,7 @@ let issuedTransfersCountKey  = "issuedTransfersCount"
 let daoAddressKey            = "daoAddress"
 let daoRewardKey             = "daoReward"
 
-let assetRegistryK       = "assetRegistry_"       # Asset Id -> Settings (index, erc20AddressHex)
+let assetRegistryK       = "assetRegistry_"       # Asset Id -> Settings (index, erc20AddressHex, ratioExponent)
 let assetRegistryELK     = "assetRegistryAssetE_" # ERC20 address -> Index
 let assetRegistryIndexK  = "assetRegistryIndex_"  # Index (starts from 0) -> Asset Id
 let assetRegistrySizeKey = "assetRegistrySize"
@@ -50,10 +50,11 @@ func parseAssetId(assetIdBase58OrWaves: String) =
 
 # assetIdBase58OrWaves - "Asset ID in Base58" | WAVES_TOKEN_NAME
 # erc20AddressHex without 0x
-func mkAssetRegistryEntries(assetIdBase58OrWaves: String, erc20AddressHex: String) = {
+# ratioExponent: EL decimals - CL decimals
+func mkAssetRegistryEntries(assetIdBase58OrWaves: String, erc20AddressHex: String, ratioExponent: Int) = {
   let currIndex = getInteger(assetRegistrySizeKey).valueOrElse(0)
   [
-    StringEntry(assetRegistryK + assetIdBase58OrWaves, currIndex.toString() + SEP + erc20AddressHex),
+    StringEntry(assetRegistryK + assetIdBase58OrWaves, currIndex.toString() + SEP + erc20AddressHex + SEP + ratioExponent.toString()),
     StringEntry(assetRegistryIndexK + currIndex.toString(), assetIdBase58OrWaves),
     IntegerEntry(assetRegistryELK + erc20AddressHex, currIndex),
     IntegerEntry(assetRegistrySizeKey, currIndex + 1)
@@ -987,40 +988,43 @@ func withdrawIssued(blockHashHex: String, merkleProof: List[ByteVector], transfe
 
 # assetIdBase58OrWaves - "Asset ID in Base58" | WAVES_TOKEN_NAME
 @Callable(i)
-func registerToken(assetIdBase58OrWaves: String, erc20AddressHex: String) = {
+func registerToken(assetIdBase58OrWaves: String, erc20AddressHex: String, elDecimals: Int) = {
   strict validCaller = i.originCaller == this || throw("Only owner of chain contract can do this")
 
   strict clNotRegistered = isClTokenRegistered(assetIdBase58OrWaves) && throw("CL asset is already registered: " + assetIdBase58OrWaves)
   strict elNotRegistered = isElTokenRegistered(erc20AddressHex) && throw("EL asset is already registered: " + erc20AddressHex)
 
   strict assetId = parseAssetId(assetIdBase58OrWaves)
-  strict assetExists = match assetId {
-    case assetId: ByteVector => assetInfo(assetId).isDefined() || throw("Unknown asset " + assetIdBase58OrWaves)
-    case _ => true
+  strict clDecimals = match assetId {
+    case assetId: ByteVector =>
+      let asset = assetInfo(assetId).valueOrErrorMessage("Unknown asset " + assetIdBase58OrWaves)
+      asset.decimals
+    case _ => 8 # WAVES token decimals
   }
 
   strict validAddressLength = erc20AddressHex.size() == ETH_ADDRESS_STR_SIZE || throw("Invalid ERC20 address: " + erc20AddressHex)
   strict validAddress       = erc20AddressHex.fromBase16String()
 
-  mkAssetRegistryEntries(assetIdBase58OrWaves, erc20AddressHex)
+  mkAssetRegistryEntries(assetIdBase58OrWaves, erc20AddressHex, elDecimals - clDecimals)
 }
 
 # erc20AddressHex without 0x
 @Callable(i)
-func createAndRegisterToken(erc20AddressHex: String, name: String, description: String, decimals: Int) = {
+func createAndRegisterToken(erc20AddressHex: String, elDecimals: Int, name: String, description: String, clDecimals: Int) = {
   strict validCaller = i.originCaller == this || throw("Only owner of chain contract can do this")
+  strict validDecimals = elDecimals <= 8 && elDecimals == clDecimals || elDecimals > clDecimals || throw("Invalid decimals, EL=" + elDecimals.toString() + ", CL=" + clDecimals.toString())
 
   strict validAddressLength = erc20AddressHex.size() == ETH_ADDRESS_STR_SIZE || throw("Invalid ERC20 address: " + erc20AddressHex)
   strict validAddress       = erc20AddressHex.fromBase16String()
 
-  let issue      = Issue(name, description, 0, decimals, true)
+  let issue      = Issue(name, description, 0, clDecimals, true)
   let assetId    = calculateAssetId(issue)
   let assetIdB58 = assetId.toBase58String()
 
   strict clNotRegistered = isClTokenRegistered(assetIdB58) && throw("CL asset is already registered: " + assetIdB58)
   strict elNotRegistered = isElTokenRegistered(erc20AddressHex) && throw("EL asset is already registered: " + erc20AddressHex)
 
-  mkAssetRegistryEntries(assetIdB58, erc20AddressHex)
+  mkAssetRegistryEntries(assetIdB58, erc20AddressHex, elDecimals - clDecimals)
 }
 
 # genesisBlockHashHex without 0x
