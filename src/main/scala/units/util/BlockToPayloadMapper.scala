@@ -32,7 +32,7 @@ object BlockToPayloadMapper {
         "blobGasUsed"   -> JsString(EthereumConstants.ZeroHex),
         "excessBlobGas" -> JsString(EthereumConstants.ZeroHex)
       )
-    ) ++ (payloadBodyJson - "withdrawalsRoot") // part of Isthmus: https://github.com/ethereum-optimism/op-geth/commit/84ca9f22a2b275520b14475316d9578016ae9ad8
+    ) ++ payloadBodyJson
   }
 
 }

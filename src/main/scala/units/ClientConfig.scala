@@ -19,7 +19,7 @@ case class ClientConfig(
     network: NetworkSettings,
     miningEnable: Boolean,
     jwtSecretFile: Option[String]
-                       )derives ConfigReader {
+  ) derives ConfigReader {
   lazy val chainContractAddress: Address = Address.fromString(chainContract).explicitGet()
 
   val jsonRpcClient = JsonRpcClient.Config(

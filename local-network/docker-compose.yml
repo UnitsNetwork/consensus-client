@@ -75,7 +75,6 @@ services:
     image: ${WAVES_NODE_IMAGE:-ghcr.io/wavesplatform/waves:test-gengen}
     volumes:
       - ./configs/wavesnode:/tmp/configs
-      - ./data/deploy:/var/lib/waves
     command:
       - gengen
       - /tmp/configs/genesis-template.conf
@@ -91,7 +90,6 @@ services:
       MAIN: deploy.py
     volumes:
       - ./logs/deploy:/var/log/deploy
-      - ./data/deploy:/var/lib/waves
     depends_on:
       wavesnode-1:
         condition: service_healthy
