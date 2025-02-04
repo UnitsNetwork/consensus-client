@@ -32,8 +32,9 @@ trait BaseIntegrationTestSuite
     with CustomMatchers {
   protected val chainRegistryAccount: KeyPair = KeyPair("chain-registry".getBytes(StandardCharsets.UTF_8))
 
-  protected val elMinerDefaultReward = Gwei.ofRawGwei(2_000_000_000L)
-  protected val elBridgeAddress      = EthAddress.unsafeFrom("0x0000000000000000000000000000000000006a7e")
+  protected val elMinerDefaultReward  = Gwei.ofRawGwei(2_000_000_000L)
+  protected val elNativeBridgeAddress = EthAddress.unsafeFrom("0x0000000000000000000000000000000000006a7e")
+  protected val elAssetBridgeAddress  = EthAddress.unsafeFrom("0x00000000000000000000000000000155c3d06a7e")
 
   protected def defaultSettings = TestSettings().withChainRegistry(chainRegistryAccount.toAddress)
 
@@ -76,7 +77,8 @@ trait BaseIntegrationTestSuite
           rocksDBWriter = blockchain,
           settings = settings.wavesSettings,
           chainRegistryAccount = chainRegistryAccount,
-          elBridgeAddress = elBridgeAddress,
+          elNativeBridgeAddress = elNativeBridgeAddress,
+          elAssetBridgeAddress = elAssetBridgeAddress,
           elMinerDefaultReward = elMinerDefaultReward
         )
 
@@ -117,5 +119,5 @@ trait BaseIntegrationTestSuite
   protected def step(name: String): Unit = log.info(s"========= $name =========")
 
   protected def getLogsResponseEntry(event: ElSentNativeEvent): GetLogsResponseEntry =
-    GetLogsResponseEntry(EthNumber(0), elBridgeAddress, Bridge.ElSentNativeEvent.encodeArgs(event), List(Bridge.ElSentNativeEventTopic), "")
+    GetLogsResponseEntry(EthNumber(0), elNativeBridgeAddress, Bridge.ElSentNativeEvent.encodeArgs(event), List(Bridge.ElSentNativeEventTopic), "")
 }

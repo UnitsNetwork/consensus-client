@@ -128,31 +128,33 @@ trait HasConsensusLayerDappTxHelpers {
     def extendMainChain(
         minerAccount: KeyPair,
         block: L2BlockLike,
-        e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
-        lastC2ETransferIndex: Long = -1,
+        e2cNativeTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
+        lastC2ENativeTransferIndex: Long = -1,
+        e2cAssetTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
+        lastC2EAssetTransferIndex: Long = -1,
+        lastAssetRegistryIndex: Int = -1,
         vrf: ByteStr = currentHitSource
-    ): InvokeScriptTransaction =
-      TxHelpers.invoke(
-        invoker = minerAccount,
-        dApp = chainContractAddress,
-        func = "extendMainChain_v2".some,
-        args = List(
-          Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
-          Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
-          Terms.CONST_BYTESTR(vrf).explicitGet(),
-          Terms.CONST_STRING(e2cTransfersRootHashHex.drop(2)).explicitGet(),
-          Terms.CONST_LONG(lastC2ETransferIndex),
-          Terms.CONST_LONG(-1) // lastC2EIssuedTransferIndex
-        ),
-        fee = extendMainChainFee
-      )
+    ): InvokeScriptTransaction = extendMainChain(
+      minerAccount,
+      block.hash,
+      block.parentHash,
+      e2cNativeTransfersRootHashHex,
+      lastC2ENativeTransferIndex,
+      e2cAssetTransfersRootHashHex,
+      lastC2EAssetTransferIndex,
+      lastAssetRegistryIndex,
+      vrf
+    )
 
     def extendMainChain(
         minerAccount: KeyPair,
         blockHash: BlockHash,
         parentBlockHash: BlockHash,
-        e2cTransfersRootHashHex: String,
-        lastC2ETransferIndex: Long,
+        e2cNativeTransfersRootHashHex: String,
+        lastC2ENativeTransferIndex: Long,
+        e2cAssetTransfersRootHashHex: String,
+        lastC2EAssetTransferIndex: Long,
+        lastAssetRegistryIndex: Int,
         vrf: ByteStr
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
@@ -163,9 +165,11 @@ trait HasConsensusLayerDappTxHelpers {
           Terms.CONST_STRING(blockHash.drop(2)).explicitGet(),
           Terms.CONST_STRING(parentBlockHash.drop(2)).explicitGet(),
           Terms.CONST_BYTESTR(vrf).explicitGet(),
-          Terms.CONST_STRING(e2cTransfersRootHashHex.drop(2)).explicitGet(),
-          Terms.CONST_LONG(lastC2ETransferIndex),
-          Terms.CONST_LONG(-1) // lastC2EIssuedTransferIndex
+          Terms.CONST_STRING(e2cNativeTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(lastC2ENativeTransferIndex),
+          Terms.CONST_STRING(e2cAssetTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(lastC2EAssetTransferIndex),
+          Terms.CONST_LONG(lastAssetRegistryIndex)
         ),
         fee = extendMainChainFee
       )
@@ -173,8 +177,11 @@ trait HasConsensusLayerDappTxHelpers {
     def appendBlock(
         minerAccount: KeyPair,
         block: L2BlockLike,
-        e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
-        lastC2ETransferIndex: Long = -1
+        e2cNativeTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
+        lastC2ENativeTransferIndex: Long = -1,
+        e2cAssetTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
+        lastC2EAssetTransferIndex: Long = -1,
+        lastAssetRegistryIndex: Int = -1
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = minerAccount,
@@ -183,9 +190,11 @@ trait HasConsensusLayerDappTxHelpers {
         args = List(
           Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
           Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
-          Terms.CONST_STRING(e2cTransfersRootHashHex.drop(2)).explicitGet(),
-          Terms.CONST_LONG(lastC2ETransferIndex),
-          Terms.CONST_LONG(-1) // lastC2EIssuedTransferIndex
+          Terms.CONST_STRING(e2cNativeTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(lastC2ENativeTransferIndex),
+          Terms.CONST_STRING(e2cAssetTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(lastC2EAssetTransferIndex),
+          Terms.CONST_LONG(lastAssetRegistryIndex)
         ),
         fee = appendBlockFee
       )
@@ -193,8 +202,11 @@ trait HasConsensusLayerDappTxHelpers {
     def startAltChain(
         minerAccount: KeyPair,
         block: L2BlockLike,
-        e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
-        lastC2ETransferIndex: Long = -1,
+        e2cNativeTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
+        lastC2ENativeTransferIndex: Long = -1,
+        e2cAssetTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
+        lastC2EAssetTransferIndex: Long = -1,
+        lastAssetRegistryIndex: Int = -1,
         vrf: ByteStr = currentHitSource
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
@@ -205,9 +217,11 @@ trait HasConsensusLayerDappTxHelpers {
           Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
           Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
           Terms.CONST_BYTESTR(vrf).explicitGet(),
-          Terms.CONST_STRING(e2cTransfersRootHashHex.drop(2)).explicitGet(),
-          Terms.CONST_LONG(lastC2ETransferIndex),
-          Terms.CONST_LONG(-1) // lastC2EIssuedTransferIndex
+          Terms.CONST_STRING(e2cNativeTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(lastC2ENativeTransferIndex),
+          Terms.CONST_STRING(e2cAssetTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(lastC2EAssetTransferIndex),
+          Terms.CONST_LONG(lastAssetRegistryIndex)
         ),
         fee = startAltChainFee
       )
@@ -216,8 +230,11 @@ trait HasConsensusLayerDappTxHelpers {
         minerAccount: KeyPair,
         block: L2BlockLike,
         chainId: Long,
-        e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
-        lastC2ETransferIndex: Long = -1,
+        e2cNativeTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
+        lastC2ENativeTransferIndex: Long = -1,
+        e2cAssetTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
+        lastC2EAssetTransferIndex: Long = -1,
+        lastAssetRegistryIndex: Int = -1,
         vrf: ByteStr = currentHitSource
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
@@ -229,9 +246,11 @@ trait HasConsensusLayerDappTxHelpers {
           Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
           Terms.CONST_BYTESTR(vrf).explicitGet(),
           Terms.CONST_LONG(chainId),
-          Terms.CONST_STRING(e2cTransfersRootHashHex.drop(2)).explicitGet(),
-          Terms.CONST_LONG(lastC2ETransferIndex),
-          Terms.CONST_LONG(-1) // lastC2EIssuedTransferIndex
+          Terms.CONST_STRING(e2cNativeTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(lastC2ENativeTransferIndex),
+          Terms.CONST_STRING(e2cAssetTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(lastC2EAssetTransferIndex),
+          Terms.CONST_LONG(lastAssetRegistryIndex)
         ),
         fee = extendAltChainFee
       )

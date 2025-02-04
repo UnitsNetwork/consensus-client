@@ -1300,51 +1300,65 @@ class ELUpdater(
       contractBlock: ContractBlock,
       parentContractBlock: ContractBlock,
       elIssuedTokenBridgeAddress: EthAddress
-  ): JobResult[Unit] =
+  ): JobResult[Unit] = {
+    val expectedAddedAssets = {
+      val startAssetRegistryIndex = parentContractBlock.lastAssetRegistryIndex + 1
+      if (startAssetRegistryIndex == contractBlock.lastAssetRegistryIndex) Nil
+      else chainContractClient.getRegisteredAssets(startAssetRegistryIndex to contractBlock.lastAssetRegistryIndex)
+    }
+
     for {
       elRawLogs <- engineApiClient.getLogs(hash, List(elIssuedTokenBridgeAddress), List(IssuedTokenBridge.RegistryUpdated.Topic))
       relatedElRawLogs = elRawLogs.filter(x => x.address == elIssuedTokenBridgeAddress && x.topics.contains(IssuedTokenBridge.RegistryUpdated.Topic))
-      elRawLog <- relatedElRawLogs match {
-        case x :: Nil => x.asRight
-        case xs       => ClientError(s"Expected one event, got ${xs.size}").asLeft
+      _ <- relatedElRawLogs match {
+        case Nil =>
+          Either.cond(
+            expectedAddedAssets.isEmpty,
+            (),
+            ClientError("Expected one asset registry event, got 0")
+          )
+
+        case elRawLog :: Nil =>
+          if (expectedAddedAssets.isEmpty) ClientError("Expected no asset registry events, got 1").asLeft
+          else
+            for {
+              elEvent <- IssuedTokenBridge.RegistryUpdated.decodeLog(elRawLog.data).leftMap(ClientError(_))
+              _ <- Either.cond(
+                elEvent.added.size == expectedAddedAssets.size,
+                true,
+                ClientError(s"Expected ${expectedAddedAssets.size} added assets in a RegistryUpdated event, got ${elEvent.added.size}")
+              )
+              _ <- Either.cond(
+                elEvent.addedExponents.size == expectedAddedAssets.size,
+                true,
+                ClientError(s"Expected ${expectedAddedAssets.size} added exponent assets in a RegistryUpdated event, got ${elEvent.addedExponents.size}")
+              )
+              _ <- elEvent.added.lazyZip(elEvent.addedExponents).lazyZip(expectedAddedAssets).zipWithIndex.toList.traverse {
+                case ((actual, actualExponent, expected), i) =>
+                  for {
+                    _ <- Either.cond(
+                      actual == expected.erc20Address,
+                      (),
+                      ClientError(s"Added asset #$i: expected ${expected.erc20Address}, got $actual")
+                    )
+                    _ <- Either.cond(
+                      actualExponent == expected.exponent,
+                      (),
+                      ClientError(s"Added asset exponent #$i: expected ${expected.exponent}, got $actualExponent")
+                    )
+                  } yield ()
+              }
+              _ <- Either.cond(
+                elEvent.removed.isEmpty,
+                true,
+                ClientError(s"Removing assets is not supported, got ${elEvent.removed.size} addresses")
+              )
+            } yield ()
+
+        case xs => ClientError(s"Expected one asset registry event, got ${xs.size}").asLeft
       }
-      elEvent <- IssuedTokenBridge.RegistryUpdated.decodeLog(elRawLog.data).leftMap(ClientError(_))
-      expectedAddedAssets = {
-        val startAssetRegistryIndex = parentContractBlock.lastAssetRegistryIndex + 1
-        if (startAssetRegistryIndex == contractBlock.lastAssetRegistryIndex) Nil
-        else chainContractClient.getRegisteredAssets(startAssetRegistryIndex to contractBlock.lastAssetRegistryIndex)
-      }
-      _ <- Either.cond(
-        elEvent.added.size == expectedAddedAssets.size,
-        true,
-        ClientError(s"Expected ${expectedAddedAssets.size} added assets, got ${elEvent.added.size}")
-      )
-      _ <- Either.cond(
-        elEvent.addedExponents.size == expectedAddedAssets.size,
-        true,
-        ClientError(s"Expected ${expectedAddedAssets.size} added exponent assets, got ${elEvent.addedExponents.size}")
-      )
-      _ <- elEvent.added.lazyZip(elEvent.addedExponents).lazyZip(expectedAddedAssets).zipWithIndex.toList.traverse {
-        case ((actual, actualExponent, expected), i) =>
-          for {
-            _ <- Either.cond(
-              actual == expected.erc20Address,
-              (),
-              ClientError(s"Added asset #$i: expected ${expected.erc20Address}, got $actual")
-            )
-            _ <- Either.cond(
-              actualExponent == expected.exponent,
-              (),
-              ClientError(s"Added asset exponent #$i: expected ${expected.exponent}, got $actualExponent")
-            )
-          } yield ()
-      }
-      _ <- Either.cond(
-        elEvent.removed.isEmpty,
-        true,
-        ClientError(s"Removing assets is not supported, got ${elEvent.removed.size} addresses")
-      )
     } yield ()
+  }
 
   private def skipFinalizedBlocksValidation(curState: Working[ChainStatus]) = {
     if (curState.finalizedBlock.height > curState.fullValidationStatus.lastValidatedBlock.height) {

@@ -11,7 +11,8 @@ import scala.concurrent.duration.FiniteDuration
 
 class TestEcBlockBuilder private (
     testEcClients: TestEcClients,
-    elBridgeAddress: EthAddress,
+    elNativeBridgeAddress: EthAddress,
+    elAssetBridgeAddress: EthAddress,
     elMinerDefaultReward: Gwei,
     private var block: EcBlock,
     parentBlock: EcBlock
@@ -28,34 +29,53 @@ class TestEcBlockBuilder private (
     this
   }
 
-  def setLogs(nativeTopicLogs: List[GetLogsResponseEntry] = Nil, issuedTopicLogs: List[GetLogsResponseEntry] = Nil): this.type = {
+  def setLogs(
+      nativeTransferLogs: List[GetLogsResponseEntry] = Nil,
+      erc20BridgeFinalizedTopicLogs: List[GetLogsResponseEntry] = Nil,
+      erc20BridgeInitiatedTopicLogs: List[GetLogsResponseEntry] = Nil,
+      registryTopicLogs: List[GetLogsResponseEntry] = Nil
+  ): this.type = {
     testEcClients.setBlockLogs(
-      GetLogsRequest(block.hash, List(elBridgeAddress), List(Bridge.ElSentNativeEventTopic), 0),
-      nativeTopicLogs
+      GetLogsRequest(block.hash, List(elNativeBridgeAddress), List(Bridge.ElSentNativeEventTopic), 0),
+      nativeTransferLogs
     )
     testEcClients.setBlockLogs(
-      GetLogsRequest(block.hash, issuedTopicLogs.map(_.address), List(IssuedTokenBridge.ERC20BridgeFinalized.Topic), 0),
-      issuedTopicLogs
+      GetLogsRequest(block.hash, List(elAssetBridgeAddress), List(IssuedTokenBridge.ERC20BridgeFinalized.Topic), 0),
+      erc20BridgeFinalizedTopicLogs
+    )
+    testEcClients.setBlockLogs(
+      GetLogsRequest(block.hash, List(elAssetBridgeAddress), List(IssuedTokenBridge.ERC20BridgeInitiated.Topic), 0),
+      erc20BridgeInitiatedTopicLogs
+    )
+    testEcClients.setBlockLogs(
+      GetLogsRequest(block.hash, List(elAssetBridgeAddress), List(IssuedTokenBridge.RegistryUpdated.Topic), 0),
+      registryTopicLogs
     )
     this
   }
 
   def build(): EcBlock = block
-  def buildAndSetLogs(nativeTopicLogs: List[GetLogsResponseEntry] = Nil, issuedTopicLogs: List[GetLogsResponseEntry] = Nil): EcBlock =
-    setLogs(nativeTopicLogs, issuedTopicLogs).block
+  def buildAndSetLogs(
+      nativeTransferLogs: List[GetLogsResponseEntry] = Nil,
+      erc20BridgeFinalizedTopicLogs: List[GetLogsResponseEntry] = Nil,
+      erc20BridgeInitiatedTopicLogs: List[GetLogsResponseEntry] = Nil,
+      registryTopicLogs: List[GetLogsResponseEntry] = Nil
+  ): EcBlock = setLogs(nativeTransferLogs, erc20BridgeFinalizedTopicLogs, erc20BridgeInitiatedTopicLogs, registryTopicLogs).block
 }
 
 object TestEcBlockBuilder {
   def apply(
       testEcClients: TestEcClients,
-      elBridgeAddress: EthAddress,
+      elNativeBridgeAddress: EthAddress,
+      elAssetBridgeAddress: EthAddress,
       elMinerDefaultReward: Gwei,
       blockDelay: FiniteDuration,
       parent: EcBlock
   ): TestEcBlockBuilder =
     new TestEcBlockBuilder(
       testEcClients,
-      elBridgeAddress,
+      elNativeBridgeAddress,
+      elAssetBridgeAddress,
       elMinerDefaultReward,
       EcBlock(
         hash = createBlockHash("???"),

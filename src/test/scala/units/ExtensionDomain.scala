@@ -60,7 +60,8 @@ class ExtensionDomain(
     rocksDBWriter: RocksDBWriter,
     settings: WavesSettings,
     override val chainRegistryAccount: KeyPair,
-    elBridgeAddress: EthAddress,
+    elNativeBridgeAddress: EthAddress,
+    elAssetBridgeAddress: EthAddress,
     elMinerDefaultReward: Gwei
 ) extends Domain(rdb, blockchainUpdater, rocksDBWriter, settings)
     with HasConsensusLayerDappTxHelpers
@@ -384,13 +385,14 @@ class ExtensionDomain(
     createEcBlockBuilder(hashPath, miner.elRewardAddress, parent)
 
   def createEcBlockBuilder(hashPath: String, minerRewardL2Address: EthAddress, parent: EcBlock): TestEcBlockBuilder = {
-    TestEcBlockBuilder(ecClients, elBridgeAddress, elMinerDefaultReward, l2Config.blockDelay, parent = parent).updateBlock(
-      _.copy(
-        hash = TestEcBlockBuilder.createBlockHash(hashPath),
-        minerRewardL2Address = minerRewardL2Address,
-        prevRandao = ELUpdater.calculateRandao(blockchain.vrf(blockchain.height).get, parent.hash)
+    TestEcBlockBuilder(ecClients, elNativeBridgeAddress, elAssetBridgeAddress, elMinerDefaultReward, l2Config.blockDelay, parent = parent)
+      .updateBlock(
+        _.copy(
+          hash = TestEcBlockBuilder.createBlockHash(hashPath),
+          minerRewardL2Address = minerRewardL2Address,
+          prevRandao = ELUpdater.calculateRandao(blockchain.vrf(blockchain.height).get, parent.hash)
+        )
       )
-    )
   }
 
   override def currentHitSource: BlockId =

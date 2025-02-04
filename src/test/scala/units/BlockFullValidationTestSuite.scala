@@ -10,9 +10,9 @@ import units.eth.EthAddress
 import units.util.HexBytesConverter
 
 class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
-  private val transferEvents          = List(Bridge.ElSentNativeEvent(TxHelpers.defaultAddress, 1))
-  private val ecBlockLogs             = transferEvents.map(getLogsResponseEntry)
-  private val e2CTransfersRootHashHex = HexBytesConverter.toHex(Bridge.mkTransfersHash(ecBlockLogs).explicitGet())
+  private val transferEvents                = List(Bridge.ElSentNativeEvent(TxHelpers.defaultAddress, 1))
+  private val ecBlockLogs                   = transferEvents.map(getLogsResponseEntry)
+  private val e2CNativeTransfersRootHashHex = HexBytesConverter.toHex(Bridge.mkTransfersHash(ecBlockLogs).explicitGet())
 
   private val reliable    = ElMinerSettings(TxHelpers.signer(1))
   private val malfunction = ElMinerSettings(TxHelpers.signer(2)) // Prevents a block finalization
@@ -61,7 +61,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
         d.triggerScheduledTasks()
 
         step(s"Append a CL micro block with ecBlock ${ecBlock.hash} confirmation")
-        d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(reliable.account, ecBlock, e2CTransfersRootHashHex))
+        d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(reliable.account, ecBlock, e2CNativeTransfersRootHashHex))
         d.advanceConsensusLayerChanged()
 
         d.waitForCS[FollowingChain]("Following chain") { _ => }
@@ -121,13 +121,13 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
           val ecBlock2Logs      = transferEvents.map(x => getLogsResponseEntry(x).copy(address = fakeBridgeAddress))
           e2CTest(
             blockLogs = ecBlock2Logs,
-            e2CTransfersRootHashHex = e2CTransfersRootHashHex
+            e2CTransfersRootHashHex = e2CNativeTransfersRootHashHex
           )
         }
 
         "Different miners in CL and EL" in e2CTest(
           blockLogs = ecBlockLogs,
-          e2CTransfersRootHashHex = e2CTransfersRootHashHex,
+          e2CTransfersRootHashHex = e2CNativeTransfersRootHashHex,
           badBlockPostProcessing = _.copy(minerRewardL2Address = reliable.elRewardAddress)
         )
       }
