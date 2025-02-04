@@ -4,7 +4,7 @@ services:
     stop_grace_period: 10s
     entrypoint: /tmp/run.sh
     volumes:
-      - ../ec-common/genesis.json:/tmp/genesis.json:ro
+      - ../ec-common/:/etc/secrets/:ro
       - ../ec-common/peers-geth.toml:/tmp/peers.toml:ro
       - ./run-geth.sh:/tmp/run.sh:ro
     env_file:
