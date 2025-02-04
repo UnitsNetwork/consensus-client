@@ -1,6 +1,6 @@
 services:
   geth:
-    image: ethereum/client-go:stable
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:v1.101411.6
     stop_grace_period: 10s
     entrypoint: /tmp/run.sh
     volumes:
