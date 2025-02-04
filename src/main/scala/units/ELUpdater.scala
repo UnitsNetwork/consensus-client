@@ -326,6 +326,7 @@ class ELUpdater(
         Some(
           IssuedTokenBridge.mkUpdateTokenRegistry(
             added = addedAssets.map(_.erc20Address),
+            addedAssetExponents = addedAssets.map(_.exponent),
             elBridgeAddress = chainContractOptions.elIssuedBridgeAddress
           )
         )

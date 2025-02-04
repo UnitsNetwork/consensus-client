@@ -64,8 +64,8 @@ func mkAssetRegistryEntries(assetIdBase58OrWaves: String, erc20AddressHex: Strin
 func getIssuedTokenSettings(assetIdBase58OrWaves: String) = {
   let x = getString(assetRegistryK + assetIdBase58OrWaves).valueOrErrorMessage("Can't find in a registry: " + assetIdBase58OrWaves)
   let parts = x.split(SEP)
-  strict correctLength = parts.size() >= 2 || throw("Invalid asset data: " + x)
-  (parts[0].parseIntValue(), parts[1]) # index, erc20AddressHex
+  strict correctLength = parts.size() >= 3 || throw("Invalid asset data: " + x)
+  (parts[0].parseIntValue(), parts[1], parts[2].parseIntValue()) # index, erc20AddressHex, ratioExponent
 }
 
 func isClTokenRegistered(assetIdBase58OrWaves: String) = getString(assetRegistryK + assetIdBase58OrWaves).isDefined()

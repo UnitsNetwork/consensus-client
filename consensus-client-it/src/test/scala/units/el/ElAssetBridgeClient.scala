@@ -16,7 +16,7 @@ import units.eth.EthAddress
 
 import java.math.BigInteger
 
-class ElIssuedTokenBridgeClient(
+class ElAssetBridgeClient(
     web3j: Web3j,
     address: EthAddress,
     defaultSender: Credentials,
@@ -69,13 +69,15 @@ class ElIssuedTokenBridgeClient(
   ): String = {
     val txnManager     = new RawTransactionManager(web3j, sender, EcContainer.ChainId)
     val bridgeContract = IssuedTokenBridgeContract.load(address.hex, web3j, txnManager, gasProvider) // TODO move to class?
-    bridgeContract.send_bridgeERC20(recipient.publicKeyHash, amountInEther.bigInteger).encodeFunctionCall()
+    // TODO Specify asset
+    bridgeContract.send_bridgeERC20(recipient.publicKeyHash, amountInEther.bigInteger, address.hexNoPrefix).encodeFunctionCall()
   }
 
-  def isRegistered(assetAddress: EthAddress): Boolean = {
+  def tokensRatio(assetAddress: EthAddress): Option[Long] = {
     val txnManager     = new RawTransactionManager(web3j, defaultSender, EcContainer.ChainId)
     val bridgeContract = IssuedTokenBridgeContract.load(address.hex, web3j, txnManager, gasProvider)
-    bridgeContract.call_tokenRegistry(assetAddress.hexNoPrefix).send()
+    val r = bridgeContract.call_tokensRatio(assetAddress.hexNoPrefix).send()
+    if (r > 0) Some(r) else None
   }
 
   def sendMint(

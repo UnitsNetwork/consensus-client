@@ -9,7 +9,7 @@ import units.client.engine.model.BlockNumber
 import units.el.IssuedTokenBridge
 import units.eth.EthAddress
 
-class IssuedTokenBridgeC2ETestSuite extends BaseDockerTestSuite {
+class AssetBridgeC2ETestSuite extends BaseDockerTestSuite {
   private val clSender          = clRichAccount1
   private val elReceiver        = elRichAccount1
   private val elReceiverAddress = EthAddress.unsafeFrom(elReceiver.getAddress)
@@ -30,7 +30,7 @@ class IssuedTokenBridgeC2ETestSuite extends BaseDockerTestSuite {
     rejected.message should include(s"Can't find in a registry: $issueAsset")
 
     step("2. Enable the asset in the registry")
-    waves1.api.broadcastAndWait(ChainContract.registerToken(issueAsset, elIssuedTokenBridgeAddress))
+    waves1.api.broadcastAndWait(ChainContract.registerToken(issueAsset, elIssuedTokenBridgeAddress, 18))
 
     step("3. Try to transfer the asset")
     val elCurrHeight = ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact()
