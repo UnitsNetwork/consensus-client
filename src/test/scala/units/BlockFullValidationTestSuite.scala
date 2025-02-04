@@ -1,6 +1,7 @@
 package units
 
 import com.wavesplatform.common.utils.EitherExt2
+import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.transaction.TxHelpers
 import units.ELUpdater.State.ChainStatus.{FollowingChain, WaitForNewChain}
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex

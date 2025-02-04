@@ -1,5 +1,6 @@
 package units.client.contract
 
+import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.common.utils.{Base64, EitherExt2}
 import com.wavesplatform.lang.API
 import com.wavesplatform.lang.script.Script

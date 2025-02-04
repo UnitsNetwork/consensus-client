@@ -5,17 +5,18 @@ import com.wavesplatform.account.{Address, KeyPair}
 import com.wavesplatform.common.merkle.Digest
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2
+import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.state.{BooleanDataEntry, DataEntry}
 import com.wavesplatform.test.NumericExt
 import com.wavesplatform.transaction.TxHelpers.defaultSigner
 import com.wavesplatform.transaction.smart.{InvokeScriptTransaction, SetScriptTransaction}
 import com.wavesplatform.transaction.{Asset, DataTransaction, TxHelpers}
-import units.{BlockHash, ELUpdater}
 import units.client.L2BlockLike
 import units.client.contract.HasConsensusLayerDappTxHelpers.*
 import units.client.contract.HasConsensusLayerDappTxHelpers.DefaultFees.ChainContract.*
 import units.eth.{EthAddress, EthereumConstants}
+import units.{BlockHash, ELUpdater}
 
 trait HasConsensusLayerDappTxHelpers {
   def currentHitSource: ByteStr
