@@ -2,6 +2,7 @@ package units.client
 
 import cats.syntax.either.*
 import com.wavesplatform.common.utils.EitherExt2
+import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.state.Blockchain
 import com.wavesplatform.utils.ScorexLogging
 import monix.execution.atomic.{Atomic, AtomicInt}

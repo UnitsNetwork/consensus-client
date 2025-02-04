@@ -7,7 +7,7 @@ import java.time.format.DateTimeFormatter
 description := "Consensus client integration tests"
 
 libraryDependencies ++= Seq(
-  "org.testcontainers" % "testcontainers" % "1.20.3",
+  "org.testcontainers" % "testcontainers" % "1.20.4",
   "org.web3j"          % "core"           % "4.9.8"
 ).map(_ % Test)
 
