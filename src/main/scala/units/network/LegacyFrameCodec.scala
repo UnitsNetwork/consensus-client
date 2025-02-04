@@ -7,8 +7,6 @@ import com.wavesplatform.network.message.Message.MessageCode
 import com.wavesplatform.network.{LegacyFrameCodec as LFC, PeerDatabase}
 
 class LegacyFrameCodec(peerDatabase: PeerDatabase) extends LFC(peerDatabase) {
-  override protected def filterBySpecOrChecksum(spec: Spec, checkSum: Array[MessageCode]): Boolean = true
-
   override protected def specsByCodes: Map[MessageCode, Spec] = BasicMessagesRepo.specsByCodes
 
   override protected def messageToRawData(msg: Any): MessageRawData = {

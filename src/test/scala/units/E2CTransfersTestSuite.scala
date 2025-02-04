@@ -2,6 +2,7 @@ package units
 
 import com.wavesplatform.block.Block.BlockId
 import com.wavesplatform.common.utils.EitherExt2
+import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.db.WithState.AddrWithBalance
 import com.wavesplatform.mining.MultiDimensionalMiningConstraint
 import com.wavesplatform.test.produce
@@ -25,10 +26,10 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
   private val e2CTransfersRootHashHex = HexBytesConverter.toHex(Bridge.mkTransfersHash(ecBlockLogs).explicitGet())
   private val transferProofs          = Bridge.mkTransferProofs(List(transfer), 0).reverse // Contract requires from bottom to top
 
-  private val reliable    = ElMinerSettings(Wallet.generateNewAccount(TestSettings.Default.walletSeed, 0))
+  private val reliable    = ElMinerSettings(Wallet.generateNewAccount(super.defaultSettings.walletSeed, 0))
   private val malfunction = ElMinerSettings(TxHelpers.signer(2)) // Prevents block finalization
 
-  override protected val defaultSettings: TestSettings = TestSettings.Default.copy(
+  override protected val defaultSettings: TestSettings = super.defaultSettings.copy(
     initialMiners = List(reliable),
     additionalBalances = List(AddrWithBalance(transferReceiver.toAddress, DefaultFees.ChainContract.withdrawFee))
   )

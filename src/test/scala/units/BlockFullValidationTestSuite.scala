@@ -1,6 +1,7 @@
 package units
 
 import com.wavesplatform.common.utils.EitherExt2
+import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.transaction.TxHelpers
 import units.ELUpdater.State.ChainStatus.{FollowingChain, WaitForNewChain}
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
@@ -16,7 +17,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
   private val reliable    = ElMinerSettings(TxHelpers.signer(1))
   private val malfunction = ElMinerSettings(TxHelpers.signer(2)) // Prevents a block finalization
 
-  override protected val defaultSettings: TestSettings = TestSettings.Default.copy(
+  override protected val defaultSettings: TestSettings = super.defaultSettings.copy(
     initialMiners = List(reliable, malfunction)
   )
 

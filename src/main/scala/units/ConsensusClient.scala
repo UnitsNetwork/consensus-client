@@ -1,14 +1,17 @@
 package units
 
+import com.typesafe.config.Config
 import com.typesafe.scalalogging.StrictLogging
 import com.wavesplatform.block.{Block, MicroBlock}
 import com.wavesplatform.common.state.ByteStr
+import com.wavesplatform.common.utils.EitherExt2
+import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.events.BlockchainUpdateTriggers
 import com.wavesplatform.extensions.{Extension, Context as ExtensionContext}
 import com.wavesplatform.state.{Blockchain, StateSnapshot}
 import io.netty.channel.group.DefaultChannelGroup
 import monix.execution.{CancelableFuture, Scheduler}
-import net.ceedubs.ficus.Ficus.*
+import pureconfig.ConfigSource
 import units.ConsensusClient.ChainHandler
 import units.client.engine.EngineApiClient
 import units.network.*
@@ -28,15 +31,18 @@ class ConsensusClient(context: ExtensionContext) extends StrictLogging with Exte
   private val chainHandlers: Seq[ChainHandler] = {
     val defaultConfig = context.settings.config.getConfig("units.defaults")
 
+    def load(cfg: Config): ClientConfig =
+      ConfigSource.fromConfig(cfg.withFallback(defaultConfig).resolve()).loadOrThrow[ClientConfig]
+
     val legacyChainConfig =
-      Try(context.settings.config.getConfig("waves.l2")).toOption.map(_.withFallback(defaultConfig).as[ClientConfig]).tapEach { _ =>
+      Try(context.settings.config.getConfig("waves.l2")).toOption.map(load).tapEach { _ =>
         logger.info("Consensus client settings at waves.l2 path have been deprecated, please update your config file")
       }
 
     val newChainConfigs = context.settings.config
       .getConfigList("units.chains")
       .asScala
-      .map(cfg => cfg.withFallback(defaultConfig).resolve().as[ClientConfig])
+      .map(load)
 
     val allChainConfigs = legacyChainConfig ++ newChainConfigs
 
@@ -93,6 +99,7 @@ object ConsensusClient {
       config,
       context.time,
       context.wallet,
+      context.settings.blockchainSettings.functionalitySettings.unitsRegistryAddressParsed.explicitGet(),
       blockObserver.loadBlock,
       context.broadcastTransaction,
       eluScheduler,

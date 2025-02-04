@@ -2,6 +2,7 @@ package units.client
 
 import cats.syntax.either.*
 import com.wavesplatform.common.utils.EitherExt2
+import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.state.Blockchain
 import com.wavesplatform.utils.ScorexLogging
 import monix.execution.atomic.{Atomic, AtomicInt}
@@ -62,6 +63,9 @@ class TestEcClients private (
     */
   def fullValidatedBlocks: Set[BlockHash] = getLogsCalls.get()
 
+  private val forkChoiceUpdateWithPayloadIdCalls = AtomicInt(0)
+  def miningAttempts: Int                        = forkChoiceUpdateWithPayloadIdCalls.get()
+
   val engineApi = new LoggedEngineApiClient(
     new EngineApiClient {
       override def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int): JobResult[PayloadStatus] = {
@@ -87,7 +91,8 @@ class TestEcClients private (
           prevRandao: String,
           withdrawals: Vector[Withdrawal],
           requestId: Int
-      ): JobResult[PayloadId] =
+      ): JobResult[PayloadId] = {
+        forkChoiceUpdateWithPayloadIdCalls.increment()
         forgingBlocks
           .get()
           .collectFirst { case fb if fb.testBlock.parentHash == lastBlockHash => fb } match {
@@ -98,6 +103,7 @@ class TestEcClients private (
           case Some(fb) =>
             fb.payloadId.asRight
         }
+      }
 
       override def getPayload(payloadId: PayloadId, requestId: Int): JobResult[JsObject] =
         forgingBlocks.transformAndExtract(_.withoutFirst { fb => fb.payloadId == payloadId }) match {

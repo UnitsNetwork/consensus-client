@@ -4,6 +4,7 @@ import com.wavesplatform.account.AddressScheme
 import com.wavesplatform.api.LoggingBackend
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2
+import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.utils.ScorexLogging
 import monix.execution.atomic.AtomicBoolean
 import org.scalatest.freespec.AnyFreeSpec
@@ -78,6 +79,9 @@ trait BaseDockerTestSuite
   }
 
   protected def setupChain(): Unit = {
+    log.info("Approve chain on registry")
+    waves1.api.broadcast(ChainRegistry.approve())
+
     log.info("Set script")
     waves1.api.broadcastAndWait(ChainContract.setScript())
 
