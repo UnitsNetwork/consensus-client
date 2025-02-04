@@ -2,7 +2,7 @@ package units.el
 
 import com.wavesplatform.account.Address
 import org.web3j.abi.*
-import org.web3j.abi.datatypes.generated.{Bytes20, Int64}
+import org.web3j.abi.datatypes.generated.{Bytes20, Int64, Uint8}
 import org.web3j.abi.datatypes.{Event, Function, Type, Address as Web3JAddress, DynamicArray as Web3JArray}
 import units.eth.{EthAddress, EthereumConstants}
 import units.util.HexBytesConverter
@@ -117,41 +117,50 @@ object IssuedTokenBridge {
       }
   }
 
-  case class RegistryUpdated(added: List[EthAddress], removed: List[EthAddress])
+  case class RegistryUpdated(added: List[EthAddress], addedExponents: List[Int], removed: List[EthAddress])
   object RegistryUpdated {
     private val AddressesType = new TypeReference[Web3JArray[Web3JAddress]](false) {}
+    private val ExponentType  = new TypeReference[Web3JArray[Uint8]](false) {}
 
     private val EventDef: Event = new Event(
       "RegistryUpdated",
-      List[TypeReference[?]](AddressesType, AddressesType).asJava
+      List[TypeReference[?]](AddressesType, ExponentType, AddressesType).asJava
     )
 
     val Topic = EventEncoder.encode(EventDef)
 
     def encodeArgs(args: RegistryUpdated): String = {
-      val added   = new Web3JArray(classOf[Web3JAddress], args.added.map(x => new Web3JAddress(x.hexNoPrefix)).asJava)
-      val removed = new Web3JArray(classOf[Web3JAddress], args.removed.map(x => new Web3JAddress(x.hexNoPrefix)).asJava)
+      val added          = new Web3JArray(classOf[Web3JAddress], args.added.map(x => new Web3JAddress(x.hexNoPrefix)).asJava)
+      val addedExponents = new Web3JArray(classOf[Uint8], args.addedExponents.map(new Uint8(_)).asJava)
+      val removed        = new Web3JArray(classOf[Web3JAddress], args.removed.map(x => new Web3JAddress(x.hexNoPrefix)).asJava)
 
-      TypeEncoder.encode(added) + TypeEncoder.encode(removed)
+      TypeEncoder.encode(added) + TypeEncoder.encode(addedExponents) + TypeEncoder.encode(removed)
     }
 
     def decodeLog(ethEventData: String): Either[String, RegistryUpdated] =
       try {
         FunctionReturnDecoder.decode(ethEventData, EventDef.getNonIndexedParameters).asScala.toList match {
-          case (added: Web3JArray[Web3JAddress @unchecked]) :: (removed: Web3JArray[Web3JAddress @unchecked]) :: Nil
-              if added.getComponentType == classOf[Web3JAddress] && removed.getComponentType == classOf[Web3JAddress] =>
+          case (added: Web3JArray[Web3JAddress @unchecked]) ::
+              (addedExponents: Web3JArray[Uint8 @unchecked]) ::
+              (removed: Web3JArray[Web3JAddress @unchecked]) :: Nil
+              if added.getComponentType == classOf[Web3JAddress] &&
+                addedExponents.getComponentType == classOf[Uint8] &&
+                removed.getComponentType == classOf[Web3JAddress] =>
             for {
               added <- Try(added.getValue.asScala.map(x => EthAddress.unsafeFrom(x.getValue)).toList).toEither.left.map(e =>
-                s"Can't decode added: ${e.getMessage}"
+                s"Can't decode added field: ${e.getMessage}"
+              )
+              addedExponents <- Try(addedExponents.getValue.asScala.map(_.getValue.intValueExact()).toList).toEither.left.map(e =>
+                s"Can't decode addedExponents field: ${e.getMessage}"
               )
               removed <- Try(removed.getValue.asScala.map(x => EthAddress.unsafeFrom(x.getValue)).toList).toEither.left.map(e =>
-                s"Can't decode removed: ${e.getMessage}"
+                s"Can't decode removed field: ${e.getMessage}"
               )
-            } yield new RegistryUpdated(added, removed)
+            } yield new RegistryUpdated(added, addedExponents, removed)
           case xs =>
             Left(
-              s"Expected (added: ${AddressesType.getClassType.getSimpleName}, removed: ${AddressesType.getClassType.getSimpleName}) fields, " +
-                s"got: ${xs.mkString(", ")}"
+              s"Expected (added: ${AddressesType.getClassType.getSimpleName}, addedExponents: ${ExponentType.getClassType.getSimpleName}, " +
+                s"removed: ${AddressesType.getClassType.getSimpleName}) fields, got: ${xs.mkString(", ")}"
             )
         }
       } catch {

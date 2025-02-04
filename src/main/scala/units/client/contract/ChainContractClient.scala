@@ -310,12 +310,13 @@ trait ChainContractClient {
   private def getRegisteredAssetData(asset: Asset): Registry.RegisteredAsset = {
     val raw   = getStringData(s"assetRegistry_${Registry.stringifyAsset(asset)}").getOrElse(fail(s"Can't find a registered asset $asset"))
     val parts = raw.split(Sep)
-    if (parts.length != 2) fail(s"Expected 2 elements in a registry entry, got ${parts.length}: $raw")
+    if (parts.length < 3) fail(s"Expected at least 3 elements in a asset registry entry, got ${parts.length}: $raw")
 
-    val tokenIndex   = parts(0).toIntOption.getOrElse(fail(s"Expected an index of issued token in a transfer, got: ${parts(2)}"))
+    val tokenIndex   = parts(0).toIntOption.getOrElse(fail(s"Expected an index of asset in a registry, got: ${parts(1)}"))
     val erc20Address = EthAddress.unsafeFrom(s"0x${parts(1)}")
+    val exponent     = parts(2).toIntOption.getOrElse(fail(s"Expected an exponent of asset in a registry, got: ${parts(2)}"))
 
-    Registry.RegisteredAsset(asset, tokenIndex, erc20Address)
+    Registry.RegisteredAsset(asset, tokenIndex, erc20Address, exponent)
   }
 
   def getAssetRegistrySize: Int = getLongData("assetRegistrySize").getOrElse(0L).toInt
@@ -394,7 +395,7 @@ object ChainContractClient {
   object Registry {
     val WavesTokenName = "WAVES"
 
-    case class RegisteredAsset(asset: Asset, index: Int, erc20Address: EthAddress)
+    case class RegisteredAsset(asset: Asset, index: Int, erc20Address: EthAddress, exponent: Int)
 
     def parseAsset(rawAssetId: String): Asset =
       if (rawAssetId == WavesTokenName) Asset.Waves

@@ -1319,12 +1319,25 @@ class ELUpdater(
         true,
         ClientError(s"Expected ${expectedAddedAssets.size} added assets, got ${elEvent.added.size}")
       )
-      _ <- elEvent.added.zip(expectedAddedAssets).zipWithIndex.traverse { case ((actual, expected), i) =>
-        Either.cond(
-          actual == expected.erc20Address,
-          (),
-          ClientError(s"Added asset #$i: expected ${expected.erc20Address}, got $actual")
-        )
+      _ <- Either.cond(
+        elEvent.addedExponents.size == expectedAddedAssets.size,
+        true,
+        ClientError(s"Expected ${expectedAddedAssets.size} added exponent assets, got ${elEvent.addedExponents.size}")
+      )
+      _ <- elEvent.added.lazyZip(elEvent.addedExponents).lazyZip(expectedAddedAssets).zipWithIndex.toList.traverse {
+        case ((actual, actualExponent, expected), i) =>
+          for {
+            _ <- Either.cond(
+              actual == expected.erc20Address,
+              (),
+              ClientError(s"Added asset #$i: expected ${expected.erc20Address}, got $actual")
+            )
+            _ <- Either.cond(
+              actualExponent == expected.exponent,
+              (),
+              ClientError(s"Added asset exponent #$i: expected ${expected.exponent}, got $actualExponent")
+            )
+          } yield ()
       }
       _ <- Either.cond(
         elEvent.removed.isEmpty,

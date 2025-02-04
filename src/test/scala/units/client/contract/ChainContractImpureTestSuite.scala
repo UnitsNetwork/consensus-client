@@ -10,7 +10,7 @@ class ChainContractImpureTestSuite extends BaseIntegrationTestSuite {
   "registerToken" - {
     "Unknown token" in withExtensionDomain() { d =>
       val issueTxn    = TxHelpers.issue(d.chainRegistryAccount, 1, 8)
-      val registerTxn = d.ChainContract.registerToken(issueTxn.asset, bridgeAddress)
+      val registerTxn = d.ChainContract.registerToken(issueTxn.asset, bridgeAddress, 8)
       d.appendMicroBlockE(registerTxn).left.value.getMessage should include(s"Unknown asset ${issueTxn.asset}")
     }
 
@@ -24,7 +24,7 @@ class ChainContractImpureTestSuite extends BaseIntegrationTestSuite {
     ) { address =>
       withExtensionDomain() { d =>
         val issueTxn    = TxHelpers.issue(d.chainRegistryAccount, 1, 8)
-        val registerTxn = d.ChainContract.registerToken(issueTxn.asset, address, d.chainContractAccount)
+        val registerTxn = d.ChainContract.registerToken(issueTxn.asset, address, 8, d.chainContractAccount)
         d.appendMicroBlockE(issueTxn, registerTxn).left.value.getMessage should include(s"Invalid ERC20 address: $address")
       }
     }
@@ -34,10 +34,10 @@ class ChainContractImpureTestSuite extends BaseIntegrationTestSuite {
       val issueTxn2 = TxHelpers.issue(d.chainRegistryAccount, 1, 8)
       d.appendMicroBlock(issueTxn1, issueTxn2)
 
-      val txn1 = d.ChainContract.registerToken(issueTxn1.asset, bridgeAddress)
+      val txn1 = d.ChainContract.registerToken(issueTxn1.asset, bridgeAddress, 8)
       d.appendMicroBlock(txn1)
 
-      val txn2 = d.ChainContract.registerToken(issueTxn2.asset, bridgeAddress)
+      val txn2 = d.ChainContract.registerToken(issueTxn2.asset, bridgeAddress, 8)
       d.appendMicroBlockE(txn2).left.value.getMessage should include(s"EL asset is already registered: ${bridgeAddress.hexNoPrefix}")
     }
 
@@ -55,10 +55,10 @@ class ChainContractImpureTestSuite extends BaseIntegrationTestSuite {
       }
 
       def test(d: ExtensionDomain, asset: Asset): Unit = {
-        val txn1 = d.ChainContract.registerToken(asset, bridgeAddress)
+        val txn1 = d.ChainContract.registerToken(asset, bridgeAddress, 8)
         d.appendMicroBlock(txn1)
 
-        val txn2 = d.ChainContract.registerToken(asset, EthAddress.from("0x10000000000000000000000000000155C3d06a7E").value)
+        val txn2 = d.ChainContract.registerToken(asset, EthAddress.from("0x10000000000000000000000000000155C3d06a7E").value, 8)
         val name = asset.fold(ChainContractClient.Registry.WavesTokenName)(_.id.toString)
         d.appendMicroBlockE(txn2).left.value.getMessage should include(s"CL asset is already registered: $name")
       }
@@ -68,7 +68,7 @@ class ChainContractImpureTestSuite extends BaseIntegrationTestSuite {
       d.chainContractClient.getAssetRegistrySize shouldBe 0
 
       val issueTxn = TxHelpers.issue(d.chainRegistryAccount, 1, 8)
-      d.appendMicroBlock(issueTxn, d.ChainContract.registerToken(issueTxn.asset, bridgeAddress))
+      d.appendMicroBlock(issueTxn, d.ChainContract.registerToken(issueTxn.asset, bridgeAddress, 8))
 
       d.chainContractClient.getAssetRegistrySize shouldBe 1
     }
@@ -76,7 +76,7 @@ class ChainContractImpureTestSuite extends BaseIntegrationTestSuite {
 
   "createAndRegisterToken" - {
     "Invalid sender" in withExtensionDomain() { d =>
-      val txn = d.ChainContract.createAndRegisterToken(bridgeAddress, "test", "test", 8, d.chainRegistryAccount)
+      val txn = d.ChainContract.createAndRegisterToken(bridgeAddress, 8, "test", "test", 8, d.chainRegistryAccount)
       d.appendMicroBlockE(txn).left.value.getMessage should include("Only owner of chain contract can do this")
     }
 
@@ -89,23 +89,23 @@ class ChainContractImpureTestSuite extends BaseIntegrationTestSuite {
       )
     ) { address =>
       withExtensionDomain() { d =>
-        val txn = d.ChainContract.createAndRegisterToken(address, "test", "test", 8, d.chainContractAccount)
+        val txn = d.ChainContract.createAndRegisterToken(address, 8, "test", "test", 8, d.chainContractAccount)
         d.appendMicroBlockE(txn).left.value.getMessage should include(s"Invalid ERC20 address: $address")
       }
     }
 
     "Can't register a EL token twice" in withExtensionDomain() { d =>
-      val txn1 = d.ChainContract.createAndRegisterToken(bridgeAddress, "test", "test", 8)
+      val txn1 = d.ChainContract.createAndRegisterToken(bridgeAddress, 8, "test", "test", 8)
       d.appendMicroBlock(txn1)
 
-      val txn2 = d.ChainContract.createAndRegisterToken(bridgeAddress, "test", "test", 8)
+      val txn2 = d.ChainContract.createAndRegisterToken(bridgeAddress, 8, "test", "test", 8)
       d.appendMicroBlockE(txn2).left.value.getMessage should include(s"EL asset is already registered: ${bridgeAddress.hexNoPrefix}")
     }
 
     "Registers a token" in withExtensionDomain() { d =>
       d.chainContractClient.getAssetRegistrySize shouldBe 0
 
-      val txn = d.ChainContract.createAndRegisterToken(bridgeAddress, "test", "test", 8)
+      val txn = d.ChainContract.createAndRegisterToken(bridgeAddress, 8, "test", "test", 8)
       d.appendMicroBlock(txn)
 
       d.chainContractClient.getAssetRegistrySize shouldBe 1

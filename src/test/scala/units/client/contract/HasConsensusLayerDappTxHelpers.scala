@@ -80,33 +80,36 @@ trait HasConsensusLayerDappTxHelpers {
       fee = leaveFee
     )
 
-    def registerToken(asset: Asset, erc20Address: EthAddress, invoker: KeyPair = chainContractAccount): InvokeScriptTransaction =
-      registerToken(asset, erc20Address.hexNoPrefix, invoker)
+    def registerToken(asset: Asset, erc20Address: EthAddress, elDecimals: Int, invoker: KeyPair = chainContractAccount): InvokeScriptTransaction =
+      registerToken(asset, erc20Address.hexNoPrefix, elDecimals, invoker)
 
-    def registerToken(asset: Asset, erc20AddressHex: String, invoker: KeyPair): InvokeScriptTransaction =
+    def registerToken(asset: Asset, erc20AddressHex: String, elDecimals: Int, invoker: KeyPair): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = invoker,
         dApp = chainContractAddress,
         func = "registerToken".some,
         args = List(
-          Terms.CONST_STRING(asset.fold(ChainContractClient.Registry.WavesTokenName)(_.id.toString)),
-          Terms.CONST_STRING(erc20AddressHex)
-        ).map(_.explicitGet())
+          Terms.CONST_STRING(asset.fold(ChainContractClient.Registry.WavesTokenName)(_.id.toString)).explicitGet(),
+          Terms.CONST_STRING(erc20AddressHex).explicitGet(),
+          Terms.CONST_LONG(elDecimals)
+        )
       )
 
     def createAndRegisterToken(
         erc20Address: EthAddress,
+        elDecimals: Int,
         name: String,
         description: String,
-        decimals: Int,
+        clDecimals: Int,
         invoker: KeyPair = chainContractAccount
-    ): InvokeScriptTransaction = createAndRegisterToken(erc20Address.hexNoPrefix, name, description, decimals, invoker)
+    ): InvokeScriptTransaction = createAndRegisterToken(erc20Address.hexNoPrefix, elDecimals, name, description, clDecimals, invoker)
 
     def createAndRegisterToken(
         erc20AddressHex: String,
+        elDecimals: Int,
         name: String,
         description: String,
-        decimals: Int,
+        clDecimals: Int,
         invoker: KeyPair
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
@@ -115,9 +118,10 @@ trait HasConsensusLayerDappTxHelpers {
         func = "createAndRegisterToken".some,
         args = List(
           Terms.CONST_STRING(erc20AddressHex).explicitGet(),
+          Terms.CONST_LONG(elDecimals),
           Terms.CONST_STRING(name).explicitGet(),
           Terms.CONST_STRING(description).explicitGet(),
-          Terms.CONST_LONG(decimals)
+          Terms.CONST_LONG(clDecimals)
         )
       )
 

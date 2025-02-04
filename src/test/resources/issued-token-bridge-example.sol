@@ -2,9 +2,6 @@
 pragma solidity ^0.8.26;
 
 contract IssuedTokenBridge {
-    uint256 public constant MIN_AMOUNT_IN_WEI = 1 * EL_TO_CL_RATIO;
-    uint256 public constant MAX_AMOUNT_IN_WEI = uint256(uint64(type(int64).max)) * EL_TO_CL_RATIO;
-
     uint16 public constant MAX_TRANSFERS_IN_BLOCK = 1024;
 
     mapping(address => uint256) public balances;
@@ -16,17 +13,22 @@ contract IssuedTokenBridge {
     event ERC20BridgeInitiated(bytes20 wavesRecipient, int64 clAmount, address assetId);
     event ERC20BridgeFinalized(address recipient, int64 clAmount, address assetId);
 
-    event RegistryUpdated(address[] addedAssets, uint40[] addedAssetsRatio, address[] removed);
+    event RegistryUpdated(address[] addedAssets, uint8[] addedAssetExponents, address[] removed);
 
-    function updateTokenRegistry(address[] calldata addedAssets, uint40[] calldata addedAssetsRatio) external {
+    function updateTokenRegistry(address[] calldata addedAssets, uint8[] calldata addedAssetExponents) external {
         // TODO: add check, that only a miner can do this
-        require(addedAssets.length == addedAssetsRatio.length, "Different sizes of added assets and their ratio");
+        require(addedAssets.length == addedAssetExponents.length, "Different sizes of added assets and their exponents");
 
         for (uint256 i = 0; i < addedAssets.length; i++) {
-            tokensRatio[addedAssets[i]] = addedAssetsRatio[i];
+            uint8 exponent = addedAssetExponents[i];
+            require(exponent <= 10, string.concat("Invalid asset exponent: ", uint2str(uint(exponent))));
+            // 10^10 =    10 000 000 000
+            // 2^32  =     4 294 967 296
+            // 2^40  = 1 099 511 627 776 - fits
+            tokensRatio[addedAssets[i]] = uint40(10 ** addedAssetExponents[i]);
         }
 
-        emit RegistryUpdated(addedAssets, addedAssetsRatio, new address[](0));
+        emit RegistryUpdated(addedAssets, addedAssetExponents, new address[](0));
     }
 
     function burn(address recipient, uint256 elAmount) internal {
@@ -42,22 +44,22 @@ contract IssuedTokenBridge {
 
     // wavesRecipient is a public key hash of recipient account.
     function bridgeERC20(bytes20 wavesRecipient, uint256 elAmount, address asset) external {
-        require(elAmount >= MIN_AMOUNT_IN_WEI, string.concat("Sent value ", uint2str(elAmount), " must be greater or equal to ", uint2str(MIN_AMOUNT_IN_WEI)));
-        require(elAmount <= MAX_AMOUNT_IN_WEI, string.concat("Sent value ", uint2str(elAmount), " must be less or equal to ", uint2str(MAX_AMOUNT_IN_WEI)));
-
-        uint256 balance = balances[msg.sender];
-        require(balance > 0, string.concat("Insufficient funds, only ", uint2str(balance), " available"));
-
         uint40 ratio = tokensRatio[asset];
         require(ratio > 0, "Token is not registered");
+
+        uint256 minAmountInWei = 1 * ratio;
+        uint256 maxAmountInWei = uint256(uint64(type(int64).max)) * ratio;
+        require(elAmount >= minAmountInWei, string.concat("Sent value ", uint2str(elAmount), " must be greater or equal to ", uint2str(minAmountInWei)));
+        require(elAmount <= maxAmountInWei, string.concat("Sent value ", uint2str(elAmount), " must be less or equal to ", uint2str(maxAmountInWei)));
+
+        uint256 balance = balances[msg.sender];
+        require(balance > elAmount, string.concat("Insufficient funds, only ", uint2str(balance), " available"));
 
         uint256 clAmount = elAmount / ratio;
         require(clAmount * ratio == elAmount, string.concat("Sent value ", uint2str(elAmount), " must be a multiple of ", uint2str(ratio)));
 
         uint blockNumber = block.number;
         require(transfersPerBlock[blockNumber] < MAX_TRANSFERS_IN_BLOCK, string.concat("Max transfers limit of ", uint2str(uint(MAX_TRANSFERS_IN_BLOCK)), " reached in this block. Try again later"));
-
-        // TODO Move up after moving tests
 
         transfersPerBlock[blockNumber]++;
         burn(msg.sender, elAmount);
@@ -72,8 +74,10 @@ contract IssuedTokenBridge {
         require(ratio > 0, "Token is not registered");
 
         uint256 elAmount = uint256(int256(clAmount)) * ratio;
-        require(elAmount <= MAX_AMOUNT_IN_WEI, "Amount exceeds maximum allowable value");
+        uint256 maxAmountInWei = uint256(uint64(type(int64).max)) * ratio;
+        require(elAmount <= maxAmountInWei, "Amount exceeds maximum allowable value");
 
+        // TODO: check amount overflow
         mint(recipient, elAmount);
         emit ERC20BridgeFinalized(recipient, clAmount, asset);
     }
