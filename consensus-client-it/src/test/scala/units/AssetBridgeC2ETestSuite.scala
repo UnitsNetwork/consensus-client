@@ -20,7 +20,7 @@ class AssetBridgeC2ETestSuite extends BaseDockerTestSuite {
   "Checking balances in CL->EL transfers" in {
     step("1. Try to transfer an asset without registration")
     def transferTxn: InvokeScriptTransaction =
-      ChainContract.transfer(clSender, elRichAddress1, issueAsset, UnitsConvert.toWavesAmount(userAmount), ChainContract.TransferIssuedFunctionName)
+      ChainContract.transfer(clSender, elReceiverAddress, issueAsset, UnitsConvert.toWavesAmount(userAmount), ChainContract.TransferIssuedFunctionName)
 
     val rejected = waves1.api.broadcast(transferTxn).left.value
     rejected.error shouldBe ScriptExecutionError.Id

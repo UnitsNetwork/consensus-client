@@ -363,7 +363,7 @@ class ELUpdater(
         nextBlockUnixTs = nextBlockUnixTs,
         lastC2ENativeTransferIndex = transfers.lastOption.fold(lastC2ETransferIndex)(_.index),
         lastElWithdrawalIndex = lastElWithdrawalIndex + withdrawals.size,
-        lastC2EIssuedTransferIndex = lastC2EIssuedTransferIndex + depositedTransactions.size,
+        lastC2EIssuedTransferIndex = lastC2EIssuedTransferIndex + assetTransfers.size,
         lastAssetRegistryIndex = addedAssets.lastOption.fold(lastAssetRegistryIndex)(_.index)
       )
     }
