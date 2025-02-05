@@ -26,7 +26,7 @@ class AssetBridgeE2CTestSuite extends BaseDockerTestSuite {
   private val enoughEthAmount   = ethAmount * testTransfers
   private val enoughWavesAmount = wavesAmount * testTransfers
 
-  private lazy val issueAssetTxn = TxHelpers.issue(clTokenOwner)
+  private lazy val issueAssetTxn = TxHelpers.issue(clTokenOwner, decimals = 8)
   private lazy val issueAsset    = IssuedAsset(issueAssetTxn.id())
 
   private val tenGwei = BigInt(Convert.toWei("10", Convert.Unit.GWEI).toBigIntegerExact)

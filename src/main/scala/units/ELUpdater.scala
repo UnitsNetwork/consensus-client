@@ -222,7 +222,7 @@ class ELUpdater(
               )
               ecBlock = newBlock.toEcBlock
               nativeTransfersRootHash <- getE2CNativeTransfersRootHash(ecBlock.hash, chainContractOptions.elNativeBridgeAddress)
-              issuedTransfersRootHash <- getE2CIssuedTransfersRootHash(ecBlock.hash, chainContractOptions.elIssuedBridgeAddress)
+              issuedTransfersRootHash <- getE2CIssuedTransfersRootHash(ecBlock.hash, chainContractOptions.elAssetBridgeAddress)
               funcCall <- contractFunction.toFunctionCall(
                 ecBlock.hash,
                 nativeTransfersRootHash,
@@ -309,7 +309,7 @@ class ELUpdater(
     val withdrawals               = rewardWithdrawal ++ nativeTransferWithdrawals
 
     val startC2EIssuedTransferIndex = lastC2EIssuedTransferIndex + 1
-    val issuedTransfers = chainContractClient.getIssuedTransfers(
+    val assetTransfers = chainContractClient.getIssuedTransfers(
       fromIndex = startC2EIssuedTransferIndex,
       maxItems = ChainContractClient.MaxC2EIssuedTransfers
     )
@@ -327,11 +327,11 @@ class ELUpdater(
           IssuedTokenBridge.mkUpdateTokenRegistry(
             added = addedAssets.map(_.erc20Address),
             addedAssetExponents = addedAssets.map(_.exponent),
-            elBridgeAddress = chainContractOptions.elIssuedBridgeAddress
+            elBridgeAddress = chainContractOptions.elAssetBridgeAddress
           )
         )
 
-    val depositedTransactions = updateTokenRegistryTransaction.toVector ++ issuedTransfers.map { x =>
+    val depositedTransactions = updateTokenRegistryTransaction.toVector ++ assetTransfers.map { x =>
       IssuedTokenBridge.mkFinalizeBridgeErc20Transaction(
         transferIndex = x.index,
         elContractAddress = x.erc20Address,
@@ -351,7 +351,11 @@ class ELUpdater(
     ).map { payloadId =>
       logger.info(
         s"Starting to forge payload $payloadId by miner ${epochInfo.miner} at height ${parentBlock.height + 1} " +
-          s"of epoch ${epochInfo.number} (ref=${parentBlock.hash}), ${withdrawals.size} withdrawals, ${transfers.size} transfers from $startC2ETransferIndex"
+          s"of epoch ${epochInfo.number} (ref=${parentBlock.hash})" +
+          {if (withdrawals.isEmpty) "" else s", ${withdrawals.size} withdrawals"} +
+          {if (transfers.isEmpty) "" else s"${transfers.size} native transfers from $startC2ETransferIndex"} +
+          updateTokenRegistryTransaction.fold("")(_ => s", new ${addedAssets.size} assets: {${addedAssets.mkString(", ")}}") +
+          {if (assetTransfers.isEmpty) "" else s", ${assetTransfers.size} asset transfers"}
       )
 
       MiningData(
@@ -1511,8 +1515,8 @@ class ELUpdater(
           .getBlock(contractBlock.parentHash)
           .toRight(ClientError(s"Can't find a parent block ${contractBlock.parentHash} of block ${contractBlock.hash} on chain contract"))
         _ <- validateE2CNativeTransfers(contractBlock, prevState.options.elNativeBridgeAddress)
-        _ <- validateE2CIssuedTransfers(contractBlock, prevState.options.elIssuedBridgeAddress)
-        _ <- validateAssetRegistryUpdate(ecBlock.hash, contractBlock, parentContractBlock, prevState.options.elIssuedBridgeAddress)
+        _ <- validateE2CIssuedTransfers(contractBlock, prevState.options.elAssetBridgeAddress)
+        _ <- validateAssetRegistryUpdate(ecBlock.hash, contractBlock, parentContractBlock, prevState.options.elAssetBridgeAddress)
         updatedLastElWithdrawalIndex <- validateWithdrawals(contractBlock, ecBlock, prevState.fullValidationStatus, prevState.options)
         _                            <- validateRandao(ecBlock, contractBlock.epoch)
         _                            <- validateWithdrawals(contractBlock, ecBlock, prevState.fullValidationStatus, prevState.options)

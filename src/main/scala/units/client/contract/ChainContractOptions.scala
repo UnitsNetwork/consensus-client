@@ -11,7 +11,7 @@ import units.eth.{EthAddress, Gwei}
 case class ChainContractOptions(
     miningReward: Gwei,
     elNativeBridgeAddress: EthAddress,
-    elIssuedBridgeAddress: EthAddress,
+    elAssetBridgeAddress: EthAddress,
     issuedTransfersActivationEpoch: Long
 ) {
   def startEpochChainFunction(epoch: Int, reference: BlockHash, vrf: ByteStr, chainInfo: Option[ChainInfo]): ContractFunction =

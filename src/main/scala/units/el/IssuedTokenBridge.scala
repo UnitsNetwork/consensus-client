@@ -200,7 +200,7 @@ object IssuedTokenBridge {
 
   def mkUpdateTokenRegistry(added: List[EthAddress], addedAssetExponents: List[Int], elBridgeAddress: EthAddress): DepositedTransaction =
     DepositedTransaction.create(
-      sourceHash = DepositedTransaction.mkUserDepositedSourceHash(HexBytesConverter.toBytes(added.last.hex)),
+      sourceHash = DepositedTransaction.mkUserDepositedSourceHash(HexBytesConverter.toBytes(added.last.hex)), // TODO
       from = EthereumConstants.ZeroAddress.hexNoPrefix,
       to = elBridgeAddress.hex,
       mint = BigInteger.ZERO,

@@ -16,6 +16,7 @@ import org.web3j.abi.datatypes.Function;
 import org.web3j.abi.datatypes.Type;
 import org.web3j.abi.datatypes.generated.Bytes20;
 import org.web3j.abi.datatypes.generated.Uint256;
+import org.web3j.abi.datatypes.generated.Uint40;
 import org.web3j.abi.datatypes.generated.Uint8;
 import org.web3j.abi.datatypes.primitive.Int;
 import org.web3j.abi.datatypes.primitive.Long;
@@ -268,11 +269,11 @@ public class IssuedTokenBridgeContract extends Contract {
         return executeRemoteCallTransaction(function);
     }
 
-    public RemoteFunctionCall<java.lang.Long> call_tokensRatio(String param0) {
+    public RemoteFunctionCall<Uint40> call_tokensRatio(String param0) {
         final Function function = new Function(FUNC_TOKENSRATIO, 
                 Arrays.<Type>asList(new org.web3j.abi.datatypes.Address(160, param0)), 
-                Arrays.<TypeReference<?>>asList(new TypeReference<Long>() {}));
-        return executeRemoteCallSingleValueReturn(function, java.lang.Long.class);
+                Arrays.<TypeReference<?>>asList(new TypeReference<Uint40>() {}));
+        return executeRemoteCallSingleValueReturn(function, Uint40.class);
     }
 
     public RemoteFunctionCall<TransactionReceipt> send_tokensRatio(String param0) {

@@ -242,7 +242,7 @@ trait ChainContractClient {
     elNativeBridgeAddress = getStringData("elBridgeAddress")
       .map(EthAddress.unsafeFrom)
       .getOrElse(throw new IllegalStateException("elBridgeAddress is empty on contract")),
-    elIssuedBridgeAddress = getStringData("elIssuedBridgeAddress")
+    elAssetBridgeAddress = getStringData("elIssuedBridgeAddress")
       .map(EthAddress.unsafeFrom)
       .getOrElse(throw new IllegalStateException("elIssuedBridgeAddress is empty on contract")),
     issuedTransfersActivationEpoch = getIssuedTransfersActivationEpoch
@@ -395,7 +395,9 @@ object ChainContractClient {
   object Registry {
     val WavesTokenName = "WAVES"
 
-    case class RegisteredAsset(asset: Asset, index: Int, erc20Address: EthAddress, exponent: Int)
+    case class RegisteredAsset(asset: Asset, index: Int, erc20Address: EthAddress, exponent: Int) {
+      override def toString: String = s"RegisteredAsset($asset, i=$index, $erc20Address, e=$exponent)"
+    }
 
     def parseAsset(rawAssetId: String): Asset =
       if (rawAssetId == WavesTokenName) Asset.Waves

@@ -76,8 +76,8 @@ class ElAssetBridgeClient(
   def tokensRatio(assetAddress: EthAddress): Option[Long] = {
     val txnManager     = new RawTransactionManager(web3j, defaultSender, EcContainer.ChainId)
     val bridgeContract = IssuedTokenBridgeContract.load(address.hex, web3j, txnManager, gasProvider)
-    val r = bridgeContract.call_tokensRatio(assetAddress.hexNoPrefix).send()
-    if (r > 0) Some(r) else None
+    val r = bridgeContract.call_tokensRatio(assetAddress.hexNoPrefix).send().getValue
+    if (r == BigInteger.ZERO) None else Some(r.longValueExact())
   }
 
   def sendMint(
