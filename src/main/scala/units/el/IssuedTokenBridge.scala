@@ -173,7 +173,8 @@ object IssuedTokenBridge {
       transferIndex: Long,
       elContractAddress: EthAddress,
       recipient: EthAddress,
-      amountInWaves: Long
+      amountInWaves: Long,
+      erc20Address: EthAddress
   ): DepositedTransaction =
     DepositedTransaction.create(
       sourceHash = DepositedTransaction.mkUserDepositedSourceHash(transferIndex),
@@ -183,15 +184,16 @@ object IssuedTokenBridge {
       value = BigInteger.ZERO,
       gas = FinalizeBridgeErc20Gas,
       isSystemTx = true, // Gas won't be consumed
-      data = HexBytesConverter.toBytes(finalizeBridgeErc20Call(recipient, amountInWaves))
+      data = HexBytesConverter.toBytes(finalizeBridgeErc20Call(recipient, amountInWaves, erc20Address))
     )
 
-  def finalizeBridgeErc20Call(receiver: EthAddress, amount: Long): String = {
+  def finalizeBridgeErc20Call(receiver: EthAddress, amount: Long, erc20Address: EthAddress): String = {
     val function = new Function(
       FinalizeBridgeErc20Function,
       util.Arrays.asList[Type[?]](
         new Web3JAddress(receiver.hexNoPrefix),
-        new Int64(amount)
+        new Int64(amount),
+        new Web3JAddress(erc20Address.hexNoPrefix),
       ),
       Collections.emptyList
     )

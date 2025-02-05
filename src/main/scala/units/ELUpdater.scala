@@ -334,9 +334,10 @@ class ELUpdater(
     val depositedTransactions = updateTokenRegistryTransaction.toVector ++ assetTransfers.map { x =>
       IssuedTokenBridge.mkFinalizeBridgeErc20Transaction(
         transferIndex = x.index,
-        elContractAddress = x.erc20Address,
+        elContractAddress = chainContractOptions.elAssetBridgeAddress,
         recipient = x.destElAddress,
-        amountInWaves = x.amount
+        amountInWaves = x.amount,
+        erc20Address = x.erc20Address
       )
     }
 
