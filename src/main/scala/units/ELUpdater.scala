@@ -215,7 +215,7 @@ class ELUpdater(
               latestValidHash    <- Either.fromOption(latestValidHashOpt, ClientError("Latest valid hash not defined"))
               _ = logger.info(s"Applied payload $payloadId, block hash is $latestValidHash, timestamp = $timestamp")
               newBlock <- NetworkL2Block.signed(payload, m.keyPair.privateKey)
-              _ = logger.debug(s"Broadcasting block ${newBlock.hash}: ${payload}")
+              _ = logger.debug(s"Broadcasting block ${newBlock.hash}")
               _ <- Try(allChannels.broadcast(newBlock)).toEither.leftMap(err =>
                 ClientError(s"Failed to broadcast block ${newBlock.hash}: ${err.toString}")
               )
