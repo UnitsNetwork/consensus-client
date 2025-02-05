@@ -44,5 +44,5 @@ object EcBlock {
       (JsPath \ "gasUsed").read[String].map(toLong) and
       (JsPath \ "mixHash").read[String] and
       (JsPath \ "withdrawals").readWithDefault(Vector.empty[Withdrawal])
-  )(EcBlock.apply _)
+  )(EcBlock.apply)
 }

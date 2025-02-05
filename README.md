@@ -8,6 +8,7 @@
    ``` 
    
 2. Run integration tests:
+   1. Make sure your environment is properly [set up](https://java.testcontainers.org/supported_docker_environment/), esp. if you're running podman or colima.
    1. Build the Docker image:
       ```bash
       sbt docker

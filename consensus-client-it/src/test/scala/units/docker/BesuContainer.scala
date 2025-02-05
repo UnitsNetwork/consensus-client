@@ -18,12 +18,12 @@ class BesuContainer(network: NetworkImpl, number: Int, ip: String)(implicit http
   protected override val container = new GenericContainer(DockerImages.BesuExecutionClient)
     .withNetwork(network)
     .withExposedPorts(RpcPort, EnginePort)
+    .withEnv("NODE_NUMBER", s"$number")
     .withEnv("LOG4J_CONFIGURATION_FILE", "/config/log4j2.xml")
     .withEnv("ROOT_LOG_FILE_LEVEL", "TRACE")
-    .withFileSystemBind(s"$ConfigsDir/ec-common/genesis.json", "/genesis.json", BindMode.READ_ONLY)
+    .withFileSystemBind(s"$ConfigsDir/ec-common", "/etc/secrets", BindMode.READ_ONLY)
     .withFileSystemBind(s"$ConfigsDir/besu", "/config", BindMode.READ_ONLY)
     .withFileSystemBind(s"$ConfigsDir/besu/run-besu.sh", "/tmp/run.sh", BindMode.READ_ONLY)
-    .withFileSystemBind(s"$ConfigsDir/ec-common/p2p-key-$number.hex", "/etc/secrets/p2p-key", BindMode.READ_ONLY)
     .withFileSystemBind(s"$logFile", "/opt/besu/logs/besu.log", BindMode.READ_WRITE)
     .withCreateContainerCmdModifier { cmd =>
       cmd

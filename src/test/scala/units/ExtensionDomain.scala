@@ -9,6 +9,7 @@ import com.wavesplatform.block.Block.BlockId
 import com.wavesplatform.block.{Block, MicroBlock}
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2
+import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.database.{RDB, RocksDBWriter}
 import com.wavesplatform.events.{BlockchainUpdateTriggers, UtxEvent}
 import com.wavesplatform.extensions.Context
@@ -37,7 +38,6 @@ import org.scalatest.exceptions.TestFailedException
 import org.web3j.abi.datatypes.generated.Uint256
 import play.api.libs.json.*
 import pureconfig.ConfigSource
-import pureconfig.generic.auto.*
 import units.ELUpdater.*
 import units.ELUpdater.State.{ChainStatus, Working}
 import units.ExtensionDomain.*

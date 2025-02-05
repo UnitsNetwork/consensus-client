@@ -12,7 +12,7 @@ trait ReportingTestName extends SuiteMixin {
     r
   }
 
-  private def testStep(text: String): Unit = step(s"---------- $text ----------")
+  private def testStep(text: String): Unit = this.step(s"---------- $text ----------")
 
   protected def step(text: String): Unit = log.debug(text)
 }
