@@ -70,7 +70,7 @@ contract IssuedTokenBridge {
         // TODO: only miner can do this
         require(clAmount > 0, "Receive value must be greater or equal to 0");
 
-        uint40 ratio = tokensRatio[address(this)];
+        uint40 ratio = tokensRatio[asset];
         require(ratio > 0, "Token is not registered");
 
         uint256 elAmount = uint256(int256(clAmount)) * ratio;

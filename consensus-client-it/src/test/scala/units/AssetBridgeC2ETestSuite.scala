@@ -1,12 +1,9 @@
 package units
 
 import com.wavesplatform.api.http.ApiError.ScriptExecutionError
-import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
-import units.client.engine.model.BlockNumber
-import units.el.IssuedTokenBridge
 import units.eth.EthAddress
 
 class AssetBridgeC2ETestSuite extends BaseDockerTestSuite {
@@ -14,7 +11,7 @@ class AssetBridgeC2ETestSuite extends BaseDockerTestSuite {
   private val elReceiver        = elRichAccount1
   private val elReceiverAddress = EthAddress.unsafeFrom(elReceiver.getAddress)
 
-  private lazy val issueAssetTxn = TxHelpers.issue(clSender)
+  private lazy val issueAssetTxn = TxHelpers.issue(clSender, decimals = 8)
   private lazy val issueAsset    = IssuedAsset(issueAssetTxn.id())
 
   private val userAmount = BigDecimal("0.55")
@@ -31,28 +28,19 @@ class AssetBridgeC2ETestSuite extends BaseDockerTestSuite {
 
     step("2. Enable the asset in the registry")
     waves1.api.broadcastAndWait(ChainContract.registerToken(issueAsset, elIssuedTokenBridgeAddress, 18))
-
-    step("3. Try to transfer the asset")
-    val elCurrHeight = ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact()
-    waves1.api.broadcastAndWait(transferTxn)
-
-    val withdrawal = Iterator
-      .from(elCurrHeight + 1)
-      .flatMap { h =>
-        eventually {
-          val block = ec1.engineApi.getBlockByNumber(BlockNumber.Number(h)).toOption.flatten.value
-          ec1.engineApi.getLogs(block.hash, List(elIssuedTokenBridgeAddress), List(IssuedTokenBridge.ERC20BridgeFinalized.Topic)).value
-        }
-      }
-      .map(event => IssuedTokenBridge.ERC20BridgeFinalized.decodeLog(event.data).explicitGet())
-      .find(_.recipient == elReceiverAddress)
-      .head
-
-    withClue("Expected amount: ") {
-      withdrawal.clAmount shouldBe UnitsConvert.toWavesAmount(userAmount)
+    eventually {
+      elIssuedTokenBridge.tokensRatio(elIssuedTokenBridgeAddress) shouldBe defined
     }
 
-    // TODO check the balance
+    step("3. Try to transfer the asset")
+    val balanceBefore = elIssuedTokenBridge.getBalance(elReceiverAddress)
+    waves1.api.broadcastAndWait(transferTxn)
+
+    val expectedBalanceAfter = balanceBefore + UnitsConvert.toWei(userAmount)
+    eventually {
+      val balanceAfter = elIssuedTokenBridge.getBalance(elReceiverAddress)
+      balanceAfter shouldBe expectedBalanceAfter
+    }
   }
 
   override def beforeAll(): Unit = {

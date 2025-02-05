@@ -352,10 +352,10 @@ class ELUpdater(
       logger.info(
         s"Starting to forge payload $payloadId by miner ${epochInfo.miner} at height ${parentBlock.height + 1} " +
           s"of epoch ${epochInfo.number} (ref=${parentBlock.hash})" +
-          {if (withdrawals.isEmpty) "" else s", ${withdrawals.size} withdrawals"} +
-          {if (transfers.isEmpty) "" else s"${transfers.size} native transfers from $startC2ETransferIndex"} +
+          (if (withdrawals.isEmpty) "" else s", ${withdrawals.size} withdrawals") +
+          (if (transfers.isEmpty) "" else s"${transfers.size} native transfers from $startC2ETransferIndex") +
           updateTokenRegistryTransaction.fold("")(_ => s", new ${addedAssets.size} assets: {${addedAssets.mkString(", ")}}") +
-          {if (assetTransfers.isEmpty) "" else s", ${assetTransfers.size} asset transfers"}
+          (if (assetTransfers.isEmpty) "" else s", ${assetTransfers.size} asset transfers")
       )
 
       MiningData(
@@ -1306,11 +1306,12 @@ class ELUpdater(
       parentContractBlock: ContractBlock,
       elIssuedTokenBridgeAddress: EthAddress
   ): JobResult[Unit] = {
-    val expectedAddedAssets = {
-      val startAssetRegistryIndex = parentContractBlock.lastAssetRegistryIndex + 1
-      if (startAssetRegistryIndex == contractBlock.lastAssetRegistryIndex) Nil
-      else chainContractClient.getRegisteredAssets(startAssetRegistryIndex to contractBlock.lastAssetRegistryIndex)
-    }
+    val expectedAddedAssets =
+      if (parentContractBlock.lastAssetRegistryIndex == contractBlock.lastAssetRegistryIndex) Nil
+      else {
+        val startAssetRegistryIndex = parentContractBlock.lastAssetRegistryIndex + 1
+        chainContractClient.getRegisteredAssets(startAssetRegistryIndex to contractBlock.lastAssetRegistryIndex)
+      }
 
     for {
       elRawLogs <- engineApiClient.getLogs(hash, List(elIssuedTokenBridgeAddress), List(IssuedTokenBridge.RegistryUpdated.Topic))
@@ -1320,11 +1321,11 @@ class ELUpdater(
           Either.cond(
             expectedAddedAssets.isEmpty,
             (),
-            ClientError("Expected one asset registry event, got 0")
+            ClientError(s"Expected one asset registry event with ${expectedAddedAssets.size} assets, got 0")
           )
 
         case elRawLog :: Nil =>
-          if (expectedAddedAssets.isEmpty) ClientError("Expected no asset registry events, got 1").asLeft
+          if (expectedAddedAssets.isEmpty) ClientError(s"Expected no asset registry events, got 1: $elRawLog").asLeft
           else
             for {
               elEvent <- IssuedTokenBridge.RegistryUpdated.decodeLog(elRawLog.data).leftMap(ClientError(_))
@@ -1336,7 +1337,9 @@ class ELUpdater(
               _ <- Either.cond(
                 elEvent.addedExponents.size == expectedAddedAssets.size,
                 true,
-                ClientError(s"Expected ${expectedAddedAssets.size} added exponent assets in a RegistryUpdated event, got ${elEvent.addedExponents.size}")
+                ClientError(
+                  s"Expected ${expectedAddedAssets.size} added exponent assets in a RegistryUpdated event, got ${elEvent.addedExponents.size}"
+                )
               )
               _ <- elEvent.added.lazyZip(elEvent.addedExponents).lazyZip(expectedAddedAssets).zipWithIndex.toList.traverse {
                 case ((actual, actualExponent, expected), i) =>
@@ -1360,7 +1363,7 @@ class ELUpdater(
               )
             } yield ()
 
-        case xs => ClientError(s"Expected one asset registry event, got ${xs.size}").asLeft
+        case xs => ClientError(s"Expected one asset registry event with ${expectedAddedAssets.size} assets, got ${xs.size}").asLeft
       }
     } yield ()
   }
