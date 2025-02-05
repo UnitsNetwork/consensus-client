@@ -42,15 +42,15 @@ class ExtendedNetwork(Network):
     @cached_property
     def cl_miners(self) -> List[Miner]:
         return [
-            Miner(
-                account=pw.Address(
-                    seed="devnet-1",
-                    nonce=0,
-                ),
-                el_reward_address_hex=HexStr(
-                    "0x7dbcf9c6c3583b76669100f9be3caf6d722bc9f9"
-                ),
-            ),
+#             Miner(
+#                 account=pw.Address(
+#                     seed="devnet-1",
+#                     nonce=0,
+#                 ),
+#                 el_reward_address_hex=HexStr(
+#                     "0x7dbcf9c6c3583b76669100f9be3caf6d722bc9f9"
+#                 ),
+#             ),
             Miner(
                 account=pw.Address(
                     seed="devnet-2",

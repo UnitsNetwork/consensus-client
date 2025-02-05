@@ -13,11 +13,11 @@ tee /root/logs/log <<EOF
 IP: $IP
 NETWORK: $NETWORK
 PREFIX: ${PREFIX}
+GETH_CONFIG: $GETH_CONFIG
 EOF
 
 # --syncmode full, because default "snap" mode and starting concurrently with ec-1 cause a stopped sync
 exec geth \
-  --config=/tmp/peers.toml \
   --http \
   --http.addr=0.0.0.0 \
   --http.vhosts=* \

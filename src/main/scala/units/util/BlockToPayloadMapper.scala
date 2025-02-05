@@ -25,6 +25,8 @@ object BlockToPayloadMapper {
   def toPayloadJson(blockJson: JsObject, payloadBodyJson: JsObject): JsObject = {
     val blockJsonData = blockJson.value
 
+    println(s"\n\twithdrawalsRoot: ${payloadBodyJson \ "withdrawalsRoot"}")
+
     JsObject(
       fieldsMapping.flatMap { case (blockField, payloadField) =>
         blockJsonData.get(blockField).map(payloadField -> _)
@@ -32,7 +34,7 @@ object BlockToPayloadMapper {
         "blobGasUsed"   -> JsString(EthereumConstants.ZeroHex),
         "excessBlobGas" -> JsString(EthereumConstants.ZeroHex)
       )
-    ) ++ payloadBodyJson
+    ) ++ (payloadBodyJson - "withdrawalsRoot")
   }
 
 }

@@ -62,7 +62,7 @@ class HttpEngineApiClient(val config: JsonRpcClient.Config, val backend: SttpBac
 
   def getPayload(payloadId: PayloadId, requestId: Int): JobResult[JsObject] = {
     sendEngineRequest[GetPayloadRequest, GetPayloadResponse](GetPayloadRequest(payloadId, requestId), NonBlockExecutionTimeout, requestId).map(
-      _.executionPayload
+      _.executionPayload - "withdrawalsRoot" - "depositRequests"
     )
   }
 

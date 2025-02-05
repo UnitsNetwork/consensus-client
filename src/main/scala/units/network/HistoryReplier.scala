@@ -47,6 +47,7 @@ class HistoryReplier(engineApiClient: EngineApiClient)(implicit sc: Scheduler) e
       payloadBodyJsonOpt <- engineApiClient.getPayloadBodyByHash(hash)
       payloadBodyJson    <- Either.fromOption(payloadBodyJsonOpt, ClientError("payload body not found"))
       payload = BlockToPayloadMapper.toPayloadJson(blockJson, payloadBodyJson)
+      _ = println(s"\n\t$payload\n")
       blockL2 <- NetworkL2Block(payload)
     } yield blockL2
   }
