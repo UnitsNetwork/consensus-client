@@ -10,7 +10,7 @@ import org.web3j.protocol.core.methods.response.EthSendTransaction
 import org.web3j.protocol.exceptions.TransactionException
 import org.web3j.tx.RawTransactionManager
 import org.web3j.tx.gas.DefaultGasProvider
-import units.bridge.IssuedTokenBridgeContract
+import units.bridge.StandardBridgeContract
 import units.docker.EcContainer
 import units.eth.EthAddress
 
@@ -22,14 +22,14 @@ class ElStandardBridgeClient(
     defaultSender: Credentials,
     gasProvider: DefaultGasProvider = new DefaultGasProvider
 ) extends ScorexLogging {
-  def sendBridge(
+  def sendBridgeErc20(
       sender: Credentials,
       recipient: Address,
       amountInEther: BigInt
   ): EthSendTransaction = {
     val senderAddress = sender.getAddress
     val txnManager    = new RawTransactionManager(web3j, sender, EcContainer.ChainId)
-    val funcCall      = getBridgeFunctionCall(sender, recipient, amountInEther)
+    val funcCall      = getBridgeErc20FunctionCall(sender, recipient, amountInEther)
 
     val nonce = web3j.ethGetTransactionCount(senderAddress, DefaultBlockParameterName.PENDING).send().getTransactionCount
     val rawTxn = RawTransaction.createTransaction(
@@ -47,13 +47,13 @@ class ElStandardBridgeClient(
     r
   }
 
-  def getRevertReasonForBridge(
+  def getRevertReasonForBridgeErc20(
       sender: Credentials,
       recipient: Address,
       amountInEther: BigInt
   ): String = {
     val senderAddress = sender.getAddress
-    val funcCall      = getBridgeFunctionCall(sender, recipient, amountInEther)
+    val funcCall      = getBridgeErc20FunctionCall(sender, recipient, amountInEther)
     val txn           = Transaction.createEthCallTransaction(senderAddress, address.hex, funcCall, BigInteger.ZERO)
 
     log.debug(s"Call bridgeERC20($senderAddress->$recipient: $amountInEther Wei)")
@@ -62,21 +62,21 @@ class ElStandardBridgeClient(
     else throw new TransactionException(s"Call bridgeERC20: expected $txn to be reverted")
   }
 
-  def getBridgeFunctionCall(
+  def getBridgeErc20FunctionCall(
       sender: Credentials,
       recipient: Address,
       amountInEther: BigInt
   ): String = {
-    val txnManager     = new RawTransactionManager(web3j, sender, EcContainer.ChainId)
-    val bridgeContract = IssuedTokenBridgeContract.load(address.hex, web3j, txnManager, gasProvider) // TODO move to class?
+    val txnManager = new RawTransactionManager(web3j, sender, EcContainer.ChainId)
+    val contract   = StandardBridgeContract.load(address.hex, web3j, txnManager, gasProvider) // TODO move to class?
     // TODO Specify asset
-    bridgeContract.send_bridgeERC20(recipient.publicKeyHash, amountInEther.bigInteger, address.hexNoPrefix).encodeFunctionCall()
+    contract.send_bridgeERC20(recipient.publicKeyHash, amountInEther.bigInteger, address.hexNoPrefix).encodeFunctionCall()
   }
 
   def isRegistered(assetAddress: EthAddress): Boolean = {
-    val txnManager     = new RawTransactionManager(web3j, defaultSender, EcContainer.ChainId)
-    val bridgeContract = IssuedTokenBridgeContract.load(address.hex, web3j, txnManager, gasProvider)
-    val ratio          = bridgeContract.call_tokensRatio(assetAddress.hexNoPrefix).send()
+    val txnManager = new RawTransactionManager(web3j, defaultSender, EcContainer.ChainId)
+    val contract   = StandardBridgeContract.load(address.hex, web3j, txnManager, gasProvider)
+    val ratio      = contract.call_assetRatios(assetAddress.hexNoPrefix).send()
     ratio != BigInteger.ZERO
   }
 
@@ -110,14 +110,14 @@ class ElStandardBridgeClient(
       recipient: EthAddress,
       amountInEther: BigInt
   ): String = {
-    val txnManager     = new RawTransactionManager(web3j, sender, EcContainer.ChainId)
-    val bridgeContract = IssuedTokenBridgeContract.load(address.hex, web3j, txnManager, gasProvider)
-    bridgeContract.send_mint(recipient.hex, amountInEther.bigInteger).encodeFunctionCall()
+    val txnManager = new RawTransactionManager(web3j, sender, EcContainer.ChainId)
+    val contract   = StandardBridgeContract.load(address.hex, web3j, txnManager, gasProvider)
+    contract.send_mint(recipient.hex, amountInEther.bigInteger).encodeFunctionCall()
   }
 
   def getBalance(of: EthAddress): BigInt = {
-    val txnManager     = new RawTransactionManager(web3j, defaultSender, EcContainer.ChainId)
-    val bridgeContract = IssuedTokenBridgeContract.load(address.hex, web3j, txnManager, gasProvider)
-    bridgeContract.call_balances(of.hex).send()
+    val txnManager = new RawTransactionManager(web3j, defaultSender, EcContainer.ChainId)
+    val contract   = StandardBridgeContract.load(address.hex, web3j, txnManager, gasProvider)
+    contract.call_balances(of.hex).send()
   }
 }

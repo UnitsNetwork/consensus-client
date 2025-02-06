@@ -20,14 +20,14 @@ web3j generate solidity \
   -c BridgeContract
 ```
 
-To generate `IssuedTokenBridge.java`, run:
+To generate `StandardBridge.java`, run:
 ```bash
 web3j generate solidity \
-  --abiFile=setup/el/compiled/IssuedTokenBridge.abi \
-  --binFile=setup/el/compiled/IssuedTokenBridge.bin \
+  --abiFile=setup/el/compiled/StandardBridge.abi \
+  --binFile=setup/el/compiled/StandardBridge.bin \
   --generateBoth \
   --outputDir=../../consensus-client-it/src/test/java/ \
   -p units.bridge \
   --primitiveTypes \
-  -c IssuedTokenBridgeContract
+  -c StandardBridgeContract
 ```

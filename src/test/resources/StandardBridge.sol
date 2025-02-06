@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-contract IssuedTokenBridge {
+contract StandardBridge {
     uint16 public constant MAX_TRANSFERS_IN_BLOCK = 1024;
 
     mapping(address => uint256) public balances;
     mapping(uint => uint16) public transfersPerBlock;
-    mapping(address => uint64) public tokensRatio;
+    mapping(address => uint64) public assetRatios;
 
     // wavesRecipient is a public key hash of recipient account.
     // effectively is it Waves address without 2 first bytes (version and chain id) and last 4 bytes (checksum).
@@ -15,14 +15,14 @@ contract IssuedTokenBridge {
 
     event RegistryUpdated(address[] addedAssets, uint8[] addedAssetExponents, address[] removed);
 
-    function updateTokenRegistry(address[] calldata addedAssets, uint8[] calldata addedAssetExponents) external {
+    function updateAssetRegistry(address[] calldata addedAssets, uint8[] calldata addedAssetExponents) external {
         // TODO: add check, that only a miner can do this
         require(addedAssets.length == addedAssetExponents.length, "Different sizes of added assets and their exponents");
 
         for (uint256 i = 0; i < addedAssets.length; i++) {
             uint8 exponent = addedAssetExponents[i];
             require(exponent <= 10, string.concat("Invalid asset exponent: ", uint2str(uint(exponent))));
-            tokensRatio[addedAssets[i]] = uint64(10 ** addedAssetExponents[i]); // log2(10^18) = 59.79... < 64
+            assetRatios[addedAssets[i]] = uint64(10 ** addedAssetExponents[i]); // log2(10^18) = 59.79... < 64
         }
 
         emit RegistryUpdated(addedAssets, addedAssetExponents, new address[](0));
@@ -41,8 +41,8 @@ contract IssuedTokenBridge {
 
     // wavesRecipient is a public key hash of recipient account.
     function bridgeERC20(bytes20 wavesRecipient, uint256 elAmount, address asset) external {
-        uint64 ratio = tokensRatio[asset];
-        require(ratio > 0, "Token is not registered");
+        uint64 ratio = assetRatios[asset];
+        require(ratio > 0, "Asset is not registered");
 
         uint256 minAmountInWei = 1 * ratio;
         uint256 maxAmountInWei = uint256(uint64(type(int64).max)) * ratio;
@@ -67,8 +67,8 @@ contract IssuedTokenBridge {
         // TODO: only miner can do this
         require(clAmount > 0, "Receive value must be greater or equal to 0");
 
-        uint64 ratio = tokensRatio[asset];
-        require(ratio > 0, "Token is not registered");
+        uint64 ratio = assetRatios[asset];
+        require(ratio > 0, "Asset is not registered");
 
         uint256 elAmount = uint256(int256(clAmount)) * ratio;
         uint256 maxAmountInWei = uint256(uint64(type(int64).max)) * ratio;

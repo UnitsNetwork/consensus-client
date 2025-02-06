@@ -18,8 +18,8 @@ object StandardBridge {
   val FinalizeBridgeErc20Function = "finalizeBridgeERC20"
   val FinalizeBridgeErc20Gas      = BigInteger.valueOf(100_000L) // Should be enough to run this function
 
-  val UpdateTokenRegistryFunction = "updateTokenRegistry"
-  val UpdateTokenRegistryGas      = BigInteger.valueOf(500_000L)
+  val UpdateAssetRegistryFunction = "updateAssetRegistry"
+  val UpdateAssetRegistryGas      = BigInteger.valueOf(500_000L)
 
   case class ERC20BridgeInitiated(wavesRecipient: Address, clAmount: Long, assetAddress: EthAddress)
   object ERC20BridgeInitiated extends BridgeMerkleTree[ERC20BridgeInitiated] {
@@ -200,21 +200,21 @@ object StandardBridge {
     FunctionEncoder.encode(function)
   }
 
-  def mkUpdateTokenRegistry(added: List[EthAddress], addedAssetExponents: List[Int], elBridgeAddress: EthAddress): DepositedTransaction =
+  def mkUpdateAssetRegistryTransaction(added: List[EthAddress], addedAssetExponents: List[Int], elBridgeAddress: EthAddress): DepositedTransaction =
     DepositedTransaction.create(
       sourceHash = DepositedTransaction.mkUserDepositedSourceHash(HexBytesConverter.toBytes(added.last.hex)), // TODO
       from = EthereumConstants.ZeroAddress.hexNoPrefix,
       to = elBridgeAddress.hex,
       mint = BigInteger.ZERO,
       value = BigInteger.ZERO,
-      gas = UpdateTokenRegistryGas,
+      gas = UpdateAssetRegistryGas,
       isSystemTx = true, // Gas won't be consumed
       data = HexBytesConverter.toBytes(updateTokenRegistryCall(added, addedAssetExponents))
     )
 
   def updateTokenRegistryCall(added: List[EthAddress], addedAssetExponents: List[Int]): String = {
     val function = new Function(
-      UpdateTokenRegistryFunction,
+      UpdateAssetRegistryFunction,
       util.Arrays.asList[Type[?]](
         new Web3JArray(classOf[Web3JAddress], added.map(x => new Web3JAddress(x.hexNoPrefix))*),
         new Web3JArray(classOf[Uint8], addedAssetExponents.map(new Uint8(_))*)

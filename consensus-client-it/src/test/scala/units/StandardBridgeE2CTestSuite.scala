@@ -35,7 +35,7 @@ class StandardBridgeE2CTestSuite extends BaseDockerTestSuite {
   // TODO: Because we have to get a token from dictionary before amount checks. Fix with unit tests for contract
   "Negative" ignore {
     def test(amount: BigInt, expectedError: String): Unit = {
-      val e = elStandardBridge.getRevertReasonForBridge(elSender, clRecipient.toAddress, amount)
+      val e = elStandardBridge.getRevertReasonForBridgeErc20(elSender, clRecipient.toAddress, amount)
       e should include(expectedError)
     }
 
@@ -57,15 +57,15 @@ class StandardBridgeE2CTestSuite extends BaseDockerTestSuite {
   }
 
   "Positive" - {
-    def sendBridge(ethAmount: BigInt): TransactionReceipt = {
-      val txnResult = elStandardBridge.sendBridge(elSender, clRecipient.toAddress, ethAmount)
+    def sendBridgeErc20(ethAmount: BigInt): TransactionReceipt = {
+      val txnResult = elStandardBridge.sendBridgeErc20(elSender, clRecipient.toAddress, ethAmount)
 
       // To overcome a failed block confirmation in a new epoch issue
       chainContract.waitForHeight(ec1.web3j.ethBlockNumber().send().getBlockNumber.longValueExact() + 2)
 
       eventually {
         val r = ec1.web3j.ethGetTransactionReceipt(txnResult.getTransactionHash).send().getTransactionReceipt.toScala.value
-        if (!r.isStatusOK) fail(s"Expected successful sendBridge, got: tx=${EvmEncoding.decodeRevertReason(r.getRevertReason)}")
+        if (!r.isStatusOK) fail(s"Expected successful sendBridgeErc20, got: tx=${EvmEncoding.decodeRevertReason(r.getRevertReason)}")
         r
       }
     }
@@ -77,8 +77,8 @@ class StandardBridgeE2CTestSuite extends BaseDockerTestSuite {
         elStandardBridge.isRegistered(elStandardBridgeAddress) shouldBe true
       }
 
-      step("Broadcast IssuedTokenBridge.sendBridge transaction")
-      val sendTxnReceipt = sendBridge(elAmount)
+      step("Broadcast StandardBridge.sendBridgeErc20 transaction")
+      val sendTxnReceipt = sendBridgeErc20(elAmount)
 
       val blockHash = BlockHash(sendTxnReceipt.getBlockHash)
       step(s"Block with transaction: $blockHash")

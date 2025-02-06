@@ -320,18 +320,18 @@ class ELUpdater(
       if (startAssetRegistryIndex == assetRegistrySize) Nil
       else chainContractClient.getRegisteredAssets(startAssetRegistryIndex until assetRegistrySize)
 
-    val updateTokenRegistryTransaction =
+    val updateAssetRegistryTransaction =
       if (addedAssets.isEmpty) None
       else
         Some(
-          StandardBridge.mkUpdateTokenRegistry(
+          StandardBridge.mkUpdateAssetRegistryTransaction(
             added = addedAssets.map(_.erc20Address),
             addedAssetExponents = addedAssets.map(_.exponent),
             elBridgeAddress = chainContractOptions.elStandardBridgeAddress
           )
         )
 
-    val depositedTransactions = updateTokenRegistryTransaction.toVector ++ assetTransfers.map { x =>
+    val depositedTransactions = updateAssetRegistryTransaction.toVector ++ assetTransfers.map { x =>
       StandardBridge.mkFinalizeBridgeErc20Transaction(
         transferIndex = x.index,
         elContractAddress = chainContractOptions.elStandardBridgeAddress,
@@ -355,7 +355,7 @@ class ELUpdater(
           s"of epoch ${epochInfo.number} (ref=${parentBlock.hash})" +
           (if (withdrawals.isEmpty) "" else s", ${withdrawals.size} withdrawals") +
           (if (transfers.isEmpty) "" else s"${transfers.size} native transfers from $startC2ETransferIndex") +
-          updateTokenRegistryTransaction.fold("")(_ => s", new ${addedAssets.size} assets: {${addedAssets.mkString(", ")}}") +
+          updateAssetRegistryTransaction.fold("")(_ => s", new ${addedAssets.size} assets: {${addedAssets.mkString(", ")}}") +
           (if (assetTransfers.isEmpty) "" else s", ${assetTransfers.size} asset transfers")
       )
 
