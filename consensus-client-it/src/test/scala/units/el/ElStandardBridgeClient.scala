@@ -16,7 +16,7 @@ import units.eth.EthAddress
 
 import java.math.BigInteger
 
-class ElAssetBridgeClient(
+class ElStandardBridgeClient(
     web3j: Web3j,
     address: EthAddress,
     defaultSender: Credentials,
@@ -43,7 +43,7 @@ class ElAssetBridgeClient(
 
     log.debug(s"Send bridgeERC20($senderAddress->$recipient: $amountInEther Wei), nonce: $nonce")
     val r = txnManager.signAndSend(rawTxn)
-    if (r.hasError) throw new TransactionException(s"Can't call sendIssued: ${r.getError}, ${r.getError.getMessage}")
+    if (r.hasError) throw new TransactionException(s"Can't send bridgeERC20: ${r.getError}, ${r.getError.getMessage}")
     r
   }
 
@@ -59,7 +59,7 @@ class ElAssetBridgeClient(
     log.debug(s"Call bridgeERC20($senderAddress->$recipient: $amountInEther Wei)")
     val r = web3j.ethCall(txn, DefaultBlockParameterName.PENDING).send()
     if (r.isReverted) r.getRevertReason
-    else throw new TransactionException(s"Expected $txn to be reverted")
+    else throw new TransactionException(s"Call bridgeERC20: expected $txn to be reverted")
   }
 
   def getBridgeFunctionCall(
@@ -76,7 +76,7 @@ class ElAssetBridgeClient(
   def isRegistered(assetAddress: EthAddress): Boolean = {
     val txnManager     = new RawTransactionManager(web3j, defaultSender, EcContainer.ChainId)
     val bridgeContract = IssuedTokenBridgeContract.load(address.hex, web3j, txnManager, gasProvider)
-    val ratio = bridgeContract.call_tokensRatio(assetAddress.hexNoPrefix).send()
+    val ratio          = bridgeContract.call_tokensRatio(assetAddress.hexNoPrefix).send()
     ratio != BigInteger.ZERO
   }
 

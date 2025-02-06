@@ -14,7 +14,7 @@ import scala.jdk.CollectionConverters.{CollectionHasAsScala, SeqHasAsJava}
 import scala.util.Try
 import scala.util.control.NonFatal
 
-object IssuedTokenBridge {
+object StandardBridge {
   val FinalizeBridgeErc20Function = "finalizeBridgeERC20"
   val FinalizeBridgeErc20Gas      = BigInteger.valueOf(100_000L) // Should be enough to run this function
 
@@ -193,7 +193,7 @@ object IssuedTokenBridge {
       util.Arrays.asList[Type[?]](
         new Web3JAddress(receiver.hexNoPrefix),
         new Int64(amount),
-        new Web3JAddress(erc20Address.hexNoPrefix),
+        new Web3JAddress(erc20Address.hexNoPrefix)
       ),
       Collections.emptyList
     )

@@ -64,7 +64,7 @@ trait ChainContractClient {
         val parentHash  = BlockHash(bb.getByteArray(BlockHashBytesSize))
         val chainId     = if (bb.remaining() >= 8) bb.getLong() else DefaultMainChainId
 
-        if (epoch < getIssuedTransfersActivationEpoch) {
+        if (epoch < getAssetTransfersActivationEpoch) {
           val e2cNativeTransfersRootHash =
             if (bb.remaining() >= ContractBlock.E2CTransfersRootHashLength) bb.getByteArray(ContractBlock.E2CTransfersRootHashLength)
             else Array.emptyByteArray
@@ -106,11 +106,11 @@ trait ChainContractClient {
 
           val lastC2ENativeTransferIndex = bb.getLong()
 
-          val e2cIssuedTransfersRootHash =
-            if ((transfersFlag & IssuedTransfersFlag) == IssuedTransfersFlag) bb.getByteArray(ContractBlock.E2CTransfersRootHashLength)
+          val e2cAssetTransfersRootHash =
+            if ((transfersFlag & AssetTransfersFlag) == AssetTransfersFlag) bb.getByteArray(ContractBlock.E2CTransfersRootHashLength)
             else Array.emptyByteArray
 
-          val lastC2EIssuedTransferIndex = bb.getLong()
+          val lastC2EAssetTransferIndex = bb.getLong()
 
           val lastAssetRegistryIndex = bb.getLong()
 
@@ -119,7 +119,7 @@ trait ChainContractClient {
             s"Not parsed ${bb.remaining()} bytes from ${blockMeta.base64}, read data: " +
               s"chainHeight=$chainHeight, epoch=$epoch, parentHash=$parentHash, chainId=$chainId, " +
               s"e2cNativeTransfersRootHash=${HexBytesConverter.toHex(e2cNativeTransfersRootHash)}, lastC2ENativeTransferIndex=$lastC2ENativeTransferIndex, " +
-              s"e2cIssuedTransfersRootHash=${HexBytesConverter.toHex(e2cIssuedTransfersRootHash)}, lastC2EIssuedTransferIndex=$lastC2EIssuedTransferIndex, " +
+              s"e2cAssetTransfersRootHash=${HexBytesConverter.toHex(e2cAssetTransfersRootHash)}, lastC2EAssetTransferIndex=$lastC2EAssetTransferIndex, " +
               s"lastAssetRegistryIndex=$lastAssetRegistryIndex"
           )
 
@@ -138,8 +138,8 @@ trait ChainContractClient {
             chainId,
             e2cNativeTransfersRootHash,
             lastC2ENativeTransferIndex,
-            e2cIssuedTransfersRootHash,
-            lastC2EIssuedTransferIndex,
+            e2cAssetTransfersRootHash,
+            lastC2EAssetTransferIndex,
             if (lastAssetRegistryIndex.isValidInt) lastAssetRegistryIndex.toInt
             else fail(s"$lastAssetRegistryIndex is not a valid int")
           )
@@ -242,13 +242,13 @@ trait ChainContractClient {
     elNativeBridgeAddress = getStringData("elBridgeAddress")
       .map(EthAddress.unsafeFrom)
       .getOrElse(throw new IllegalStateException("elBridgeAddress is empty on contract")),
-    elAssetBridgeAddress = getStringData("elIssuedBridgeAddress")
+    elStandardBridgeAddress = getStringData("elIssuedBridgeAddress")
       .map(EthAddress.unsafeFrom)
       .getOrElse(throw new IllegalStateException("elIssuedBridgeAddress is empty on contract")),
-    issuedTransfersActivationEpoch = getIssuedTransfersActivationEpoch
+    assetTransfersActivationEpoch = getAssetTransfersActivationEpoch
   )
 
-  private def getIssuedTransfersActivationEpoch: Long = getLongData("issuedTransfersActivationEpoch").getOrElse(Long.MaxValue)
+  private def getAssetTransfersActivationEpoch: Long = getLongData("issuedTransfersActivationEpoch").getOrElse(Long.MaxValue)
 
   private def getChainMeta(chainId: Long): Option[(Int, BlockHash)] = {
     val key = f"chain_$chainId%08d"
@@ -285,27 +285,27 @@ trait ChainContractClient {
     ContractNativeTransfer(atIndex, destElAddress, amount)
   }
 
-  def getIssuedTransfers(fromIndex: Long, maxItems: Long): Vector[ContractIssuedTransfer] =
+  def getAssetTransfers(fromIndex: Long, maxItems: Long): Vector[ContractAssetTransfer] =
     if (maxItems == 0) Vector.empty
-    else (fromIndex until math.min(fromIndex + maxItems, getIssuedTransfersCount)).map(requireIssuedTransfer).toVector
+    else (fromIndex until math.min(fromIndex + maxItems, getAssetTransfersCount)).map(requireAssetTransfer).toVector
 
-  private def requireIssuedTransfer(atIndex: Long): ContractIssuedTransfer = {
+  private def requireAssetTransfer(atIndex: Long): ContractAssetTransfer = {
     val key   = s"issuedTransfer_$atIndex"
-    val raw   = getStringData(key).getOrElse(fail(s"Expected an issued token transfer at '$key', got nothing"))
+    val raw   = getStringData(key).getOrElse(fail(s"Expected an asset transfer at '$key', got nothing"))
     val parts = raw.split(Sep)
-    if (parts.length != 3) fail(s"Expected 3 elements in an issued token transfer, got ${parts.length}: $raw")
+    if (parts.length != 3) fail(s"Expected 3 elements in asset transfer, got ${parts.length}: $raw")
 
     val destElAddress = EthAddress.unsafeFrom(parts(0))
-    val amount        = parts(1).toLongOption.getOrElse(fail(s"Expected an integer amount of an issued token transfer, got: ${parts(1)}"))
-    val tokenIndex    = parts(2).toIntOption.getOrElse(fail(s"Expected an index of issued token in a transfer, got: ${parts(2)}"))
+    val amount        = parts(1).toLongOption.getOrElse(fail(s"Expected an integer amount of asset transfer, got: ${parts(1)}"))
+    val tokenIndex    = parts(2).toIntOption.getOrElse(fail(s"Expected an asset index in asset transfer, got: ${parts(2)}"))
 
     val asset     = getRegisteredAsset(tokenIndex)
     val assetData = getRegisteredAssetData(asset)
 
-    ContractIssuedTransfer(atIndex, destElAddress, amount, assetData.erc20Address)
+    ContractAssetTransfer(atIndex, destElAddress, amount, assetData.erc20Address)
   }
 
-  private def getIssuedTransfersCount: Long = getLongData("issuedTransfersCount").getOrElse(0L)
+  private def getAssetTransfersCount: Long = getLongData("issuedTransfersCount").getOrElse(0L)
 
   private def getRegisteredAssetData(asset: Asset): Registry.RegisteredAsset = {
     val raw   = getStringData(s"assetRegistry_${Registry.stringifyAsset(asset)}").getOrElse(fail(s"Can't find a registered asset $asset"))
@@ -378,10 +378,10 @@ object ChainContractClient {
   private val Sep                = ","
 
   val MaxC2ENativeTransfers = 16
-  val MaxC2EIssuedTransfers = 32 // TODO: move to chain contract?
+  val MaxC2EAssetTransfers  = Int.MaxValue // TODO: Change after testing
 
   val NativeTransfersFlag = 1
-  val IssuedTransfersFlag = 2
+  val AssetTransfersFlag  = 2
 
   private class InconsistentContractData(message: String, cause: Throwable = null)
       extends IllegalStateException(s"Probably, your have to upgrade your client. $message", cause)
@@ -390,7 +390,7 @@ object ChainContractClient {
 
   case class ContractNativeTransfer(index: Long, destElAddress: EthAddress, amount: Long)
 
-  case class ContractIssuedTransfer(index: Long, destElAddress: EthAddress, amount: Long, erc20Address: EthAddress)
+  case class ContractAssetTransfer(index: Long, destElAddress: EthAddress, amount: Long, erc20Address: EthAddress)
 
   object Registry {
     val WavesTokenName = "WAVES"
@@ -401,7 +401,7 @@ object ChainContractClient {
 
     def parseAsset(rawAssetId: String): Asset =
       if (rawAssetId == WavesTokenName) Asset.Waves
-      else Asset.IssuedAsset(ByteStr.decodeBase58(rawAssetId).getOrElse(fail(s"Can't decode an issued asset id: $rawAssetId")))
+      else Asset.IssuedAsset(ByteStr.decodeBase58(rawAssetId).getOrElse(fail(s"Can't decode an asset id: $rawAssetId")))
 
     def stringifyAsset(asset: Asset): String = asset.fold(WavesTokenName)(_.id.toString)
   }

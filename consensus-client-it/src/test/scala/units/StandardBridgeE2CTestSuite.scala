@@ -7,20 +7,20 @@ import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.utils.EthEncoding
 import org.web3j.protocol.core.methods.response.TransactionReceipt
 import org.web3j.utils.Convert
-import units.el.{EvmEncoding, IssuedTokenBridge}
+import units.el.{EvmEncoding, StandardBridge}
 import units.eth.EthAddress
 
 import scala.jdk.OptionConverters.RichOptional
 
 // TODO: asset registered in EL/CL first cases, WAVES
-class AssetBridgeE2CTestSuite extends BaseDockerTestSuite {
+class StandardBridgeE2CTestSuite extends BaseDockerTestSuite {
   private val clTokenOwner = clRichAccount2
   private val clRecipient  = clRichAccount1
   private val elSender     = elRichAccount1
 
-  private val issueAssetTxn = TxHelpers.issue(clTokenOwner, decimals = 8)
-  private val issueAsset    = IssuedAsset(issueAssetTxn.id())
-  private val elAssetDecimals    = 18
+  private val issueAssetTxn   = TxHelpers.issue(clTokenOwner, decimals = 8)
+  private val issueAsset      = IssuedAsset(issueAssetTxn.id())
+  private val elAssetDecimals = 18
 
   private val userAmount = 1
   private val clAmount   = UnitsConvert.toWavesAtomic(userAmount, issueAssetTxn.decimals.value)
@@ -35,7 +35,7 @@ class AssetBridgeE2CTestSuite extends BaseDockerTestSuite {
   // TODO: Because we have to get a token from dictionary before amount checks. Fix with unit tests for contract
   "Negative" ignore {
     def test(amount: BigInt, expectedError: String): Unit = {
-      val e = elIssuedTokenBridge.getRevertReasonForBridge(elSender, clRecipient.toAddress, amount)
+      val e = elStandardBridge.getRevertReasonForBridge(elSender, clRecipient.toAddress, amount)
       e should include(expectedError)
     }
 
@@ -58,7 +58,7 @@ class AssetBridgeE2CTestSuite extends BaseDockerTestSuite {
 
   "Positive" - {
     def sendBridge(ethAmount: BigInt): TransactionReceipt = {
-      val txnResult = elIssuedTokenBridge.sendBridge(elSender, clRecipient.toAddress, ethAmount)
+      val txnResult = elStandardBridge.sendBridge(elSender, clRecipient.toAddress, ethAmount)
 
       // To overcome a failed block confirmation in a new epoch issue
       chainContract.waitForHeight(ec1.web3j.ethBlockNumber().send().getBlockNumber.longValueExact() + 2)
@@ -72,9 +72,9 @@ class AssetBridgeE2CTestSuite extends BaseDockerTestSuite {
 
     "Checking balances in EL->CL transfers" in {
       step("Register token")
-      waves1.api.broadcastAndWait(ChainContract.registerToken(issueAsset, elIssuedTokenBridgeAddress, 18))
+      waves1.api.broadcastAndWait(ChainContract.registerToken(issueAsset, elStandardBridgeAddress, 18))
       eventually {
-        elIssuedTokenBridge.isRegistered(elIssuedTokenBridgeAddress) shouldBe true
+        elStandardBridge.isRegistered(elStandardBridgeAddress) shouldBe true
       }
 
       step("Broadcast IssuedTokenBridge.sendBridge transaction")
@@ -84,17 +84,17 @@ class AssetBridgeE2CTestSuite extends BaseDockerTestSuite {
       step(s"Block with transaction: $blockHash")
 
       val logsInBlock =
-        ec1.engineApi.getLogs(blockHash, List(elIssuedTokenBridgeAddress), List(IssuedTokenBridge.ERC20BridgeInitiated.Topic)).explicitGet()
+        ec1.engineApi.getLogs(blockHash, List(elStandardBridgeAddress), List(StandardBridge.ERC20BridgeInitiated.Topic)).explicitGet()
 
       val transferEvents = logsInBlock.map { x =>
-        IssuedTokenBridge.ERC20BridgeInitiated.decodeLog(x.data).explicitGet()
+        StandardBridge.ERC20BridgeInitiated.decodeLog(x.data).explicitGet()
       }
       step(s"Transfer events: ${transferEvents.mkString(", ")}")
 
       val sendTxnLogIndex = logsInBlock.indexWhere(_.transactionHash == sendTxnReceipt.getTransactionHash)
       sendTxnLogIndex shouldBe >=(0)
 
-      val transferProofs = IssuedTokenBridge.ERC20BridgeInitiated.mkTransferProofs(transferEvents, sendTxnLogIndex).reverse
+      val transferProofs = StandardBridge.ERC20BridgeInitiated.mkTransferProofs(transferEvents, sendTxnLogIndex).reverse
 
       step(s"Wait block $blockHash on contract")
       val blockConfirmationHeight = eventually {
@@ -138,7 +138,7 @@ class AssetBridgeE2CTestSuite extends BaseDockerTestSuite {
     super.beforeAll()
 
     step("Prepare: mint EL token")
-    elIssuedTokenBridge.sendMint(elSender, EthAddress.unsafeFrom(elSender.getAddress), enoughElAmount)
+    elStandardBridge.sendMint(elSender, EthAddress.unsafeFrom(elSender.getAddress), enoughElAmount)
 
     step("Prepare: issue CL asset")
     waves1.api.broadcastAndWait(issueAssetTxn)

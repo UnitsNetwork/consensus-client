@@ -3,7 +3,7 @@ package units
 import org.web3j.abi.datatypes.generated.Uint256
 import units.client.TestEcClients
 import units.client.engine.model.{EcBlock, GetLogsRequest, GetLogsResponseEntry, Withdrawal}
-import units.el.{Bridge, IssuedTokenBridge}
+import units.el.{Bridge, StandardBridge}
 import units.eth.{EthAddress, EthereumConstants, Gwei}
 
 import java.nio.charset.StandardCharsets
@@ -12,7 +12,7 @@ import scala.concurrent.duration.FiniteDuration
 class TestEcBlockBuilder private (
     testEcClients: TestEcClients,
     elNativeBridgeAddress: EthAddress,
-    elAssetBridgeAddress: EthAddress,
+    elStandardBridgeAddress: EthAddress,
     elMinerDefaultReward: Gwei,
     private var block: EcBlock,
     parentBlock: EcBlock
@@ -40,15 +40,15 @@ class TestEcBlockBuilder private (
       nativeTransferLogs
     )
     testEcClients.setBlockLogs(
-      GetLogsRequest(block.hash, List(elAssetBridgeAddress), List(IssuedTokenBridge.ERC20BridgeFinalized.Topic), 0),
+      GetLogsRequest(block.hash, List(elStandardBridgeAddress), List(StandardBridge.ERC20BridgeFinalized.Topic), 0),
       erc20BridgeFinalizedTopicLogs
     )
     testEcClients.setBlockLogs(
-      GetLogsRequest(block.hash, List(elAssetBridgeAddress), List(IssuedTokenBridge.ERC20BridgeInitiated.Topic), 0),
+      GetLogsRequest(block.hash, List(elStandardBridgeAddress), List(StandardBridge.ERC20BridgeInitiated.Topic), 0),
       erc20BridgeInitiatedTopicLogs
     )
     testEcClients.setBlockLogs(
-      GetLogsRequest(block.hash, List(elAssetBridgeAddress), List(IssuedTokenBridge.RegistryUpdated.Topic), 0),
+      GetLogsRequest(block.hash, List(elStandardBridgeAddress), List(StandardBridge.RegistryUpdated.Topic), 0),
       registryTopicLogs
     )
     this
@@ -67,7 +67,7 @@ object TestEcBlockBuilder {
   def apply(
       testEcClients: TestEcClients,
       elNativeBridgeAddress: EthAddress,
-      elAssetBridgeAddress: EthAddress,
+      elStandardBridgeAddress: EthAddress,
       elMinerDefaultReward: Gwei,
       blockDelay: FiniteDuration,
       parent: EcBlock
@@ -75,7 +75,7 @@ object TestEcBlockBuilder {
     new TestEcBlockBuilder(
       testEcClients,
       elNativeBridgeAddress,
-      elAssetBridgeAddress,
+      elStandardBridgeAddress,
       elMinerDefaultReward,
       EcBlock(
         hash = createBlockHash("???"),
