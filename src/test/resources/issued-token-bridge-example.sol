@@ -6,7 +6,7 @@ contract IssuedTokenBridge {
 
     mapping(address => uint256) public balances;
     mapping(uint => uint16) public transfersPerBlock;
-    mapping(address => uint40) public tokensRatio;
+    mapping(address => uint64) public tokensRatio;
 
     // wavesRecipient is a public key hash of recipient account.
     // effectively is it Waves address without 2 first bytes (version and chain id) and last 4 bytes (checksum).
@@ -22,10 +22,7 @@ contract IssuedTokenBridge {
         for (uint256 i = 0; i < addedAssets.length; i++) {
             uint8 exponent = addedAssetExponents[i];
             require(exponent <= 10, string.concat("Invalid asset exponent: ", uint2str(uint(exponent))));
-            // 10^10 =    10 000 000 000
-            // 2^32  =     4 294 967 296
-            // 2^40  = 1 099 511 627 776 - fits
-            tokensRatio[addedAssets[i]] = uint40(10 ** addedAssetExponents[i]);
+            tokensRatio[addedAssets[i]] = uint64(10 ** addedAssetExponents[i]); // log2(10^18) = 59.79... < 64
         }
 
         emit RegistryUpdated(addedAssets, addedAssetExponents, new address[](0));
@@ -44,7 +41,7 @@ contract IssuedTokenBridge {
 
     // wavesRecipient is a public key hash of recipient account.
     function bridgeERC20(bytes20 wavesRecipient, uint256 elAmount, address asset) external {
-        uint40 ratio = tokensRatio[asset];
+        uint64 ratio = tokensRatio[asset];
         require(ratio > 0, "Token is not registered");
 
         uint256 minAmountInWei = 1 * ratio;
@@ -70,7 +67,7 @@ contract IssuedTokenBridge {
         // TODO: only miner can do this
         require(clAmount > 0, "Receive value must be greater or equal to 0");
 
-        uint40 ratio = tokensRatio[asset];
+        uint64 ratio = tokensRatio[asset];
         require(ratio > 0, "Token is not registered");
 
         uint256 elAmount = uint256(int256(clAmount)) * ratio;

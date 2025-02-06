@@ -32,6 +32,8 @@ trait BaseDockerTestSuite
     with IntegrationTestEventually
     with Accounts
     with HasConsensusLayerDappTxHelpers {
+  BaseDockerTestSuite.init()
+
   override val currentHitSource: ByteStr = ByteStr.empty
   protected val rewardAmount: Gwei       = Gwei.ofRawGwei(2_000_000_000L)
 
@@ -119,7 +121,6 @@ trait BaseDockerTestSuite
   }
 
   override def beforeAll(): Unit = {
-    BaseDockerTestSuite.init()
     super.beforeAll()
     log.debug(s"Docker network name: ${network.getName}, id: ${network.getId}") // Force create network
 

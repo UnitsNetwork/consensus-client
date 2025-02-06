@@ -8,9 +8,10 @@ class NativeTokenBridgeC2ETestSuite extends BaseDockerTestSuite {
   private val clSender          = clRichAccount1
   private val elReceiver        = elRichAccount1
   private val elReceiverAddress = EthAddress.unsafeFrom(elReceiver.getAddress)
-  private val userAmount        = 1
-  private val wavesAmount       = UnitsConvert.toWavesAmount(userAmount)
-  private val gweiAmount        = UnitsConvert.toGwei(userAmount)
+
+  private val userAmount  = 1
+  private val wavesAmount = UnitsConvert.toUnitsInWaves(userAmount)
+  private val gweiAmount  = UnitsConvert.toGwei(userAmount)
 
   "L2-380 Checking balances in CL->EL transfers" in {
     def clAssetQuantity: Long      = waves1.api.assetQuantity(chainContract.token)

@@ -15,20 +15,20 @@ import scala.jdk.OptionConverters.RichOptional
 // TODO: asset registered in EL/CL first cases, WAVES
 class AssetBridgeE2CTestSuite extends BaseDockerTestSuite {
   private val clTokenOwner = clRichAccount2
+  private val clRecipient  = clRichAccount1
+  private val elSender     = elRichAccount1
 
-  private val elSender    = elRichAccount1
-  private val clRecipient = clRichAccount1
+  private val issueAssetTxn = TxHelpers.issue(clTokenOwner, decimals = 8)
+  private val issueAsset    = IssuedAsset(issueAssetTxn.id())
+  private val elAssetDecimals    = 18
 
-  private val userAmount  = 1
-  private val wavesAmount = UnitsConvert.toWavesAmount(userAmount)
-  private val ethAmount   = UnitsConvert.toWei(userAmount)
+  private val userAmount = 1
+  private val clAmount   = UnitsConvert.toWavesAtomic(userAmount, issueAssetTxn.decimals.value)
+  private val elAmount   = UnitsConvert.toAtomic(userAmount, elAssetDecimals)
 
-  private val testTransfers     = 2
-  private val enoughEthAmount   = ethAmount * testTransfers
-  private val enoughWavesAmount = wavesAmount * testTransfers
-
-  private lazy val issueAssetTxn = TxHelpers.issue(clTokenOwner, decimals = 8)
-  private lazy val issueAsset    = IssuedAsset(issueAssetTxn.id())
+  private val testTransfers  = 2
+  private val enoughClAmount = clAmount * testTransfers
+  private val enoughElAmount = elAmount * testTransfers
 
   private val tenGwei = BigInt(Convert.toWei("10", Convert.Unit.GWEI).toBigIntegerExact)
 
@@ -53,7 +53,7 @@ class AssetBridgeE2CTestSuite extends BaseDockerTestSuite {
       }
     }
 
-    "Can't transfer without registration" in test(ethAmount, "Token is not registered")
+    "Can't transfer without registration" in test(elAmount, "Token is not registered")
   }
 
   "Positive" - {
@@ -74,11 +74,11 @@ class AssetBridgeE2CTestSuite extends BaseDockerTestSuite {
       step("Register token")
       waves1.api.broadcastAndWait(ChainContract.registerToken(issueAsset, elIssuedTokenBridgeAddress, 18))
       eventually {
-        elIssuedTokenBridge.tokensRatio(elIssuedTokenBridgeAddress) shouldBe defined
+        elIssuedTokenBridge.isRegistered(elIssuedTokenBridgeAddress) shouldBe true
       }
 
       step("Broadcast IssuedTokenBridge.sendBridge transaction")
-      val sendTxnReceipt = sendBridge(ethAmount)
+      val sendTxnReceipt = sendBridge(elAmount)
 
       val blockHash = BlockHash(sendTxnReceipt.getBlockHash)
       step(s"Block with transaction: $blockHash")
@@ -110,7 +110,7 @@ class AssetBridgeE2CTestSuite extends BaseDockerTestSuite {
 
       withClue("3. Tokens received: ") {
         step(
-          s"Broadcast withdrawIssued transaction: transferIndexInBlock=$sendTxnLogIndex, amount=$wavesAmount, " +
+          s"Broadcast withdrawIssued transaction: transferIndexInBlock=$sendTxnLogIndex, amount=$clAmount, " +
             s"merkleProof={${transferProofs.map(EthEncoding.toHexString).mkString(",")}}"
         )
 
@@ -123,13 +123,13 @@ class AssetBridgeE2CTestSuite extends BaseDockerTestSuite {
             blockHash = blockHash,
             merkleProof = transferProofs,
             transferIndexInBlock = sendTxnLogIndex,
-            amount = wavesAmount,
+            amount = clAmount,
             asset = issueAsset
           )
         )
 
         val balanceAfter = receiverBalance
-        balanceAfter shouldBe (receiverBalanceBefore + wavesAmount)
+        balanceAfter shouldBe (receiverBalanceBefore + clAmount)
       }
     }
   }
@@ -138,12 +138,12 @@ class AssetBridgeE2CTestSuite extends BaseDockerTestSuite {
     super.beforeAll()
 
     step("Prepare: mint EL token")
-    elIssuedTokenBridge.sendMint(elSender, EthAddress.unsafeFrom(elSender.getAddress), enoughEthAmount)
+    elIssuedTokenBridge.sendMint(elSender, EthAddress.unsafeFrom(elSender.getAddress), enoughElAmount)
 
     step("Prepare: issue CL asset")
     waves1.api.broadcastAndWait(issueAssetTxn)
 
     step("Prepare: move assets and enable the asset in the registry")
-    waves1.api.broadcast(TxHelpers.transfer(clTokenOwner, chainContractAddress, enoughWavesAmount, issueAsset))
+    waves1.api.broadcast(TxHelpers.transfer(clTokenOwner, chainContractAddress, enoughClAmount, issueAsset))
   }
 }

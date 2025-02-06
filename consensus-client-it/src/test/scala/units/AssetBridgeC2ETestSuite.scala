@@ -11,35 +11,43 @@ class AssetBridgeC2ETestSuite extends BaseDockerTestSuite {
   private val elReceiver        = elRichAccount1
   private val elReceiverAddress = EthAddress.unsafeFrom(elReceiver.getAddress)
 
-  private lazy val issueAssetTxn = TxHelpers.issue(clSender, decimals = 8)
-  private lazy val issueAsset    = IssuedAsset(issueAssetTxn.id())
+  private val issueAssetTxn = TxHelpers.issue(clSender, decimals = 8)
+  private val issueAsset    = IssuedAsset(issueAssetTxn.id())
+  private val elAssetDecimals    = 18
 
   private val userAmount = BigDecimal("0.55")
+  private val elAmount   = UnitsConvert.toAtomic(userAmount, elAssetDecimals)
 
   // TODO: Test Waves asset too
   "Checking balances in CL->EL transfers" in {
     step("1. Try to transfer an asset without registration")
     def transferTxn: InvokeScriptTransaction =
-      ChainContract.transfer(clSender, elReceiverAddress, issueAsset, UnitsConvert.toWavesAmount(userAmount), ChainContract.TransferIssuedFunctionName)
+      ChainContract.transfer(
+        clSender,
+        elReceiverAddress,
+        issueAsset,
+        UnitsConvert.toWavesAtomic(userAmount, issueAssetTxn.decimals.value),
+        ChainContract.TransferIssuedFunctionName
+      )
 
     val rejected = waves1.api.broadcast(transferTxn).left.value
     rejected.error shouldBe ScriptExecutionError.Id
     rejected.message should include(s"Can't find in a registry: $issueAsset")
 
     step("2. Enable the asset in the registry")
-    waves1.api.broadcastAndWait(ChainContract.registerToken(issueAsset, elIssuedTokenBridgeAddress, 18))
+    waves1.api.broadcastAndWait(ChainContract.registerToken(issueAsset, elIssuedTokenBridgeAddress, elAssetDecimals))
     eventually {
-      elIssuedTokenBridge.tokensRatio(elIssuedTokenBridgeAddress) shouldBe defined
+      elIssuedTokenBridge.isRegistered(elIssuedTokenBridgeAddress) shouldBe true
     }
 
     step("3. Try to transfer the asset")
     val balanceBefore = elIssuedTokenBridge.getBalance(elReceiverAddress)
     waves1.api.broadcastAndWait(transferTxn)
 
-    val expectedBalanceAfter = balanceBefore + UnitsConvert.toWei(userAmount)
+    val expectedBalanceAfter = balanceBefore + elAmount
     eventually {
       val balanceAfter = elIssuedTokenBridge.getBalance(elReceiverAddress)
-      balanceAfter shouldBe expectedBalanceAfter
+      UnitsConvert.toUser(balanceAfter, elAssetDecimals) shouldBe UnitsConvert.toUser(expectedBalanceAfter, elAssetDecimals)
     }
   }
 

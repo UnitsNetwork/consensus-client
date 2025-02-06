@@ -13,8 +13,9 @@ import scala.jdk.OptionConverters.RichOptional
 class NativeTokenBridgeE2CTestSuite extends BaseDockerTestSuite {
   private val elSender    = elRichAccount1
   private val clRecipient = clRichAccount1
+
   private val userAmount  = 1
-  private val wavesAmount = UnitsConvert.toWavesAmount(userAmount)
+  private val wavesAmount = UnitsConvert.toUnitsInWaves(userAmount)
 
   private val tenGwei = BigInt(Convert.toWei("10", Convert.Unit.GWEI).toBigIntegerExact)
 
@@ -88,7 +89,7 @@ class NativeTokenBridgeE2CTestSuite extends BaseDockerTestSuite {
       val sendTxnLogIndex = logsInBlock.indexWhere(_.transactionHash == sendTxnReceipt.getTransactionHash)
       sendTxnLogIndex shouldBe >=(0)
 
-      val transferProofs  = Bridge.mkTransferProofs(transferEvents, sendTxnLogIndex).reverse
+      val transferProofs = Bridge.mkTransferProofs(transferEvents, sendTxnLogIndex).reverse
 
       step(s"Wait block $blockHash on contract")
       val blockConfirmationHeight = eventually {

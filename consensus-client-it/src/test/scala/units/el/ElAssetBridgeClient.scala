@@ -73,11 +73,11 @@ class ElAssetBridgeClient(
     bridgeContract.send_bridgeERC20(recipient.publicKeyHash, amountInEther.bigInteger, address.hexNoPrefix).encodeFunctionCall()
   }
 
-  def tokensRatio(assetAddress: EthAddress): Option[Long] = {
+  def isRegistered(assetAddress: EthAddress): Boolean = {
     val txnManager     = new RawTransactionManager(web3j, defaultSender, EcContainer.ChainId)
     val bridgeContract = IssuedTokenBridgeContract.load(address.hex, web3j, txnManager, gasProvider)
-    val r = bridgeContract.call_tokensRatio(assetAddress.hexNoPrefix).send().getValue
-    if (r == BigInteger.ZERO) None else Some(r.longValueExact())
+    val ratio = bridgeContract.call_tokensRatio(assetAddress.hexNoPrefix).send()
+    ratio != BigInteger.ZERO
   }
 
   def sendMint(
