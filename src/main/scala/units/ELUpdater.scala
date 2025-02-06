@@ -1475,7 +1475,7 @@ class ELUpdater(
     val firstWithdrawalIndex = parentContractBlock.lastC2EIssuedTransferIndex + 1
 
     val maxItems = math.min(
-      MaxC2EIssuedTransfersInBlock,
+      MaxC2EAssetTransfersInBlock,
       math.max(0, contractBlock.lastC2EIssuedTransferIndex - parentContractBlock.lastC2EIssuedTransferIndex)
     )
 
@@ -1769,7 +1769,7 @@ object ELUpdater {
   val ClChangedProcessingDelay: FiniteDuration        = 50.millis
   val MiningRetryInterval: FiniteDuration             = 5.seconds
   val WaitRequestedBlockTimeout: FiniteDuration       = 2.seconds
-  val MaxC2EIssuedTransfersInBlock                    = 100
+  val MaxC2EAssetTransfersInBlock                     = Int.MaxValue // TODO: Change after testing
 
   case class EpochInfo(number: Int, miner: Address, rewardAddress: EthAddress, hitSource: ByteStr, prevEpochLastBlockHash: Option[BlockHash])
 
