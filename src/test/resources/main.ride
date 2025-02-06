@@ -52,6 +52,8 @@ func parseAssetId(assetIdBase58OrWaves: String) =
 # erc20AddressHex without 0x
 # ratioExponent: EL decimals - CL decimals
 func mkAssetRegistryEntries(assetIdBase58OrWaves: String, erc20AddressHex: String, ratioExponent: Int) = {
+  # Doesn't allow EL decimals > 18
+  strict checkRatioExponent = ratioExponent <= 18 || throw("Ratio exponent > 18 not supported: " + ratioExponent.toString())
   let currIndex = getInteger(assetRegistrySizeKey).valueOrElse(0)
   [
     StringEntry(assetRegistryK + assetIdBase58OrWaves, currIndex.toString() + SEP + erc20AddressHex + SEP + ratioExponent.toString()),
