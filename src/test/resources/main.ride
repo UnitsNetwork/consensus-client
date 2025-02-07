@@ -110,7 +110,7 @@ func getRegisteredAsset(assetIdBase58OrWaves: String) = {
 func isClAssetRegistered(assetIdBase58OrWaves: String) = getString(assetRegistryK + assetIdBase58OrWaves).isDefined()
 func isElAssetRegistered(erc20AddressHex: String) = getInteger(assetRegistryELK + erc20AddressHex).isDefined()
 
-func blockE2CAssetTransfersKey(blockHashHex: String) = "E2CI_0x" + blockHashHex
+func blockE2CAssetTransfersKey(blockHashHex: String) = "E2CA_0x" + blockHashHex
 let assetTransfersCount = this.getInteger(assetTransfersCountKey).valueOrElse(0)
 func assetTransferKey(index: Int) = "assetTransfer_" + index.toString()
 # destElAddressHex - without 0x
@@ -253,9 +253,9 @@ func mkBlockMetaEntry(
       let transfersFlagBytes = ("0" + transfersFlag.toString()).fromBase16String()
 
       let e2cAssetTransfersRootHashBytes = e2cAssetTransfersRootHashHex.fromBase16String()
-      let issuedRootHashBytesSize         = e2cAssetTransfersRootHashBytes.size()
-      strict issuedRootHashIsValid        = issuedRootHashBytesSize == 0 || issuedRootHashBytesSize == ROOT_HASH_SIZE ||
-        throw("Issued transfers root hash should have 0 or " + ROOT_HASH_SIZE.toString() + " bytes, got " + issuedRootHashBytesSize.toString())
+      let assetRootHashBytesSize         = e2cAssetTransfersRootHashBytes.size()
+      strict assetRootHashIsValid        = assetRootHashBytesSize == 0 || assetRootHashBytesSize == ROOT_HASH_SIZE ||
+        throw("Asset transfers root hash should have 0 or " + ROOT_HASH_SIZE.toString() + " bytes, got " + assetRootHashBytesSize.toString())
 
       blockHeight.toBytes() + height.toBytes() + blockParentHex.fromBase16String() + chainId.toBytes() + transfersFlagBytes +
          e2cNatveTransfersRootHashBytes + lastC2ENativeTransferIndex.toBytes() +
@@ -964,7 +964,7 @@ func withdrawAsset(blockHashHex: String, merkleProof: List[ByteVector], transfer
   # recipientPkHash: 20 + 12 right padding bytes (see TypeEncoder.encodeBytes)
   # amountBytes:     24 left padding (see TypeEncoder.encodeNumeric) + 8 bytes
   # erc20Address:    12 left padding (see TypeEncoder.encodeAddress) + 20 bytes
-  let elEventData = recipientPkHash + zeroAmountBytes.take(36) + amountBytes + zeroAmountBytes.take(12) + erc20Address
+  let elEventData       = recipientPkHash + zeroAmountBytes.take(36) + amountBytes + zeroAmountBytes.take(12) + erc20Address
   let elEventDataDigest = blake2b256_16Kb(elEventData)
 
   let calculatedRootHash = createMerkleRoot(merkleProof, elEventDataDigest, transferIndexInBlock)
