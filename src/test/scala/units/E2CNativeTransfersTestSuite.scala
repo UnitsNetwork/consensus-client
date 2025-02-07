@@ -19,13 +19,13 @@ import units.util.HexBytesConverter
 
 import scala.jdk.CollectionConverters.SeqHasAsJava
 
-class NativeTransfersE2CTestSuite extends BaseIntegrationTestSuite {
-  private val transferReceiver        = TxHelpers.secondSigner
-  private val transfer                = NativeBridge.ElSentNativeEvent(transferReceiver.toAddress, 1)
-  private val transferEvent           = getLogsResponseEntry(transfer)
-  private val ecBlockLogs             = List(transferEvent)
-  private val e2CTransfersRootHashHex = HexBytesConverter.toHex(NativeBridge.mkTransfersHash(ecBlockLogs).explicitGet())
-  private val transferProofs          = NativeBridge.mkTransferProofs(List(transfer), 0).reverse // Contract requires from bottom to top
+class E2CNativeTransfersTestSuite extends BaseIntegrationTestSuite {
+  private val transferReceiver     = TxHelpers.secondSigner
+  private val transfer             = NativeBridge.ElSentNativeEvent(transferReceiver.toAddress, 1)
+  private val transferEvent        = getLogsResponseEntry(transfer)
+  private val ecBlockLogs          = List(transferEvent)
+  private val transfersRootHashHex = HexBytesConverter.toHex(NativeBridge.mkTransfersHash(ecBlockLogs).explicitGet())
+  private val transferProofs       = NativeBridge.mkTransferProofs(List(transfer), 0).reverse // Contract requires from bottom to top
 
   private val reliable    = ElMinerSettings(Wallet.generateNewAccount(super.defaultSettings.walletSeed, 0))
   private val malfunction = ElMinerSettings(TxHelpers.signer(2)) // Prevents block finalization
@@ -36,15 +36,15 @@ class NativeTransfersE2CTestSuite extends BaseIntegrationTestSuite {
   )
 
   "Multiple withdrawals" in {
-    val transferReceiver1       = transferReceiver
-    val transferReceiver2       = TxHelpers.signer(2)
-    val transfer1               = NativeBridge.ElSentNativeEvent(transferReceiver1.toAddress, 1)
-    val transfer2               = NativeBridge.ElSentNativeEvent(transferReceiver2.toAddress, 1)
-    val transferEvents          = List(transfer1, transfer2)
-    val ecBlockLogs             = transferEvents.map(getLogsResponseEntry)
-    val e2CTransfersRootHashHex = HexBytesConverter.toHex(NativeBridge.mkTransfersHash(ecBlockLogs).explicitGet())
-    val transfer1Proofs         = NativeBridge.mkTransferProofs(transferEvents, 0).reverse
-    val transfer2Proofs         = NativeBridge.mkTransferProofs(transferEvents, 1).reverse
+    val transferReceiver1    = transferReceiver
+    val transferReceiver2    = TxHelpers.signer(2)
+    val transfer1            = NativeBridge.ElSentNativeEvent(transferReceiver1.toAddress, 1)
+    val transfer2            = NativeBridge.ElSentNativeEvent(transferReceiver2.toAddress, 1)
+    val transferEvents       = List(transfer1, transfer2)
+    val ecBlockLogs          = transferEvents.map(getLogsResponseEntry)
+    val transfersRootHashHex = HexBytesConverter.toHex(NativeBridge.mkTransfersHash(ecBlockLogs).explicitGet())
+    val transfer1Proofs      = NativeBridge.mkTransferProofs(transferEvents, 0).reverse
+    val transfer2Proofs      = NativeBridge.mkTransferProofs(transferEvents, 1).reverse
 
     val settings = defaultSettings.copy(
       additionalBalances = List(
@@ -67,7 +67,7 @@ class NativeTransfersE2CTestSuite extends BaseIntegrationTestSuite {
 
       step("Append a CL micro block with ecBlock confirmation")
       d.ecClients.addKnown(ecBlock)
-      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(reliable.account, ecBlock, e2CTransfersRootHashHex))
+      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(reliable.account, ecBlock, transfersRootHashHex))
       d.advanceConsensusLayerChanged()
 
       tryWithdraw() should beRight
@@ -94,7 +94,7 @@ class NativeTransfersE2CTestSuite extends BaseIntegrationTestSuite {
       d.advanceNewBlocks(reliable.address)
       val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
       d.ecClients.addKnown(ecBlock)
-      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(reliable.account, ecBlock, e2CTransfersRootHashHex))
+      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(reliable.account, ecBlock, transfersRootHashHex))
       d.advanceConsensusLayerChanged()
 
       def tryWithdraw(): Either[Throwable, BlockId] =
@@ -109,7 +109,7 @@ class NativeTransfersE2CTestSuite extends BaseIntegrationTestSuite {
     d.advanceNewBlocks(reliable.address)
     val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
     d.ecClients.addKnown(ecBlock)
-    d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(reliable.account, ecBlock, e2CTransfersRootHashHex))
+    d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(reliable.account, ecBlock, transfersRootHashHex))
     d.advanceConsensusLayerChanged()
 
     def tryWithdraw(): Either[Throwable, BlockId] =
@@ -131,7 +131,7 @@ class NativeTransfersE2CTestSuite extends BaseIntegrationTestSuite {
 
     tryWithdraw() should produce("not found for the contract address")
     d.ecClients.addKnown(ecBlock)
-    d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(reliable.account, ecBlock, e2CTransfersRootHashHex))
+    d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(reliable.account, ecBlock, transfersRootHashHex))
     d.advanceConsensusLayerChanged()
 
     tryWithdraw() should beRight
@@ -155,7 +155,7 @@ class NativeTransfersE2CTestSuite extends BaseIntegrationTestSuite {
 
       tryWithdraw() should produce("not found for the contract address")
       d.ecClients.addKnown(ecBlock)
-      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(reliable.account, ecBlock, e2CTransfersRootHashHex))
+      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(reliable.account, ecBlock, transfersRootHashHex))
       d.advanceConsensusLayerChanged()
 
       tryWithdraw() should beRight
@@ -264,7 +264,7 @@ class NativeTransfersE2CTestSuite extends BaseIntegrationTestSuite {
 
       step(s"Confirm startAltChain and append with new blocks and remove a malfunction miner")
       d.appendMicroBlockAndVerify(
-        d.ChainContract.startAltChain(reliable.account, ecBlock2, e2CTransfersRootHashHex),
+        d.ChainContract.startAltChain(reliable.account, ecBlock2, transfersRootHashHex),
         d.ChainContract.leave(malfunction.account)
       )
       d.advanceConsensusLayerChanged()

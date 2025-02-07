@@ -81,7 +81,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
       "unsuccessful causes a fork" - {
         def e2CTest(
             blockLogs: List[GetLogsResponseEntry],
-            e2CTransfersRootHashHex: String,
+            transfersRootHashHex: String,
             badBlockPostProcessing: EcBlock => EcBlock = identity
         ): Unit = withExtensionDomain() { d =>
           step("Start new epoch for ecBlock1")
@@ -100,7 +100,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
           val ecBlock2 = badBlockPostProcessing(d.createEcBlockBuilder("0-0", malfunction, ecBlock1).rewardPrevMiner().buildAndSetLogs(blockLogs))
 
           step(s"Append a CL micro block with ecBlock2 ${ecBlock2.hash} confirmation")
-          d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(malfunction.account, ecBlock2, e2CTransfersRootHashHex))
+          d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(malfunction.account, ecBlock2, transfersRootHashHex))
           d.advanceConsensusLayerChanged()
 
           step(s"Receive ecBlock2 ${ecBlock2.hash} from a peer")
@@ -114,7 +114,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
 
         "CL confirmation without a transfers root hash" in e2CTest(
           blockLogs = ecBlockLogs,
-          e2CTransfersRootHashHex = EmptyE2CTransfersRootHashHex
+          transfersRootHashHex = EmptyE2CTransfersRootHashHex
         )
 
         "Events from an unexpected EL bridge address" in {
@@ -122,13 +122,13 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
           val ecBlock2Logs      = transferEvents.map(x => getLogsResponseEntry(x).copy(address = fakeBridgeAddress))
           e2CTest(
             blockLogs = ecBlock2Logs,
-            e2CTransfersRootHashHex = e2CNativeTransfersRootHashHex
+            transfersRootHashHex = e2CNativeTransfersRootHashHex
           )
         }
 
         "Different miners in CL and EL" in e2CTest(
           blockLogs = ecBlockLogs,
-          e2CTransfersRootHashHex = e2CNativeTransfersRootHashHex,
+          transfersRootHashHex = e2CNativeTransfersRootHashHex,
           badBlockPostProcessing = _.copy(minerRewardL2Address = reliable.elRewardAddress)
         )
       }

@@ -13,7 +13,7 @@ import units.eth.EthAddress
 import scala.jdk.OptionConverters.RichOptional
 
 // TODO: asset registered in EL/CL first cases, WAVES
-class StandardBridgeE2CTestSuite extends BaseDockerTestSuite {
+class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
   private val clAssetOwner = clRichAccount2
   private val clRecipient  = clRichAccount1
   private val elSender     = elRichAccount1

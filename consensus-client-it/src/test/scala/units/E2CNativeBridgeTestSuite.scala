@@ -10,7 +10,7 @@ import units.el.{ElNativeBridgeClient, EvmEncoding, NativeBridge}
 
 import scala.jdk.OptionConverters.RichOptional
 
-class NativeBridgeE2CTestSuite extends BaseDockerTestSuite {
+class E2CNativeBridgeTestSuite extends BaseDockerTestSuite {
   private val elSender    = elRichAccount1
   private val clRecipient = clRichAccount1
 
