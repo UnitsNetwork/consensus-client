@@ -9,19 +9,19 @@ trait BridgeMerkleTree[ElEventT] {
   def exactTransfersNumber: Int
 
   def encodeArgs(x: ElEventT): Array[Byte]
-  def decodeLog(logData: String): Either[String, ElEventT]
+  def decodeLog(log: GetLogsResponseEntry): Either[String, ElEventT]
 
   def mkTransfersHash(elRawLogs: Seq[GetLogsResponseEntry]): Either[String, Digest] =
     for {
       bridgeEvents <- elRawLogs.traverse { l =>
-        decodeLog(l.data).left.map { e =>
+        decodeLog(l).left.map { e =>
           s"Log decoding error in ${l.data}: $e. Try to upgrade your consensus client"
         }
       }
     } yield {
       if (bridgeEvents.isEmpty) Array.emptyByteArray
       else {
-        val data     = elRawLogs.map(l => EthEncoding.toBytes(l.data))
+        val data     = bridgeEvents.map(encodeArgs)
         val levels   = Merkle.mkLevels(padData(data, exactTransfersNumber))
         val rootHash = levels.head.head
         rootHash

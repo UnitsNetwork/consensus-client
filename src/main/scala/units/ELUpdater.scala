@@ -1686,7 +1686,7 @@ class ELUpdater(
       actualTransfers <- rawActualTransfers
         .traverse { rawActualTransfer =>
           StandardBridge.ERC20BridgeFinalized
-            .decodeLog(rawActualTransfer.data)
+            .decodeLog(rawActualTransfer)
             .map((rawActualTransfer.address, rawActualTransfer.logIndex, _))
         }
       _ <- Either.cond(

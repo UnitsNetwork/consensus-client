@@ -1,9 +1,11 @@
 package units.el
 
+import cats.syntax.either.*
 import com.wavesplatform.account.Address
 import org.web3j.abi.*
 import org.web3j.abi.datatypes.generated.{Bytes20, Int64, Uint8}
 import org.web3j.abi.datatypes.{Event, Function, Type, Address as Web3JAddress, DynamicArray as Web3JArray}
+import units.client.engine.model.GetLogsResponseEntry
 import units.eth.{EthAddress, EthereumConstants}
 import units.util.HexBytesConverter
 
@@ -29,12 +31,15 @@ object StandardBridge {
     type ClToType       = Bytes20
     type ClAmountType   = Int64
 
+    private val LocalTokenTypeRef = new TypeReference[LocalTokenType](true) {}
+    private val ClToTypeRef       = new TypeReference[ClToType](true) {}
+
     private val EventDef: Event = new Event(
       "ERC20BridgeInitiated",
       List[TypeReference[?]](
-        new TypeReference[LocalTokenType](false) {},
-        new TypeReference[ClToType](false)       {},
-        new TypeReference[ClAmountType](false)   {}
+        LocalTokenTypeRef,
+        ClToTypeRef,
+        new TypeReference[ClAmountType](false) {}
       ).asJava
     )
 
@@ -47,25 +52,36 @@ object StandardBridge {
           TypeEncoder.encode(new ClAmountType(args.clAmount))
       )
 
-    override def decodeLog(ethEventData: String): Either[String, ERC20BridgeInitiated] =
-      try {
-        FunctionReturnDecoder.decode(ethEventData, EventDef.getNonIndexedParameters).asScala.toList match {
-          case (localToken: LocalTokenType) :: (clTo: ClToType) :: (clAmount: ClAmountType) :: Nil =>
-            for {
-              localToken <- EthAddress.from(localToken.getValue)
-              clTo       <- Try(Address(clTo.getValue)).toEither.left.map(e => s"Can't decode clTo: ${e.getMessage}")
-              clAmount   <- Try(clAmount.getValue.longValueExact()).toEither.left.map(e => s"Can't decode clAmount: ${e.getMessage}")
-              _          <- Either.cond(clAmount > 0, (), s"clAmount must be positive, got: $clAmount")
-            } yield new ERC20BridgeInitiated(localToken, clTo, clAmount)
-          case xs =>
-            Left(
-              s"Expected (localToken: ${classOf[LocalTokenType].getSimpleName}, clTo: ${classOf[ClToType].getSimpleName}, " +
-                s"clAmount: ${classOf[ClAmountType].getSimpleName}) fields, got: ${xs.mkString(", ")}"
-            )
-        }
+    override def decodeLog(log: GetLogsResponseEntry): Either[String, ERC20BridgeInitiated] =
+      (try {
+        for {
+          (localToken, clTo) <- log.topics match {
+            case _ :: localToken :: clTo :: Nil => Right((localToken, clTo))
+            case _                              => Left(s"Topics should contain 3 or more elements, got ${log.topics.size}")
+          }
+          localToken <- Try(FunctionReturnDecoder.decodeIndexedValue(localToken, LocalTokenTypeRef)).toEither.bimap(
+            e => s"Can't decode localToken: ${e.getMessage}",
+            r => r.asInstanceOf[LocalTokenType] // Type is not inferred even if call decodeIndexedValue[LocalTokenType]
+          )
+          localToken <- EthAddress.from(localToken.getValue)
+          clTo <- Try(FunctionReturnDecoder.decodeIndexedValue(clTo, ClToTypeRef)).toEither.bimap(
+            e => s"Can't decode clTo: ${e.getMessage}",
+            r => r.asInstanceOf[ClToType]
+          )
+          clTo <- Try(Address(clTo.getValue)).toEither.left.map(e => s"Can't decode clTo: ${e.getMessage}")
+          clAmount <- FunctionReturnDecoder.decode(log.data, EventDef.getNonIndexedParameters).asScala.toList match {
+            case (clAmount: ClAmountType) :: Nil =>
+              for {
+                clAmount <- Try(clAmount.getValue.longValueExact()).toEither.left.map(e => s"Can't decode clAmount: ${e.getMessage}")
+                _        <- Either.cond(clAmount > 0, (), s"clAmount must be positive, got: $clAmount")
+              } yield clAmount
+
+            case xs => Left(s"Expected (clAmount: ${classOf[ClAmountType].getSimpleName}) non-indexed fields, got: ${xs.mkString(", ")}")
+          }
+        } yield new ERC20BridgeInitiated(localToken, clTo, clAmount)
       } catch {
-        case NonFatal(e) => Left(s"Can't decode event: ${e.getMessage}, data=$ethEventData")
-      }
+        case NonFatal(e) => Left(e.getMessage)
+      }).left.map(e => s"Can't decode event ${EventDef.getName} from $log. $e")
   }
 
   case class ERC20BridgeFinalized(localToken: EthAddress, elTo: EthAddress, clAmount: Long)
@@ -74,12 +90,15 @@ object StandardBridge {
     type ElToType       = Web3JAddress
     type ClAmountType   = Int64
 
+    private val LocalTokenTypeRef = new TypeReference[LocalTokenType](true) {}
+    private val ElToTypeRef       = new TypeReference[ElToType](true) {}
+
     private val EventDef: Event = new Event(
       "ERC20BridgeFinalized",
       List[TypeReference[?]](
-        new TypeReference[LocalTokenType](false) {},
-        new TypeReference[ElToType](false)       {},
-        new TypeReference[ClAmountType](false)   {}
+        LocalTokenTypeRef,
+        ElToTypeRef,
+        new TypeReference[ClAmountType](false) {}
       ).asJava
     )
 
@@ -90,25 +109,36 @@ object StandardBridge {
         TypeEncoder.encode(new ElToType(args.elTo.hex)) +
         TypeEncoder.encode(new ClAmountType(args.clAmount))
 
-    def decodeLog(ethEventData: String): Either[String, ERC20BridgeFinalized] =
-      try {
-        FunctionReturnDecoder.decode(ethEventData, EventDef.getNonIndexedParameters).asScala.toList match {
-          case (assetAddress: LocalTokenType) :: (elTo: ElToType) :: (clAmount: ClAmountType) :: Nil =>
-            for {
-              localToken <- EthAddress.from(assetAddress.getValue)
-              elTo       <- EthAddress.from(elTo.getValue)
-              clAmount   <- Try(clAmount.getValue.longValueExact()).toEither.left.map(e => s"Can't decode clAmount: ${e.getMessage}")
-              _          <- Either.cond(clAmount > 0, clAmount, s"clAmount must be positive, got: $clAmount")
-            } yield new ERC20BridgeFinalized(localToken, elTo, clAmount)
-          case xs =>
-            Left(
-              s"Expected (localToken: ${classOf[LocalTokenType].getSimpleName}, elTo: ${classOf[ElToType].getSimpleName}, " +
-                s"clAmount: ${classOf[ClAmountType].getSimpleName}) fields, got: ${xs.mkString(", ")}"
-            )
-        }
+    def decodeLog(log: GetLogsResponseEntry): Either[String, ERC20BridgeFinalized] =
+      (try {
+        for {
+          (localToken, elTo) <- log.topics match {
+            case _ :: localToken :: elTo :: Nil => Right((localToken, elTo))
+            case _                              => Left(s"Topics should contain 3 or more elements, got ${log.topics.size}")
+          }
+          localToken <- Try(FunctionReturnDecoder.decodeIndexedValue(localToken, LocalTokenTypeRef)).toEither.bimap(
+            e => s"Can't decode localToken: ${e.getMessage}",
+            r => r.asInstanceOf[LocalTokenType]
+          )
+          localToken <- EthAddress.from(localToken.getValue)
+          elTo <- Try(FunctionReturnDecoder.decodeIndexedValue(elTo, ElToTypeRef)).toEither.bimap(
+            e => s"Can't decode elTo: ${e.getMessage}",
+            r => r.asInstanceOf[ElToType]
+          )
+          elTo <- EthAddress.from(elTo.getValue)
+          clAmount <- FunctionReturnDecoder.decode(log.data, EventDef.getNonIndexedParameters).asScala.toList match {
+            case (clAmount: ClAmountType) :: Nil =>
+              for {
+                clAmount <- Try(clAmount.getValue.longValueExact()).toEither.left.map(e => s"Can't decode clAmount: ${e.getMessage}")
+                _        <- Either.cond(clAmount > 0, (), s"clAmount must be positive, got: $clAmount")
+              } yield clAmount
+
+            case xs => Left(s"Expected (clAmount: ${classOf[ClAmountType].getSimpleName}) non-indexed fields, got: ${xs.mkString(", ")}")
+          }
+        } yield new ERC20BridgeFinalized(localToken, elTo, clAmount)
       } catch {
-        case NonFatal(e) => Left(s"Can't decode event: ${e.getMessage}, data=$ethEventData")
-      }
+        case NonFatal(e) => Left(e.getMessage)
+      }).left.map(e => s"Can't decode event ${EventDef.getName} from $log. $e")
   }
 
   case class RegistryUpdated(addedTokens: List[EthAddress], addedTokenExponents: List[Int], removedTokens: List[EthAddress])
@@ -154,7 +184,7 @@ object StandardBridge {
         )
 
     def decodeLog(ethEventData: String): Either[String, RegistryUpdated] =
-      try {
+      (try {
         FunctionReturnDecoder.decode(ethEventData, EventDef.getNonIndexedParameters).asScala.toList match {
           case (addedTokens: AddedTokensType @unchecked) ::
               (addedTokenExponents: AddedTokenExponentsType @unchecked) ::
@@ -180,8 +210,8 @@ object StandardBridge {
             )
         }
       } catch {
-        case NonFatal(e) => Left(s"Can't decode event: ${e.getMessage}, data=$ethEventData")
-      }
+        case NonFatal(e) => Left(e.getMessage)
+      }).left.map(e => s"Can't decode event ${EventDef.getName} from $ethEventData. $e")
   }
 
   // See https://specs.optimism.io/protocol/deposits.html#execution

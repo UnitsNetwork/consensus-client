@@ -10,8 +10,8 @@ contract StandardBridge {
 
     // clTo is a public key hash of recipient account.
     // effectively is it Waves address without 2 first bytes (version and chain id) and last 4 bytes (checksum).
-    event ERC20BridgeInitiated(address localToken, bytes20 clTo, int64 clAmount);
-    event ERC20BridgeFinalized(address localToken, address elTo, int64 clAmount);
+    event ERC20BridgeInitiated(address indexed localToken, bytes20 indexed clTo, int64 clAmount);
+    event ERC20BridgeFinalized(address indexed localToken, address indexed elTo, int64 clAmount);
 
     event RegistryUpdated(address[] addedTokens, uint8[] addedTokenExponents, address[] removedTokens);
 

@@ -87,8 +87,8 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
       val logsInBlock =
         ec1.engineApi.getLogs(blockHash, List(standardBridgeAddress), List(StandardBridge.ERC20BridgeInitiated.Topic)).explicitGet()
 
-      val transferEvents = logsInBlock.map { x =>
-        StandardBridge.ERC20BridgeInitiated.decodeLog(x.data).explicitGet()
+      val transferEvents = logsInBlock.map { l =>
+        StandardBridge.ERC20BridgeInitiated.decodeLog(l).explicitGet()
       }
       step(s"Transfer events: ${transferEvents.mkString(", ")}")
 
