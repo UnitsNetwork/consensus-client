@@ -4,7 +4,7 @@ import com.wavesplatform.transaction.TxHelpers
 import units.client.engine.model.BlockNumber
 import units.eth.EthAddress
 
-class NativeTokenBridgeC2ETestSuite extends BaseDockerTestSuite {
+class NativeBridgeC2ETestSuite extends BaseDockerTestSuite {
   private val clSender          = clRichAccount1
   private val elReceiver        = elRichAccount1
   private val elReceiverAddress = EthAddress.unsafeFrom(elReceiver.getAddress)

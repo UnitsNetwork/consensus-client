@@ -6,7 +6,7 @@ import com.wavesplatform.state.IntegerDataEntry
 import com.wavesplatform.test.produce
 import com.wavesplatform.transaction.{Asset, TxHelpers}
 
-class C2ENativeTransfersTestSuite extends BaseIntegrationTestSuite {
+class NativeTransfersC2ETestSuite extends BaseIntegrationTestSuite {
   private val transferSenderAccount  = TxHelpers.secondSigner
   private val validTransferRecipient = "1111111111111111111111111111111111111111"
   private val unrelatedAsset         = TxHelpers.issue(issuer = transferSenderAccount)

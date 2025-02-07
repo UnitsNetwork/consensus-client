@@ -6,14 +6,14 @@ import com.wavesplatform.transaction.TxHelpers
 import units.ELUpdater.State.ChainStatus.{FollowingChain, WaitForNewChain}
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.client.engine.model.{EcBlock, GetLogsResponseEntry}
-import units.el.Bridge
+import units.el.NativeBridge
 import units.eth.EthAddress
 import units.util.HexBytesConverter
 
 class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
-  private val transferEvents                = List(Bridge.ElSentNativeEvent(TxHelpers.defaultAddress, 1))
+  private val transferEvents                = List(NativeBridge.ElSentNativeEvent(TxHelpers.defaultAddress, 1))
   private val ecBlockLogs                   = transferEvents.map(getLogsResponseEntry)
-  private val e2CNativeTransfersRootHashHex = HexBytesConverter.toHex(Bridge.mkTransfersHash(ecBlockLogs).explicitGet())
+  private val e2CNativeTransfersRootHashHex = HexBytesConverter.toHex(NativeBridge.mkTransfersHash(ecBlockLogs).explicitGet())
 
   private val reliable    = ElMinerSettings(TxHelpers.signer(1))
   private val malfunction = ElMinerSettings(TxHelpers.signer(2)) // Prevents a block finalization

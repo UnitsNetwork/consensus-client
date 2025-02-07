@@ -6,11 +6,11 @@ import com.wavesplatform.utils.EthEncoding
 import org.web3j.protocol.core.DefaultBlockParameterName
 import org.web3j.protocol.core.methods.response.TransactionReceipt
 import org.web3j.utils.Convert
-import units.el.{Bridge, ElNativeTokenBridgeClient, EvmEncoding}
+import units.el.{ElNativeBridgeClient, EvmEncoding, NativeBridge}
 
 import scala.jdk.OptionConverters.RichOptional
 
-class NativeTokenBridgeE2CTestSuite extends BaseDockerTestSuite {
+class NativeBridgeE2CTestSuite extends BaseDockerTestSuite {
   private val elSender    = elRichAccount1
   private val clRecipient = clRichAccount1
 
@@ -21,7 +21,7 @@ class NativeTokenBridgeE2CTestSuite extends BaseDockerTestSuite {
 
   "Negative" - {
     def test(amount: BigInt, expectedError: String): Unit = {
-      val e = elNativeTokenBridge.callRevertedSendNative(elSender, clRecipient.toAddress, amount)
+      val e = elNativeBridge.callRevertedSendNative(elSender, clRecipient.toAddress, amount)
       e should include(expectedError)
     }
 
@@ -42,7 +42,7 @@ class NativeTokenBridgeE2CTestSuite extends BaseDockerTestSuite {
 
   "Positive" - {
     def sendNative(amount: BigInt = UnitsConvert.toWei(userAmount)): TransactionReceipt = {
-      val txnResult = elNativeTokenBridge.sendSendNative(elSender, clRecipient.toAddress, amount)
+      val txnResult = elNativeBridge.sendSendNative(elSender, clRecipient.toAddress, amount)
 
       // To overcome a failed block confirmation in a new epoch issue
       chainContract.waitForHeight(ec1.web3j.ethBlockNumber().send().getBlockNumber.longValueExact() + 2)
@@ -55,7 +55,7 @@ class NativeTokenBridgeE2CTestSuite extends BaseDockerTestSuite {
     }
 
     "L2-325 Sent tokens burned" in {
-      def burnedTokens       = ec1.web3j.ethGetBalance(ElNativeTokenBridgeClient.BurnAddress.hex, DefaultBlockParameterName.LATEST).send().getBalance
+      def burnedTokens       = ec1.web3j.ethGetBalance(ElNativeBridgeClient.BurnAddress.hex, DefaultBlockParameterName.LATEST).send().getBalance
       val burnedTokensBefore = BigInt(burnedTokens)
 
       val transferAmount = tenGwei
@@ -67,7 +67,7 @@ class NativeTokenBridgeE2CTestSuite extends BaseDockerTestSuite {
 
     "L2-379 Checking balances in EL->CL transfers" in {
       step("Broadcast Bridge.sendNative transaction")
-      def bridgeBalance       = ec1.web3j.ethGetBalance(elNativeTokenBridgeAddress.hex, DefaultBlockParameterName.LATEST).send().getBalance
+      def bridgeBalance       = ec1.web3j.ethGetBalance(elNativeBridgeAddress.hex, DefaultBlockParameterName.LATEST).send().getBalance
       val bridgeBalanceBefore = bridgeBalance
       val sendTxnReceipt      = sendNative()
 
@@ -79,17 +79,17 @@ class NativeTokenBridgeE2CTestSuite extends BaseDockerTestSuite {
       val blockHash = BlockHash(sendTxnReceipt.getBlockHash)
       step(s"Block with transaction: $blockHash")
 
-      val logsInBlock = ec1.engineApi.getLogs(blockHash, List(elNativeTokenBridgeAddress), List(Bridge.ElSentNativeEventTopic)).explicitGet()
+      val logsInBlock = ec1.engineApi.getLogs(blockHash, List(elNativeBridgeAddress), List(NativeBridge.ElSentNativeEventTopic)).explicitGet()
 
       val transferEvents = logsInBlock.map { x =>
-        Bridge.ElSentNativeEvent.decodeLog(x.data).explicitGet()
+        NativeBridge.ElSentNativeEvent.decodeLog(x.data).explicitGet()
       }
       step(s"Transfer events: ${transferEvents.mkString(", ")}")
 
       val sendTxnLogIndex = logsInBlock.indexWhere(_.transactionHash == sendTxnReceipt.getTransactionHash)
       sendTxnLogIndex shouldBe >=(0)
 
-      val transferProofs = Bridge.mkTransferProofs(transferEvents, sendTxnLogIndex).reverse
+      val transferProofs = NativeBridge.mkTransferProofs(transferEvents, sendTxnLogIndex).reverse
 
       step(s"Wait block $blockHash on contract")
       val blockConfirmationHeight = eventually {

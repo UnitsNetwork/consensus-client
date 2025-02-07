@@ -15,7 +15,7 @@ import scala.jdk.CollectionConverters.{ListHasAsScala, SeqHasAsJava}
 import scala.util.Try
 import scala.util.control.NonFatal
 
-object Bridge {
+object NativeBridge {
   private val ExactTransfersNumber = 1024
   private val PublicKeyHashType    = new TypeReference[Bytes20](false) {}
   private val AmountType           = new TypeReference[Int64](false) {}

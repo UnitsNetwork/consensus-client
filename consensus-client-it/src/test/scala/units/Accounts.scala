@@ -24,8 +24,8 @@ trait Accounts {
   val clRichAccount1 = mkKeyPair("devnet rich", 0)
   val clRichAccount2 = mkKeyPair("devnet rich", 1)
 
-  val elNativeTokenBridgeAddress = EthAddress.unsafeFrom("0x0000000000000000000000000000000000006a7e")
-  val elStandardBridgeAddress    = EthAddress.unsafeFrom("0x00000000000000000000000000000155c3d06a7e")
+  val elNativeBridgeAddress   = EthAddress.unsafeFrom("0x0000000000000000000000000000000000006a7e")
+  val elStandardBridgeAddress = EthAddress.unsafeFrom("0x00000000000000000000000000000155c3d06a7e")
 
   val elRichAccount1 = Credentials.create("8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63")
   val elRichAddress1 = EthAddress.unsafeFrom(elRichAccount1.getAddress)

@@ -13,19 +13,19 @@ import org.web3j.abi.datatypes.Event
 import org.web3j.abi.datatypes.generated.Bytes20
 import units.ELUpdater.State.ChainStatus.{Mining, WaitForNewChain}
 import units.client.contract.HasConsensusLayerDappTxHelpers.DefaultFees
-import units.el.Bridge
+import units.el.NativeBridge
 import units.eth.EthAddress
 import units.util.HexBytesConverter
 
 import scala.jdk.CollectionConverters.SeqHasAsJava
 
-class E2CNativeTransfersTestSuite extends BaseIntegrationTestSuite {
+class NativeTransfersE2CTestSuite extends BaseIntegrationTestSuite {
   private val transferReceiver        = TxHelpers.secondSigner
-  private val transfer                = Bridge.ElSentNativeEvent(transferReceiver.toAddress, 1)
+  private val transfer                = NativeBridge.ElSentNativeEvent(transferReceiver.toAddress, 1)
   private val transferEvent           = getLogsResponseEntry(transfer)
   private val ecBlockLogs             = List(transferEvent)
-  private val e2CTransfersRootHashHex = HexBytesConverter.toHex(Bridge.mkTransfersHash(ecBlockLogs).explicitGet())
-  private val transferProofs          = Bridge.mkTransferProofs(List(transfer), 0).reverse // Contract requires from bottom to top
+  private val e2CTransfersRootHashHex = HexBytesConverter.toHex(NativeBridge.mkTransfersHash(ecBlockLogs).explicitGet())
+  private val transferProofs          = NativeBridge.mkTransferProofs(List(transfer), 0).reverse // Contract requires from bottom to top
 
   private val reliable    = ElMinerSettings(Wallet.generateNewAccount(super.defaultSettings.walletSeed, 0))
   private val malfunction = ElMinerSettings(TxHelpers.signer(2)) // Prevents block finalization
@@ -38,13 +38,13 @@ class E2CNativeTransfersTestSuite extends BaseIntegrationTestSuite {
   "Multiple withdrawals" in {
     val transferReceiver1       = transferReceiver
     val transferReceiver2       = TxHelpers.signer(2)
-    val transfer1               = Bridge.ElSentNativeEvent(transferReceiver1.toAddress, 1)
-    val transfer2               = Bridge.ElSentNativeEvent(transferReceiver2.toAddress, 1)
+    val transfer1               = NativeBridge.ElSentNativeEvent(transferReceiver1.toAddress, 1)
+    val transfer2               = NativeBridge.ElSentNativeEvent(transferReceiver2.toAddress, 1)
     val transferEvents          = List(transfer1, transfer2)
     val ecBlockLogs             = transferEvents.map(getLogsResponseEntry)
-    val e2CTransfersRootHashHex = HexBytesConverter.toHex(Bridge.mkTransfersHash(ecBlockLogs).explicitGet())
-    val transfer1Proofs         = Bridge.mkTransferProofs(transferEvents, 0).reverse
-    val transfer2Proofs         = Bridge.mkTransferProofs(transferEvents, 1).reverse
+    val e2CTransfersRootHashHex = HexBytesConverter.toHex(NativeBridge.mkTransfersHash(ecBlockLogs).explicitGet())
+    val transfer1Proofs         = NativeBridge.mkTransferProofs(transferEvents, 0).reverse
+    val transfer2Proofs         = NativeBridge.mkTransferProofs(transferEvents, 1).reverse
 
     val settings = defaultSettings.copy(
       additionalBalances = List(

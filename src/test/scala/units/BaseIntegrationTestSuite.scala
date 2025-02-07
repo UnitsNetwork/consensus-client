@@ -12,8 +12,8 @@ import com.wavesplatform.utils.ScorexLogging
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues}
 import units.client.engine.model.GetLogsResponseEntry
-import units.el.Bridge
-import units.el.Bridge.ElSentNativeEvent
+import units.el.NativeBridge
+import units.el.NativeBridge.ElSentNativeEvent
 import units.eth.{EthAddress, EthNumber, Gwei}
 import units.test.CustomMatchers
 import units.util.HexBytesConverter
@@ -119,5 +119,11 @@ trait BaseIntegrationTestSuite
   protected def step(name: String): Unit = log.info(s"========= $name =========")
 
   protected def getLogsResponseEntry(event: ElSentNativeEvent): GetLogsResponseEntry =
-    GetLogsResponseEntry(EthNumber(0), elNativeBridgeAddress, Bridge.ElSentNativeEvent.encodeArgs(event), List(Bridge.ElSentNativeEventTopic), "")
+    GetLogsResponseEntry(
+      EthNumber(0),
+      elNativeBridgeAddress,
+      NativeBridge.ElSentNativeEvent.encodeArgs(event),
+      List(NativeBridge.ElSentNativeEventTopic),
+      ""
+    )
 }

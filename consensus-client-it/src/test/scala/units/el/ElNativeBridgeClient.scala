@@ -14,7 +14,7 @@ import units.bridge.BridgeContract
 import units.docker.EcContainer
 import units.eth.{EthAddress, EthereumConstants}
 
-class ElNativeTokenBridgeClient(web3j: Web3j, address: EthAddress, gasProvider: DefaultGasProvider = new DefaultGasProvider) extends ScorexLogging {
+class ElNativeBridgeClient(web3j: Web3j, address: EthAddress, gasProvider: DefaultGasProvider = new DefaultGasProvider) extends ScorexLogging {
   def sendSendNative(
       sender: Credentials,
       recipient: Address,
@@ -66,6 +66,6 @@ class ElNativeTokenBridgeClient(web3j: Web3j, address: EthAddress, gasProvider: 
   }
 }
 
-object ElNativeTokenBridgeClient {
+object ElNativeBridgeClient {
   val BurnAddress = EthereumConstants.ZeroAddress
 }

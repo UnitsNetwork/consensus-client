@@ -33,7 +33,7 @@ import units.client.engine.EngineApiClient
 import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.model.*
 import units.client.engine.model.Withdrawal.WithdrawalIndex
-import units.el.{Bridge, DepositedTransaction, StandardBridge}
+import units.el.{DepositedTransaction, NativeBridge, StandardBridge}
 import units.eth.{EmptyL2Block, EthAddress, EthereumConstants}
 import units.network.BlocksObserverImpl.BlockWithChannel
 import units.util.HexBytesConverter
@@ -1249,7 +1249,7 @@ class ELUpdater(
   private def toWithdrawals(transfers: Vector[ChainContractClient.ContractNativeTransfer], firstWithdrawalIndex: Long): Vector[Withdrawal] =
     transfers.zipWithIndex.map { case (x, i) =>
       val index = firstWithdrawalIndex + i
-      Withdrawal(index, x.destElAddress, Bridge.clToGweiNativeTokenAmount(x.amount))
+      Withdrawal(index, x.destElAddress, NativeBridge.clToGweiNativeTokenAmount(x.amount))
     }
 
   private def getLastWithdrawalIndex(hash: BlockHash): JobResult[WithdrawalIndex] =
@@ -1266,10 +1266,10 @@ class ELUpdater(
 
   private def getE2CNativeTransfersRootHash(hash: BlockHash, elBridgeAddress: EthAddress): JobResult[Digest] =
     for {
-      elRawLogs <- engineApiClient.getLogs(hash, List(elBridgeAddress), List(Bridge.ElSentNativeEventTopic))
+      elRawLogs <- engineApiClient.getLogs(hash, List(elBridgeAddress), List(NativeBridge.ElSentNativeEventTopic))
       rootHash <- {
-        val relatedElRawLogs = elRawLogs.filter(x => x.address == elBridgeAddress && x.topics.contains(Bridge.ElSentNativeEventTopic))
-        Bridge
+        val relatedElRawLogs = elRawLogs.filter(x => x.address == elBridgeAddress && x.topics.contains(NativeBridge.ElSentNativeEventTopic))
+        NativeBridge
           .mkTransfersHash(relatedElRawLogs)
           .leftMap(e => ClientError(e))
           .map { rootHash =>

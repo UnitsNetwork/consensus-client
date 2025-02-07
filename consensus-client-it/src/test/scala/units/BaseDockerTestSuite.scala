@@ -16,7 +16,7 @@ import units.client.contract.HasConsensusLayerDappTxHelpers
 import units.client.engine.model.BlockNumber
 import units.docker.*
 import units.docker.WavesNodeContainer.generateWavesGenesisConfig
-import units.el.{ElNativeTokenBridgeClient, ElStandardBridgeClient}
+import units.el.{ElNativeBridgeClient, ElStandardBridgeClient}
 import units.eth.Gwei
 import units.test.{CustomMatchers, IntegrationTestEventually, TestEnvironment}
 
@@ -63,9 +63,9 @@ trait BaseDockerTestSuite
     genesisConfigPath = wavesGenesisConfigPath
   )
 
-  protected lazy val chainContract       = new HttpChainContractClient(waves1.api, chainContractAddress)
-  protected lazy val elNativeTokenBridge = new ElNativeTokenBridgeClient(ec1.web3j, elNativeTokenBridgeAddress)
-  protected lazy val elStandardBridge    = new ElStandardBridgeClient(ec1.web3j, elStandardBridgeAddress, elRichAccount2)
+  protected lazy val chainContract    = new HttpChainContractClient(waves1.api, chainContractAddress)
+  protected lazy val elNativeBridge   = new ElNativeBridgeClient(ec1.web3j, elNativeBridgeAddress)
+  protected lazy val elStandardBridge = new ElStandardBridgeClient(ec1.web3j, elStandardBridgeAddress, elRichAccount2)
 
   protected def startNodes(): Unit = {
     ec1.start()

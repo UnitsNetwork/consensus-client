@@ -3,7 +3,7 @@ package units
 import org.web3j.abi.datatypes.generated.Uint256
 import units.client.TestEcClients
 import units.client.engine.model.{EcBlock, GetLogsRequest, GetLogsResponseEntry, Withdrawal}
-import units.el.{Bridge, StandardBridge}
+import units.el.{NativeBridge, StandardBridge}
 import units.eth.{EthAddress, EthereumConstants, Gwei}
 
 import java.nio.charset.StandardCharsets
@@ -36,7 +36,7 @@ class TestEcBlockBuilder private (
       registryTopicLogs: List[GetLogsResponseEntry] = Nil
   ): this.type = {
     testEcClients.setBlockLogs(
-      GetLogsRequest(block.hash, List(elNativeBridgeAddress), List(Bridge.ElSentNativeEventTopic), 0),
+      GetLogsRequest(block.hash, List(elNativeBridgeAddress), List(NativeBridge.ElSentNativeEventTopic), 0),
       nativeTransferLogs
     )
     testEcClients.setBlockLogs(
