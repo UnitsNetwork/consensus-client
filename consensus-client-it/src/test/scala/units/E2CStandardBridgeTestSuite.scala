@@ -30,12 +30,13 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
   private val enoughClAmount = clAmount * testTransfers
   private val enoughElAmount = elAmount * testTransfers
 
-  private val tenGwei = BigInt(Convert.toWei("10", Convert.Unit.GWEI).toBigIntegerExact)
+  private val tenGwei      = BigInt(Convert.toWei("10", Convert.Unit.GWEI).toBigIntegerExact)
+  private val tokenAddress = standardBridgeAddress
 
   // TODO: Because we have to get a token from dictionary before amount checks. Fix with unit tests for contract
   "Negative" ignore {
     def test(amount: BigInt, expectedError: String): Unit = {
-      val e = elStandardBridge.getRevertReasonForBridgeErc20(elSender, clRecipient.toAddress, amount)
+      val e = standardBridge.getRevertReasonForBridgeErc20(elSender, tokenAddress, clRecipient.toAddress, amount)
       e should include(expectedError)
     }
 
@@ -58,7 +59,7 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
 
   "Positive" - {
     def sendBridgeErc20(ethAmount: BigInt): TransactionReceipt = {
-      val txnResult = elStandardBridge.sendBridgeErc20(elSender, clRecipient.toAddress, ethAmount)
+      val txnResult = standardBridge.sendBridgeErc20(elSender, tokenAddress, clRecipient.toAddress, ethAmount)
 
       // To overcome a failed block confirmation in a new epoch issue
       chainContract.waitForHeight(ec1.web3j.ethBlockNumber().send().getBlockNumber.longValueExact() + 2)
@@ -72,9 +73,9 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
 
     "Checking balances in EL->CL transfers" in {
       step("Register asset")
-      waves1.api.broadcastAndWait(ChainContract.registerAsset(issueAsset, elStandardBridgeAddress, 18))
+      waves1.api.broadcastAndWait(ChainContract.registerAsset(issueAsset, standardBridgeAddress, 18))
       eventually {
-        elStandardBridge.isRegistered(elStandardBridgeAddress) shouldBe true
+        standardBridge.isRegistered(standardBridgeAddress) shouldBe true
       }
 
       step("Broadcast StandardBridge.sendBridgeErc20 transaction")
@@ -84,7 +85,7 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
       step(s"Block with transaction: $blockHash")
 
       val logsInBlock =
-        ec1.engineApi.getLogs(blockHash, List(elStandardBridgeAddress), List(StandardBridge.ERC20BridgeInitiated.Topic)).explicitGet()
+        ec1.engineApi.getLogs(blockHash, List(standardBridgeAddress), List(StandardBridge.ERC20BridgeInitiated.Topic)).explicitGet()
 
       val transferEvents = logsInBlock.map { x =>
         StandardBridge.ERC20BridgeInitiated.decodeLog(x.data).explicitGet()
@@ -138,7 +139,7 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
     super.beforeAll()
 
     step("Prepare: mint EL token")
-    elStandardBridge.sendMint(elSender, EthAddress.unsafeFrom(elSender.getAddress), enoughElAmount)
+    standardBridge.sendMint(elSender, EthAddress.unsafeFrom(elSender.getAddress), enoughElAmount)
 
     step("Prepare: issue CL asset")
     waves1.api.broadcastAndWait(issueAssetTxn)

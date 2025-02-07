@@ -21,7 +21,7 @@ class E2CNativeBridgeTestSuite extends BaseDockerTestSuite {
 
   "Negative" - {
     def test(amount: BigInt, expectedError: String): Unit = {
-      val e = elNativeBridge.callRevertedSendNative(elSender, clRecipient.toAddress, amount)
+      val e = nativeBridge.callRevertedSendNative(elSender, clRecipient.toAddress, amount)
       e should include(expectedError)
     }
 
@@ -42,7 +42,7 @@ class E2CNativeBridgeTestSuite extends BaseDockerTestSuite {
 
   "Positive" - {
     def sendNative(amount: BigInt = UnitsConvert.toWei(userAmount)): TransactionReceipt = {
-      val txnResult = elNativeBridge.sendSendNative(elSender, clRecipient.toAddress, amount)
+      val txnResult = nativeBridge.sendSendNative(elSender, clRecipient.toAddress, amount)
 
       // To overcome a failed block confirmation in a new epoch issue
       chainContract.waitForHeight(ec1.web3j.ethBlockNumber().send().getBlockNumber.longValueExact() + 2)
@@ -67,7 +67,7 @@ class E2CNativeBridgeTestSuite extends BaseDockerTestSuite {
 
     "L2-379 Checking balances in EL->CL transfers" in {
       step("Broadcast Bridge.sendNative transaction")
-      def bridgeBalance       = ec1.web3j.ethGetBalance(elNativeBridgeAddress.hex, DefaultBlockParameterName.LATEST).send().getBalance
+      def bridgeBalance       = ec1.web3j.ethGetBalance(nativeBridgeAddress.hex, DefaultBlockParameterName.LATEST).send().getBalance
       val bridgeBalanceBefore = bridgeBalance
       val sendTxnReceipt      = sendNative()
 
@@ -79,7 +79,7 @@ class E2CNativeBridgeTestSuite extends BaseDockerTestSuite {
       val blockHash = BlockHash(sendTxnReceipt.getBlockHash)
       step(s"Block with transaction: $blockHash")
 
-      val logsInBlock = ec1.engineApi.getLogs(blockHash, List(elNativeBridgeAddress), List(NativeBridge.ElSentNativeEventTopic)).explicitGet()
+      val logsInBlock = ec1.engineApi.getLogs(blockHash, List(nativeBridgeAddress), List(NativeBridge.ElSentNativeEventTopic)).explicitGet()
 
       val transferEvents = logsInBlock.map { x =>
         NativeBridge.ElSentNativeEvent.decodeLog(x.data).explicitGet()

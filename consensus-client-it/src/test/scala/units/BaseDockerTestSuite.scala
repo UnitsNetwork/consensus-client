@@ -64,9 +64,9 @@ trait BaseDockerTestSuite
     genesisConfigPath = wavesGenesisConfigPath
   )
 
-  protected lazy val chainContract    = new HttpChainContractClient(waves1.api, chainContractAddress)
-  protected lazy val elNativeBridge   = new ElNativeBridgeClient(ec1.web3j, elNativeBridgeAddress)
-  protected lazy val elStandardBridge = new StandardBridgeClient(ec1.web3j, elStandardBridgeAddress, elRichAccount2)
+  protected lazy val chainContract  = new HttpChainContractClient(waves1.api, chainContractAddress)
+  protected lazy val nativeBridge   = new ElNativeBridgeClient(ec1.web3j, nativeBridgeAddress)
+  protected lazy val standardBridge = new StandardBridgeClient(ec1.web3j, standardBridgeAddress, elRichAccount2)
 
   protected def startNodes(): Unit = {
     ec1.start()

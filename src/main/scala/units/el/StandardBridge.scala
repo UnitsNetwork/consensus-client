@@ -187,21 +187,20 @@ object StandardBridge {
   // See https://specs.optimism.io/protocol/deposits.html#execution
   def mkFinalizeBridgeErc20Transaction(
       transferIndex: Long,
-      elContractAddress: EthAddress,
-      recipient: EthAddress,
-      amountInWaves: Long,
-      erc20Address: EthAddress
-  ): DepositedTransaction =
-    DepositedTransaction.create(
-      sourceHash = DepositedTransaction.mkUserDepositedSourceHash(transferIndex),
-      from = EthereumConstants.ZeroAddress.hexNoPrefix,
-      to = elContractAddress.hex,
-      mint = BigInteger.ZERO,
-      value = BigInteger.ZERO,
-      gas = FinalizeBridgeErc20Gas,
-      isSystemTx = true, // Gas won't be consumed
-      data = HexBytesConverter.toBytes(finalizeBridgeErc20Call(erc20Address, recipient, amountInWaves))
-    )
+      standardBridgeAddress: EthAddress,
+      token: EthAddress,
+      elTo: EthAddress,
+      clAmount: Long
+  ): DepositedTransaction = DepositedTransaction.create(
+    sourceHash = DepositedTransaction.mkUserDepositedSourceHash(transferIndex),
+    from = EthereumConstants.ZeroAddress.hexNoPrefix,
+    to = standardBridgeAddress.hex,
+    mint = BigInteger.ZERO,
+    value = BigInteger.ZERO,
+    gas = FinalizeBridgeErc20Gas,
+    isSystemTx = true, // Gas won't be consumed
+    data = HexBytesConverter.toBytes(finalizeBridgeErc20Call(token, elTo, clAmount))
+  )
 
   def finalizeBridgeErc20Call(token: EthAddress, elTo: EthAddress, clAmount: Long): String = {
     val function = new Function(
@@ -216,24 +215,28 @@ object StandardBridge {
     FunctionEncoder.encode(function)
   }
 
-  def mkUpdateAssetRegistryTransaction(added: List[EthAddress], addedAssetExponents: List[Int], elBridgeAddress: EthAddress): DepositedTransaction =
+  def mkUpdateAssetRegistryTransaction(
+      standardBridgeAddress: EthAddress,
+      addedTokenExponents: List[Int],
+      addedTokens: List[EthAddress]
+  ): DepositedTransaction =
     DepositedTransaction.create(
-      sourceHash = DepositedTransaction.mkUserDepositedSourceHash(HexBytesConverter.toBytes(added.last.hex)), // TODO
+      sourceHash = DepositedTransaction.mkUserDepositedSourceHash(HexBytesConverter.toBytes(addedTokens.last.hex)), // TODO
       from = EthereumConstants.ZeroAddress.hexNoPrefix,
-      to = elBridgeAddress.hex,
+      to = standardBridgeAddress.hex,
       mint = BigInteger.ZERO,
       value = BigInteger.ZERO,
       gas = UpdateAssetRegistryGas,
       isSystemTx = true, // Gas won't be consumed
-      data = HexBytesConverter.toBytes(updateAssetRegistryCall(added, addedAssetExponents))
+      data = HexBytesConverter.toBytes(updateAssetRegistryCall(addedTokens, addedTokenExponents))
     )
 
-  def updateAssetRegistryCall(added: List[EthAddress], addedAssetExponents: List[Int]): String = {
+  def updateAssetRegistryCall(addedTokens: List[EthAddress], addedTokenExponents: List[Int]): String = {
     val function = new Function(
       UpdateAssetRegistryFunction,
       util.Arrays.asList[Type[?]](
-        new Web3JArray(classOf[Web3JAddress], added.map(x => new Web3JAddress(x.hexNoPrefix))*),
-        new Web3JArray(classOf[Uint8], addedAssetExponents.map(new Uint8(_))*)
+        new Web3JArray(classOf[Web3JAddress], addedTokens.map(x => new Web3JAddress(x.hexNoPrefix))*),
+        new Web3JArray(classOf[Uint8], addedTokenExponents.map(new Uint8(_))*)
       ),
       Collections.emptyList
     )

@@ -325,19 +325,19 @@ class ELUpdater(
       else
         Some(
           StandardBridge.mkUpdateAssetRegistryTransaction(
-            added = addedAssets.map(_.erc20Address),
-            addedAssetExponents = addedAssets.map(_.exponent),
-            elBridgeAddress = chainContractOptions.elStandardBridgeAddress
+            standardBridgeAddress = chainContractOptions.elStandardBridgeAddress,
+            addedTokenExponents = addedAssets.map(_.exponent),
+            addedTokens = addedAssets.map(_.erc20Address)
           )
         )
 
     val depositedTransactions = updateAssetRegistryTransaction.toVector ++ assetTransfers.map { x =>
       StandardBridge.mkFinalizeBridgeErc20Transaction(
         transferIndex = x.index,
-        elContractAddress = chainContractOptions.elStandardBridgeAddress,
-        recipient = x.destElAddress,
-        amountInWaves = x.amount,
-        erc20Address = x.erc20Address
+        standardBridgeAddress = chainContractOptions.elStandardBridgeAddress,
+        token = x.erc20Address,
+        elTo = x.destElAddress,
+        clAmount = x.amount
       )
     }
 

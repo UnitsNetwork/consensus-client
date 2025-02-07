@@ -35,18 +35,18 @@ class C2EStandardBridgeTestSuite extends BaseDockerTestSuite {
     rejected.message should include(s"Can't find in a registry: $issueAsset")
 
     step("2. Enable the asset in the registry")
-    waves1.api.broadcastAndWait(ChainContract.registerAsset(issueAsset, elStandardBridgeAddress, elAssetDecimals))
+    waves1.api.broadcastAndWait(ChainContract.registerAsset(issueAsset, standardBridgeAddress, elAssetDecimals))
     eventually {
-      elStandardBridge.isRegistered(elStandardBridgeAddress) shouldBe true
+      standardBridge.isRegistered(standardBridgeAddress) shouldBe true
     }
 
     step("3. Try to transfer the asset")
-    val balanceBefore = elStandardBridge.getBalance(elReceiverAddress)
+    val balanceBefore = standardBridge.getBalance(elReceiverAddress)
     waves1.api.broadcastAndWait(transferTxn)
 
     val expectedBalanceAfter = balanceBefore + elAmount
     eventually {
-      val balanceAfter = elStandardBridge.getBalance(elReceiverAddress)
+      val balanceAfter = standardBridge.getBalance(elReceiverAddress)
       UnitsConvert.toUser(balanceAfter, elAssetDecimals) shouldBe UnitsConvert.toUser(expectedBalanceAfter, elAssetDecimals)
     }
   }

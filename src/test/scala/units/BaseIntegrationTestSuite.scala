@@ -74,8 +74,8 @@ trait BaseIntegrationTestSuite
           rocksDBWriter = blockchain,
           settings = settings.wavesSettings,
           chainRegistryAccount = chainRegistryAccount,
-          elNativeBridgeAddress = elNativeBridgeAddress,
-          elStandardBridgeAddress = elStandardBridgeAddress,
+          nativeBridgeAddress = nativeBridgeAddress,
+          standardBridgeAddress = standardBridgeAddress,
           elMinerDefaultReward = elMinerDefaultReward
         )
 
@@ -118,7 +118,7 @@ trait BaseIntegrationTestSuite
   protected def getLogsResponseEntry(event: ElSentNativeEvent): GetLogsResponseEntry =
     GetLogsResponseEntry(
       EthNumber(0),
-      elNativeBridgeAddress,
+      nativeBridgeAddress,
       NativeBridge.ElSentNativeEvent.encodeArgs(event),
       List(NativeBridge.ElSentNativeEventTopic),
       ""
