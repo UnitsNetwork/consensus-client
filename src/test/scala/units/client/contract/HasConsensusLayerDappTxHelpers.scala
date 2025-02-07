@@ -42,8 +42,8 @@ trait HasConsensusLayerDappTxHelpers {
   }
 
   object ChainContract {
-    val TransferNativeFunctionName = "transfer"
-    val TransferIssuedFunctionName = "transferIssued"
+    val NativeTransferFunctionName = "transfer"
+    val AssetTransferFunctionName  = "assetTransfer"
 
     def setScript(): SetScriptTransaction = TxHelpers.setScript(chainContractAccount, CompiledChainContract.script, fee = setScriptFee, version = 2)
 
@@ -81,31 +81,31 @@ trait HasConsensusLayerDappTxHelpers {
       fee = leaveFee
     )
 
-    def registerToken(asset: Asset, erc20Address: EthAddress, elDecimals: Int, invoker: KeyPair = chainContractAccount): InvokeScriptTransaction =
-      registerToken(asset, erc20Address.hexNoPrefix, elDecimals, invoker)
+    def registerAsset(asset: Asset, erc20Address: EthAddress, elDecimals: Int, invoker: KeyPair = chainContractAccount): InvokeScriptTransaction =
+      registerAsset(asset, erc20Address.hexNoPrefix, elDecimals, invoker)
 
-    def registerToken(asset: Asset, erc20AddressHex: String, elDecimals: Int, invoker: KeyPair): InvokeScriptTransaction =
+    def registerAsset(asset: Asset, erc20AddressHex: String, elDecimals: Int, invoker: KeyPair): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = invoker,
         dApp = chainContractAddress,
-        func = "registerToken".some,
+        func = "registerAsset".some,
         args = List(
-          Terms.CONST_STRING(asset.fold(ChainContractClient.Registry.WavesTokenName)(_.id.toString)).explicitGet(),
+          Terms.CONST_STRING(asset.fold(ChainContractClient.Registry.WavesAssetName)(_.id.toString)).explicitGet(),
           Terms.CONST_STRING(erc20AddressHex).explicitGet(),
           Terms.CONST_LONG(elDecimals)
         )
       )
 
-    def createAndRegisterToken(
+    def createAndRegisterAsset(
         erc20Address: EthAddress,
         elDecimals: Int,
         name: String,
         description: String,
         clDecimals: Int,
         invoker: KeyPair = chainContractAccount
-    ): InvokeScriptTransaction = createAndRegisterToken(erc20Address.hexNoPrefix, elDecimals, name, description, clDecimals, invoker)
+    ): InvokeScriptTransaction = createAndRegisterAsset(erc20Address.hexNoPrefix, elDecimals, name, description, clDecimals, invoker)
 
-    def createAndRegisterToken(
+    def createAndRegisterAsset(
         erc20AddressHex: String,
         elDecimals: Int,
         name: String,
@@ -116,7 +116,7 @@ trait HasConsensusLayerDappTxHelpers {
       TxHelpers.invoke(
         invoker = invoker,
         dApp = chainContractAddress,
-        func = "createAndRegisterToken".some,
+        func = "createAndRegisterAsset".some,
         args = List(
           Terms.CONST_STRING(erc20AddressHex).explicitGet(),
           Terms.CONST_LONG(elDecimals),
@@ -261,7 +261,7 @@ trait HasConsensusLayerDappTxHelpers {
         destElAddress: EthAddress,
         asset: Asset,
         amount: Long,
-        function: String = TransferNativeFunctionName
+        function: String = NativeTransferFunctionName
     ): InvokeScriptTransaction =
       transferUnsafe(
         sender = sender,
@@ -279,7 +279,7 @@ trait HasConsensusLayerDappTxHelpers {
         destElAddressHex: String,
         asset: Asset,
         amount: Long,
-        function: String = TransferNativeFunctionName
+        function: String = NativeTransferFunctionName
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = sender,
@@ -318,7 +318,7 @@ trait HasConsensusLayerDappTxHelpers {
         fee = withdrawFee
       )
 
-    def withdrawIssued(
+    def withdrawAsset(
         sender: KeyPair,
         blockHash: BlockHash,
         merkleProof: Seq[Digest],
@@ -329,7 +329,7 @@ trait HasConsensusLayerDappTxHelpers {
       TxHelpers.invoke(
         invoker = sender,
         dApp = chainContractAddress,
-        func = "withdrawIssued".some,
+        func = "withdrawAsset".some,
         args = List(
           Terms.CONST_STRING(blockHash.drop(2)).explicitGet(),
           Terms.ARR(merkleProof.map[Terms.EVALUATED](x => Terms.CONST_BYTESTR(ByteStr(x)).explicitGet()).toVector, limited = false).explicitGet(),

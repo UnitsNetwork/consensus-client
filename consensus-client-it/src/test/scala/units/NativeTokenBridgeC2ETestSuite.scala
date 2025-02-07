@@ -14,8 +14,8 @@ class NativeTokenBridgeC2ETestSuite extends BaseDockerTestSuite {
   private val gweiAmount  = UnitsConvert.toGwei(userAmount)
 
   "L2-380 Checking balances in CL->EL transfers" in {
-    def clAssetQuantity: Long      = waves1.api.assetQuantity(chainContract.token)
-    def chainContractBalance: Long = waves1.api.balance(chainContractAddress, chainContract.token)
+    def clAssetQuantity: Long      = waves1.api.assetQuantity(chainContract.nativeTokenId)
+    def chainContractBalance: Long = waves1.api.balance(chainContractAddress, chainContract.nativeTokenId)
 
     val clAssetQuantityBefore      = clAssetQuantity
     val chainContractBalanceBefore = chainContractBalance
@@ -26,7 +26,7 @@ class NativeTokenBridgeC2ETestSuite extends BaseDockerTestSuite {
       ChainContract.transfer(
         sender = clSender,
         destElAddress = elReceiverAddress,
-        asset = chainContract.token,
+        asset = chainContract.nativeTokenId,
         amount = wavesAmount
       )
     )
@@ -63,7 +63,7 @@ class NativeTokenBridgeC2ETestSuite extends BaseDockerTestSuite {
     step("Prepare: issue tokens on chain contract and transfer to a user")
     waves1.api.broadcastAndWait(
       TxHelpers.reissue(
-        asset = chainContract.token,
+        asset = chainContract.nativeTokenId,
         sender = chainContractAccount,
         amount = wavesAmount
       )
@@ -73,7 +73,7 @@ class NativeTokenBridgeC2ETestSuite extends BaseDockerTestSuite {
         from = chainContractAccount,
         to = clSender.toAddress,
         amount = wavesAmount,
-        asset = chainContract.token
+        asset = chainContract.nativeTokenId
       )
     )
   }

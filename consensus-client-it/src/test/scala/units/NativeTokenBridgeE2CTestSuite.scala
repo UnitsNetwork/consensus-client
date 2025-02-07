@@ -109,7 +109,7 @@ class NativeTokenBridgeE2CTestSuite extends BaseDockerTestSuite {
             s"merkleProof={${transferProofs.map(EthEncoding.toHexString).mkString(",")}}"
         )
 
-        def receiverBalance: Long = waves1.api.balance(clRecipient.toAddress, chainContract.token)
+        def receiverBalance: Long = waves1.api.balance(clRecipient.toAddress, chainContract.nativeTokenId)
         val receiverBalanceBefore = receiverBalance
 
         waves1.api.broadcastAndWait(

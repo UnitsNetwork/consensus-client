@@ -99,7 +99,7 @@ trait BaseDockerTestSuite
         invoker = chainContractAccount
       )
     )
-    log.info(s"Token id: ${chainContract.token}")
+    log.info(s"Native token id: ${chainContract.nativeTokenId}")
 
     log.info("EL miner #1 join")
     val joinMiner1Result = waves1.api.broadcastAndWait(

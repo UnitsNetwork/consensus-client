@@ -6,7 +6,7 @@ import com.wavesplatform.state.IntegerDataEntry
 import com.wavesplatform.test.produce
 import com.wavesplatform.transaction.{Asset, TxHelpers}
 
-class C2ETransfersTestSuite extends BaseIntegrationTestSuite {
+class C2ENativeTransfersTestSuite extends BaseIntegrationTestSuite {
   private val transferSenderAccount  = TxHelpers.secondSigner
   private val validTransferRecipient = "1111111111111111111111111111111111111111"
   private val unrelatedAsset         = TxHelpers.issue(issuer = transferSenderAccount)
@@ -46,28 +46,28 @@ class C2ETransfersTestSuite extends BaseIntegrationTestSuite {
 
   "Deny invalid asset" in forAll(
     Table(
-      "invalid token"                        -> "message",
+      "invalid asset"                        -> "message",
       Asset.Waves                            -> "in the payment, got Waves",
       Asset.IssuedAsset(unrelatedAsset.id()) -> s"in the payment, got ${unrelatedAsset.id()}"
     )
-  ) { case (tokenId, message) =>
-    transferFuncTest(validTransferRecipient, tokenId = Some(tokenId)) should produce(message)
+  ) { case (assetId, message) =>
+    transferFuncTest(validTransferRecipient, assetId = Some(assetId)) should produce(message)
   }
 
   private def transferFuncTest(
       destElAddressHex: String,
       transferAmount: Int = 1_000_000,
-      tokenId: Option[Asset] = None,
+      assetId: Option[Asset] = None,
       queueSize: Int = 0
   ): Either[Throwable, BlockId] = withExtensionDomain() { d =>
-    val transferSenderTokenAmount = Long.MaxValue / 2
+    val amount = Long.MaxValue / 2
     d.appendMicroBlock(
       unrelatedAsset,
-      TxHelpers.reissue(d.token, d.chainContractAccount, transferSenderTokenAmount),
-      TxHelpers.transfer(d.chainContractAccount, transferSenderAccount.toAddress, transferSenderTokenAmount, d.token)
+      TxHelpers.reissue(d.nativeTokenId, d.chainContractAccount, amount),
+      TxHelpers.transfer(d.chainContractAccount, transferSenderAccount.toAddress, amount, d.nativeTokenId)
     )
     if (queueSize > 0) d.appendMicroBlock(TxHelpers.data(d.chainContractAccount, Seq(IntegerDataEntry("nativeTransfersCount", queueSize))))
 
-    d.appendMicroBlockE(d.ChainContract.transferUnsafe(transferSenderAccount, destElAddressHex, tokenId.getOrElse(d.token), transferAmount))
+    d.appendMicroBlockE(d.ChainContract.transferUnsafe(transferSenderAccount, destElAddressHex, assetId.getOrElse(d.nativeTokenId), transferAmount))
   }
 }

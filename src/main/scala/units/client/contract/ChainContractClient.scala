@@ -242,13 +242,13 @@ trait ChainContractClient {
     elNativeBridgeAddress = getStringData("elBridgeAddress")
       .map(EthAddress.unsafeFrom)
       .getOrElse(throw new IllegalStateException("elBridgeAddress is empty on contract")),
-    elStandardBridgeAddress = getStringData("elIssuedBridgeAddress")
+    elStandardBridgeAddress = getStringData("elStandardBridgeAddress")
       .map(EthAddress.unsafeFrom)
-      .getOrElse(throw new IllegalStateException("elIssuedBridgeAddress is empty on contract")),
+      .getOrElse(throw new IllegalStateException("elStandardBridgeAddress is empty on contract")),
     assetTransfersActivationEpoch = getAssetTransfersActivationEpoch
   )
 
-  private def getAssetTransfersActivationEpoch: Long = getLongData("issuedTransfersActivationEpoch").getOrElse(Long.MaxValue)
+  private def getAssetTransfersActivationEpoch: Long = getLongData("assetTransfersActivationEpoch").getOrElse(Long.MaxValue)
 
   private def getChainMeta(chainId: Long): Option[(Int, BlockHash)] = {
     val key = f"chain_$chainId%08d"
@@ -290,33 +290,34 @@ trait ChainContractClient {
     else (fromIndex until math.min(fromIndex + maxItems, getAssetTransfersCount)).map(requireAssetTransfer).toVector
 
   private def requireAssetTransfer(atIndex: Long): ContractAssetTransfer = {
-    val key   = s"issuedTransfer_$atIndex"
+    val key   = s"assetTransfer_$atIndex"
     val raw   = getStringData(key).getOrElse(fail(s"Expected an asset transfer at '$key', got nothing"))
     val parts = raw.split(Sep)
     if (parts.length != 3) fail(s"Expected 3 elements in asset transfer, got ${parts.length}: $raw")
 
     val destElAddress = EthAddress.unsafeFrom(parts(0))
     val amount        = parts(1).toLongOption.getOrElse(fail(s"Expected an integer amount of asset transfer, got: ${parts(1)}"))
-    val tokenIndex    = parts(2).toIntOption.getOrElse(fail(s"Expected an asset index in asset transfer, got: ${parts(2)}"))
+    val assetIndex    = parts(2).toIntOption.getOrElse(fail(s"Expected an asset index in asset transfer, got: ${parts(2)}"))
 
-    val asset     = getRegisteredAsset(tokenIndex)
+    val asset     = getRegisteredAsset(assetIndex)
     val assetData = getRegisteredAssetData(asset)
 
     ContractAssetTransfer(atIndex, destElAddress, amount, assetData.erc20Address)
   }
 
-  private def getAssetTransfersCount: Long = getLongData("issuedTransfersCount").getOrElse(0L)
+  private def getAssetTransfersCount: Long = getLongData("assetTransfersCount").getOrElse(0L)
 
   private def getRegisteredAssetData(asset: Asset): Registry.RegisteredAsset = {
-    val raw   = getStringData(s"assetRegistry_${Registry.stringifyAsset(asset)}").getOrElse(fail(s"Can't find a registered asset $asset"))
+    val key   = s"assetRegistry_${Registry.stringifyAsset(asset)}"
+    val raw   = getStringData(key).getOrElse(fail(s"Can't find a registered asset $asset at $key"))
     val parts = raw.split(Sep)
-    if (parts.length < 3) fail(s"Expected at least 3 elements in a asset registry entry, got ${parts.length}: $raw")
+    if (parts.length < 3) fail(s"Expected at least 3 elements in $key, got ${parts.length}: $raw")
 
-    val tokenIndex   = parts(0).toIntOption.getOrElse(fail(s"Expected an index of asset in a registry, got: ${parts(1)}"))
+    val assetIndex   = parts(0).toIntOption.getOrElse(fail(s"Expected an index of asset at $key(0), got: ${parts(1)}"))
     val erc20Address = EthAddress.unsafeFrom(s"0x${parts(1)}")
-    val exponent     = parts(2).toIntOption.getOrElse(fail(s"Expected an exponent of asset in a registry, got: ${parts(2)}"))
+    val exponent     = parts(2).toIntOption.getOrElse(fail(s"Expected an exponent of asset at $key(2), got: ${parts(2)}"))
 
-    Registry.RegisteredAsset(asset, tokenIndex, erc20Address, exponent)
+    Registry.RegisteredAsset(asset, assetIndex, erc20Address, exponent)
   }
 
   def getAssetRegistrySize: Int = getLongData("assetRegistrySize").getOrElse(0L).toInt
@@ -393,17 +394,17 @@ object ChainContractClient {
   case class ContractAssetTransfer(index: Long, destElAddress: EthAddress, amount: Long, erc20Address: EthAddress)
 
   object Registry {
-    val WavesTokenName = "WAVES"
+    val WavesAssetName = "WAVES"
 
     case class RegisteredAsset(asset: Asset, index: Int, erc20Address: EthAddress, exponent: Int) {
       override def toString: String = s"RegisteredAsset($asset, i=$index, $erc20Address, e=$exponent)"
     }
 
     def parseAsset(rawAssetId: String): Asset =
-      if (rawAssetId == WavesTokenName) Asset.Waves
+      if (rawAssetId == WavesAssetName) Asset.Waves
       else Asset.IssuedAsset(ByteStr.decodeBase58(rawAssetId).getOrElse(fail(s"Can't decode an asset id: $rawAssetId")))
 
-    def stringifyAsset(asset: Asset): String = asset.fold(WavesTokenName)(_.id.toString)
+    def stringifyAsset(asset: Asset): String = asset.fold(WavesAssetName)(_.id.toString)
   }
 
   private def fail(reason: String, cause: Throwable = null): Nothing = throw new InconsistentContractData(reason, cause)

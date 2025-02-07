@@ -41,8 +41,8 @@ import pureconfig.ConfigSource
 import units.ELUpdater.*
 import units.ELUpdater.State.{ChainStatus, Working}
 import units.ExtensionDomain.*
-import units.client.contract.{ChainContractStateClient, HasConsensusLayerDappTxHelpers}
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
+import units.client.contract.{ChainContractStateClient, HasConsensusLayerDappTxHelpers}
 import units.client.engine.model.{EcBlock, TestEcBlocks}
 import units.client.{L2BlockLike, TestEcClients}
 import units.eth.{EthAddress, EthereumConstants, Gwei}
@@ -239,10 +239,10 @@ class ExtensionDomain(
       }
     }
 
-  lazy val token: IssuedAsset = blockchain.accountData(chainContractAddress, "tokenId") match {
+  lazy val nativeTokenId: IssuedAsset = blockchain.accountData(chainContractAddress, "tokenId") match {
     case Some(StringDataEntry(_, tokenId)) =>
-      IssuedAsset(ByteStr.decodeBase58(tokenId).getOrElse(throw new RuntimeException(s"Unexpected token id: $tokenId")))
-    case x => throw new RuntimeException(s"Unexpected token id entry: $x")
+      IssuedAsset(ByteStr.decodeBase58(tokenId).getOrElse(throw new RuntimeException(s"Unexpected tokenId: $tokenId")))
+    case x => throw new RuntimeException(s"Unexpected tokenId entry: $x")
   }
 
   def evaluatedFinalizedBlock: JsObject =

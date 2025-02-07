@@ -1480,12 +1480,12 @@ class ELUpdater(
     )
 
     val expectedTransfers = chainContractClient.getAssetTransfers(firstWithdrawalIndex, maxItems)
-    val tokenAddresses =
+    val erc20Addresses =
       if (expectedTransfers.isEmpty) chainContractClient.getAllRegisteredAssets.map(_.erc20Address) // To check, there is no transfers
       else expectedTransfers.map(_.erc20Address).toList
 
-    if (tokenAddresses.isEmpty) Either.unit
-    else validateC2EAssetTransfers(ecBlock, expectedTransfers, tokenAddresses).leftMap(ClientError(_))
+    if (erc20Addresses.isEmpty) Either.unit
+    else validateC2EAssetTransfers(ecBlock, expectedTransfers, erc20Addresses).leftMap(ClientError(_))
   }
 
   private def validateBlockFull(
@@ -1673,13 +1673,13 @@ class ELUpdater(
   private def validateC2EAssetTransfers(
       ecBlock: EcBlock,
       expectedTransfers: Seq[ChainContractClient.ContractAssetTransfer],
-      tokenAddresses: List[EthAddress]
+      erc20Addresses: List[EthAddress] // TODO bridge, but filter erc20?
   ): Either[String, Unit] =
     for {
       rawActualTransfers <- engineApiClient
         .getLogs(
           hash = ecBlock.hash,
-          addresses = tokenAddresses,
+          addresses = erc20Addresses,
           topics = List(StandardBridge.ERC20BridgeFinalized.Topic)
         )
         .leftMap(_.message)

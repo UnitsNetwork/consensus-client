@@ -90,6 +90,6 @@ object Bridge {
       Merkle.mkProofs(transferIndex, levels)
     }
 
-  def clToGweiNativeTokenAmount(amountInWavesToken: Long): Gwei =
-    Gwei.ofRawGwei(BigInteger.valueOf(amountInWavesToken).multiply(BigInteger.valueOf(10))) // 1 unit is 10 Gwei (see bridge.sol)
+  def clToGweiNativeTokenAmount(amountInWavesAsset: Long): Gwei =
+    Gwei.ofRawGwei(BigInteger.valueOf(amountInWavesAsset).multiply(BigInteger.valueOf(10))) // 1 unit is 10 Gwei (see bridge.sol)
 }

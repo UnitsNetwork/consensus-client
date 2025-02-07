@@ -14,11 +14,11 @@ import scala.jdk.OptionConverters.RichOptional
 
 // TODO: asset registered in EL/CL first cases, WAVES
 class StandardBridgeE2CTestSuite extends BaseDockerTestSuite {
-  private val clTokenOwner = clRichAccount2
+  private val clAssetOwner = clRichAccount2
   private val clRecipient  = clRichAccount1
   private val elSender     = elRichAccount1
 
-  private val issueAssetTxn   = TxHelpers.issue(clTokenOwner, decimals = 8)
+  private val issueAssetTxn   = TxHelpers.issue(clAssetOwner, decimals = 8)
   private val issueAsset      = IssuedAsset(issueAssetTxn.id())
   private val elAssetDecimals = 18
 
@@ -53,7 +53,7 @@ class StandardBridgeE2CTestSuite extends BaseDockerTestSuite {
       }
     }
 
-    "Can't transfer without registration" in test(elAmount, "Token is not registered")
+    "Can't transfer without registration" in test(elAmount, "Asset is not registered")
   }
 
   "Positive" - {
@@ -71,8 +71,8 @@ class StandardBridgeE2CTestSuite extends BaseDockerTestSuite {
     }
 
     "Checking balances in EL->CL transfers" in {
-      step("Register token")
-      waves1.api.broadcastAndWait(ChainContract.registerToken(issueAsset, elStandardBridgeAddress, 18))
+      step("Register asset")
+      waves1.api.broadcastAndWait(ChainContract.registerAsset(issueAsset, elStandardBridgeAddress, 18))
       eventually {
         elStandardBridge.isRegistered(elStandardBridgeAddress) shouldBe true
       }
@@ -108,9 +108,9 @@ class StandardBridgeE2CTestSuite extends BaseDockerTestSuite {
         currFinalizedHeight should be >= blockConfirmationHeight
       }
 
-      withClue("3. Tokens received: ") {
+      withClue("3. Assets received: ") {
         step(
-          s"Broadcast withdrawIssued transaction: transferIndexInBlock=$sendTxnLogIndex, amount=$clAmount, " +
+          s"Broadcast withdrawAsset transaction: transferIndexInBlock=$sendTxnLogIndex, amount=$clAmount, " +
             s"merkleProof={${transferProofs.map(EthEncoding.toHexString).mkString(",")}}"
         )
 
@@ -118,7 +118,7 @@ class StandardBridgeE2CTestSuite extends BaseDockerTestSuite {
         val receiverBalanceBefore = receiverBalance
 
         waves1.api.broadcastAndWait(
-          ChainContract.withdrawIssued(
+          ChainContract.withdrawAsset(
             sender = clRecipient,
             blockHash = blockHash,
             merkleProof = transferProofs,
@@ -144,6 +144,6 @@ class StandardBridgeE2CTestSuite extends BaseDockerTestSuite {
     waves1.api.broadcastAndWait(issueAssetTxn)
 
     step("Prepare: move assets and enable the asset in the registry")
-    waves1.api.broadcast(TxHelpers.transfer(clTokenOwner, chainContractAddress, enoughClAmount, issueAsset))
+    waves1.api.broadcast(TxHelpers.transfer(clAssetOwner, chainContractAddress, enoughClAmount, issueAsset))
   }
 }

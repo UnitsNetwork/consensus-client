@@ -27,7 +27,7 @@ class StandardBridgeC2ETestSuite extends BaseDockerTestSuite {
         elReceiverAddress,
         issueAsset,
         UnitsConvert.toWavesAtomic(userAmount, issueAssetTxn.decimals.value),
-        ChainContract.TransferIssuedFunctionName
+        ChainContract.AssetTransferFunctionName
       )
 
     val rejected = waves1.api.broadcast(transferTxn).left.value
@@ -35,7 +35,7 @@ class StandardBridgeC2ETestSuite extends BaseDockerTestSuite {
     rejected.message should include(s"Can't find in a registry: $issueAsset")
 
     step("2. Enable the asset in the registry")
-    waves1.api.broadcastAndWait(ChainContract.registerToken(issueAsset, elStandardBridgeAddress, elAssetDecimals))
+    waves1.api.broadcastAndWait(ChainContract.registerAsset(issueAsset, elStandardBridgeAddress, elAssetDecimals))
     eventually {
       elStandardBridge.isRegistered(elStandardBridgeAddress) shouldBe true
     }

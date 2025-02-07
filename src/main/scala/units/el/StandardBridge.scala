@@ -209,10 +209,10 @@ object StandardBridge {
       value = BigInteger.ZERO,
       gas = UpdateAssetRegistryGas,
       isSystemTx = true, // Gas won't be consumed
-      data = HexBytesConverter.toBytes(updateTokenRegistryCall(added, addedAssetExponents))
+      data = HexBytesConverter.toBytes(updateAssetRegistryCall(added, addedAssetExponents))
     )
 
-  def updateTokenRegistryCall(added: List[EthAddress], addedAssetExponents: List[Int]): String = {
+  def updateAssetRegistryCall(added: List[EthAddress], addedAssetExponents: List[Int]): String = {
     val function = new Function(
       UpdateAssetRegistryFunction,
       util.Arrays.asList[Type[?]](

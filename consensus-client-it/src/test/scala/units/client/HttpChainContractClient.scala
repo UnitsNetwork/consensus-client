@@ -26,8 +26,8 @@ class HttpChainContractClient(api: NodeHttpApi, override val contract: Address)
     with ScorexLogging {
   override def extractData(key: String): Option[DataEntry[?]] = api.dataByKey(contract, key)(LoggingOptions(logRequest = false))
 
-  private val fiveBlocks      = WavesNodeContainer.MaxBlockDelay * 5
-  lazy val token: IssuedAsset = IssuedAsset(ByteStr.decodeBase58(getStringData("tokenId").getOrElse(fail("Call setup first"))).get)
+  private val fiveBlocks              = WavesNodeContainer.MaxBlockDelay * 5
+  lazy val nativeTokenId: IssuedAsset = IssuedAsset(ByteStr.decodeBase58(getStringData("tokenId").getOrElse(fail("Call setup first"))).get)
 
   def getEpochFirstBlock(epochNumber: Int): Option[ContractBlock] =
     getEpochMeta(epochNumber).flatMap { epochData =>

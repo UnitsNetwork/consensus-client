@@ -19,7 +19,7 @@ import units.util.HexBytesConverter
 
 import scala.jdk.CollectionConverters.SeqHasAsJava
 
-class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
+class E2CNativeTransfersTestSuite extends BaseIntegrationTestSuite {
   private val transferReceiver        = TxHelpers.secondSigner
   private val transfer                = Bridge.ElSentNativeEvent(transferReceiver.toAddress, 1)
   private val transferEvent           = getLogsResponseEntry(transfer)
@@ -72,10 +72,10 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
 
       tryWithdraw() should beRight
       withClue("Tokens came:") {
-        val balance1After = d.balance(transferReceiver1.toAddress, d.token)
+        val balance1After = d.balance(transferReceiver1.toAddress, d.nativeTokenId)
         balance1After shouldBe transfer1.amount
 
-        val balance2After = d.balance(transferReceiver2.toAddress, d.token)
+        val balance2After = d.balance(transferReceiver2.toAddress, d.nativeTokenId)
         balance2After shouldBe transfer2.amount
       }
     }
@@ -136,7 +136,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
 
     tryWithdraw() should beRight
     withClue("Tokens came:") {
-      val balanceAfter = d.balance(transferReceiver.toAddress, d.token)
+      val balanceAfter = d.balance(transferReceiver.toAddress, d.nativeTokenId)
       balanceAfter shouldBe transfer.amount
     }
   }
@@ -296,7 +296,7 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       }
 
       withClue("Tokens came:") {
-        val balanceAfter = d.balance(transferReceiver.toAddress, d.token)
+        val balanceAfter = d.balance(transferReceiver.toAddress, d.nativeTokenId)
         balanceAfter shouldBe transfer.amount
       }
     }
