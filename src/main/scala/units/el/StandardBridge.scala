@@ -21,48 +21,46 @@ object StandardBridge {
   val UpdateAssetRegistryFunction = "updateAssetRegistry"
   val UpdateAssetRegistryGas      = BigInteger.valueOf(500_000L)
 
-  case class ERC20BridgeInitiated(wavesRecipient: Address, clAmount: Long, assetAddress: EthAddress)
+  case class ERC20BridgeInitiated(localToken: EthAddress, clTo: Address, clAmount: Long)
   object ERC20BridgeInitiated extends BridgeMerkleTree[ERC20BridgeInitiated] {
     override val exactTransfersNumber = 1024
 
-    private val WavesRecipientType = new TypeReference[Bytes20](false) {}
-    private val ClAmountType       = new TypeReference[Int64](false) {}
-    private val AssetAddressType   = new TypeReference[Web3JAddress](false) {}
+    type LocalTokenType = Web3JAddress
+    type ClToType       = Bytes20
+    type ClAmountType   = Int64
 
     private val EventDef: Event = new Event(
       "ERC20BridgeInitiated",
-      List[TypeReference[?]](WavesRecipientType, ClAmountType, AssetAddressType).asJava
+      List[TypeReference[?]](
+        new TypeReference[LocalTokenType](false) {},
+        new TypeReference[ClToType](false)       {},
+        new TypeReference[ClAmountType](false)   {}
+      ).asJava
     )
 
     val Topic = EventEncoder.encode(EventDef)
 
-    override def encodeArgs(args: ERC20BridgeInitiated): Array[Byte] = {
-      val wavesRecipient = new Bytes20(args.wavesRecipient.publicKeyHash)
-      require(wavesRecipient.getClass == WavesRecipientType.getClassType) // Make sure types are correct
-
-      val clAmount = new Int64(args.clAmount)
-      require(clAmount.getClass == ClAmountType.getClassType)
-
-      val assetAddress = new Web3JAddress(args.assetAddress.hex)
-      require(assetAddress.getClass == AssetAddressType.getClassType)
-
-      HexBytesConverter.toBytes(TypeEncoder.encode(wavesRecipient) + TypeEncoder.encode(clAmount) + TypeEncoder.encode(assetAddress))
-    }
+    override def encodeArgs(args: ERC20BridgeInitiated): Array[Byte] =
+      HexBytesConverter.toBytes(
+        TypeEncoder.encode(new LocalTokenType(args.localToken.hex)) +
+          TypeEncoder.encode(new ClToType(args.clTo.publicKeyHash)) +
+          TypeEncoder.encode(new ClAmountType(args.clAmount))
+      )
 
     override def decodeLog(ethEventData: String): Either[String, ERC20BridgeInitiated] =
       try {
         FunctionReturnDecoder.decode(ethEventData, EventDef.getNonIndexedParameters).asScala.toList match {
-          case (wavesRecipient: Bytes20) :: (clAmount: Int64) :: (assetAddress: Web3JAddress) :: Nil =>
+          case (localToken: LocalTokenType) :: (clTo: ClToType) :: (clAmount: ClAmountType) :: Nil =>
             for {
-              wavesRecipient <- Try(Address(wavesRecipient.getValue)).toEither.left.map(e => s"Can't decode address: ${e.getMessage}")
-              clAmount       <- Try(clAmount.getValue.longValueExact()).toEither.left.map(e => s"Can't decode amount: ${e.getMessage}")
-              _              <- Either.cond(clAmount > 0, (), s"Transfer amount must be positive, got: $clAmount")
-              assetAddress   <- EthAddress.from(assetAddress.getValue)
-            } yield new ERC20BridgeInitiated(wavesRecipient, clAmount, assetAddress)
+              localToken <- EthAddress.from(localToken.getValue)
+              clTo       <- Try(Address(clTo.getValue)).toEither.left.map(e => s"Can't decode clTo: ${e.getMessage}")
+              clAmount   <- Try(clAmount.getValue.longValueExact()).toEither.left.map(e => s"Can't decode clAmount: ${e.getMessage}")
+              _          <- Either.cond(clAmount > 0, (), s"clAmount must be positive, got: $clAmount")
+            } yield new ERC20BridgeInitiated(localToken, clTo, clAmount)
           case xs =>
             Left(
-              s"Expected (wavesRecipient: ${WavesRecipientType.getClassType.getSimpleName}, elAmount: ${ClAmountType.getClassType.getSimpleName}," +
-                s"assetAddress: ${AssetAddressType.getClassType.getSimpleName}) fields, got: ${xs.mkString(", ")}"
+              s"Expected (localToken: ${classOf[LocalTokenType].getSimpleName}, clTo: ${classOf[ClToType].getSimpleName}, " +
+                s"clAmount: ${classOf[ClAmountType].getSimpleName}) fields, got: ${xs.mkString(", ")}"
             )
         }
       } catch {
@@ -70,46 +68,42 @@ object StandardBridge {
       }
   }
 
-  case class ERC20BridgeFinalized(recipient: EthAddress, clAmount: Long, assetAddress: EthAddress)
+  case class ERC20BridgeFinalized(localToken: EthAddress, elTo: EthAddress, clAmount: Long)
   object ERC20BridgeFinalized {
-    private val RecipientType    = new TypeReference[Web3JAddress](false) {}
-    private val ClAmountType     = new TypeReference[Int64](false) {}
-    private val AssetAddressType = new TypeReference[Web3JAddress](false) {}
+    type LocalTokenType = Web3JAddress
+    type ElToType       = Web3JAddress
+    type ClAmountType   = Int64
 
     private val EventDef: Event = new Event(
       "ERC20BridgeFinalized",
-      List[TypeReference[?]](RecipientType, ClAmountType, AssetAddressType).asJava
+      List[TypeReference[?]](
+        new TypeReference[LocalTokenType](false) {},
+        new TypeReference[ElToType](false)       {},
+        new TypeReference[ClAmountType](false)   {}
+      ).asJava
     )
 
     val Topic = EventEncoder.encode(EventDef)
 
-    def encodeArgs(args: ERC20BridgeFinalized): String = {
-      val recipient = new Web3JAddress(args.recipient.hex)
-      require(recipient.getClass == RecipientType.getClassType) // Make sure types are correct
-
-      val amount = new Int64(args.clAmount)
-      require(amount.getClass == ClAmountType.getClassType)
-
-      val assetAddress = new Web3JAddress(args.assetAddress.hex)
-      require(assetAddress.getClass == AssetAddressType.getClassType)
-
-      TypeEncoder.encode(recipient) + TypeEncoder.encode(amount) + TypeEncoder.encode(assetAddress)
-    }
+    def encodeArgs(args: ERC20BridgeFinalized): String =
+      TypeEncoder.encode(new LocalTokenType(args.localToken.hex)) +
+        TypeEncoder.encode(new ElToType(args.elTo.hex)) +
+        TypeEncoder.encode(new ClAmountType(args.clAmount))
 
     def decodeLog(ethEventData: String): Either[String, ERC20BridgeFinalized] =
       try {
         FunctionReturnDecoder.decode(ethEventData, EventDef.getNonIndexedParameters).asScala.toList match {
-          case (recipient: Web3JAddress) :: (rawReceivedAmount: Int64) :: (assetAddress: Web3JAddress) :: Nil =>
+          case (assetAddress: LocalTokenType) :: (elTo: ElToType) :: (clAmount: ClAmountType) :: Nil =>
             for {
-              recipient    <- EthAddress.from(recipient.getValue)
-              amount       <- Try(rawReceivedAmount.getValue.longValueExact()).toEither.left.map(e => s"Can't decode amount: ${e.getMessage}")
-              _            <- Either.cond(amount > 0, amount, s"Transfer amount must be positive, got: $amount")
-              assetAddress <- EthAddress.from(assetAddress.getValue)
-            } yield new ERC20BridgeFinalized(recipient, amount, assetAddress)
+              localToken <- EthAddress.from(assetAddress.getValue)
+              elTo       <- EthAddress.from(elTo.getValue)
+              clAmount   <- Try(clAmount.getValue.longValueExact()).toEither.left.map(e => s"Can't decode clAmount: ${e.getMessage}")
+              _          <- Either.cond(clAmount > 0, clAmount, s"clAmount must be positive, got: $clAmount")
+            } yield new ERC20BridgeFinalized(localToken, elTo, clAmount)
           case xs =>
             Left(
-              s"Expected (recipient: ${RecipientType.getClassType.getSimpleName}, clAmount: ${ClAmountType.getClassType.getSimpleName}, " +
-                s"assetAddress: ${AssetAddressType.getClassType.getSimpleName}) fields, got: ${xs.mkString(", ")}"
+              s"Expected (localToken: ${classOf[LocalTokenType].getSimpleName}, elTo: ${classOf[ElToType].getSimpleName}, " +
+                s"clAmount: ${classOf[ClAmountType].getSimpleName}) fields, got: ${xs.mkString(", ")}"
             )
         }
       } catch {
@@ -117,50 +111,72 @@ object StandardBridge {
       }
   }
 
-  case class RegistryUpdated(added: List[EthAddress], addedExponents: List[Int], removed: List[EthAddress])
+  case class RegistryUpdated(addedTokens: List[EthAddress], addedTokenExponents: List[Int], removedTokens: List[EthAddress])
   object RegistryUpdated {
-    private val AddressesType = new TypeReference[Web3JArray[Web3JAddress]](false) {}
-    private val ExponentType  = new TypeReference[Web3JArray[Uint8]](false) {}
+    type AddedTokensComponentType = Web3JAddress
+    type AddedTokensType          = Web3JArray[AddedTokensComponentType]
+
+    type AddedTokenExponentsComponentType = Uint8
+    type AddedTokenExponentsType          = Web3JArray[AddedTokenExponentsComponentType]
+
+    type RemovedTokensComponentType = Web3JAddress
+    type RemovedTokensType          = Web3JArray[RemovedTokensComponentType]
 
     private val EventDef: Event = new Event(
       "RegistryUpdated",
-      List[TypeReference[?]](AddressesType, ExponentType, AddressesType).asJava
+      List[TypeReference[?]](
+        new TypeReference[AddedTokensType](false)         {},
+        new TypeReference[AddedTokenExponentsType](false) {},
+        new TypeReference[RemovedTokensType](false)       {}
+      ).asJava
     )
 
     val Topic = EventEncoder.encode(EventDef)
 
-    def encodeArgs(args: RegistryUpdated): String = {
-      val added          = new Web3JArray(classOf[Web3JAddress], args.added.map(x => new Web3JAddress(x.hexNoPrefix)).asJava)
-      val addedExponents = new Web3JArray(classOf[Uint8], args.addedExponents.map(new Uint8(_)).asJava)
-      val removed        = new Web3JArray(classOf[Web3JAddress], args.removed.map(x => new Web3JAddress(x.hexNoPrefix)).asJava)
-
-      TypeEncoder.encode(added) + TypeEncoder.encode(addedExponents) + TypeEncoder.encode(removed)
-    }
+    def encodeArgs(args: RegistryUpdated): String =
+      TypeEncoder.encode(
+        new AddedTokensType(
+          classOf[AddedTokensComponentType],
+          args.addedTokens.map(x => new AddedTokensComponentType(x.hexNoPrefix)).asJava
+        )
+      ) +
+        TypeEncoder.encode(
+          new AddedTokenExponentsType(
+            classOf[AddedTokenExponentsComponentType],
+            args.addedTokenExponents.map(new AddedTokenExponentsComponentType(_)).asJava
+          )
+        ) +
+        TypeEncoder.encode(
+          new RemovedTokensType(
+            classOf[RemovedTokensComponentType],
+            args.removedTokens.map(x => new RemovedTokensComponentType(x.hexNoPrefix)).asJava
+          )
+        )
 
     def decodeLog(ethEventData: String): Either[String, RegistryUpdated] =
       try {
         FunctionReturnDecoder.decode(ethEventData, EventDef.getNonIndexedParameters).asScala.toList match {
-          case (added: Web3JArray[Web3JAddress @unchecked]) ::
-              (addedExponents: Web3JArray[Uint8 @unchecked]) ::
-              (removed: Web3JArray[Web3JAddress @unchecked]) :: Nil
-              if added.getComponentType == classOf[Web3JAddress] &&
-                addedExponents.getComponentType == classOf[Uint8] &&
-                removed.getComponentType == classOf[Web3JAddress] =>
+          case (addedTokens: AddedTokensType @unchecked) ::
+              (addedTokenExponents: AddedTokenExponentsType @unchecked) ::
+              (removedTokens: RemovedTokensType @unchecked) :: Nil
+              if addedTokens.getComponentType == classOf[AddedTokensComponentType] &&
+                addedTokenExponents.getComponentType == classOf[AddedTokenExponentsComponentType] &&
+                removedTokens.getComponentType == classOf[RemovedTokensComponentType] =>
             for {
-              added <- Try(added.getValue.asScala.map(x => EthAddress.unsafeFrom(x.getValue)).toList).toEither.left.map(e =>
-                s"Can't decode added field: ${e.getMessage}"
+              addedTokens <- Try(addedTokens.getValue.asScala.map(x => EthAddress.unsafeFrom(x.getValue)).toList).toEither.left.map(e =>
+                s"Can't decode addedTokens: ${e.getMessage}"
               )
-              addedExponents <- Try(addedExponents.getValue.asScala.map(_.getValue.intValueExact()).toList).toEither.left.map(e =>
-                s"Can't decode addedExponents field: ${e.getMessage}"
+              addedTokenExponents <- Try(addedTokenExponents.getValue.asScala.map(_.getValue.intValueExact()).toList).toEither.left.map(e =>
+                s"Can't decode addedTokenExponents: ${e.getMessage}"
               )
-              removed <- Try(removed.getValue.asScala.map(x => EthAddress.unsafeFrom(x.getValue)).toList).toEither.left.map(e =>
-                s"Can't decode removed field: ${e.getMessage}"
+              removed <- Try(removedTokens.getValue.asScala.map(x => EthAddress.unsafeFrom(x.getValue)).toList).toEither.left.map(e =>
+                s"Can't decode removedTokens: ${e.getMessage}"
               )
-            } yield new RegistryUpdated(added, addedExponents, removed)
+            } yield new RegistryUpdated(addedTokens, addedTokenExponents, removed)
           case xs =>
             Left(
-              s"Expected (added: ${AddressesType.getClassType.getSimpleName}, addedExponents: ${ExponentType.getClassType.getSimpleName}, " +
-                s"removed: ${AddressesType.getClassType.getSimpleName}) fields, got: ${xs.mkString(", ")}"
+              s"Expected (addedTokens: ${classOf[AddedTokensType].getSimpleName}, addedTokenExponents: ${classOf[AddedTokenExponentsType].getSimpleName}, " +
+                s"removedTokens: ${classOf[RemovedTokensType].getSimpleName}) fields, got: ${xs.mkString(", ")}"
             )
         }
       } catch {
@@ -184,16 +200,16 @@ object StandardBridge {
       value = BigInteger.ZERO,
       gas = FinalizeBridgeErc20Gas,
       isSystemTx = true, // Gas won't be consumed
-      data = HexBytesConverter.toBytes(finalizeBridgeErc20Call(recipient, amountInWaves, erc20Address))
+      data = HexBytesConverter.toBytes(finalizeBridgeErc20Call(erc20Address, recipient, amountInWaves))
     )
 
-  def finalizeBridgeErc20Call(receiver: EthAddress, amount: Long, erc20Address: EthAddress): String = {
+  def finalizeBridgeErc20Call(token: EthAddress, elTo: EthAddress, clAmount: Long): String = {
     val function = new Function(
       FinalizeBridgeErc20Function,
       util.Arrays.asList[Type[?]](
-        new Web3JAddress(receiver.hexNoPrefix),
-        new Int64(amount),
-        new Web3JAddress(erc20Address.hexNoPrefix)
+        new Web3JAddress(token.hexNoPrefix),
+        new Web3JAddress(elTo.hexNoPrefix),
+        new Int64(clAmount)
       ),
       Collections.emptyList
     )

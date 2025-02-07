@@ -5,44 +5,44 @@ contract StandardBridge {
     uint16 public constant MAX_TRANSFERS_IN_BLOCK = 1024;
 
     mapping(address => uint256) public balances;
-    mapping(uint => uint16) public transfersPerBlock;
-    mapping(address => uint64) public assetRatios;
+    mapping(uint => uint16)     public transfersPerBlock;
+    mapping(address => uint64)  public tokenRatios;
 
-    // wavesRecipient is a public key hash of recipient account.
+    // clTo is a public key hash of recipient account.
     // effectively is it Waves address without 2 first bytes (version and chain id) and last 4 bytes (checksum).
-    event ERC20BridgeInitiated(bytes20 wavesRecipient, int64 clAmount, address assetId);
-    event ERC20BridgeFinalized(address recipient, int64 clAmount, address assetId);
+    event ERC20BridgeInitiated(address localToken, bytes20 clTo, int64 clAmount);
+    event ERC20BridgeFinalized(address localToken, address elTo, int64 clAmount);
 
-    event RegistryUpdated(address[] addedAssets, uint8[] addedAssetExponents, address[] removed);
+    event RegistryUpdated(address[] addedTokens, uint8[] addedTokenExponents, address[] removedTokens);
 
-    function updateAssetRegistry(address[] calldata addedAssets, uint8[] calldata addedAssetExponents) external {
+    function updateAssetRegistry(address[] calldata addedTokens, uint8[] calldata addedTokenExponents) external {
         // TODO: add check, that only a miner can do this
-        require(addedAssets.length == addedAssetExponents.length, "Different sizes of added assets and their exponents");
+        require(addedTokens.length == addedTokenExponents.length, "Different sizes of added tokens and their exponents");
 
-        for (uint256 i = 0; i < addedAssets.length; i++) {
-            uint8 exponent = addedAssetExponents[i];
-            require(exponent <= 10, string.concat("Invalid asset exponent: ", uint2str(uint(exponent))));
-            assetRatios[addedAssets[i]] = uint64(10 ** addedAssetExponents[i]); // log2(10^18) = 59.79... < 64
+        for (uint256 i = 0; i < addedTokens.length; i++) {
+            uint8 exponent = addedTokenExponents[i];
+            require(exponent <= 10, string.concat("Invalid token exponent: ", uint2str(uint(exponent))));
+            tokenRatios[addedTokens[i]] = uint64(10 ** addedTokenExponents[i]); // log2(10^18) = 59.79... < 64
         }
 
-        emit RegistryUpdated(addedAssets, addedAssetExponents, new address[](0));
+        emit RegistryUpdated(addedTokens, addedTokenExponents, new address[](0));
     }
 
-    function burn(address recipient, uint256 elAmount) internal {
+    function burn(address from, uint256 elAmount) internal {
         // TODO: only bridge can do this
-        balances[recipient] -= elAmount;
+        balances[from] -= elAmount;
     }
 
     // TODO: external for testing purposes, will be internal
-    function mint(address recipient, uint256 elAmount) public {
+    function mint(address to, uint256 elAmount) public {
         // TODO: only bridge can do this
-        balances[recipient] += elAmount;
+        balances[to] += elAmount;
     }
 
-    // wavesRecipient is a public key hash of recipient account.
-    function bridgeERC20(bytes20 wavesRecipient, uint256 elAmount, address asset) external {
-        uint64 ratio = assetRatios[asset];
-        require(ratio > 0, "Asset is not registered");
+    // clTo is a public key hash of recipient account.
+    function bridgeERC20(address token, bytes20 clTo, uint256 elAmount) external {
+        uint64 ratio = tokenRatios[token];
+        require(ratio > 0, "Token is not registered");
 
         uint256 minAmountInWei = 1 * ratio;
         uint256 maxAmountInWei = uint256(uint64(type(int64).max)) * ratio;
@@ -60,23 +60,23 @@ contract StandardBridge {
 
         transfersPerBlock[blockNumber]++;
         burn(msg.sender, elAmount);
-        emit ERC20BridgeInitiated(wavesRecipient, int64(uint64(clAmount)), asset);
+        emit ERC20BridgeInitiated(token, clTo, int64(uint64(clAmount)));
     }
 
-    function finalizeBridgeERC20(address recipient, int64 clAmount, address asset) external {
+    function finalizeBridgeERC20(address token, address elTo, int64 clAmount) external {
         // TODO: only miner can do this
         require(clAmount > 0, "Receive value must be greater or equal to 0");
 
-        uint64 ratio = assetRatios[asset];
-        require(ratio > 0, "Asset is not registered");
+        uint64 ratio = tokenRatios[token];
+        require(ratio > 0, "Token is not registered");
 
         uint256 elAmount = uint256(int256(clAmount)) * ratio;
         uint256 maxAmountInWei = uint256(uint64(type(int64).max)) * ratio;
         require(elAmount <= maxAmountInWei, "Amount exceeds maximum allowable value");
 
         // TODO: check amount overflow
-        mint(recipient, elAmount);
-        emit ERC20BridgeFinalized(recipient, clAmount, asset);
+        mint(elTo, elAmount);
+        emit ERC20BridgeFinalized(token, elTo, clAmount);
     }
 
     function uint2str(uint _i) internal pure returns (string memory _uintAsString) {

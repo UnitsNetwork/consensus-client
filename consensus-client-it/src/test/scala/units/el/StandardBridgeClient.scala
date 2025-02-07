@@ -16,7 +16,7 @@ import units.eth.EthAddress
 
 import java.math.BigInteger
 
-class ElStandardBridgeClient(
+class StandardBridgeClient(
     web3j: Web3j,
     address: EthAddress,
     defaultSender: Credentials,
@@ -64,30 +64,30 @@ class ElStandardBridgeClient(
 
   def getBridgeErc20FunctionCall(
       sender: Credentials,
-      recipient: Address,
+      clTo: Address,
       amountInEther: BigInt
   ): String = {
     val txnManager = new RawTransactionManager(web3j, sender, EcContainer.ChainId)
     val contract   = StandardBridgeContract.load(address.hex, web3j, txnManager, gasProvider) // TODO move to class?
     // TODO Specify asset
-    contract.send_bridgeERC20(recipient.publicKeyHash, amountInEther.bigInteger, address.hexNoPrefix).encodeFunctionCall()
+    contract.send_bridgeERC20(address.hexNoPrefix, clTo.publicKeyHash, amountInEther.bigInteger).encodeFunctionCall()
   }
 
   def isRegistered(assetAddress: EthAddress): Boolean = {
     val txnManager = new RawTransactionManager(web3j, defaultSender, EcContainer.ChainId)
     val contract   = StandardBridgeContract.load(address.hex, web3j, txnManager, gasProvider)
-    val ratio      = contract.call_assetRatios(assetAddress.hexNoPrefix).send()
+    val ratio      = contract.call_tokenRatios(assetAddress.hexNoPrefix).send()
     ratio != BigInteger.ZERO
   }
 
   def sendMint(
       sender: Credentials,
-      recipient: EthAddress,
+      to: EthAddress,
       amountInEther: BigInt
   ): EthSendTransaction = {
     val senderAddress = sender.getAddress
     val txnManager    = new RawTransactionManager(web3j, sender, EcContainer.ChainId)
-    val funcCall      = getMintFunctionCall(sender, recipient, amountInEther)
+    val funcCall      = getMintFunctionCall(sender, to, amountInEther)
 
     val nonce = web3j.ethGetTransactionCount(senderAddress, DefaultBlockParameterName.PENDING).send().getTransactionCount
     val rawTxn = RawTransaction.createTransaction(
@@ -99,7 +99,7 @@ class ElStandardBridgeClient(
       funcCall
     )
 
-    log.debug(s"Send mint($senderAddress->$recipient: $amountInEther Wei), nonce: $nonce")
+    log.debug(s"Send mint($senderAddress->$to: $amountInEther Wei), nonce: $nonce")
     val r = txnManager.signAndSend(rawTxn)
     if (r.hasError) throw new TransactionException(s"Can't call mint: ${r.getError}, ${r.getError.getMessage}")
     r

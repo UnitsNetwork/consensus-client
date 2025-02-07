@@ -1331,18 +1331,18 @@ class ELUpdater(
             for {
               elEvent <- StandardBridge.RegistryUpdated.decodeLog(elRawLog.data).leftMap(ClientError(_))
               _ <- Either.cond(
-                elEvent.added.size == expectedAddedAssets.size,
+                elEvent.addedTokens.size == expectedAddedAssets.size,
                 true,
-                ClientError(s"Expected ${expectedAddedAssets.size} added assets in a RegistryUpdated event, got ${elEvent.added.size}")
+                ClientError(s"Expected ${expectedAddedAssets.size} added assets in a RegistryUpdated event, got ${elEvent.addedTokens.size}")
               )
               _ <- Either.cond(
-                elEvent.addedExponents.size == expectedAddedAssets.size,
+                elEvent.addedTokenExponents.size == expectedAddedAssets.size,
                 true,
                 ClientError(
-                  s"Expected ${expectedAddedAssets.size} added exponent assets in a RegistryUpdated event, got ${elEvent.addedExponents.size}"
+                  s"Expected ${expectedAddedAssets.size} added exponent assets in a RegistryUpdated event, got ${elEvent.addedTokenExponents.size}"
                 )
               )
-              _ <- elEvent.added.lazyZip(elEvent.addedExponents).lazyZip(expectedAddedAssets).zipWithIndex.toList.traverse {
+              _ <- elEvent.addedTokens.lazyZip(elEvent.addedTokenExponents).lazyZip(expectedAddedAssets).zipWithIndex.toList.traverse {
                 case ((actual, actualExponent, expected), i) =>
                   for {
                     _ <- Either.cond(
@@ -1358,9 +1358,9 @@ class ELUpdater(
                   } yield ()
               }
               _ <- Either.cond(
-                elEvent.removed.isEmpty,
+                elEvent.removedTokens.isEmpty,
                 true,
-                ClientError(s"Removing assets is not supported, got ${elEvent.removed.size} addresses")
+                ClientError(s"Removing assets is not supported, got ${elEvent.removedTokens.size} addresses")
               )
             } yield ()
 
@@ -1707,9 +1707,9 @@ class ELUpdater(
               s"$errorPrefix: got ERC20 address: $actualErc20Address, expected: ${expected.erc20Address}"
             )
             _ <- Either.cond(
-              actualTransfer.recipient == expected.destElAddress,
+              actualTransfer.elTo == expected.destElAddress,
               (),
-              s"$errorPrefix: got address: ${actualTransfer.recipient}, expected: ${expected.destElAddress}"
+              s"$errorPrefix: got address: ${actualTransfer.elTo}, expected: ${expected.destElAddress}"
             )
             _ <- Either.cond(
               actualTransfer.clAmount == expected.amount,

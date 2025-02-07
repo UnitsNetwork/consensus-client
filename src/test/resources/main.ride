@@ -961,10 +961,11 @@ func withdrawAsset(blockHashHex: String, merkleProof: List[ByteVector], transfer
   let zeroAmountBytes = base16'000000000000000000000000000000000000000000000000000000000000000000000000'
   let amountBytes     = amount.toBytes()
 
-  # recipientPkHash: 20 + 12 right padding bytes (see TypeEncoder.encodeBytes)
-  # amountBytes:     24 left padding (see TypeEncoder.encodeNumeric) + 8 bytes
-  # erc20Address:    12 left padding (see TypeEncoder.encodeAddress) + 20 bytes
-  let elEventData       = recipientPkHash + zeroAmountBytes.take(36) + amountBytes + zeroAmountBytes.take(12) + erc20Address
+  # See ERC20BridgeInitiated:
+  # token:    12 left padding (see TypeEncoder.encodeAddress) + 20 bytes
+  # clTo:     20 + 12 right padding bytes (see TypeEncoder.encodeBytes)
+  # clAmount: 24 left padding (see TypeEncoder.encodeNumeric) + 8 bytes
+  let elEventData       = zeroAmountBytes.take(12) + erc20Address + recipientPkHash + zeroAmountBytes.take(36) + amountBytes
   let elEventDataDigest = blake2b256_16Kb(elEventData)
 
   let calculatedRootHash = createMerkleRoot(merkleProof, elEventDataDigest, transferIndexInBlock)

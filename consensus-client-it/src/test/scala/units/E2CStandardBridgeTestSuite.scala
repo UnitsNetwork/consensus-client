@@ -53,7 +53,7 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
       }
     }
 
-    "Can't transfer without registration" in test(elAmount, "Asset is not registered")
+    "Can't transfer without registration" in test(elAmount, "Token is not registered")
   }
 
   "Positive" - {
