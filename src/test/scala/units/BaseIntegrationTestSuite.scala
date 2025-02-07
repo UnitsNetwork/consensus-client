@@ -14,7 +14,7 @@ import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues}
 import units.client.engine.model.GetLogsResponseEntry
 import units.el.NativeBridge
 import units.el.NativeBridge.ElSentNativeEvent
-import units.eth.{EthAddress, EthNumber, Gwei}
+import units.eth.EthNumber
 import units.test.CustomMatchers
 import units.util.HexBytesConverter
 
@@ -26,15 +26,12 @@ trait BaseIntegrationTestSuite
     with BaseSuite
     with ScorexLogging
     with WithDomain
+    with TestDefaults
     with BeforeAndAfterAll
     with EitherValues
     with OptionValues
     with CustomMatchers {
   protected val chainRegistryAccount: KeyPair = KeyPair("chain-registry".getBytes(StandardCharsets.UTF_8))
-
-  protected val elMinerDefaultReward    = Gwei.ofRawGwei(2_000_000_000L)
-  protected val elNativeBridgeAddress   = EthAddress.unsafeFrom("0x0000000000000000000000000000000000006a7e")
-  protected val elStandardBridgeAddress = EthAddress.unsafeFrom("0x00000000000000000000000000000155c3d06a7e")
 
   protected def defaultSettings = TestSettings().withChainRegistry(chainRegistryAccount.toAddress)
 

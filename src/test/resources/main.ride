@@ -1075,7 +1075,7 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: Stri
       issue,
       StringEntry(tokenIdKey, tokenId.toBase58String()),
       StringEntry(elNativeBridgeAddressKey, "0x0000000000000000000000000000000000006a7e"),
-      StringEntry(elStandardBridgeAddressKey, "0x00000000000000000000000000000155c3d06a7e"),
+      StringEntry(elStandardBridgeAddressKey, "0x0000000000000000000000000000000057d06a7e"),
       IntegerEntry(assetTransfersActivationEpochKey, 0)
     ] ++ daoEntries
   }

@@ -31,6 +31,7 @@ trait BaseDockerTestSuite
     with ReportingTestName
     with IntegrationTestEventually
     with Accounts
+    with TestDefaults
     with HasConsensusLayerDappTxHelpers {
   BaseDockerTestSuite.init()
 
