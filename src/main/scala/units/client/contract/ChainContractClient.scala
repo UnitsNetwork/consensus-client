@@ -69,13 +69,13 @@ trait ChainContractClient {
             if (bb.remaining() >= ContractBlock.E2CTransfersRootHashLength) bb.getByteArray(ContractBlock.E2CTransfersRootHashLength)
             else Array.emptyByteArray
 
-          val lastC2ENativeTransferIndex = if (bb.remaining() >= 8) bb.getLong() else -1L
+          val lastC2ETransferIndex = if (bb.remaining() >= 8) bb.getLong() else -1L
 
           require(
             !bb.hasRemaining,
             s"Not parsed ${bb.remaining()} bytes from ${blockMeta.base64}, read data: " +
               s"chainHeight=$chainHeight, epoch=$epoch, parentHash=$parentHash, chainId=$chainId, " +
-              s"e2cNativeTransfersRootHash=${HexBytesConverter.toHex(e2cNativeTransfersRootHash)}, lastC2ENativeTransferIndex=$lastC2ENativeTransferIndex"
+              s"e2cNativeTransfersRootHash=${HexBytesConverter.toHex(e2cNativeTransfersRootHash)}, lastC2ETransferIndex=$lastC2ETransferIndex"
           )
 
           val epochMeta = getEpochMeta(epoch).getOrElse(fail(s"Can't find epoch meta for epoch $epoch"))
@@ -92,9 +92,8 @@ trait ChainContractClient {
             minerRewardElAddress,
             chainId,
             e2cNativeTransfersRootHash,
-            lastC2ENativeTransferIndex,
+            lastC2ETransferIndex,
             Array.emptyByteArray,
-            -1,
             -1
           )
         } else {
@@ -104,13 +103,11 @@ trait ChainContractClient {
             if ((transfersFlag & NativeTransfersFlag) == NativeTransfersFlag) bb.getByteArray(ContractBlock.E2CTransfersRootHashLength)
             else Array.emptyByteArray
 
-          val lastC2ENativeTransferIndex = bb.getLong()
+          val lastC2ETransferIndex = bb.getLong()
 
           val e2cAssetTransfersRootHash =
             if ((transfersFlag & AssetTransfersFlag) == AssetTransfersFlag) bb.getByteArray(ContractBlock.E2CTransfersRootHashLength)
             else Array.emptyByteArray
-
-          val lastC2EAssetTransferIndex = bb.getLong()
 
           val lastAssetRegistryIndex = bb.getLong()
 
@@ -118,8 +115,8 @@ trait ChainContractClient {
             !bb.hasRemaining,
             s"Not parsed ${bb.remaining()} bytes from ${blockMeta.base64}, read data: " +
               s"chainHeight=$chainHeight, epoch=$epoch, parentHash=$parentHash, chainId=$chainId, " +
-              s"e2cNativeTransfersRootHash=${HexBytesConverter.toHex(e2cNativeTransfersRootHash)}, lastC2ENativeTransferIndex=$lastC2ENativeTransferIndex, " +
-              s"e2cAssetTransfersRootHash=${HexBytesConverter.toHex(e2cAssetTransfersRootHash)}, lastC2EAssetTransferIndex=$lastC2EAssetTransferIndex, " +
+              s"e2cNativeTransfersRootHash=${HexBytesConverter.toHex(e2cNativeTransfersRootHash)}, lastC2ETransferIndex=$lastC2ETransferIndex, " +
+              s"e2cAssetTransfersRootHash=${HexBytesConverter.toHex(e2cAssetTransfersRootHash)}, " +
               s"lastAssetRegistryIndex=$lastAssetRegistryIndex"
           )
 
@@ -137,9 +134,8 @@ trait ChainContractClient {
             minerRewardElAddress,
             chainId,
             e2cNativeTransfersRootHash,
-            lastC2ENativeTransferIndex,
+            lastC2ETransferIndex,
             e2cAssetTransfersRootHash,
-            lastC2EAssetTransferIndex,
             if (lastAssetRegistryIndex.isValidInt) lastAssetRegistryIndex.toInt
             else fail(s"$lastAssetRegistryIndex is not a valid int")
           )
@@ -267,45 +263,54 @@ trait ChainContractClient {
     }
   }
 
-  def getNativeTransfers(fromIndex: Long, maxItems: Long): Vector[ContractNativeTransfer] =
-    if (maxItems == 0) Vector.empty
-    else (fromIndex until math.min(fromIndex + maxItems, getNativeTransfersCount)).map(requireNativeTransfer).toVector
+  def getTransfers(fromIndex: Long, maxNative: Long, maxAsset: Long): Vector[ContractTransfer] =
+    if (maxNative == 0 && maxAsset == 0) Vector.empty
+    else {
+      val lastIndex = fromIndex + math.max(maxNative, maxAsset)
+      (fromIndex until math.min(lastIndex, getTransfersCount))
+        .foldLeft((maxNative, maxAsset, Vector.empty[ContractTransfer])) { case ((restNative, restAsset, xs), i) =>
+          if (restNative == 0 || restAsset == 0) (restNative, restAsset, xs)
+          else
+            requireTransfer(i) match {
+              case x: ContractTransfer.Native => (restNative - 1, restAsset, xs :+ x)
+              case x: ContractTransfer.Asset  => (restNative, restAsset - 1, xs :+ x)
+            }
+        }
+        ._3
+    }
 
-  private def getNativeTransfersCount: Long = getLongData("nativeTransfersCount").getOrElse(0L)
+  def getTransfers(fromIndex: Long, max: Long): Vector[ContractTransfer] =
+    if (max == 0) Vector.empty
+    else (fromIndex until math.min(fromIndex + max, getTransfersCount)).map(requireTransfer).to(Vector)
 
-  private def requireNativeTransfer(atIndex: Long): ContractNativeTransfer = {
-    val key   = s"nativeTransfer_$atIndex"
-    val raw   = getStringData(key).getOrElse(fail(s"Expected a native transfer at '$key', got nothing"))
-    val parts = raw.split(Sep)
-    if (parts.length != 2) fail(s"Expected two elements in a native transfer, got ${parts.length}: $raw")
+  private def getTransfersCount: Long = getLongData("nativeTransfersCount").getOrElse(0L)
 
-    val destElAddress = EthAddress.unsafeFrom(parts(0))
-    val amount        = parts(1).toLongOption.getOrElse(fail(s"Expected an integer amount of a native transfer, got: ${parts(1)}"))
+  private def requireTransfer(atIndex: Long): ContractTransfer = {
+    val key = s"nativeTransfer_$atIndex"
+    val raw = getStringData(key).getOrElse(fail(s"Expected a native transfer at '$key', got nothing"))
+    raw.split(Sep) match {
+      case Array(rawDestElAddress, rawAmount) =>
+        ContractTransfer.Native(
+          index = atIndex,
+          destElAddress = EthAddress.unsafeFrom(rawDestElAddress),
+          amount = rawAmount.toLongOption.getOrElse(fail(s"Expected an integer amount of a native transfer, got: $rawAmount"))
+        )
 
-    ContractNativeTransfer(atIndex, destElAddress, amount)
+      case Array(rawDestElAddress, rawAmount, rawAssetIndex) =>
+        val assetIndex = rawAssetIndex.toIntOption.getOrElse(fail(s"Expected an asset index in asset transfer, got: $rawAssetIndex"))
+        val asset      = getRegisteredAsset(assetIndex)
+        val assetData  = getRegisteredAssetData(asset)
+
+        ContractTransfer.Asset(
+          index = atIndex,
+          destElAddress = EthAddress.unsafeFrom(rawDestElAddress),
+          amount = rawAmount.toLongOption.getOrElse(fail(s"Expected an integer amount of a native transfer, got: $rawAmount")),
+          erc20Address = assetData.erc20Address
+        )
+
+      case xs => fail(s"Expected two elements in a native transfer, got ${xs.length}: $raw")
+    }
   }
-
-  def getAssetTransfers(fromIndex: Long, maxItems: Long): Vector[ContractAssetTransfer] =
-    if (maxItems == 0) Vector.empty
-    else (fromIndex until math.min(fromIndex + maxItems, getAssetTransfersCount)).map(requireAssetTransfer).toVector
-
-  private def requireAssetTransfer(atIndex: Long): ContractAssetTransfer = {
-    val key   = s"assetTransfer_$atIndex"
-    val raw   = getStringData(key).getOrElse(fail(s"Expected an asset transfer at '$key', got nothing"))
-    val parts = raw.split(Sep)
-    if (parts.length != 3) fail(s"Expected 3 elements in asset transfer, got ${parts.length}: $raw")
-
-    val destElAddress = EthAddress.unsafeFrom(parts(0))
-    val amount        = parts(1).toLongOption.getOrElse(fail(s"Expected an integer amount of asset transfer, got: ${parts(1)}"))
-    val assetIndex    = parts(2).toIntOption.getOrElse(fail(s"Expected an asset index in asset transfer, got: ${parts(2)}"))
-
-    val asset     = getRegisteredAsset(assetIndex)
-    val assetData = getRegisteredAssetData(asset)
-
-    ContractAssetTransfer(atIndex, destElAddress, amount, assetData.erc20Address)
-  }
-
-  private def getAssetTransfersCount: Long = getLongData("assetTransfersCount").getOrElse(0L)
 
   private def getRegisteredAssetData(asset: Asset): Registry.RegisteredAsset = {
     val key   = s"assetRegistry_${Registry.stringifyAsset(asset)}"
@@ -389,9 +394,12 @@ object ChainContractClient {
 
   case class EpochContractMeta(miner: Address, prevEpoch: Int, lastBlockHash: BlockHash)
 
-  case class ContractNativeTransfer(index: Long, destElAddress: EthAddress, amount: Long)
-
-  case class ContractAssetTransfer(index: Long, destElAddress: EthAddress, amount: Long, erc20Address: EthAddress)
+  sealed abstract class ContractTransfer(val index: Long, val destElAddress: EthAddress, val amount: Long)
+  object ContractTransfer {
+    case class Native(index: Long, destElAddress: EthAddress, amount: Long) extends ContractTransfer(index, destElAddress, amount)
+    case class Asset(index: Long, destElAddress: EthAddress, amount: Long, erc20Address: EthAddress)
+        extends ContractTransfer(index, destElAddress, amount)
+  }
 
   object Registry {
     val WavesAssetName = "WAVES"
