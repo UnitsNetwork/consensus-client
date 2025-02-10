@@ -10,7 +10,7 @@ import org.web3j.protocol.core.methods.response.EthSendTransaction
 import org.web3j.protocol.exceptions.TransactionException
 import org.web3j.tx.RawTransactionManager
 import org.web3j.tx.gas.DefaultGasProvider
-import units.bridge.BridgeContract
+import units.bridge.Bridge
 import units.docker.EcContainer
 import units.eth.{EthAddress, EthereumConstants}
 
@@ -61,7 +61,7 @@ class NativeBridgeClient(web3j: Web3j, address: EthAddress, gasProvider: Default
       amountInEther: BigInt
   ): String = {
     val txnManager     = new RawTransactionManager(web3j, sender, EcContainer.ChainId)
-    val bridgeContract = BridgeContract.load(address.hex, web3j, txnManager, gasProvider)
+    val bridgeContract = Bridge.load(address.hex, web3j, txnManager, gasProvider)
     bridgeContract.send_sendNative(recipient.publicKeyHash, amountInEther.bigInteger).encodeFunctionCall()
   }
 }

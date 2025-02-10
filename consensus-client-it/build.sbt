@@ -1,8 +1,13 @@
 import com.github.sbt.git.SbtGit.git.gitCurrentBranch
+import org.web3j.codegen.SolidityFunctionWrapperGenerator
+import org.web3j.tx.Contract
+import play.api.libs.json.Json
 import sbt.Tests.Group
 
+import java.io.FileInputStream
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import scala.sys.process.*
 
 description := "Consensus client integration tests"
 
@@ -10,6 +15,40 @@ libraryDependencies ++= Seq(
   "org.testcontainers" % "testcontainers" % "1.20.4",
   "org.web3j"          % "core"           % "4.9.8"
 ).map(_ % Test)
+
+Test / sourceGenerators += Def.task {
+  val contracts       = Seq("Bridge", "StandardBridge")
+  val contractSources = baseDirectory.value / ".." / "contracts" / "eth"
+  val compiledDir     = contractSources / "target"
+  s"forge build --config-path ${contractSources / "foundry.toml"}" !
+
+  contracts.foreach { contract =>
+    val json    = Json.parse(new FileInputStream(compiledDir / s"$contract.sol" / s"$contract.json"))
+    val abiFile = compiledDir / s"$contract.abi"
+    val binFile = compiledDir / s"$contract.bin"
+
+    IO.write(abiFile, Json.toBytes((json \ "abi").get))
+    IO.write(binFile, "0x".getBytes("utf-8") ++ Json.toBytes((json \ "bytecode" \ "object").get))
+
+    new SolidityFunctionWrapperGenerator(
+      binFile,
+      abiFile,
+      (Test / sourceManaged).value,
+      contract,
+      "units.bridge",
+      true,
+      true,
+      true,
+      classOf[Contract],
+      160,
+      true
+    ).generate()
+  }
+
+  contracts.map { contract =>
+    (Test / sourceManaged).value / "units" / "bridge" / s"$contract.java"
+  }
+}
 
 val logsDirectory = taskKey[File]("The directory for logs") // Task to evaluate and recreate the logs directory every time
 
