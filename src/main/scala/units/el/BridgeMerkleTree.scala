@@ -8,7 +8,7 @@ import units.client.engine.model.GetLogsResponseEntry
 trait BridgeMerkleTree[ElEventT] {
   def exactTransfersNumber: Int
 
-  def encodeArgs(x: ElEventT): Array[Byte]
+  def encodeArgsForMerkleTree(x: ElEventT): Array[Byte]
   def decodeLog(log: GetLogsResponseEntry): Either[String, ElEventT]
 
   def mkTransfersHash(elRawLogs: Seq[GetLogsResponseEntry]): Either[String, Digest] =
@@ -21,7 +21,7 @@ trait BridgeMerkleTree[ElEventT] {
     } yield {
       if (bridgeEvents.isEmpty) Array.emptyByteArray
       else {
-        val data     = bridgeEvents.map(encodeArgs)
+        val data     = bridgeEvents.map(encodeArgsForMerkleTree)
         val levels   = Merkle.mkLevels(padData(data, exactTransfersNumber))
         val rootHash = levels.head.head
         rootHash
@@ -31,7 +31,7 @@ trait BridgeMerkleTree[ElEventT] {
   def mkTransferProofs(events: Seq[ElEventT], transferIndex: Int): Seq[Digest] =
     if (events.isEmpty) Nil
     else {
-      val data   = events.map(encodeArgs)
+      val data   = events.map(encodeArgsForMerkleTree)
       val levels = Merkle.mkLevels(padData(data, exactTransfersNumber))
       Merkle.mkProofs(transferIndex, levels)
     }

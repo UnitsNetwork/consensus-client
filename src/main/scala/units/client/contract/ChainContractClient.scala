@@ -394,11 +394,15 @@ object ChainContractClient {
 
   case class EpochContractMeta(miner: Address, prevEpoch: Int, lastBlockHash: BlockHash)
 
-  sealed abstract class ContractTransfer(val index: Long, val destElAddress: EthAddress, val amount: Long)
+  sealed trait ContractTransfer {
+    def index: Long
+    def destElAddress: EthAddress
+    def amount: Long
+  }
+
   object ContractTransfer {
-    case class Native(index: Long, destElAddress: EthAddress, amount: Long) extends ContractTransfer(index, destElAddress, amount)
-    case class Asset(index: Long, destElAddress: EthAddress, amount: Long, erc20Address: EthAddress)
-        extends ContractTransfer(index, destElAddress, amount)
+    case class Native(index: Long, destElAddress: EthAddress, amount: Long)                          extends ContractTransfer
+    case class Asset(index: Long, destElAddress: EthAddress, amount: Long, erc20Address: EthAddress) extends ContractTransfer
   }
 
   object Registry {

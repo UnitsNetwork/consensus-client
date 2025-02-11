@@ -11,4 +11,7 @@ package object el {
     if (data.size == size) data
     else data ++ Array.fill(size - data.size)(emptyData)
   }
+
+  val C2ETopics = List(NativeBridge.ElSentNativeEventTopic, StandardBridge.ERC20BridgeFinalized)
+  val E2CTopics = List(StandardBridge.ERC20BridgeInitiated)
 }

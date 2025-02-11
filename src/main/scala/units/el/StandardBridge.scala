@@ -45,7 +45,7 @@ object StandardBridge {
 
     val Topic = EventEncoder.encode(EventDef)
 
-    override def encodeArgs(args: ERC20BridgeInitiated): Array[Byte] =
+    override def encodeArgsForMerkleTree(args: ERC20BridgeInitiated): Array[Byte] =
       HexBytesConverter.toBytes(
         TypeEncoder.encode(new LocalTokenType(args.localToken.hex)) +
           TypeEncoder.encode(new ClToType(args.clTo.publicKeyHash)) +
@@ -104,11 +104,6 @@ object StandardBridge {
 
     val Topic = EventEncoder.encode(EventDef)
 
-    def encodeArgs(args: ERC20BridgeFinalized): String =
-      TypeEncoder.encode(new LocalTokenType(args.localToken.hex)) +
-        TypeEncoder.encode(new ElToType(args.elTo.hex)) +
-        TypeEncoder.encode(new ClAmountType(args.clAmount))
-
     def decodeLog(log: GetLogsResponseEntry): Either[String, ERC20BridgeFinalized] =
       (try {
         for {
@@ -162,26 +157,6 @@ object StandardBridge {
     )
 
     val Topic = EventEncoder.encode(EventDef)
-
-    def encodeArgs(args: RegistryUpdated): String =
-      TypeEncoder.encode(
-        new AddedTokensType(
-          classOf[AddedTokensComponentType],
-          args.addedTokens.map(x => new AddedTokensComponentType(x.hexNoPrefix)).asJava
-        )
-      ) +
-        TypeEncoder.encode(
-          new AddedTokenExponentsType(
-            classOf[AddedTokenExponentsComponentType],
-            args.addedTokenExponents.map(new AddedTokenExponentsComponentType(_)).asJava
-          )
-        ) +
-        TypeEncoder.encode(
-          new RemovedTokensType(
-            classOf[RemovedTokensComponentType],
-            args.removedTokens.map(x => new RemovedTokensComponentType(x.hexNoPrefix)).asJava
-          )
-        )
 
     def decodeLog(ethEventData: String): Either[String, RegistryUpdated] =
       (try {
