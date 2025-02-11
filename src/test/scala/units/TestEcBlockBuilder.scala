@@ -29,38 +29,16 @@ class TestEcBlockBuilder private (
     this
   }
 
-  def setLogs(
-      nativeTransferLogs: List[GetLogsResponseEntry] = Nil,
-      erc20BridgeFinalizedTopicLogs: List[GetLogsResponseEntry] = Nil,
-      erc20BridgeInitiatedTopicLogs: List[GetLogsResponseEntry] = Nil,
-      registryTopicLogs: List[GetLogsResponseEntry] = Nil
-  ): this.type = {
+  def setLogs(ecBlockLogs: List[GetLogsResponseEntry] = Nil): this.type = {
     testEcClients.setBlockLogs(
-      GetLogsRequest(block.hash, List(elNativeBridgeAddress), List(NativeBridge.ElSentNativeEventTopic), 0),
-      nativeTransferLogs
-    )
-    testEcClients.setBlockLogs(
-      GetLogsRequest(block.hash, List(elStandardBridgeAddress), List(StandardBridge.ERC20BridgeFinalized.Topic), 0),
-      erc20BridgeFinalizedTopicLogs
-    )
-    testEcClients.setBlockLogs(
-      GetLogsRequest(block.hash, List(elStandardBridgeAddress), List(StandardBridge.ERC20BridgeInitiated.Topic), 0),
-      erc20BridgeInitiatedTopicLogs
-    )
-    testEcClients.setBlockLogs(
-      GetLogsRequest(block.hash, List(elStandardBridgeAddress), List(StandardBridge.RegistryUpdated.Topic), 0),
-      registryTopicLogs
+      GetLogsRequest(block.hash, List(elNativeBridgeAddress, elStandardBridgeAddress), Nil, 0),
+      ecBlockLogs
     )
     this
   }
 
-  def build(): EcBlock = block
-  def buildAndSetLogs(
-      nativeTransferLogs: List[GetLogsResponseEntry] = Nil,
-      erc20BridgeFinalizedTopicLogs: List[GetLogsResponseEntry] = Nil,
-      erc20BridgeInitiatedTopicLogs: List[GetLogsResponseEntry] = Nil,
-      registryTopicLogs: List[GetLogsResponseEntry] = Nil
-  ): EcBlock = setLogs(nativeTransferLogs, erc20BridgeFinalizedTopicLogs, erc20BridgeInitiatedTopicLogs, registryTopicLogs).block
+  def build(): EcBlock                                                        = block
+  def buildAndSetLogs(ecBlockLogs: List[GetLogsResponseEntry] = Nil): EcBlock = setLogs(ecBlockLogs).block
 }
 
 object TestEcBlockBuilder {

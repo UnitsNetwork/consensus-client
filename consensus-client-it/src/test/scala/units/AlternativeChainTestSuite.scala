@@ -46,7 +46,7 @@ class AlternativeChainTestSuite extends BaseDockerTestSuite {
       blockHash = BlockHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
       parentBlockHash = lastContractBlock.hash,
       e2cNativeTransfersRootHashHex = EmptyE2CTransfersRootHashHex,
-      lastC2ENativeTransferIndex = -1,
+      lastC2ETransferIndex = -1,
       e2cAssetTransfersRootHashHex = EmptyE2CTransfersRootHashHex,
       lastC2EAssetTransferIndex = -1,
       lastAssetRegistryIndex = -1,

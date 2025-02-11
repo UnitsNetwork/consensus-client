@@ -12,6 +12,6 @@ package object el {
     else data ++ Array.fill(size - data.size)(emptyData)
   }
 
-  val C2ETopics = List(NativeBridge.ElSentNativeEventTopic, StandardBridge.ERC20BridgeFinalized)
-  val E2CTopics = List(StandardBridge.ERC20BridgeInitiated)
+  val C2ETopics = List(StandardBridge.ERC20BridgeFinalized)
+  val E2CTopics = List(NativeBridge.ElSentNativeEventTopic, StandardBridge.ERC20BridgeInitiated)
 }

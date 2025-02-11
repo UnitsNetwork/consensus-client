@@ -15,6 +15,7 @@ import units.eth.{EthAddress, Gwei}
 import units.util.HexBytesConverter
 
 import java.nio.ByteBuffer
+import scala.annotation.tailrec
 import scala.reflect.ClassTag
 
 trait ChainContractClient {
@@ -263,21 +264,19 @@ trait ChainContractClient {
     }
   }
 
-  def getTransfers(fromIndex: Long, maxNative: Long, maxAsset: Long): Vector[ContractTransfer] =
-    if (maxNative == 0 && maxAsset == 0) Vector.empty
-    else {
-      val lastIndex = fromIndex + math.max(maxNative, maxAsset)
-      (fromIndex until math.min(lastIndex, getTransfersCount))
-        .foldLeft((maxNative, maxAsset, Vector.empty[ContractTransfer])) { case ((restNative, restAsset, xs), i) =>
-          if (restNative == 0 || restAsset == 0) (restNative, restAsset, xs)
-          else
-            requireTransfer(i) match {
-              case x: ContractTransfer.Native => (restNative - 1, restAsset, xs :+ x)
-              case x: ContractTransfer.Asset  => (restNative, restAsset - 1, xs :+ x)
-            }
+  def getTransfersForPayload(fromIndex: Long, maxNative: Long): Vector[ContractTransfer] = {
+    val maxIndex = getTransfersCount - 1
+
+    @tailrec def loop(currIndex: Long, foundNative: Long, acc: Vector[ContractTransfer]): Vector[ContractTransfer] =
+      if (currIndex >= maxIndex || foundNative >= maxNative) acc
+      else
+        requireTransfer(currIndex) match {
+          case x: ContractTransfer.Native => loop(currIndex + 1, foundNative + 1, acc :+ x)
+          case x: ContractTransfer.Asset  => loop(currIndex + 1, foundNative, acc :+ x)
         }
-        ._3
-    }
+
+    loop(fromIndex, 0, Vector.empty)
+  }
 
   def getTransfers(fromIndex: Long, max: Long): Vector[ContractTransfer] =
     if (max == 0) Vector.empty
