@@ -6,7 +6,7 @@ import com.wavesplatform.utils.EthEncoding
 import org.web3j.protocol.core.DefaultBlockParameterName
 import org.web3j.protocol.core.methods.response.TransactionReceipt
 import org.web3j.utils.Convert
-import units.el.{ElNativeBridgeClient, EvmEncoding, NativeBridge}
+import units.el.{EvmEncoding, NativeBridge, NativeBridgeClient}
 
 import scala.jdk.OptionConverters.RichOptional
 
@@ -55,7 +55,7 @@ class E2CNativeBridgeTestSuite extends BaseDockerTestSuite {
     }
 
     "L2-325 Sent tokens burned" in {
-      def burnedTokens       = ec1.web3j.ethGetBalance(ElNativeBridgeClient.BurnAddress.hex, DefaultBlockParameterName.LATEST).send().getBalance
+      def burnedTokens       = ec1.web3j.ethGetBalance(NativeBridgeClient.BurnAddress.hex, DefaultBlockParameterName.LATEST).send().getBalance
       val burnedTokensBefore = BigInt(burnedTokens)
 
       val transferAmount = tenGwei

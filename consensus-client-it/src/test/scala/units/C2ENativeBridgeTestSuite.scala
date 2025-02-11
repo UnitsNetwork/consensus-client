@@ -1,7 +1,7 @@
 package units
 
 import com.wavesplatform.transaction.TxHelpers
-import units.client.engine.model.BlockNumber
+import org.web3j.protocol.core.DefaultBlockParameterName
 import units.eth.EthAddress
 
 class C2ENativeBridgeTestSuite extends BaseDockerTestSuite {
@@ -9,9 +9,9 @@ class C2ENativeBridgeTestSuite extends BaseDockerTestSuite {
   private val elReceiver        = elRichAccount1
   private val elReceiverAddress = EthAddress.unsafeFrom(elReceiver.getAddress)
 
-  private val userAmount  = 1
-  private val wavesAmount = UnitsConvert.toUnitsInWaves(userAmount)
-  private val gweiAmount  = UnitsConvert.toGwei(userAmount)
+  private val userAmount = 1
+  private val clAmount   = UnitsConvert.toUnitsInWaves(userAmount)
+  private val elAmount   = UnitsConvert.toWei(userAmount)
 
   "L2-380 Checking balances in CL->EL transfers" in {
     def clAssetQuantity: Long      = waves1.api.assetQuantity(chainContract.nativeTokenId)
@@ -27,7 +27,7 @@ class C2ENativeBridgeTestSuite extends BaseDockerTestSuite {
         sender = clSender,
         destElAddress = elReceiverAddress,
         asset = chainContract.nativeTokenId,
-        amount = wavesAmount
+        amount = clAmount
       )
     )
 
@@ -37,23 +37,20 @@ class C2ENativeBridgeTestSuite extends BaseDockerTestSuite {
     }
 
     val clAssetQuantityAfter = clAssetQuantity
-    withClue("1. Tokens burned: ") {
-      clAssetQuantityAfter shouldBe (clAssetQuantityBefore - wavesAmount)
+    withClue("2. Tokens burned: ") {
+      clAssetQuantityAfter shouldBe (clAssetQuantityBefore - clAmount)
     }
 
-    val withdrawal = Iterator
-      .from(elCurrHeight + 1)
-      .map { h =>
-        eventually {
-          ec1.engineApi.getBlockByNumber(BlockNumber.Number(h)).toOption.flatten.value
-        }
-      }
-      .flatMap(_.withdrawals)
-      .find(_.address == elReceiverAddress)
-      .head
+    def getBalance: BigInt = ec1.web3j.ethGetBalance(elReceiverAddress.hex, DefaultBlockParameterName.PENDING).send().getBalance
+    val balanceBefore      = getBalance
 
-    withClue("2. Expected amount: ") {
-      withdrawal.amount shouldBe gweiAmount
+    withClue("3. Expected amount: ") {
+      val expectedBalanceAfter = balanceBefore + elAmount
+      eventually {
+        val balanceAfter = getBalance
+        UnitsConvert.toUser(balanceAfter, UnitsConvert.NativeTokenElDecimals) shouldBe
+          UnitsConvert.toUser(expectedBalanceAfter, UnitsConvert.NativeTokenElDecimals)
+      }
     }
   }
 
@@ -65,14 +62,14 @@ class C2ENativeBridgeTestSuite extends BaseDockerTestSuite {
       TxHelpers.reissue(
         asset = chainContract.nativeTokenId,
         sender = chainContractAccount,
-        amount = wavesAmount
+        amount = clAmount
       )
     )
     waves1.api.broadcastAndWait(
       TxHelpers.transfer(
         from = chainContractAccount,
         to = clSender.toAddress,
-        amount = wavesAmount,
+        amount = clAmount,
         asset = chainContract.nativeTokenId
       )
     )

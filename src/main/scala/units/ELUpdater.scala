@@ -1815,6 +1815,9 @@ object ELUpdater {
           case Left(chainSwitchInfo) => chainSwitchInfo.referenceBlock
           case Right(chainInfo)      => chainInfo.lastBlock
         }
+
+        override def toString: String =
+          s"Mining(m=${keyPair.toAddress}, pid=$currentPayloadId, $nodeChainInfo, c2e=$lastC2ETransferIndex, lwi=$lastElWithdrawalIndex, lari=$lastAssetRegistryIndex)"
       }
 
       case class WaitForNewChain(chainSwitchInfo: ChainSwitchInfo) extends ChainStatus {

@@ -29,7 +29,7 @@ let finalizedBlockKey          = "finalizedBlock"
 let tokenIdKey                 = "tokenId"
 let elNativeBridgeAddressKey   = "elBridgeAddress"
 let elStandardBridgeAddressKey = "elStandardBridgeAddress"
-let nativeTransfersCountKey    = "nativeTransfersCount"
+let transfersCountKey          = "nativeTransfersCount"
 let daoAddressKey              = "daoAddress"
 let daoRewardKey               = "daoReward"
 
@@ -65,24 +65,24 @@ func minerRewardAddressKey(minerAddr: String) = "miner_" + minerAddr + "_RewardA
 func minerPkKey(rewardAddress: String)        = "miner_0x" + rewardAddress + "_PK"
 func minerChainIdKey(miner: Address)          = "miner_" + miner.toString() + "_ChainId"
 
-let nativeTransfersCount = this.getInteger(nativeTransfersCountKey).valueOrElse(0)
-func nativeTransferKey(index: Int) = "nativeTransfer_" + index.toString()
+let transfersCount = this.getInteger(transfersCountKey).valueOrElse(0)
+func transferKey(index: Int) = "nativeTransfer_" + index.toString()
 # destElAddressHex - without 0x
 func mkNativeTransferEntries(destElAddressHex: String, amount: Int) = {
-  let currTransferIndex = nativeTransfersCount
-  let transferKey = nativeTransferKey(currTransferIndex)
+  let currTransferIndex = transfersCount
+  let key = transferKey(currTransferIndex)
   [
-    StringEntry(transferKey, "0x" + destElAddressHex + SEP + amount.toString()),
-    IntegerEntry(nativeTransfersCountKey, currTransferIndex + 1)
+    StringEntry(key, "0x" + destElAddressHex + SEP + amount.toString()),
+    IntegerEntry(transfersCountKey, currTransferIndex + 1)
   ]
 }
 # destElAddressHex - without 0x
 func mkAssetTransferEntries(destElAddressHex: String, amount: Int, assetIndex: Int) = {
-  let currTransferIndex = nativeTransfersCount
-  let transferKey = nativeTransferKey(currTransferIndex)
+  let currTransferIndex = transfersCount
+  let key = transferKey(currTransferIndex)
   [
-    StringEntry(transferKey, "0x" + destElAddressHex + SEP + amount.toString() + SEP + assetIndex.toString()),
-    IntegerEntry(nativeTransfersCountKey, currTransferIndex + 1)
+    StringEntry(key, "0x" + destElAddressHex + SEP + amount.toString() + SEP + assetIndex.toString()),
+    IntegerEntry(transfersCountKey, currTransferIndex + 1)
   ]
 }
 
@@ -132,8 +132,8 @@ func ensureCorrectTransfers(refTransferIndex: Int, transferIndex: Int, expectRew
     then throw("Allowed only " + maxTransfers.toString() + " transfers, got " + actualTransfers.toString())
     else true
 
-  if (transferIndex >= nativeTransfersCount)
-    then throw("Attempt to transfer #" + transferIndex.toString() + ". Available transfers: " + nativeTransfersCount.toString())
+  if (transferIndex >= transfersCount)
+    then throw("Attempt to transfer #" + transferIndex.toString() + ". Available transfers: " + transfersCount.toString())
     else true
 }
 
@@ -204,7 +204,7 @@ func blockMeta(blockId: String) = {
     let baseOffset2 = baseOffset1 + e2cTransfersRootHash.size()
     let lastC2ETransferIndex = meta.toInt(baseOffset2) # _6
 
-    (blockHeight, blockEpoch, blockParent, chainId, e2cTransfersRootHash, lastC2ETransferIndex, base16'', -1, -1)
+    (blockHeight, blockEpoch, blockParent, chainId, e2cTransfersRootHash, lastC2ETransferIndex, base16'', -1)
   } else {
     let baseOffset0 = 24 + BLOCK_HASH_SIZE
     let transfersFlag = meta.drop(baseOffset0).take(1).toBase16String().parseInt()
@@ -857,7 +857,7 @@ func transfer(destElAddressHex: String) = {
   }
 
   let lastIndex = blockMeta(mainChainLastBlock)._6
-  let queueSize = nativeTransfersCount - lastIndex
+  let queueSize = transfersCount - lastIndex
   strict checkQueueLimit =
          if (queueSize <  160) then amountGtEq(t,     1_000_000, queueSize)
     else if (queueSize < 1600) then amountGtEq(t,    10_000_000, queueSize)

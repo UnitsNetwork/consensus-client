@@ -48,7 +48,6 @@ class AlternativeChainTestSuite extends BaseDockerTestSuite {
       e2cNativeTransfersRootHashHex = EmptyE2CTransfersRootHashHex,
       lastC2ETransferIndex = -1,
       e2cAssetTransfersRootHashHex = EmptyE2CTransfersRootHashHex,
-      lastC2EAssetTransferIndex = -1,
       lastAssetRegistryIndex = -1,
       vrf = ByteStr.decodeBase58(lastWavesBlock.VRF).get
     )
