@@ -60,7 +60,7 @@ object NativeBridge {
             )
         }
       } catch {
-        case NonFatal(e) => Left(s"Can't decode event: ${e.getMessage}")
+        case NonFatal(e) => Left(s"Can't decode ${ElSentNativeEventDef.getName} event from $ethEventData: ${e.getMessage}")
       }
   }
 

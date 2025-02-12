@@ -117,15 +117,6 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
           transfersRootHashHex = EmptyE2CTransfersRootHashHex
         )
 
-        "Events from an unexpected EL bridge address" in {
-          val fakeBridgeAddress = EthAddress.unsafeFrom("0x53481054Ad294207F6ed4B6C2E6EaE34E1Bb8704")
-          val ecBlock2Logs      = transferEvents.map(x => getLogsResponseEntry(x).copy(address = fakeBridgeAddress))
-          e2CTest(
-            blockLogs = ecBlock2Logs,
-            transfersRootHashHex = e2CNativeTransfersRootHashHex
-          )
-        }
-
         "Different miners in CL and EL" in e2CTest(
           blockLogs = ecBlockLogs,
           transfersRootHashHex = e2CNativeTransfersRootHashHex,

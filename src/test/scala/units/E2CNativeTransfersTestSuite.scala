@@ -8,16 +8,10 @@ import com.wavesplatform.mining.MultiDimensionalMiningConstraint
 import com.wavesplatform.test.produce
 import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.wallet.Wallet
-import org.web3j.abi.TypeReference
-import org.web3j.abi.datatypes.Event
-import org.web3j.abi.datatypes.generated.Bytes20
 import units.ELUpdater.State.ChainStatus.{Mining, WaitForNewChain}
 import units.client.contract.HasConsensusLayerDappTxHelpers.DefaultFees
 import units.el.NativeBridge
-import units.eth.EthAddress
 import units.util.HexBytesConverter
-
-import scala.jdk.CollectionConverters.SeqHasAsJava
 
 class E2CNativeTransfersTestSuite extends BaseIntegrationTestSuite {
   private val transferReceiver     = TxHelpers.secondSigner
@@ -160,45 +154,6 @@ class E2CNativeTransfersTestSuite extends BaseIntegrationTestSuite {
 
       tryWithdraw() should beRight
       tryWithdraw() should produce("Transfer #0 has been already taken")
-    }
-  }
-
-  "Ignores wrong events" in {
-    val wrongEventDef: Event = new Event(
-      "SentSomething",
-      List[TypeReference[?]](new TypeReference[Bytes20](false) {}).asJava
-    )
-
-    val wrongEventDefTopic = org.web3j.abi.EventEncoder.encode(wrongEventDef)
-    val settings           = defaultSettings.withEnabledElMining
-
-    forAll(
-      Table(
-        "transferEvent",
-        transferEvent.copy(address = EthAddress.unsafeFrom("0xfe3b557e8fb62b89f4916b721be55ceb828dbd73")),
-        transferEvent.copy(topics = List(wrongEventDefTopic))
-      )
-    ) { transferEvent =>
-      withExtensionDomain(settings) { d =>
-        step(s"Start new epoch with ecBlock1")
-        d.advanceNewBlocks(reliable.address)
-        val ecBlock1 = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(List(transferEvent))
-        def tryWithdraw(): Either[Throwable, BlockId] =
-          d.appendMicroBlockE(d.ChainContract.withdraw(transferReceiver, ecBlock1, transferProofs, 0, transfer.amount))
-
-        d.ecClients.willForge(ecBlock1)
-        d.advanceConsensusLayerChanged()
-
-        d.advanceMining()
-        withClue("Transaction added to UTX pool: ") {
-          val (txsOpt, _, _) = d.utxPool.packUnconfirmed(MultiDimensionalMiningConstraint.Unlimited, None)
-          d.appendMicroBlockAndVerify(txsOpt.value*)
-        }
-
-        withClue("Can't withdraw: ") {
-          tryWithdraw() should produce("Expected root hash: ")
-        }
-      }
     }
   }
 

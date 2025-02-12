@@ -81,7 +81,7 @@ object StandardBridge {
         } yield new ERC20BridgeInitiated(localToken, clTo, clAmount)
       } catch {
         case NonFatal(e) => Left(e.getMessage)
-      }).left.map(e => s"Can't decode event ${EventDef.getName} from $log. $e")
+      }).left.map(e => s"Can't decode ${EventDef.getName} event from $log. $e")
   }
 
   case class ERC20BridgeFinalized(localToken: EthAddress, elTo: EthAddress, clAmount: Long)

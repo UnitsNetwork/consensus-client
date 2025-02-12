@@ -45,9 +45,8 @@ class AlternativeChainTestSuite extends BaseDockerTestSuite {
       minerAccount = minerAccount,
       blockHash = BlockHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
       parentBlockHash = lastContractBlock.hash,
-      e2cNativeTransfersRootHashHex = EmptyE2CTransfersRootHashHex,
+      e2cTransfersRootHashHex = EmptyE2CTransfersRootHashHex,
       lastC2ETransferIndex = -1,
-      e2cAssetTransfersRootHashHex = EmptyE2CTransfersRootHashHex,
       lastAssetRegistryIndex = -1,
       vrf = ByteStr.decodeBase58(lastWavesBlock.VRF).get
     )

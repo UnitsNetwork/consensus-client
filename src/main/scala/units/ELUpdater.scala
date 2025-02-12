@@ -17,7 +17,7 @@ import com.wavesplatform.transaction.TxValidationError.InvokeRejectError
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import com.wavesplatform.transaction.smart.script.trace.TracedResult
 import com.wavesplatform.transaction.{Asset, Proofs, Transaction, TransactionSignOps, TransactionType, TxPositiveAmount, TxVersion}
-import com.wavesplatform.utils.{EthEncoding, Time, UnsupportedFeature, forceStopApplication}
+import com.wavesplatform.utils.{Time, UnsupportedFeature, forceStopApplication}
 import com.wavesplatform.utx.UtxPool
 import com.wavesplatform.wallet.Wallet
 import io.netty.channel.Channel
@@ -34,7 +34,7 @@ import units.client.engine.EngineApiClient
 import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.model.*
 import units.client.engine.model.Withdrawal.WithdrawalIndex
-import units.el.{C2ETopics, DepositedTransaction, NativeBridge, StandardBridge}
+import units.el.*
 import units.eth.{EmptyL2Block, EthAddress, EthNumber, EthereumConstants}
 import units.network.BlocksObserverImpl.BlockWithChannel
 import units.util.HexBytesConverter
@@ -227,15 +227,8 @@ class ELUpdater(
                 addresses = chainContractOptions.bridgeAddresses,
                 topics = Nil
               )
-              nativeTransfersRootHash <- getE2CNativeTransfersRootHash(ecBlock.hash, ecBlockLogs, chainContractOptions.elNativeBridgeAddress)
-              assetTransfersRootHash  <- getE2CAssetTransfersRootHash(ecBlock.hash, ecBlockLogs, chainContractOptions.elStandardBridgeAddress)
-              funcCall <- contractFunction.toFunctionCall(
-                ecBlock.hash,
-                nativeTransfersRootHash,
-                m.lastC2ETransferIndex,
-                assetTransfersRootHash,
-                m.lastAssetRegistryIndex
-              )
+              transfersRootHash <- getE2CTransfersRootHash(ecBlock.hash, ecBlockLogs)
+              funcCall          <- contractFunction.toFunctionCall(ecBlock.hash, transfersRootHash, m.lastC2ETransferIndex, m.lastAssetRegistryIndex)
               _ <- callContract(
                 funcCall,
                 ecBlock,
@@ -306,7 +299,7 @@ class ELUpdater(
 
     val transfers = chainContractClient.getTransfersForPayload(
       fromIndex = startC2ETransferIndex,
-      maxNative = ChainContractClient.MaxC2ENativeTransfers - rewardWithdrawal.size
+      maxNative = MaxC2ENativeTransfers - rewardWithdrawal.size
     )
 
     val (nativeTransfers, assetTransfers) = transfers.partitionMap {
@@ -1264,41 +1257,27 @@ class ELUpdater(
         }
     }
 
-  private def getE2CNativeTransfersRootHash(
+  private def getE2CTransfersRootHash(
       ecBlockHash: BlockHash,
-      ecBlockLogs: List[GetLogsResponseEntry],
-      elNativeBridgeAddress: EthAddress
+      ecBlockLogs: List[GetLogsResponseEntry]
   ): JobResult[Digest] = {
-    val relatedElRawLogs = ecBlockLogs.filter(x => x.address == elNativeBridgeAddress && x.topics.contains(NativeBridge.ElSentNativeEventTopic))
-    NativeBridge
-      .mkTransfersHash(relatedElRawLogs)
-      .leftMap(e => ClientError(e))
-      .map { rootHash =>
-        if (rootHash.isEmpty) rootHash
-        else {
-          logger.debug(s"EL->CL native transfers root hash of $ecBlockHash: ${EthEncoding.toHexString(rootHash)}")
-          rootHash
-        }
-      }
-  }
+    val relatedElRawLogs: Either[String, List[Array[Byte]]] = ecBlockLogs.flatTraverse {
+      case x if x.topics.contains(NativeBridge.ElSentNativeEventTopic) =>
+        NativeBridge.ElSentNativeEvent
+          .decodeLog(x.data)
+          .map(NativeBridge.ElSentNativeEvent.encodeArgs)
+          .map(x => List(HexBytesConverter.toBytes(x)))
 
-  private def getE2CAssetTransfersRootHash(
-      hash: BlockHash,
-      ecBlockLogs: List[GetLogsResponseEntry],
-      elStandardBridgeAddress: EthAddress
-  ): JobResult[Digest] = {
-    val relatedElRawLogs =
-      ecBlockLogs.filter(x => x.address == elStandardBridgeAddress && x.topics.contains(StandardBridge.ERC20BridgeInitiated.Topic))
-    StandardBridge.ERC20BridgeInitiated
-      .mkTransfersHash(relatedElRawLogs)
-      .leftMap(e => ClientError(e))
-      .map { rootHash =>
-        if (rootHash.isEmpty) rootHash
-        else {
-          logger.debug(s"EL->CL asset transfers root hash of $hash: ${EthEncoding.toHexString(rootHash)}")
-          rootHash
-        }
-      }
+      case x if x.topics.contains(StandardBridge.ERC20BridgeInitiated.Topic) =>
+        StandardBridge.ERC20BridgeInitiated
+          .decodeLog(x)
+          .map(StandardBridge.ERC20BridgeInitiated.encodeArgsForMerkleTree)
+          .map(List(_))
+
+      case _ => List.empty[Array[Byte]].asRight
+    }
+
+    relatedElRawLogs.map(BridgeMerkleTree.mkTransfersHash(_, MinE2CTransfers)).leftMap(ClientError.apply)
   }
 
   private def validateAssetRegistryUpdate(
@@ -1405,41 +1384,19 @@ class ELUpdater(
     }
   }
 
-  private def validateE2CNativeTransfers(
-      contractBlock: ContractBlock,
-      ecBlockLogs: List[GetLogsResponseEntry],
-      elBridgeAddress: EthAddress
-  ): JobResult[Unit] =
-    getE2CNativeTransfersRootHash(contractBlock.hash, ecBlockLogs, elBridgeAddress).flatMap { elRootHash =>
-      // elRootHash is the source of true
-      if (java.util.Arrays.equals(contractBlock.e2cNativeTransfersRootHash, elRootHash)) Either.unit
-      else
-        Left(
-          ClientError(
-            s"EL to CL native transfers hash of ${contractBlock.hash} are different: " +
-              s"EL=${toHexNoPrefix(elRootHash)}, " +
-              s"CL=${toHexNoPrefix(contractBlock.e2cNativeTransfersRootHash)}"
-          )
+  private def validateE2CTransfers(contractBlock: ContractBlock, ecBlockLogs: List[GetLogsResponseEntry]): JobResult[Unit] =
+    for {
+      elRootHash <- getE2CTransfersRootHash(contractBlock.hash, ecBlockLogs)
+      _ <- Either.cond(
+        java.util.Arrays.equals(contractBlock.e2cTransfersRootHash, elRootHash), // elRootHash is the source of true
+        (),
+        ClientError(
+          s"EL to CL transfers hash of ${contractBlock.hash} are different: " +
+            s"EL=${toHexNoPrefix(elRootHash)}, " +
+            s"CL=${toHexNoPrefix(contractBlock.e2cTransfersRootHash)}"
         )
-    }
-
-  private def validateE2CAssetTransfers(
-      contractBlock: ContractBlock,
-      ecBlockLogs: List[GetLogsResponseEntry],
-      elBridgeAddress: EthAddress
-  ): JobResult[Unit] =
-    getE2CAssetTransfersRootHash(contractBlock.hash, ecBlockLogs, elBridgeAddress).flatMap { elRootHash =>
-      // elRootHash is the source of true
-      if (java.util.Arrays.equals(contractBlock.e2cAssetTransfersRootHash, elRootHash)) Either.unit
-      else
-        Left(
-          ClientError(
-            s"EL to CL asset transfers hash of ${contractBlock.hash} are different: " +
-              s"EL=${toHexNoPrefix(elRootHash)}, " +
-              s"CL=${toHexNoPrefix(contractBlock.e2cAssetTransfersRootHash)}"
-          )
-        )
-    }
+      )
+    } yield ()
 
   private def validateC2E(
       contractBlock: ContractBlock,
@@ -1593,8 +1550,7 @@ class ELUpdater(
           addresses = prevState.options.bridgeAddresses,
           topics = Nil
         )
-        _ <- validateE2CNativeTransfers(contractBlock, ecBlockLogs, prevState.options.elNativeBridgeAddress)
-        _ <- validateE2CAssetTransfers(contractBlock, ecBlockLogs, prevState.options.elStandardBridgeAddress)
+        _ <- validateE2CTransfers(contractBlock, ecBlockLogs)
         _ <- validateAssetRegistryUpdate(ecBlock.hash, ecBlockLogs, contractBlock, parentContractBlock, prevState.options.elStandardBridgeAddress)
         _ <- validateRandao(ecBlock, contractBlock.epoch)
         updatedLastElWithdrawalIndex <- validateC2E(contractBlock, ecBlock, ecBlockLogs, prevState.fullValidationStatus, prevState.options)

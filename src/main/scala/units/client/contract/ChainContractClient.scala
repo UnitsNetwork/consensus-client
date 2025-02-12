@@ -85,39 +85,23 @@ trait ChainContractClient {
             if (chainHeight == 0) EthAddress.empty
             else getElRewardAddress(epochMeta.miner).getOrElse(fail(s"Can't find a reward address for generator ${epochMeta.miner}"))
 
-          ContractBlock(
-            hash,
-            parentHash,
-            epoch,
-            chainHeight,
-            minerRewardElAddress,
-            chainId,
-            e2cNativeTransfersRootHash,
-            lastC2ETransferIndex,
-            Array.emptyByteArray,
-            -1
-          )
+          ContractBlock(hash, parentHash, epoch, chainHeight, minerRewardElAddress, chainId, e2cNativeTransfersRootHash, lastC2ETransferIndex, -1)
         } else {
           val transfersFlag = bb.getByte
 
-          val e2cNativeTransfersRootHash =
-            if ((transfersFlag & NativeTransfersFlag) == NativeTransfersFlag) bb.getByteArray(ContractBlock.E2CTransfersRootHashLength)
+          // TODO remove
+          val e2cTransfersRootHash =
+            if (transfersFlag > 0) bb.getByteArray(ContractBlock.E2CTransfersRootHashLength)
             else Array.emptyByteArray
 
-          val lastC2ETransferIndex = bb.getLong()
-
-          val e2cAssetTransfersRootHash =
-            if ((transfersFlag & AssetTransfersFlag) == AssetTransfersFlag) bb.getByteArray(ContractBlock.E2CTransfersRootHashLength)
-            else Array.emptyByteArray
-
+          val lastC2ETransferIndex   = bb.getLong()
           val lastAssetRegistryIndex = bb.getLong()
 
           require(
             !bb.hasRemaining,
             s"Not parsed ${bb.remaining()} bytes from ${blockMeta.base64}, read data: " +
               s"chainHeight=$chainHeight, epoch=$epoch, parentHash=$parentHash, chainId=$chainId, " +
-              s"e2cNativeTransfersRootHash=${HexBytesConverter.toHex(e2cNativeTransfersRootHash)}, lastC2ETransferIndex=$lastC2ETransferIndex, " +
-              s"e2cAssetTransfersRootHash=${HexBytesConverter.toHex(e2cAssetTransfersRootHash)}, " +
+              s"e2cTransfersRootHash=${HexBytesConverter.toHex(e2cTransfersRootHash)}, lastC2ETransferIndex=$lastC2ETransferIndex, " +
               s"lastAssetRegistryIndex=$lastAssetRegistryIndex"
           )
 
@@ -134,9 +118,8 @@ trait ChainContractClient {
             chainHeight,
             minerRewardElAddress,
             chainId,
-            e2cNativeTransfersRootHash,
+            e2cTransfersRootHash,
             lastC2ETransferIndex,
-            e2cAssetTransfersRootHash,
             if (lastAssetRegistryIndex.isValidInt) lastAssetRegistryIndex.toInt
             else fail(s"$lastAssetRegistryIndex is not a valid int")
           )
@@ -381,12 +364,6 @@ object ChainContractClient {
   private val MainChainIdKey     = "mainChainId"
   private val BlockHashBytesSize = 32
   private val Sep                = ","
-
-  val MaxC2ENativeTransfers = 16
-  val MaxC2EAssetTransfers  = Int.MaxValue // TODO: Change after testing
-
-  val NativeTransfersFlag = 1
-  val AssetTransfersFlag  = 2
 
   private class InconsistentContractData(message: String, cause: Throwable = null)
       extends IllegalStateException(s"Probably, your have to upgrade your client. $message", cause)

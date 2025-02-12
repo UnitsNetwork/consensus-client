@@ -13,15 +13,13 @@ case class ContractBlock(
     height: Long,
     minerRewardL2Address: EthAddress,
     chainId: Long,
-    e2cNativeTransfersRootHash: Digest,
+    e2cTransfersRootHash: Digest,
     lastC2ETransferIndex: Long,
-    e2cAssetTransfersRootHash: Digest,
     lastAssetRegistryIndex: Int
 ) extends L2BlockLike {
   override def toString: String =
     s"ContractBlock($hash, p=$parentHash, e=$epoch, h=$height, m=$minerRewardL2Address, c=$chainId, " +
-      s"e2cn=${if (e2cNativeTransfersRootHash.isEmpty) "" else toHex(e2cNativeTransfersRootHash)}, c2e=$lastC2ETransferIndex, " +
-      s"e2ca=${if (e2cAssetTransfersRootHash.isEmpty) "" else toHex(e2cAssetTransfersRootHash)}, " +
+      s"e2c=${if (e2cTransfersRootHash.isEmpty) "" else toHex(e2cTransfersRootHash)}, c2e=$lastC2ETransferIndex, " +
       s"lari=$lastAssetRegistryIndex)"
 }
 
