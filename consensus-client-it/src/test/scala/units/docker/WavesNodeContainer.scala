@@ -45,8 +45,7 @@ class WavesNodeContainer(
           s"-Dunits.defaults.chain-contract=$chainContractAddress",
           s"-Dunits.defaults.execution-client-address=$ecEngineApiUrl",
           "-Dlogback.file.level=TRACE",
-          "-Dfile.encoding=UTF-8",
-          "-XX:UseSVE=0"
+          "-Dfile.encoding=UTF-8"
         ).mkString(" "),
         "WAVES_LOG_LEVEL" -> "TRACE", // STDOUT logs
         "WAVES_HEAP_SIZE" -> "1g"

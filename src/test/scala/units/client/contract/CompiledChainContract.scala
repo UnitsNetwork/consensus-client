@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets
 import scala.util.Using
 
 object CompiledChainContract {
-  private val chainContractSrcBytes = Using(new FileInputStream("../contracts/waves/src/main.ride"))(_.readAllBytes()).get
+  private val chainContractSrcBytes = Using(new FileInputStream("contracts/waves/src/main.ride"))(_.readAllBytes()).get
   private val chainContractSrc      = new String(chainContractSrcBytes, StandardCharsets.UTF_8)
 
   val script = API

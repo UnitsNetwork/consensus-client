@@ -28,7 +28,7 @@ object NativeBridge {
   val ElSentNativeEventTopic = org.web3j.abi.EventEncoder.encode(ElSentNativeEventDef)
 
   /** @param amount
-    *   In waves units, see Bridge.sol.sol
+    *   In waves units, see Bridge.sol
     */
   case class ElSentNativeEvent(wavesAddress: Address, amount: Long)
 

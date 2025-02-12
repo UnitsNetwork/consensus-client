@@ -45,6 +45,5 @@ exec geth \
   --log.format=terminal \
   --log.rotate \
   --log.compress \
-  --bootnodes="" \
-  --vmdebug=true
+  --bootnodes=""
   $EXTRA_ARGS

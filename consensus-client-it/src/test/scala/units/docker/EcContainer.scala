@@ -38,5 +38,5 @@ abstract class EcContainer(number: Int) extends BaseContainer(s"ec-$number") {
 object EcContainer {
   val RpcPort    = 8545
   val EnginePort = 8551
-  val ChainId    = 1337L // from eth-genesis-template.json
+  val ChainId    = 1337L // from genesis.json
 }

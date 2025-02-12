@@ -905,7 +905,7 @@ func withdrawAsset(blockHashHex: String, merkleProof: List[ByteVector], transfer
 
   # See ERC20BridgeInitiated:
   # token:    12 left padding (see TypeEncoder.encodeAddress) + 20 bytes
-  # clTo:     12 left padding (see TypeEncoder.encodeBytes) + 20 bytes
+  # clTo:     12 left padding (see TypeEncoder.encodeAddress) + 20 bytes
   # clAmount: 24 left padding (see TypeEncoder.encodeNumeric) + 8 bytes
   let elEventData       = zeroAmountBytes.take(12) + erc20Address + zeroAmountBytes.take(12) + recipientPkHash + zeroAmountBytes.take(24) + amountBytes
   let elEventDataDigest = blake2b256_16Kb(elEventData)

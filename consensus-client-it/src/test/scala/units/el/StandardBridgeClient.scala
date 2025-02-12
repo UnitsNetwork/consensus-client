@@ -33,19 +33,6 @@ class StandardBridgeClient(
     val funcCall      = getBridgeErc20FunctionCall(sender, token, clTo, elAmount)
     val nonce = web3j.ethGetTransactionCount(senderAddress, DefaultBlockParameterName.PENDING).send().getTransactionCount
     
-    val res = web3j.ethCall(new Transaction(
-      sender.getAddress,
-      nonce,
-      gasProvider.getGasPrice,
-      gasProvider.getGasLimit,
-      token.toString,
-      BigInteger.ZERO,
-      funcCall
-    ), DefaultBlockParameterName.LATEST).send()
-    
-//    Thread.sleep(1000_000)
-
-    
     val rawTxn = RawTransaction.createTransaction(
       nonce,
       gasProvider.getGasPrice,

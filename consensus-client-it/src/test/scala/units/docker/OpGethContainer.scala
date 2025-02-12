@@ -20,7 +20,6 @@ import scala.io.Source
 
 class OpGethContainer(network: NetworkImpl, number: Int, ip: String)(implicit httpClientBackend: SttpBackend[Identity, Any])
     extends EcContainer(number) {
-  Files.touch(new File(s"$DefaultLogsDir/ec-$number-trace.log"))
 
   protected override val container = new GenericContainer(DockerImages.OpGethExecutionClient)
     .withNetwork(network)
@@ -30,7 +29,6 @@ class OpGethContainer(network: NetworkImpl, number: Int, ip: String)(implicit ht
     .withFileSystemBind(s"$ConfigsDir/ec-common/p2p-key-$number.hex", "/etc/secrets/p2p-key", BindMode.READ_ONLY)
     .withFileSystemBind(s"$ConfigsDir/ec-common/jwt-secret-$number.hex", "/etc/secrets/jwtsecret", BindMode.READ_ONLY)
     .withFileSystemBind(s"$logFile", "/root/logs/op-geth.log", BindMode.READ_WRITE)
-    .withFileSystemBind(s"$DefaultLogsDir/ec-$number-trace.log", "/root/logs/trace.log", BindMode.READ_WRITE)
     .withCreateContainerCmdModifier { cmd =>
       cmd
         .withName(s"${network.getName}-$hostName")

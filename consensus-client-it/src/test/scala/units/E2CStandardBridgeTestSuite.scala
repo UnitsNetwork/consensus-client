@@ -39,7 +39,6 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
   private val enoughElAmount = elAmount * testTransfers
 
   private val tenGwei      = BigInt(Convert.toWei("10", Convert.Unit.GWEI).toBigIntegerExact)
-  private val tokenAddress = EthAddress.unsafeFrom("0x0000000000000000000000000000000020202020")
 
   // TODO: Because we have to get a token from dictionary before amount checks. Fix with unit tests for contract
   "Negative" ignore {
