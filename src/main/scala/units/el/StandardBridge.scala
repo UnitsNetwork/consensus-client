@@ -25,8 +25,6 @@ object StandardBridge {
 
   case class ERC20BridgeInitiated(localToken: EthAddress, clTo: Address, clAmount: Long)
   object ERC20BridgeInitiated extends BridgeMerkleTree[ERC20BridgeInitiated] {
-    override val exactTransfersNumber = 1024
-
     type LocalTokenType = Web3JAddress
     type ClToType       = Bytes20
     type ClAmountType   = Int64

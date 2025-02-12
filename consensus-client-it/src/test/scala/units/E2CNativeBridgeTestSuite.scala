@@ -6,7 +6,7 @@ import com.wavesplatform.utils.EthEncoding
 import org.web3j.protocol.core.DefaultBlockParameterName
 import org.web3j.protocol.core.methods.response.TransactionReceipt
 import org.web3j.utils.Convert
-import units.el.{EvmEncoding, NativeBridge, NativeBridgeClient}
+import units.el.{BridgeMerkleTree, EvmEncoding, NativeBridgeClient}
 
 import scala.jdk.OptionConverters.RichOptional
 
@@ -79,17 +79,11 @@ class E2CNativeBridgeTestSuite extends BaseDockerTestSuite {
       val blockHash = BlockHash(sendTxnReceipt.getBlockHash)
       step(s"Block with transaction: $blockHash")
 
-      val logsInBlock = ec1.engineApi.getLogs(blockHash, List(nativeBridgeAddress), List(NativeBridge.ElSentNativeEventTopic)).explicitGet()
-
-      val transferEvents = logsInBlock.map { x =>
-        NativeBridge.ElSentNativeEvent.decodeLog(x.data).explicitGet()
-      }
-      step(s"Transfer events: ${transferEvents.mkString(", ")}")
-
+      val logsInBlock     = ec1.engineApi.getLogs(blockHash, List(nativeBridgeAddress, standardBridgeAddress), Nil).explicitGet()
       val sendTxnLogIndex = logsInBlock.indexWhere(_.transactionHash == sendTxnReceipt.getTransactionHash)
       sendTxnLogIndex shouldBe >=(0)
 
-      val transferProofs = NativeBridge.mkTransferProofs(transferEvents, sendTxnLogIndex).reverse
+      val transferProofs = BridgeMerkleTree.mkTransferProofs(logsInBlock, sendTxnLogIndex).explicitGet().reverse
 
       step(s"Wait block $blockHash on contract")
       val blockConfirmationHeight = eventually {
