@@ -66,12 +66,12 @@ class E2CNativeBridgeTestSuite extends BaseDockerTestSuite {
     }
 
     "L2-379 Checking balances in EL->CL transfers" in {
-      step("Broadcast Bridge.sendNative transaction")
+      step("Broadcast Bridge.sol.sendNative transaction")
       def bridgeBalance       = ec1.web3j.ethGetBalance(nativeBridgeAddress.hex, DefaultBlockParameterName.LATEST).send().getBalance
       val bridgeBalanceBefore = bridgeBalance
       val sendTxnReceipt      = sendNative()
 
-      withClue("1. The balance of Bridge contract wasn't changed: ") {
+      withClue("1. The balance of Bridge.sol contract wasn't changed: ") {
         val bridgeBalanceAfter = bridgeBalance
         bridgeBalanceAfter shouldBe bridgeBalanceBefore
       }

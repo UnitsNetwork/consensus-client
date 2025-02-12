@@ -11,7 +11,7 @@ services:
           echo geth already initialized
         fi
     volumes:
-      - ../genesis-${NETWORK}.json:/tmp/genesis.json
+      - ../genesis-${NETWORK}.json:/tmp/eth-genesis-template.json
       - ../data/geth:/root/.ethereum
   geth:
     container_name: geth

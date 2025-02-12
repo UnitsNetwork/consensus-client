@@ -3,13 +3,21 @@ package units
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.transaction.Asset.IssuedAsset
-import com.wavesplatform.transaction.TxHelpers
+import com.wavesplatform.transaction.{ERC20Address, TxHelpers}
 import com.wavesplatform.utils.EthEncoding
+import org.web3j.crypto.{Credentials, RawTransaction}
+import org.web3j.protocol.core.DefaultBlockParameterName
+import org.web3j.protocol.core.methods.request.Transaction
 import org.web3j.protocol.core.methods.response.TransactionReceipt
+import org.web3j.tx.RawTransactionManager
+import org.web3j.tx.gas.{DefaultGasProvider, StaticGasProvider}
 import org.web3j.utils.Convert
+import units.bridge.TERC20
+import units.docker.EcContainer
 import units.el.{BridgeMerkleTree, EvmEncoding}
 import units.eth.EthAddress
 
+import java.math.BigInteger
 import scala.jdk.OptionConverters.RichOptional
 
 // TODO: asset registered in EL/CL first cases, WAVES
@@ -31,7 +39,7 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
   private val enoughElAmount = elAmount * testTransfers
 
   private val tenGwei      = BigInt(Convert.toWei("10", Convert.Unit.GWEI).toBigIntegerExact)
-  private val tokenAddress = standardBridgeAddress
+  private val tokenAddress = EthAddress.unsafeFrom("0x0000000000000000000000000000000020202020")
 
   // TODO: Because we have to get a token from dictionary before amount checks. Fix with unit tests for contract
   "Negative" ignore {
@@ -58,8 +66,8 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
   }
 
   "Positive" - {
-    def sendBridgeErc20(ethAmount: BigInt): TransactionReceipt = {
-      val txnResult = standardBridge.sendBridgeErc20(elSender, tokenAddress, clRecipient.toAddress, ethAmount)
+    def sendBridgeErc20(erc20Address: EthAddress, ethAmount: BigInt): TransactionReceipt = {
+      val txnResult = standardBridge.sendBridgeErc20(elSender, erc20Address, clRecipient.toAddress, ethAmount)
 
       // To overcome a failed block confirmation in a new epoch issue
       chainContract.waitForHeight(ec1.web3j.ethBlockNumber().send().getBlockNumber.longValueExact() + 2)
@@ -72,14 +80,26 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
     }
 
     "Checking balances in EL->CL transfers" in {
+      step("Issue ERC20 token")
+      val txManager = new RawTransactionManager(ec1.web3j, elSender, EcContainer.ChainId, 10, 2000)
+      val contract = TERC20.deploy(ec1.web3j, txManager, new DefaultGasProvider).send()
+
+      val erc20address = EthAddress.unsafeFrom(contract.getContractAddress)
+      log.info(s"Address: $erc20address")
+      log.info(s"Balance of ${elSender.getAddress}: ${getBalance(erc20address.toString, elSender.getAddress)}")
+
+
       step("Register asset")
-      waves1.api.broadcastAndWait(ChainContract.registerAsset(issueAsset, standardBridgeAddress, 18))
+      waves1.api.broadcastAndWait(ChainContract.registerAsset(issueAsset, erc20address, 18))
       eventually {
-        standardBridge.isRegistered(standardBridgeAddress) shouldBe true
+        standardBridge.isRegistered(erc20address) shouldBe true
       }
 
+      step("Send allowance")
+      contract.send_approve(standardBridgeAddress.toString, elAmount.bigInteger).send()
+
       step("Broadcast StandardBridge.sendBridgeErc20 transaction")
-      val sendTxnReceipt = sendBridgeErc20(elAmount)
+      val sendTxnReceipt = sendBridgeErc20(erc20address, elAmount)
 
       val blockHash = BlockHash(sendTxnReceipt.getBlockHash)
       step(s"Block with transaction: $blockHash")
@@ -128,16 +148,27 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
     }
   }
 
+  private def getBalance(contractAddress: String, account: String) = {
+    val sender: Credentials = elSender
+    val txnManager          = new RawTransactionManager(ec1.web3j, sender, EcContainer.ChainId)
+    val gasProvider         = new DefaultGasProvider
+    val contract            = TERC20.load(standardBridgeAddress.hex, ec1.web3j, sender, gasProvider) // TODO move to class?
+    val funcCall            = contract.call_balanceOf(account).encodeFunctionCall()
+
+    val c = TERC20.load(contractAddress, ec1.web3j, txnManager, gasProvider)
+    c.call_balanceOf(account).send()
+  }
+
   override def beforeAll(): Unit = {
     super.beforeAll()
-
-    step("Prepare: mint EL token")
-    standardBridge.sendMint(elSender, EthAddress.unsafeFrom(elSender.getAddress), enoughElAmount)
 
     step("Prepare: issue CL asset")
     waves1.api.broadcastAndWait(issueAssetTxn)
 
     step("Prepare: move assets and enable the asset in the registry")
     waves1.api.broadcast(TxHelpers.transfer(clAssetOwner, chainContractAddress, enoughClAmount, issueAsset))
+
+    step("Prepare: wait for first block in EC")
+    while (ec1.web3j.ethBlockNumber().send().getBlockNumber.compareTo(BigInteger.ONE) < 0) Thread.sleep(5000)
   }
 }

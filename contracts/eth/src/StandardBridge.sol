@@ -26,11 +26,25 @@ contract StandardBridge {
         int64 clAmount
     );
 
-    event ERC20BridgeFinalized(address indexed localToken, address indexed elTo, int64 clAmount);
+    event ERC20BridgeFinalized(
+        address indexed localToken,
+        address indexed from,
+        address indexed elTo,
+        uint256 amount
+    );
 
     event RegistryUpdated(address[] addedTokens, uint8[] addedTokenExponents, address[] removedTokens);
 
-    function updateAssetRegistry(address[] calldata addedTokens, uint8[] calldata addedTokenExponents) external {
+    /// @notice Ensures that the caller is an empty adddress.
+    modifier onlyMiner() {
+        require(
+            msg.sender == address(0),
+            "StandardBridge: function can only be called by the miner"
+        );
+        _;
+    }
+
+    function updateAssetRegistry(address[] calldata addedTokens, uint8[] calldata addedTokenExponents) external onlyMiner {
         // TODO: add check, that only a miner can do this
         require(addedTokens.length == addedTokenExponents.length, "Different sizes of added tokens and their exponents");
 
@@ -41,17 +55,6 @@ contract StandardBridge {
         }
 
         emit RegistryUpdated(addedTokens, addedTokenExponents, new address[](0));
-    }
-
-    function burn(address from, uint256 elAmount) internal {
-        // TODO: only bridge can do this
-        balances[from] -= elAmount;
-    }
-
-    // TODO: external for testing purposes, will be internal
-    function mint(address to, uint256 elAmount) public {
-        // TODO: only bridge can do this
-        balances[to] += elAmount;
     }
 
     // clTo is a public key hash of recipient account.
@@ -100,16 +103,12 @@ contract StandardBridge {
         uint64 ratio = tokenRatios[_localToken];
         require(ratio > 0, "Token is not registered");
 
-        uint256 minAmountInWei = 1 * ratio;
-        uint256 maxAmountInWei = uint256(uint64(type(int64).max)) * ratio;
-        require(_amount >= minAmountInWei, string.concat("Sent value ", Strings.toString(_amount), " must be greater or equal to ", Strings.toString(minAmountInWei)));
-        require(_amount <= maxAmountInWei, string.concat("Sent value ", Strings.toString(_amount), " must be less or equal to ", Strings.toString(maxAmountInWei)));
-
-        uint256 balance = balances[msg.sender];
-        require(balance > _amount, string.concat("Insufficient funds, only ", Strings.toString(balance), " available"));
-
-        uint256 clAmount = _amount / ratio;
-        require(clAmount * ratio == _amount, string.concat("Sent value ", Strings.toString(_amount), " must be a multiple of ", Strings.toString(ratio)));
+//        uint256 minAmountInWei = 1 * ratio;
+//        uint256 maxAmountInWei = uint256(uint64(type(int64).max)) * ratio;
+//        require(_amount >= minAmountInWei, string.concat("Sent value ", Strings.toString(_amount), " must be greater or equal to ", Strings.toString(minAmountInWei)));
+//        require(_amount <= maxAmountInWei, string.concat("Sent value ", Strings.toString(_amount), " must be less or equal to ", Strings.toString(maxAmountInWei)));
+//        uint256 clAmount = _amount / ratio;
+//        require(clAmount * ratio == _amount, string.concat("Sent value ", Strings.toString(_amount), " must be a multiple of ", Strings.toString(ratio)));
 
         if (_isUnitsMintableERC20(_localToken)) {
             IUnitsMintableERC20(_localToken).burn(_from, _amount);
@@ -120,22 +119,51 @@ contract StandardBridge {
 
         // Emit the correct events. By default this will be ERC20BridgeInitiated, but child
         // contracts may override this function in order to emit legacy events as well.
-        _emitERC20BridgeInitiated(_localToken, _from, _to, clAmount);
+        _emitERC20BridgeInitiated(_localToken, _from, _to, _amount);
     }
 
-    function finalizeBridgeERC20(address token, address elTo, int64 clAmount) external {
-        // TODO: only miner can do this
-        require(clAmount > 0, "Receive value must be greater or equal to 0");
+    /// @notice Finalizes an ERC20 bridge on this chain. Can only be triggered by the other
+    ///         StandardBridge contract on the remote chain.
+    /// @param _localToken  Address of the ERC20 on this chain.
+    /// @param _from        Address of the sender.
+    /// @param _to          Address of the receiver.
+    /// @param _amount      Amount of the ERC20 being bridged.
+    function finalizeBridgeERC20(
+        address _localToken,
+        address _from,
+        address _to,
+        uint256 _amount
+    )
+    public
+    onlyMiner
+    {
+        if (_isUnitsMintableERC20(_localToken)) {
+            IUnitsMintableERC20(_localToken).mint(_to, _amount);
+        } else {
+            deposits[_localToken] = deposits[_localToken] - _amount;
+            IERC20(_localToken).safeTransfer(_to, _amount);
+        }
 
-        uint64 ratio = tokenRatios[token];
-        require(ratio > 0, "Token is not registered");
+        // Emit the correct events. By default this will be ERC20BridgeFinalized, but child
+        // contracts may override this function in order to emit legacy events as well.
+        _emitERC20BridgeFinalized(_localToken, _from, _to, _amount);
+    }
 
-        uint256 elAmount = uint256(int256(clAmount)) * ratio;
-        uint256 maxAmountInWei = uint256(uint64(type(int64).max)) * ratio;
-        require(elAmount <= maxAmountInWei, "Amount exceeds maximum allowable value");
-
-        // TODO: check amount overflow
-        mint(elTo, elAmount);
-        emit ERC20BridgeFinalized(token, elTo, clAmount);
+    /// @notice Emits the ERC20BridgeFinalized event and if necessary the appropriate legacy
+    ///         event when an ERC20 bridge is initiated to the other chain.
+    /// @param _localToken  Address of the ERC20 on this chain.
+    /// @param _from        Address of the sender.
+    /// @param _to          Address of the receiver.
+    /// @param _amount      Amount of the ERC20 sent.
+    function _emitERC20BridgeFinalized(
+        address _localToken,
+        address _from,
+        address _to,
+        uint256 _amount
+    )
+    internal
+    virtual
+    {
+        emit ERC20BridgeFinalized(_localToken, _from, _to, _amount);
     }
 }

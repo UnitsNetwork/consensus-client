@@ -17,10 +17,10 @@ libraryDependencies ++= Seq(
 ).map(_ % Test)
 
 Test / sourceGenerators += Def.task {
-  val contracts       = Seq("Bridge", "StandardBridge")
+  val contracts       = Seq("Bridge", "StandardBridge", "TERC20")
   val contractSources = baseDirectory.value / ".." / "contracts" / "eth"
   val compiledDir     = contractSources / "target"
-  s"forge build --config-path ${contractSources / "foundry.toml"}" !
+  s"forge build --config-path ${contractSources / "foundry.toml"} ${contractSources / "src"} ${contractSources / "utils" / "TERC20.sol"}" !
 
   contracts.foreach { contract =>
     val json    = Json.parse(new FileInputStream(compiledDir / s"$contract.sol" / s"$contract.json"))
@@ -28,7 +28,7 @@ Test / sourceGenerators += Def.task {
     val binFile = compiledDir / s"$contract.bin"
 
     IO.write(abiFile, Json.toBytes((json \ "abi").get))
-    IO.write(binFile, "0x".getBytes("utf-8") ++ Json.toBytes((json \ "bytecode" \ "object").get))
+    IO.write(binFile, (json \ "bytecode" \ "object").as[String])
 
     new SolidityFunctionWrapperGenerator(
       binFile,
@@ -65,6 +65,10 @@ inConfig(Test)(
       r.mkdirs()
       r
     },
+    test := test.dependsOn(Def.task {
+      (baseDirectory.value / ".." / "local-network" / "update-eth-genesis.sh").toString.!
+      ()
+    }).value,
     javaOptions ++= Seq(
       s"-Dlogback.configurationFile=${(Test / resourceDirectory).value}/logback-test.xml", // Fixes a logback blaming for multiple configs
       s"-Dcc.it.configs.dir=${baseDirectory.value.getParent}/local-network/configs",

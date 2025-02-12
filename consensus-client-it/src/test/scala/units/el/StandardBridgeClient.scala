@@ -31,8 +31,21 @@ class StandardBridgeClient(
     val senderAddress = sender.getAddress
     val txnManager    = new RawTransactionManager(web3j, sender, EcContainer.ChainId)
     val funcCall      = getBridgeErc20FunctionCall(sender, token, clTo, elAmount)
-
     val nonce = web3j.ethGetTransactionCount(senderAddress, DefaultBlockParameterName.PENDING).send().getTransactionCount
+    
+    val res = web3j.ethCall(new Transaction(
+      sender.getAddress,
+      nonce,
+      gasProvider.getGasPrice,
+      gasProvider.getGasLimit,
+      token.toString,
+      BigInteger.ZERO,
+      funcCall
+    ), DefaultBlockParameterName.LATEST).send()
+    
+//    Thread.sleep(1000_000)
+
+    
     val rawTxn = RawTransaction.createTransaction(
       nonce,
       gasProvider.getGasPrice,
@@ -80,41 +93,6 @@ class StandardBridgeClient(
     val contract   = StandardBridge.load(standardBridgeAddress.hex, web3j, txnManager, gasProvider)
     val ratio      = contract.call_tokenRatios(assetAddress.hexNoPrefix).send()
     ratio != BigInteger.ZERO
-  }
-
-  def sendMint(
-      sender: Credentials,
-      to: EthAddress,
-      elAmount: BigInt
-  ): EthSendTransaction = {
-    val senderAddress = sender.getAddress
-    val txnManager    = new RawTransactionManager(web3j, sender, EcContainer.ChainId)
-    val funcCall      = getMintFunctionCall(sender, to, elAmount)
-
-    val nonce = web3j.ethGetTransactionCount(senderAddress, DefaultBlockParameterName.PENDING).send().getTransactionCount
-    val rawTxn = RawTransaction.createTransaction(
-      nonce,
-      gasProvider.getGasPrice,
-      gasProvider.getGasLimit,
-      standardBridgeAddress.hex,
-      BigInteger.ZERO,
-      funcCall
-    )
-
-    log.debug(s"Send mint($senderAddress->$to: $elAmount Wei), nonce: $nonce")
-    val r = txnManager.signAndSend(rawTxn)
-    if (r.hasError) throw new TransactionException(s"Can't call mint: ${r.getError}, ${r.getError.getMessage}")
-    r
-  }
-
-  def getMintFunctionCall(
-      sender: Credentials,
-      to: EthAddress,
-      elAmount: BigInt
-  ): String = {
-    val txnManager = new RawTransactionManager(web3j, sender, EcContainer.ChainId)
-    val contract   = StandardBridge.load(standardBridgeAddress.hex, web3j, txnManager, gasProvider)
-    contract.send_mint(to.hex, elAmount.bigInteger).encodeFunctionCall()
   }
 
   def getBalance(of: EthAddress): BigInt = {

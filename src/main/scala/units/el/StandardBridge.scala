@@ -2,6 +2,8 @@ package units.el
 
 import cats.syntax.either.*
 import com.wavesplatform.account.Address
+import com.wavesplatform.transaction.utils.EthConverters
+import com.wavesplatform.utils.EthEncoding
 import org.web3j.abi.*
 import org.web3j.abi.datatypes.generated.{Bytes20, Int64, Uint8}
 import org.web3j.abi.datatypes.{Event, Function, Type, Address as Web3JAddress, DynamicArray as Web3JArray}
@@ -23,10 +25,10 @@ object StandardBridge {
   val UpdateAssetRegistryFunction = "updateAssetRegistry"
   val UpdateAssetRegistryGas      = BigInteger.valueOf(500_000L)
 
-  case class ERC20BridgeInitiated(localToken: EthAddress, clTo: Address, clAmount: Long)
+  case class ERC20BridgeInitiated(localToken: EthAddress, clTo: Address, elFrom: EthAddress, clAmount: Long)
   object ERC20BridgeInitiated extends BridgeMerkleTree[ERC20BridgeInitiated] {
     type LocalTokenType = Web3JAddress
-    type ClToType       = Bytes20
+    type ClToType       = Web3JAddress
     type ClAmountType   = Int64
 
     private val LocalTokenTypeRef = new TypeReference[LocalTokenType](true) {}
@@ -37,6 +39,7 @@ object StandardBridge {
       List[TypeReference[?]](
         LocalTokenTypeRef,
         ClToTypeRef,
+        ClToTypeRef,
         new TypeReference[ClAmountType](false) {}
       ).asJava
     )
@@ -46,15 +49,15 @@ object StandardBridge {
     override def encodeArgsForMerkleTree(args: ERC20BridgeInitiated): Array[Byte] =
       HexBytesConverter.toBytes(
         TypeEncoder.encode(new LocalTokenType(args.localToken.hex)) +
-          TypeEncoder.encode(new ClToType(args.clTo.publicKeyHash)) +
+          TypeEncoder.encode(new ClToType(EthEncoding.toHexString(args.clTo.publicKeyHash))) +
           TypeEncoder.encode(new ClAmountType(args.clAmount))
       )
 
     override def decodeLog(log: GetLogsResponseEntry): Either[String, ERC20BridgeInitiated] =
       (try {
         for {
-          (localToken, clTo) <- log.topics match {
-            case _ :: localToken :: clTo :: Nil => Right((localToken, clTo))
+          (localToken, from, clTo) <- log.topics match {
+            case _ :: localToken :: from :: clTo :: Nil => Right((localToken, from, clTo))
             case _                              => Left(s"Topics should contain 3 or more elements, got ${log.topics.size}")
           }
           localToken <- Try(FunctionReturnDecoder.decodeIndexedValue(localToken, LocalTokenTypeRef)).toEither.bimap(
@@ -62,11 +65,15 @@ object StandardBridge {
             r => r.asInstanceOf[LocalTokenType] // Type is not inferred even if call decodeIndexedValue[LocalTokenType]
           )
           localToken <- EthAddress.from(localToken.getValue)
+          from <- Try(FunctionReturnDecoder.decodeIndexedValue(from, ClToTypeRef)).toEither.bimap(
+            e => s"Can't decode clTo: ${e.getMessage}",
+            r => r.asInstanceOf[ClToType]
+          )
           clTo <- Try(FunctionReturnDecoder.decodeIndexedValue(clTo, ClToTypeRef)).toEither.bimap(
             e => s"Can't decode clTo: ${e.getMessage}",
             r => r.asInstanceOf[ClToType]
           )
-          clTo <- Try(Address(clTo.getValue)).toEither.left.map(e => s"Can't decode clTo: ${e.getMessage}")
+          clTo <- Try(Address.fromHexString(clTo.getValue)).toEither.left.map(e => s"Can't decode clTo: ${e.getMessage}")
           clAmount <- FunctionReturnDecoder.decode(log.data, EventDef.getNonIndexedParameters).asScala.toList match {
             case (clAmount: ClAmountType) :: Nil =>
               for {
@@ -76,7 +83,7 @@ object StandardBridge {
 
             case xs => Left(s"Expected (clAmount: ${classOf[ClAmountType].getSimpleName}) non-indexed fields, got: ${xs.mkString(", ")}")
           }
-        } yield new ERC20BridgeInitiated(localToken, clTo, clAmount)
+        } yield new ERC20BridgeInitiated(localToken, clTo, EthAddress.unsafeFrom(from.getValue), clAmount)
       } catch {
         case NonFatal(e) => Left(e.getMessage)
       }).left.map(e => s"Can't decode ${EventDef.getName} event from $log. $e")

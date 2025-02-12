@@ -11,8 +11,8 @@ To run tests on the host machine, from this directory:
 To generate `Bridge.java`, run:
 ```bash
 web3j generate solidity \
-  --abiFile=setup/el/compiled/Bridge.abi \
-  --binFile=setup/el/compiled/Bridge.bin \
+  --abiFile=setup/el/compiled/Bridge.sol.abi \
+  --binFile=setup/el/compiled/Bridge.sol.bin \
   --generateBoth \
   --outputDir=../../consensus-client-it/src/test/java/ \
   -p units.bridge \

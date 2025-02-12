@@ -46,4 +46,5 @@ exec geth \
   --log.rotate \
   --log.compress \
   --bootnodes="" \
+  --vmdebug=true
   $EXTRA_ARGS

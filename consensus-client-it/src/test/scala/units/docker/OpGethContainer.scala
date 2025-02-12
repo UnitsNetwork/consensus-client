@@ -1,5 +1,6 @@
 package units.docker
 
+import com.google.common.io.Files
 import okhttp3.Interceptor
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.Network.NetworkImpl
@@ -11,13 +12,16 @@ import units.client.JwtAuthenticationBackend
 import units.client.engine.{EngineApiClient, HttpEngineApiClient, LoggedEngineApiClient}
 import units.docker.EcContainer.{EnginePort, RpcPort}
 import units.http.OkHttpLogger
-import units.test.TestEnvironment.ConfigsDir
+import units.test.TestEnvironment.{ConfigsDir, DefaultLogsDir}
 
+import java.io.File
 import java.time.Clock
 import scala.io.Source
 
 class OpGethContainer(network: NetworkImpl, number: Int, ip: String)(implicit httpClientBackend: SttpBackend[Identity, Any])
     extends EcContainer(number) {
+  Files.touch(new File(s"$DefaultLogsDir/ec-$number-trace.log"))
+
   protected override val container = new GenericContainer(DockerImages.OpGethExecutionClient)
     .withNetwork(network)
     .withExposedPorts(RpcPort, EnginePort)
@@ -26,6 +30,7 @@ class OpGethContainer(network: NetworkImpl, number: Int, ip: String)(implicit ht
     .withFileSystemBind(s"$ConfigsDir/ec-common/p2p-key-$number.hex", "/etc/secrets/p2p-key", BindMode.READ_ONLY)
     .withFileSystemBind(s"$ConfigsDir/ec-common/jwt-secret-$number.hex", "/etc/secrets/jwtsecret", BindMode.READ_ONLY)
     .withFileSystemBind(s"$logFile", "/root/logs/op-geth.log", BindMode.READ_WRITE)
+    .withFileSystemBind(s"$DefaultLogsDir/ec-$number-trace.log", "/root/logs/trace.log", BindMode.READ_WRITE)
     .withCreateContainerCmdModifier { cmd =>
       cmd
         .withName(s"${network.getName}-$hostName")
