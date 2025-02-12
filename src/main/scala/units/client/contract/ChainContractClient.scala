@@ -65,65 +65,39 @@ trait ChainContractClient {
         val parentHash  = BlockHash(bb.getByteArray(BlockHashBytesSize))
         val chainId     = if (bb.remaining() >= 8) bb.getLong() else DefaultMainChainId
 
-        if (epoch < getAssetTransfersActivationEpoch) {
-          val e2cNativeTransfersRootHash =
-            if (bb.remaining() >= ContractBlock.E2CTransfersRootHashLength) bb.getByteArray(ContractBlock.E2CTransfersRootHashLength)
-            else Array.emptyByteArray
+        val e2cTransfersRootHash =
+          if (bb.remaining() >= ContractBlock.E2CTransfersRootHashLength) bb.getByteArray(ContractBlock.E2CTransfersRootHashLength)
+          else Array.emptyByteArray
 
-          val lastC2ETransferIndex = if (bb.remaining() >= 8) bb.getLong() else -1L
+        val lastC2ETransferIndex   = bb.getLong()
+        val lastAssetRegistryIndex = if (bb.remaining() >= 8) bb.getLong() else -1L
 
-          require(
-            !bb.hasRemaining,
-            s"Not parsed ${bb.remaining()} bytes from ${blockMeta.base64}, read data: " +
-              s"chainHeight=$chainHeight, epoch=$epoch, parentHash=$parentHash, chainId=$chainId, " +
-              s"e2cNativeTransfersRootHash=${HexBytesConverter.toHex(e2cNativeTransfersRootHash)}, lastC2ETransferIndex=$lastC2ETransferIndex"
-          )
+        require(
+          !bb.hasRemaining,
+          s"Not parsed ${bb.remaining()} bytes from ${blockMeta.base64}, read data: " +
+            s"chainHeight=$chainHeight, epoch=$epoch, parentHash=$parentHash, chainId=$chainId, " +
+            s"e2cTransfersRootHash=${HexBytesConverter.toHex(e2cTransfersRootHash)}, lastC2ETransferIndex=$lastC2ETransferIndex" +
+            s"lastAssetRegistryIndex=$lastAssetRegistryIndex"
+        )
 
-          val epochMeta = getEpochMeta(epoch).getOrElse(fail(s"Can't find epoch meta for epoch $epoch"))
+        val epochMeta = getEpochMeta(epoch).getOrElse(fail(s"Can't find epoch meta for epoch $epoch"))
 
-          val minerRewardElAddress =
-            if (chainHeight == 0) EthAddress.empty
-            else getElRewardAddress(epochMeta.miner).getOrElse(fail(s"Can't find a reward address for generator ${epochMeta.miner}"))
+        val minerRewardElAddress =
+          if (chainHeight == 0) EthAddress.empty
+          else getElRewardAddress(epochMeta.miner).getOrElse(fail(s"Can't find a reward address for generator ${epochMeta.miner}"))
 
-          ContractBlock(hash, parentHash, epoch, chainHeight, minerRewardElAddress, chainId, e2cNativeTransfersRootHash, lastC2ETransferIndex, -1)
-        } else {
-          val transfersFlag = bb.getByte
-
-          // TODO remove
-          val e2cTransfersRootHash =
-            if (transfersFlag > 0) bb.getByteArray(ContractBlock.E2CTransfersRootHashLength)
-            else Array.emptyByteArray
-
-          val lastC2ETransferIndex   = bb.getLong()
-          val lastAssetRegistryIndex = bb.getLong()
-
-          require(
-            !bb.hasRemaining,
-            s"Not parsed ${bb.remaining()} bytes from ${blockMeta.base64}, read data: " +
-              s"chainHeight=$chainHeight, epoch=$epoch, parentHash=$parentHash, chainId=$chainId, " +
-              s"e2cTransfersRootHash=${HexBytesConverter.toHex(e2cTransfersRootHash)}, lastC2ETransferIndex=$lastC2ETransferIndex, " +
-              s"lastAssetRegistryIndex=$lastAssetRegistryIndex"
-          )
-
-          val epochMeta = getEpochMeta(epoch).getOrElse(fail(s"Can't find epoch meta for epoch $epoch"))
-
-          val minerRewardElAddress =
-            if (chainHeight == 0) EthAddress.empty
-            else getElRewardAddress(epochMeta.miner).getOrElse(fail(s"Can't find a reward address for generator ${epochMeta.miner}"))
-
-          ContractBlock(
-            hash,
-            parentHash,
-            epoch,
-            chainHeight,
-            minerRewardElAddress,
-            chainId,
-            e2cTransfersRootHash,
-            lastC2ETransferIndex,
-            if (lastAssetRegistryIndex.isValidInt) lastAssetRegistryIndex.toInt
-            else fail(s"$lastAssetRegistryIndex is not a valid int")
-          )
-        }
+        ContractBlock(
+          hash,
+          parentHash,
+          epoch,
+          chainHeight,
+          minerRewardElAddress,
+          chainId,
+          e2cTransfersRootHash,
+          lastC2ETransferIndex,
+          if (lastAssetRegistryIndex.isValidInt) lastAssetRegistryIndex.toInt
+          else fail(s"$lastAssetRegistryIndex is not a valid int")
+        )
       } catch {
         case e: Throwable => fail(s"Can't read a block $hash meta, bytes: ${blockMeta.base64}, remaining: ${bb.remaining()}", e)
       }

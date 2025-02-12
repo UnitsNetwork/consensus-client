@@ -179,10 +179,6 @@ let allMiners      = match allMinersStr {
   case raw: String => raw.split_4C(SEP)
 }
 
-# TODO: Remove
-let BLOCK_TRANSFERS_NONE        = 0
-let BLOCK_TRANSFERS_BOTH        = 3
-
 func blockMeta(blockId: String) = {
   let meta     = getBinaryValue(blockMetaK + blockId)
   let metaSize = meta.size()
@@ -192,39 +188,25 @@ func blockMeta(blockId: String) = {
   let blockParent = meta.drop(16).take(BLOCK_HASH_SIZE) # _3
   let chainId     = meta.toInt(16 + BLOCK_HASH_SIZE) # _4
 
-  # TODO: Simplify
-  if (blockEpoch < assetTransfersActivationEpoch) then {
-    let baseOffset1 = 24 + BLOCK_HASH_SIZE
-    let remainingBytes1 = metaSize - baseOffset1
-    let e2cTransfersRootHash = if (remainingBytes1 >= ROOT_HASH_SIZE) # _5
-      then meta.drop(baseOffset1).take(ROOT_HASH_SIZE)
-      else base16''
+  let baseOffset1 = 24 + BLOCK_HASH_SIZE
+  let remainingBytes1 = metaSize - baseOffset1
+  let e2cTransfersRootHash = if (remainingBytes1 >= ROOT_HASH_SIZE) # _5
+    then meta.drop(baseOffset1).take(ROOT_HASH_SIZE)
+    else base16''
 
-    let baseOffset2 = baseOffset1 + e2cTransfersRootHash.size()
-    let lastC2ETransferIndex = meta.toInt(baseOffset2) # _6
+  let baseOffset2 = baseOffset1 + e2cTransfersRootHash.size()
+  let lastC2ETransferIndex = meta.toInt(baseOffset2) # _6
 
-    (blockHeight, blockEpoch, blockParent, chainId, e2cTransfersRootHash, lastC2ETransferIndex, -1)
-  } else {
-    let baseOffset0 = 24 + BLOCK_HASH_SIZE
-    let transfersFlag = meta.drop(baseOffset0).take(1).toBase16String().parseInt()
+  let baseOffset3 = baseOffset2 + 8
+  let remainingBytes2 = metaSize - baseOffset3
+  let lastAssetRegistryIndex = if (remainingBytes2 >= 8) # _7
+    then meta.toInt(baseOffset3)
+    else -1
 
-    let baseOffset1 = baseOffset0 + 1
-    let e2cTransfersRootHash = if (transfersFlag == BLOCK_TRANSFERS_BOTH) # _5
-      then meta.drop(baseOffset1).take(ROOT_HASH_SIZE)
-      else base16''
-
-    let baseOffset2 = baseOffset1 + e2cTransfersRootHash.size()
-    let lastC2ETransferIndex = meta.toInt(baseOffset2) # _6
-
-    let baseOffset3 = baseOffset2 + 8
-    let lastAssetRegistryIndex = meta.toInt(baseOffset3) # _7
-
-    (blockHeight, blockEpoch, blockParent, chainId, e2cTransfersRootHash, lastC2ETransferIndex, lastAssetRegistryIndex)
-  }
+  (blockHeight, blockEpoch, blockParent, chainId, e2cTransfersRootHash, lastC2ETransferIndex, lastAssetRegistryIndex)
 }
 
 func mkBlockMetaEntry(
-  assetTransfersActivationEpoch: Int,
   blockHashHex: String, blockHeight: Int, blockParentHex: String, chainId: Int,
   e2cTransfersRootHashHex: String, lastC2ETransferIndex: Int,
   lastAssetRegistryIndex: Int
@@ -235,22 +217,8 @@ func mkBlockMetaEntry(
     throw("Native transfers root hash should have 0 or " + ROOT_HASH_SIZE.toString() + " bytes, got " + nativeRootHashBytesSize.toString())
 
   let epoch = height
-  let blockMetaBytes = if (epoch < assetTransfersActivationEpoch)
-    then
-      blockHeight.toBytes() + height.toBytes() + blockParentHex.fromBase16String() + chainId.toBytes() +
-        e2cTransfersRootHashBytes + lastC2ETransferIndex.toBytes()
-    else {
-      # TODO: Simplify
-      let transfersFlag =
-        if (e2cTransfersRootHashHex == "") then BLOCK_TRANSFERS_NONE
-        else BLOCK_TRANSFERS_BOTH
-
-      let transfersFlagBytes = ("0" + transfersFlag.toString()).fromBase16String()
-
-      blockHeight.toBytes() + height.toBytes() + blockParentHex.fromBase16String() + chainId.toBytes() + transfersFlagBytes +
-        e2cTransfersRootHashBytes + lastC2ETransferIndex.toBytes() +
-        lastAssetRegistryIndex.toBytes()
-    }
+  let blockMetaBytes = blockHeight.toBytes() + epoch.toBytes() + blockParentHex.fromBase16String() + chainId.toBytes() +
+    e2cTransfersRootHashBytes + lastC2ETransferIndex.toBytes() + lastAssetRegistryIndex.toBytes()
 
   BinaryEntry(blockMetaK + blockHashHex, blockMetaBytes)
 }
@@ -477,7 +445,7 @@ func extendMainChain_base(
 
   let newChainHeight = mainChainHeight + 1
   [
-    mkBlockMetaEntry(assetTransfersActivationEpoch, blockHashHex, newChainHeight, mainChainLastBlock, mainChainId, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex),
+    mkBlockMetaEntry(blockHashHex, newChainHeight, mainChainLastBlock, mainChainId, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex),
     mkChainMetaEntry(mainChainId, newChainHeight, blockHashHex),
     IntegerEntry(minerChainIdKey(originCaller), mainChainId),
     IntegerEntry(chainLastHeightKey(mainChainId, originCaller), newChainHeight),
@@ -516,7 +484,7 @@ func startAltChain_base(
 
   [
     thisEpochMeta,
-    mkBlockMetaEntry(assetTransfersActivationEpoch, blockHashHex, newChainHeight, referenceHex, newChainId, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex),
+    mkBlockMetaEntry(blockHashHex, newChainHeight, referenceHex, newChainId, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex),
     StringEntry(chainFirstBlockIdKey(newChainId), blockHashHex),
     mkChainMetaEntry(newChainId, newChainHeight, blockHashHex),
     IntegerEntry(minerChainIdKey(originCaller), newChainId),
@@ -577,7 +545,7 @@ func extendAltChain_base(
     [IntegerEntry(chainLastHeightKey(mainChainId, originCaller), chainFirstBlockMeta._1)]
   } else []
   [
-    mkBlockMetaEntry(assetTransfersActivationEpoch, blockHashHex, newChainHeight, referenceHex, chainId, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex),
+    mkBlockMetaEntry(blockHashHex, newChainHeight, referenceHex, chainId, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex),
     mkChainMetaEntry(chainId, newChainHeight, blockHashHex),
     thisEpochMeta,
     IntegerEntry(minerChainIdKey(originCaller), chainId),
@@ -609,7 +577,7 @@ func appendBlock_base(
   let newChainHeight    = chainHeight + 1
   strict checkBlockHash = validateBlockHash(blockHashHex)
   [
-    mkBlockMetaEntry(assetTransfersActivationEpoch, blockHashHex, newChainHeight, lastBlockId, chainId, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex),
+    mkBlockMetaEntry(blockHashHex, newChainHeight, lastBlockId, chainId, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex),
     IntegerEntry(chainLastHeightKey(chainId, originCaller), newChainHeight),
     mkChainMetaEntry(chainId, newChainHeight, blockHashHex),
     StringEntry(epochMetaKey(height), thisEpochMiner.value().toString() + SEP + thisEpochRef.toString() + SEP + blockHashHex)
@@ -1011,7 +979,6 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: Stri
     let tokenId = calculateAssetId(issue)
 
     let genesisBlockMeta = mkBlockMetaEntry(
-      0, # assetTransfersActivationEpoch
       genesisBlockHashHex,
       0, # blockHeight
       genesisBlockReferenceHash,
