@@ -16,7 +16,7 @@ class MultiplePrivateKeysTestSuite extends BaseIntegrationTestSuite {
     .withEnabledElMining
 
   "Wallet is not used when private keys are provided" in {
-    val settings = defaultSettings.withPrivateKeys(Seq(TxHelpers.signer(1).privateKey, TxHelpers.signer(2).privateKey))
+    val settings = defaultSettings.withPrivateKeys(Seq(miner1.account.privateKey, miner2.account.privateKey))
     withExtensionDomain(settings) { d =>
       step("Start new epoch for ecBlock")
       d.advanceNewBlocks(minerFromWallet.address)
@@ -51,7 +51,7 @@ class MultiplePrivateKeysTestSuite extends BaseIntegrationTestSuite {
   }
 
   "Mining starts when 1 private key is provided instead of a wallet" in {
-    val settings = defaultSettings.withPrivateKeys(Seq(TxHelpers.signer(1).privateKey))
+    val settings = defaultSettings.withPrivateKeys(Seq(miner1.account.privateKey))
 
     withExtensionDomain(settings) { d =>
       step("Start new epoch for ecBlock")
@@ -63,7 +63,7 @@ class MultiplePrivateKeysTestSuite extends BaseIntegrationTestSuite {
   }
 
   "Mining starts when 2 private keys are provided instead of a wallet" in {
-    val settings = defaultSettings.withPrivateKeys(Seq(TxHelpers.signer(1).privateKey, TxHelpers.signer(2).privateKey))
+    val settings = defaultSettings.withPrivateKeys(Seq(miner1.account.privateKey, miner2.account.privateKey))
 
     withExtensionDomain(settings) { d =>
       step("Start new epoch for ecBlock")
