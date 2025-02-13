@@ -9,7 +9,7 @@ import pureconfig.ConfigSource
 
 import scala.concurrent.duration.*
 
-class ClientConfigSuite extends FlatSpec {
+class ClientConfigTestSuite extends FlatSpec {
   private val stubNetworkSettingsString =
     s"""
        |{
