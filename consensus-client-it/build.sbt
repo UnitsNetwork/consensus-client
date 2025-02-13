@@ -52,6 +52,10 @@ Test / sourceGenerators += Def.task {
 
 val logsDirectory = taskKey[File]("The directory for logs") // Task to evaluate and recreate the logs directory every time
 
+val updateEthGenesis = taskKey[Unit]("Update eth genesis")
+updateEthGenesis :=
+  (baseDirectory.value / ".." / "local-network" / "update-eth-genesis.sh").toString.!
+
 Global / concurrentRestrictions := {
   val threadNumber = Option(System.getenv("SBT_IT_TEST_THREADS")).fold(1)(_.toInt)
   Seq(Tags.limit(Tags.ForkedTestGroup, threadNumber))
@@ -59,6 +63,8 @@ Global / concurrentRestrictions := {
 
 inConfig(Test)(
   Seq(
+    test := test.dependsOn(updateEthGenesis).value,
+    testOnly := testOnly.dependsOn(updateEthGenesis).evaluated,
     logsDirectory := {
       val runId: String = Option(System.getenv("RUN_ID")).getOrElse(DateTimeFormatter.ofPattern("MM-dd--HH_mm_ss").format(LocalDateTime.now))
       val r             = target.value / "test-logs" / runId

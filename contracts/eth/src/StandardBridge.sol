@@ -103,12 +103,12 @@ contract StandardBridge {
         uint64 ratio = tokenRatios[_localToken];
         require(ratio > 0, "Token is not registered");
 
-//        uint256 minAmountInWei = 1 * ratio;
-//        uint256 maxAmountInWei = uint256(uint64(type(int64).max)) * ratio;
-//        require(_amount >= minAmountInWei, string.concat("Sent value ", Strings.toString(_amount), " must be greater or equal to ", Strings.toString(minAmountInWei)));
-//        require(_amount <= maxAmountInWei, string.concat("Sent value ", Strings.toString(_amount), " must be less or equal to ", Strings.toString(maxAmountInWei)));
-//        uint256 clAmount = _amount / ratio;
-//        require(clAmount * ratio == _amount, string.concat("Sent value ", Strings.toString(_amount), " must be a multiple of ", Strings.toString(ratio)));
+        uint256 minAmountInWei = 1 * ratio;
+        uint256 maxAmountInWei = uint256(uint64(type(int64).max)) * ratio;
+        require(_amount >= minAmountInWei, string.concat("Sent value ", Strings.toString(_amount), " must be greater or equal to ", Strings.toString(minAmountInWei)));
+        require(_amount <= maxAmountInWei, string.concat("Sent value ", Strings.toString(_amount), " must be less or equal to ", Strings.toString(maxAmountInWei)));
+        uint256 clAmount = _amount / ratio;
+        require(clAmount * ratio == _amount, string.concat("Sent value ", Strings.toString(_amount), " must be a multiple of ", Strings.toString(ratio)));
 
         if (_isUnitsMintableERC20(_localToken)) {
             IUnitsMintableERC20(_localToken).burn(_from, _amount);
@@ -119,7 +119,7 @@ contract StandardBridge {
 
         // Emit the correct events. By default this will be ERC20BridgeInitiated, but child
         // contracts may override this function in order to emit legacy events as well.
-        _emitERC20BridgeInitiated(_localToken, _from, _to, _amount);
+        _emitERC20BridgeInitiated(_localToken, _from, _to, clAmount);
     }
 
     /// @notice Finalizes an ERC20 bridge on this chain. Can only be triggered by the other

@@ -114,7 +114,7 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
         chainContract.getBlock(blockHash).value.height
       }
 
-      step(s"Wait block $blockHash ($blockConfirmationHeight) finalization")
+      step(s"Wait for block $blockHash ($blockConfirmationHeight) finalization")
       eventually {
         val currFinalizedHeight = chainContract.getFinalizedBlock.height
         step(s"Current finalized height: $currFinalizedHeight")
