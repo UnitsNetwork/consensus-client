@@ -105,7 +105,11 @@ inTask(docker)(
 
 docker := docker.dependsOn(LocalRootProject / buildTarballsForDocker).value
 
-lazy val `consensus-client` = project.in(file("."))
+lazy val `consensus-client` = project
+  .in(file("."))
+  .settings(
+    Test / resources += baseDirectory.value / "contracts" / "waves" / "src" / "main.ride"
+  )
 
 lazy val `consensus-client-it` = project
   .dependsOn(

@@ -43,7 +43,7 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
   // TODO: Because we have to get a token from dictionary before amount checks. Fix with unit tests for contract
   "Negative" ignore {
     def test(amount: BigInt, expectedError: String): Unit = {
-      val e = standardBridge.getRevertReasonForBridgeErc20(elSender, tokenAddress, clRecipient.toAddress, amount)
+      val e = standardBridge.getRevertReasonForBridgeErc20(elSender, ???, clRecipient.toAddress, amount)
       e should include(expectedError)
     }
 

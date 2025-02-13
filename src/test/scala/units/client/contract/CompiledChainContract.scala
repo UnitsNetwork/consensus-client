@@ -6,12 +6,11 @@ import com.wavesplatform.lang.API
 import com.wavesplatform.lang.script.Script
 import com.wavesplatform.lang.v1.estimator.v3.ScriptEstimatorV3
 
-import java.io.{File, FileInputStream}
 import java.nio.charset.StandardCharsets
 import scala.util.Using
 
 object CompiledChainContract {
-  private val chainContractSrcBytes = Using(new FileInputStream("contracts/waves/src/main.ride"))(_.readAllBytes()).get
+  private val chainContractSrcBytes = Using(getClass.getResourceAsStream("/main.ride"))(_.readAllBytes()).get
   private val chainContractSrc      = new String(chainContractSrcBytes, StandardCharsets.UTF_8)
 
   val script = API

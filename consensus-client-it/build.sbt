@@ -65,10 +65,6 @@ inConfig(Test)(
       r.mkdirs()
       r
     },
-    test := test.dependsOn(Def.task {
-      (baseDirectory.value / ".." / "local-network" / "update-eth-genesis.sh").toString.!
-      ()
-    }).value,
     javaOptions ++= Seq(
       s"-Dlogback.configurationFile=${(Test / resourceDirectory).value}/logback-test.xml", // Fixes a logback blaming for multiple configs
       s"-Dcc.it.configs.dir=${baseDirectory.value.getParent}/local-network/configs",
