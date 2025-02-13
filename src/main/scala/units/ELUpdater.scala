@@ -321,11 +321,9 @@ class ELUpdater(
     val parentBlock = prevState.lastEcBlock
     val epochInfo   = prevState.epochInfo
 
-    val keyPairs =
-      if (config.privateKeys.nonEmpty) config.privateKeys.map(PKKeyPair(_))
-      else wallet.privateKeyAccounts
-
-    val chosenKeyPair = keyPairs.find(_.toAddress == epochInfo.miner)
+    val chosenKeyPair =
+      if (config.privateKeys.nonEmpty) config.privateKeys.map(PKKeyPair(_)).find(_.toAddress == epochInfo.miner)
+      else wallet.privateKeyAccount(epochInfo.miner).toOption
 
     chosenKeyPair match {
       case Some(keyPair) if config.miningEnable =>
