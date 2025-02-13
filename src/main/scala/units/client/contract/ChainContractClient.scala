@@ -275,7 +275,7 @@ trait ChainContractClient {
     if (parts.length < 3) fail(s"Expected at least 3 elements in $key, got ${parts.length}: $raw")
 
     val assetIndex   = parts(0).toIntOption.getOrElse(fail(s"Expected an index of asset at $key(0), got: ${parts(1)}"))
-    val erc20Address = EthAddress.unsafeFrom(s"0x${parts(1)}")
+    val erc20Address = EthAddress.unsafeFrom(parts(1))
     val exponent     = parts(2).toIntOption.getOrElse(fail(s"Expected an exponent of asset at $key(2), got: ${parts(2)}"))
 
     Registry.RegisteredAsset(asset, assetIndex, erc20Address, exponent)

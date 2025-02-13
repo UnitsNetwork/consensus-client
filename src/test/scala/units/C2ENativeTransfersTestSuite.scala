@@ -22,11 +22,10 @@ class C2ENativeTransfersTestSuite extends BaseIntegrationTestSuite {
   "Deny invalid address" in forAll(
     Table(
       "invalid address"                            -> "message",
-      ""                                           -> "Address should have 40 characters",
-      "0x"                                         -> "Address should have 40 characters",
-      "0x0000000000000000000000000000000000000002" -> "Address should have 40 characters",
-      "000000000000000000000000000000000000000003" -> "Address should have 40 characters",
-      "0x00000000000000000000000000000000000001"   -> "Unrecognized character: x",
+      ""                                           -> "Invalid Ethereum address",
+      "0x"                                         -> "Invalid Ethereum address",
+      "000000000000000000000000000000000000000003" -> "Invalid Ethereum address",
+      "0x00000000000000000000000000000000000001"   -> "Invalid Ethereum address",
       "QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"   -> "Unrecognized character: q"
     )
   ) { case (address, message) =>

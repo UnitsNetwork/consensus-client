@@ -12,7 +12,7 @@ class ChainContractImpureTestSuite extends BaseIntegrationTestSuite {
       d.appendMicroBlockE(registerTxn).left.value.getMessage should include(s"Unknown asset ${issueTxn.asset}")
     }
 
-    "Invalid ERC20 address" in forAll(
+    "Invalid Ethereum address" in forAll(
       Table(
         "address",
         "",
@@ -23,7 +23,7 @@ class ChainContractImpureTestSuite extends BaseIntegrationTestSuite {
       withExtensionDomain() { d =>
         val issueTxn    = TxHelpers.issue(d.chainRegistryAccount, 1, 8)
         val registerTxn = d.ChainContract.registerAsset(issueTxn.asset, address, 8, d.chainContractAccount)
-        d.appendMicroBlockE(issueTxn, registerTxn).left.value.getMessage should include(s"Invalid ERC20 address: $address")
+        d.appendMicroBlockE(issueTxn, registerTxn).left.value.getMessage should include(s"Invalid Ethereum address: $address")
       }
     }
 
@@ -36,7 +36,7 @@ class ChainContractImpureTestSuite extends BaseIntegrationTestSuite {
       d.appendMicroBlock(txn1)
 
       val txn2 = d.ChainContract.registerAsset(issueTxn2.asset, standardBridgeAddress, 8)
-      d.appendMicroBlockE(txn2).left.value.getMessage should include(s"EL asset is already registered: ${standardBridgeAddress.hexNoPrefix}")
+      d.appendMicroBlockE(txn2).left.value.getMessage should include(s"EL asset is already registered: ${standardBridgeAddress.hex}")
     }
 
     "Can't register a CL asset twice" - {
@@ -78,7 +78,7 @@ class ChainContractImpureTestSuite extends BaseIntegrationTestSuite {
       d.appendMicroBlockE(txn).left.value.getMessage should include("Only owner of chain contract can do this")
     }
 
-    "Invalid ERC20 address" in forAll(
+    "Invalid Ethereum address" in forAll(
       Table(
         "address",
         "",
@@ -88,7 +88,7 @@ class ChainContractImpureTestSuite extends BaseIntegrationTestSuite {
     ) { address =>
       withExtensionDomain() { d =>
         val txn = d.ChainContract.createAndRegisterAsset(address, 8, "test", "test", 8, d.chainContractAccount)
-        d.appendMicroBlockE(txn).left.value.getMessage should include(s"Invalid ERC20 address: $address")
+        d.appendMicroBlockE(txn).left.value.getMessage should include(s"Invalid Ethereum address: $address")
       }
     }
 
@@ -97,7 +97,7 @@ class ChainContractImpureTestSuite extends BaseIntegrationTestSuite {
       d.appendMicroBlock(txn1)
 
       val txn2 = d.ChainContract.createAndRegisterAsset(standardBridgeAddress, 8, "test", "test", 8)
-      d.appendMicroBlockE(txn2).left.value.getMessage should include(s"EL asset is already registered: ${standardBridgeAddress.hexNoPrefix}")
+      d.appendMicroBlockE(txn2).left.value.getMessage should include(s"EL asset is already registered: ${standardBridgeAddress.hex}")
     }
 
     "Registers an asset" in withExtensionDomain() { d =>
