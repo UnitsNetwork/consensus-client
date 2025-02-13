@@ -1,7 +1,7 @@
 package units
 
 import com.typesafe.config.ConfigFactory
-import com.wavesplatform.account.{Address, KeyPair, SeedKeyPair}
+import com.wavesplatform.account.{Address, KeyPair, PrivateKey, SeedKeyPair}
 import com.wavesplatform.db.WithState.AddrWithBalance
 import com.wavesplatform.settings.WavesSettings
 import com.wavesplatform.test.{DomainPresets, NumericExt}
@@ -26,6 +26,11 @@ case class TestSettings(
   )
 
   def withChainRegistry(address: Address): TestSettings = copy(wavesSettings = Waves.withChainRegistry(wavesSettings, Some(address)))
+
+  def withPrivateKeys(privateKeys: Seq[PrivateKey]): TestSettings = {
+    val configString = s"units.defaults.private-keys = [${privateKeys.mkString(", ")}]"
+    copy(wavesSettings = wavesSettings.copy(config = ConfigFactory.parseString(configString).withFallback(wavesSettings.config)))
+  }
 }
 
 object TestSettings {
