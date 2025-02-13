@@ -25,6 +25,7 @@ jobs:
           distribution: 'temurin'
           java-version: '11'
           cache: 'sbt'
+      - uses: foundry-rs/foundry-toolchain@v1
       - uses: sbt/setup-sbt@v1
       - name: Run tests
         run: |
