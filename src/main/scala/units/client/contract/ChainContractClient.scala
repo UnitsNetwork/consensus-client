@@ -14,7 +14,7 @@ import units.client.contract.ChainContractClient.*
 import units.eth.{EthAddress, Gwei}
 import units.util.HexBytesConverter
 
-import java.math.BigInteger
+import java.math.{BigInteger, BigDecimal}
 import java.nio.ByteBuffer
 import scala.annotation.tailrec
 import scala.reflect.ClassTag
@@ -248,8 +248,8 @@ trait ChainContractClient {
     raw.split(Sep) match {
       case Array(rawDestElAddress, rawAmount) =>
         ContractTransfer.Native(
-          index = atIndex,
-          destElAddress = EthAddress.unsafeFrom(rawDestElAddress),
+          idx = atIndex,
+          to = EthAddress.unsafeFrom(rawDestElAddress),
           amount = rawAmount.toLongOption.getOrElse(fail(s"Expected an integer amount of a native transfer, got: $rawAmount"))
         )
 
@@ -259,11 +259,13 @@ trait ChainContractClient {
         val assetData  = getRegisteredAssetData(asset)
 
         ContractTransfer.Asset(
-          index = atIndex,
+          idx = atIndex,
           from = EthAddress.unsafeFrom(rawFromAddress),
-          destElAddress = EthAddress.unsafeFrom(rawDestElAddress),
-          amount = rawAmount.toLongOption.getOrElse(fail(s"Expected an integer amount of a native transfer, got: $rawAmount")),
-          erc20Address = assetData.erc20Address,
+          to = EthAddress.unsafeFrom(rawDestElAddress),
+          amount =
+            try new BigDecimal(rawAmount).scaleByPowerOfTen(assetData.exponent).toBigIntegerExact
+            catch { case e: ArithmeticException => fail(s"Expected an integer amount of a native transfer, got: $rawAmount", e) },
+          tokenAddress = assetData.erc20Address,
           asset
         )
 
@@ -347,15 +349,9 @@ object ChainContractClient {
 
   case class EpochContractMeta(miner: Address, prevEpoch: Int, lastBlockHash: BlockHash)
 
-  sealed trait ContractTransfer {
-    def index: Long
-    def destElAddress: EthAddress
-    def amount: Long
-  }
-
-  object ContractTransfer {
-    case class Native(index: Long, destElAddress: EthAddress, amount: Long)                          extends ContractTransfer
-    case class Asset(index: Long, from: EthAddress, destElAddress: EthAddress, amount: Long, erc20Address: EthAddress, asset: WAsset) extends ContractTransfer
+  enum ContractTransfer(val index: Long) {
+    case Native(idx: Long, to: EthAddress, amount: Long)                                                                 extends ContractTransfer(idx)
+    case Asset(idx: Long, from: EthAddress, to: EthAddress, amount: BigInteger, tokenAddress: EthAddress, asset: WAsset) extends ContractTransfer(idx)
   }
 
   object Registry {

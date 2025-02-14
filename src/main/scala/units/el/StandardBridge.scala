@@ -89,11 +89,11 @@ object StandardBridge {
       }).left.map(e => s"Can't decode ${EventDef.getName} event from $log. $e")
   }
 
-  case class ERC20BridgeFinalized(localToken: EthAddress, elTo: EthAddress, clAmount: Long)
+  case class ERC20BridgeFinalized(localToken: EthAddress, elTo: EthAddress, elAmount: BigInteger)
   object ERC20BridgeFinalized {
     type LocalTokenType = Web3JAddress
     type ElToType       = Web3JAddress
-    type ClAmountType   = Int64
+    type ElAmountType   = Uint256
 
     private val LocalTokenTypeRef = new TypeReference[LocalTokenType](true) {}
     private val ElToTypeRef       = new TypeReference[ElToType](true) {}
@@ -103,7 +103,7 @@ object StandardBridge {
       List[TypeReference[?]](
         LocalTokenTypeRef,
         ElToTypeRef,
-        new TypeReference[ClAmountType](false) {}
+        new TypeReference[ElAmountType](false) {}
       ).asJava
     )
 
@@ -127,13 +127,13 @@ object StandardBridge {
           )
           elTo <- EthAddress.from(elTo.getValue)
           clAmount <- FunctionReturnDecoder.decode(log.data, EventDef.getNonIndexedParameters).asScala.toList match {
-            case (clAmount: ClAmountType) :: Nil =>
+            case (clAmount: ElAmountType) :: Nil =>
               for {
-                clAmount <- Try(clAmount.getValue.longValueExact()).toEither.left.map(e => s"Can't decode clAmount: ${e.getMessage}")
-                _        <- Either.cond(clAmount > 0, (), s"clAmount must be positive, got: $clAmount")
+                clAmount <- Try(clAmount.getValue).toEither.left.map(e => s"Can't decode clAmount: ${e.getMessage}")
+                _        <- Either.cond(clAmount.compareTo(BigInteger.ZERO) > 0, (), s"clAmount must be positive, got: $clAmount")
               } yield clAmount
 
-            case xs => Left(s"Expected (clAmount: ${classOf[ClAmountType].getSimpleName}) non-indexed fields, got: ${xs.mkString(", ")}")
+            case xs => Left(s"Expected (clAmount: ${classOf[ElAmountType].getSimpleName}) non-indexed fields, got: ${xs.mkString(", ")}")
           }
         } yield new ERC20BridgeFinalized(localToken, elTo, clAmount)
       } catch {

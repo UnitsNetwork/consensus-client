@@ -81,10 +81,4 @@ class StandardBridgeClient(
     val ratio      = contract.call_tokenRatios(assetAddress.hexNoPrefix).send()
     ratio != BigInteger.ZERO
   }
-
-  def getBalance(of: EthAddress): BigInt = {
-    val txnManager = new RawTransactionManager(web3j, defaultSender, EcContainer.ChainId)
-    val contract   = StandardBridge.load(standardBridgeAddress.hex, web3j, txnManager, gasProvider)
-    contract.call_balances(of.hex).send()
-  }
 }

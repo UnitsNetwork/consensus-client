@@ -10,13 +10,9 @@ import { IUnitsMintableERC20 } from "@unit0/IUnitsMintableERC20.sol";
 
 contract StandardBridge {
     using SafeERC20 for IERC20;
-    uint16 public constant MAX_TRANSFERS_IN_BLOCK = 1024;
 
     /// @notice Mapping that stores deposits for a given local token.
     mapping(address => uint256) public deposits;
-
-    mapping(address => uint256) public balances;
-    mapping(uint => uint16)     public transfersPerBlock;
     mapping(address => uint64)  public tokenRatios;
 
     event ERC20BridgeInitiated(
@@ -45,7 +41,6 @@ contract StandardBridge {
     }
 
     function updateAssetRegistry(address[] calldata addedTokens, uint8[] calldata addedTokenExponents) external onlyMiner {
-        // TODO: add check, that only a miner can do this
         require(addedTokens.length == addedTokenExponents.length, "Different sizes of added tokens and their exponents");
 
         for (uint256 i = 0; i < addedTokens.length; i++) {

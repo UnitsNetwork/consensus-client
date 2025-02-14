@@ -332,10 +332,10 @@ class ELUpdater(
       StandardBridge.mkFinalizeBridgeErc20Transaction(
         transferIndex = x.index,
         standardBridgeAddress = chainContractOptions.elStandardBridgeAddress,
-        token = x.erc20Address,
-        elTo = x.destElAddress,
+        token = x.tokenAddress,
+        elTo = x.to,
         from = x.from,
-        elAmount = BigDecimal.valueOf(x.amount).scaleByPowerOfTen(chainContractClient.getRegisteredAssetData(x.asset).exponent).toBigIntegerExact
+        elAmount = x.amount
       )
     }
 
@@ -1245,7 +1245,7 @@ class ELUpdater(
     }
 
   private def toWithdrawal(transfer: ContractTransfer.Native, ecBlockWithdrawalIndex: Long): Withdrawal =
-    Withdrawal(ecBlockWithdrawalIndex, transfer.destElAddress, NativeBridge.clToGweiNativeTokenAmount(transfer.amount))
+    Withdrawal(ecBlockWithdrawalIndex, transfer.to, NativeBridge.clToGweiNativeTokenAmount(transfer.amount))
 
   private def getLastWithdrawalIndex(hash: BlockHash): JobResult[WithdrawalIndex] =
     engineApiClient.getBlockByHash(hash).flatMap {
@@ -1641,19 +1641,19 @@ class ELUpdater(
     def errorPrefix = s"C2E asset transfer with logIndex=$logIndex, transferIndex=${expectedTransfer.index}"
     for {
       _ <- Either.cond(
-        elTransferEvent.localToken == expectedTransfer.erc20Address,
+        elTransferEvent.localToken == expectedTransfer.tokenAddress,
         (),
-        s"$errorPrefix: got ERC20 address: ${elTransferEvent.localToken}, expected: ${expectedTransfer.erc20Address}"
+        s"$errorPrefix: got ERC20 address: ${elTransferEvent.localToken}, expected: ${expectedTransfer.tokenAddress}"
       )
       _ <- Either.cond(
-        elTransferEvent.elTo == expectedTransfer.destElAddress,
+        elTransferEvent.elTo == expectedTransfer.to,
         (),
-        s"$errorPrefix: got address: ${elTransferEvent.elTo}, expected: ${expectedTransfer.destElAddress}"
+        s"$errorPrefix: got address: ${elTransferEvent.elTo}, expected: ${expectedTransfer.to}"
       )
       _ <- Either.cond(
-        elTransferEvent.clAmount == expectedTransfer.amount,
+        elTransferEvent.elAmount == expectedTransfer.amount,
         (),
-        s"$errorPrefix: got amount: ${elTransferEvent.clAmount}, expected ${expectedTransfer.amount}"
+        s"$errorPrefix: got amount: ${elTransferEvent.elAmount}, expected ${expectedTransfer.amount}"
       )
     } yield ()
   }
