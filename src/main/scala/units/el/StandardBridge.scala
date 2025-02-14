@@ -7,6 +7,7 @@ import com.wavesplatform.utils.EthEncoding
 import org.web3j.abi.*
 import org.web3j.abi.datatypes.generated.{Bytes20, Int64, Uint256, Uint8}
 import org.web3j.abi.datatypes.{Event, Function, Type, Address as Web3JAddress, DynamicArray as Web3JArray}
+import units.{EAmount, raw}
 import units.client.engine.model.GetLogsResponseEntry
 import units.eth.{EthAddress, EthereumConstants}
 import units.util.HexBytesConverter
@@ -58,7 +59,7 @@ object StandardBridge {
         for {
           (localToken, from, clTo) <- log.topics match {
             case _ :: localToken :: from :: clTo :: Nil => Right((localToken, from, clTo))
-            case _                              => Left(s"Topics should contain 3 or more elements, got ${log.topics.size}")
+            case _                                      => Left(s"Topics should contain 3 or more elements, got ${log.topics.size}")
           }
           localToken <- Try(FunctionReturnDecoder.decodeIndexedValue(localToken, LocalTokenTypeRef)).toEither.bimap(
             e => s"Can't decode localToken: ${e.getMessage}",
@@ -89,11 +90,11 @@ object StandardBridge {
       }).left.map(e => s"Can't decode ${EventDef.getName} event from $log. $e")
   }
 
-  case class ERC20BridgeFinalized(localToken: EthAddress, elTo: EthAddress, elAmount: BigInteger)
+  case class ERC20BridgeFinalized(localToken: EthAddress, elTo: EthAddress, amount: EAmount)
   object ERC20BridgeFinalized {
     type LocalTokenType = Web3JAddress
     type ElToType       = Web3JAddress
-    type ElAmountType   = Uint256
+    type EAmountType    = Uint256
 
     private val LocalTokenTypeRef = new TypeReference[LocalTokenType](true) {}
     private val ElToTypeRef       = new TypeReference[ElToType](true) {}
@@ -103,7 +104,7 @@ object StandardBridge {
       List[TypeReference[?]](
         LocalTokenTypeRef,
         ElToTypeRef,
-        new TypeReference[ElAmountType](false) {}
+        new TypeReference[EAmountType](false) {}
       ).asJava
     )
 
@@ -126,16 +127,16 @@ object StandardBridge {
             r => r.asInstanceOf[ElToType]
           )
           elTo <- EthAddress.from(elTo.getValue)
-          clAmount <- FunctionReturnDecoder.decode(log.data, EventDef.getNonIndexedParameters).asScala.toList match {
-            case (clAmount: ElAmountType) :: Nil =>
+          amount <- FunctionReturnDecoder.decode(log.data, EventDef.getNonIndexedParameters).asScala.toList match {
+            case (clAmount: EAmountType) :: Nil =>
               for {
                 clAmount <- Try(clAmount.getValue).toEither.left.map(e => s"Can't decode clAmount: ${e.getMessage}")
                 _        <- Either.cond(clAmount.compareTo(BigInteger.ZERO) > 0, (), s"clAmount must be positive, got: $clAmount")
               } yield clAmount
 
-            case xs => Left(s"Expected (clAmount: ${classOf[ElAmountType].getSimpleName}) non-indexed fields, got: ${xs.mkString(", ")}")
+            case xs => Left(s"Expected (clAmount: ${classOf[EAmountType].getSimpleName}) non-indexed fields, got: ${xs.mkString(", ")}")
           }
-        } yield new ERC20BridgeFinalized(localToken, elTo, clAmount)
+        } yield new ERC20BridgeFinalized(localToken, elTo, EAmount(amount))
       } catch {
         case NonFatal(e) => Left(e.getMessage)
       }).left.map(e => s"Can't decode event ${EventDef.getName} from $log. $e")
@@ -200,8 +201,8 @@ object StandardBridge {
       standardBridgeAddress: EthAddress,
       token: EthAddress,
       from: EthAddress,
-      elTo: EthAddress,
-      elAmount: BigInteger
+      to: EthAddress,
+      amount: EAmount
   ): DepositedTransaction = DepositedTransaction.create(
     sourceHash = DepositedTransaction.mkUserDepositedSourceHash(transferIndex),
     from = EthereumConstants.ZeroAddress.hexNoPrefix,
@@ -210,17 +211,17 @@ object StandardBridge {
     value = BigInteger.ZERO,
     gas = FinalizeBridgeErc20Gas,
     isSystemTx = true, // Gas won't be consumed
-    data = HexBytesConverter.toBytes(finalizeBridgeErc20Call(token, from, elTo, elAmount))
+    data = HexBytesConverter.toBytes(finalizeBridgeErc20Call(token, from, to, amount))
   )
 
-  def finalizeBridgeErc20Call(token: EthAddress, from: EthAddress, elTo: EthAddress, clAmount: BigInteger): String = {
+  def finalizeBridgeErc20Call(token: EthAddress, from: EthAddress, elTo: EthAddress, amount: EAmount): String = {
     val function = new Function(
       FinalizeBridgeErc20Function,
       util.Arrays.asList[Type[?]](
         new Web3JAddress(token.hexNoPrefix),
         new Web3JAddress(from.hexNoPrefix),
         new Web3JAddress(elTo.hexNoPrefix),
-        new Uint256(clAmount)
+        new Uint256(amount.raw)
       ),
       Collections.emptyList
     )

@@ -9,12 +9,12 @@ import com.wavesplatform.lang.Global
 import com.wavesplatform.serialization.ByteBufferOps
 import com.wavesplatform.state.{BinaryDataEntry, Blockchain, DataEntry, EmptyDataEntry, IntegerDataEntry, StringDataEntry}
 import com.wavesplatform.transaction.Asset as WAsset
-import units.BlockHash
+import units.{BlockHash, EAmount, WAmount, scale}
 import units.client.contract.ChainContractClient.*
 import units.eth.{EthAddress, Gwei}
 import units.util.HexBytesConverter
 
-import java.math.{BigInteger, BigDecimal}
+import java.math.{BigDecimal, BigInteger}
 import java.nio.ByteBuffer
 import scala.annotation.tailrec
 import scala.reflect.ClassTag
@@ -263,7 +263,7 @@ trait ChainContractClient {
           from = EthAddress.unsafeFrom(rawFromAddress),
           to = EthAddress.unsafeFrom(rawDestElAddress),
           amount =
-            try new BigDecimal(rawAmount).scaleByPowerOfTen(assetData.exponent).toBigIntegerExact
+            try WAmount(rawAmount).scale(assetData.exponent)
             catch { case e: ArithmeticException => fail(s"Expected an integer amount of a native transfer, got: $rawAmount", e) },
           tokenAddress = assetData.erc20Address,
           asset
@@ -351,7 +351,7 @@ object ChainContractClient {
 
   enum ContractTransfer(val index: Long) {
     case Native(idx: Long, to: EthAddress, amount: Long)                                                                 extends ContractTransfer(idx)
-    case Asset(idx: Long, from: EthAddress, to: EthAddress, amount: BigInteger, tokenAddress: EthAddress, asset: WAsset) extends ContractTransfer(idx)
+    case Asset(idx: Long, from: EthAddress, to: EthAddress, amount: EAmount, tokenAddress: EthAddress, asset: WAsset) extends ContractTransfer(idx)
   }
 
   object Registry {

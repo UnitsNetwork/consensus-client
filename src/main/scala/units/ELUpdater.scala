@@ -333,9 +333,9 @@ class ELUpdater(
         transferIndex = x.index,
         standardBridgeAddress = chainContractOptions.elStandardBridgeAddress,
         token = x.tokenAddress,
-        elTo = x.to,
+        to = x.to,
         from = x.from,
-        elAmount = x.amount
+        amount = x.amount
       )
     }
 
@@ -1651,9 +1651,9 @@ class ELUpdater(
         s"$errorPrefix: got address: ${elTransferEvent.elTo}, expected: ${expectedTransfer.to}"
       )
       _ <- Either.cond(
-        elTransferEvent.elAmount == expectedTransfer.amount,
+        elTransferEvent.amount == expectedTransfer.amount,
         (),
-        s"$errorPrefix: got amount: ${elTransferEvent.elAmount}, expected ${expectedTransfer.amount}"
+        s"$errorPrefix: got amount: ${elTransferEvent.amount}, expected ${expectedTransfer.amount}"
       )
     } yield ()
   }
