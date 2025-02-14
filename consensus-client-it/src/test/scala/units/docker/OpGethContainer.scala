@@ -25,6 +25,7 @@ class OpGethContainer(network: NetworkImpl, number: Int, ip: String)(implicit ht
     .withNetwork(network)
     .withExposedPorts(RpcPort, EnginePort)
     .withFileSystemBind(s"$ConfigsDir/ec-common/genesis.json", "/tmp/genesis.json", BindMode.READ_ONLY)
+    .withFileSystemBind(s"$ConfigsDir/ec-common/peers-geth.toml", "/tmp/peers.toml", BindMode.READ_ONLY)
     .withFileSystemBind(s"$ConfigsDir/op-geth/run-op-geth.sh", "/tmp/run.sh", BindMode.READ_ONLY)
     .withFileSystemBind(s"$ConfigsDir/ec-common/p2p-key-$number.hex", "/etc/secrets/p2p-key", BindMode.READ_ONLY)
     .withFileSystemBind(s"$ConfigsDir/ec-common/jwt-secret-$number.hex", "/etc/secrets/jwtsecret", BindMode.READ_ONLY)

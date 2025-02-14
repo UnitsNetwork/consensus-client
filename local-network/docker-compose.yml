@@ -29,9 +29,13 @@ services:
   #     - "127.0.0.1:28545:8545" # RPC port
   #   environment:
   #     NODE_NUMBER: 2
+  #    GETH_CONFIG: /tmp/peers.toml
   #     EXTRA_ARGS: "--config=/tmp/peers.toml"
   #   volumes:
   #     - ./logs/ec-2:/root/logs
+  #    - ./configs/ec-common/peers-geth.toml:/tmp/peers.toml
+  #    - ./configs/ec-common/p2p-key-2.hex:/etc/secrets/p2p-key
+  #    - ./configs/ec-common/jwt-secret-2.hex:/etc/secrets/jwtsecret
 
   # Make sure, you have enough RAM to run additional nodes
   # ec-3:
@@ -149,7 +153,7 @@ services:
 
   update-genesis:
     container_name: update-genesis
-    image: ${WAVES_NODE_IMAGE:-ghcr.io/wavesplatform/waves:test-gengen}
+    image: ${WAVES_NODE_IMAGE:-ghcr.io/wavesplatform/waves:snapshot}
     volumes:
       - ./configs/wavesnode:/tmp/configs
     command:

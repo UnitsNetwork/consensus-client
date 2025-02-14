@@ -17,11 +17,9 @@ NETWORK: $NETWORK
 PREFIX: ${PREFIX}
 EOF
 
-# Also see: https://docs.blockscout.com/setup/requirements/client-settings#geth
-#   Notes: http.api=shh is not supported anymore: https://github.com/ethereum/go-ethereum/releases/tag/v1.9.21
-# --syncmode="full", because default "snap" mode and starting concurrently with ec-1 cause a stopped sync
-# --bootnodes="" in the end to disable the default list, so we won't connect to predefined nodes
-exec geth \
+# --syncmode full, because default "snap" mode and starting concurrently with ec-1 cause a stopped sync
+geth \
+  --config=/tmp/peers.toml
   --http \
   --http.addr=0.0.0.0 \
   --http.vhosts=* \

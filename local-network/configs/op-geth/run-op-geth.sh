@@ -15,12 +15,10 @@ tee $LOG_FILE <<EOF
 IP: $IP
 NETWORK: $NETWORK
 PREFIX: ${PREFIX}
+GETH_CONFIG: $GETH_CONFIG
 EOF
 
-# Also see: https://docs.blockscout.com/setup/requirements/client-settings#geth
-#   Notes: http.api=shh is not supported anymore: https://github.com/ethereum/go-ethereum/releases/tag/v1.9.21
-# --syncmode="full", because default "snap" mode and starting concurrently with ec-1 cause a stopped sync
-# --bootnodes="" in the end to disable the default list, so we won't connect to predefined nodes
+# --syncmode full, because default "snap" mode and starting concurrently with ec-1 cause a stopped sync
 exec geth \
   --http \
   --http.addr=0.0.0.0 \
