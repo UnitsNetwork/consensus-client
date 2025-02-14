@@ -29,8 +29,8 @@ services:
   #     - "127.0.0.1:28545:8545" # RPC port
   #   environment:
   #     NODE_NUMBER: 2
-  #    GETH_CONFIG: /tmp/peers.toml
-  #     EXTRA_ARGS: "--config=/tmp/peers.toml"
+  #     GETH_CONFIG: /etc/secrets/peers.toml
+  #     EXTRA_ARGS: "--config=/etc/secrets/peers.toml"
   #   volumes:
   #     - ./logs/ec-2:/root/logs
   #    - ./configs/ec-common/peers-geth.toml:/tmp/peers.toml

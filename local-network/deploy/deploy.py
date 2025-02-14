@@ -37,7 +37,7 @@ if script_info["script"] is None:
 
     with open("setup/waves/main.ride", "r", encoding="utf-8") as file:
         source = file.read()
-    r = network.cl_chain_contract.setScript(source, 4_100_000)
+    r = network.cl_chain_contract.setScript(source, 4_700_000)
     waves.force_success(log, r, "Can not set the chain contract script")
 
 if not network.cl_chain_contract.isContractSetup():
