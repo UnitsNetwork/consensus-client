@@ -3,6 +3,7 @@ package units
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.transaction.Asset.IssuedAsset
+import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import com.wavesplatform.transaction.{ERC20Address, TxHelpers}
 import com.wavesplatform.utils.EthEncoding
 import org.web3j.crypto.{Credentials, RawTransaction}
@@ -13,6 +14,7 @@ import org.web3j.tx.RawTransactionManager
 import org.web3j.tx.gas.{DefaultGasProvider, StaticGasProvider}
 import org.web3j.utils.Convert
 import units.bridge.TERC20
+import units.client.contract.HasConsensusLayerDappTxHelpers
 import units.docker.EcContainer
 import units.el.{BridgeMerkleTree, EvmEncoding}
 import units.eth.EthAddress
@@ -38,7 +40,7 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
   private val enoughClAmount = clAmount * testTransfers
   private val enoughElAmount = elAmount * testTransfers
 
-  private val tenGwei      = BigInt(Convert.toWei("10", Convert.Unit.GWEI).toBigIntegerExact)
+  private val tenGwei = BigInt(Convert.toWei("10", Convert.Unit.GWEI).toBigIntegerExact)
 
   // TODO: Because we have to get a token from dictionary before amount checks. Fix with unit tests for contract
   "Negative" ignore {
@@ -78,15 +80,14 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
       }
     }
 
-    "Checking balances in EL->CL transfers" in {
+    "Checking balances in EL->CL->EL transfers" in {
       step("Issue ERC20 token")
       val txManager = new RawTransactionManager(ec1.web3j, elSender, EcContainer.ChainId, 10, 2000)
-      val contract = TERC20.deploy(ec1.web3j, txManager, new DefaultGasProvider).send()
+      val contract  = TERC20.deploy(ec1.web3j, txManager, new DefaultGasProvider).send()
 
       val erc20address = EthAddress.unsafeFrom(contract.getContractAddress)
       log.info(s"Address: $erc20address")
       log.info(s"Balance of ${elSender.getAddress}: ${getBalance(erc20address.toString, elSender.getAddress)}")
-
 
       step("Register asset")
       waves1.api.broadcastAndWait(ChainContract.registerAsset(issueAsset, erc20address, 18))
@@ -143,6 +144,24 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
 
         val balanceAfter = receiverBalance
         balanceAfter shouldBe (receiverBalanceBefore + clAmount)
+
+        val elReceiverAddress = EthAddress.unsafeFrom("0xAAAA00000000000000000000000000000000AAAA")
+
+        def transferTxn: InvokeScriptTransaction =
+          ChainContract.transfer(
+            clRecipient,
+            elReceiverAddress,
+            issueAsset,
+            clAmount / 2,
+            ChainContract.AssetTransferFunctionName
+          )
+
+        waves1.api.broadcastAndWait(transferTxn)
+        eventually {
+          val halfAmount = elAmount.bigInteger.divide(BigInteger.valueOf(2))
+          getBalance(erc20address.hex, elReceiverAddress.hex) shouldBe halfAmount
+          getBalance(erc20address.hex, standardBridgeAddress.hex) shouldBe halfAmount
+        }
       }
     }
   }

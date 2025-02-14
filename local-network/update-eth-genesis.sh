@@ -1,15 +1,10 @@
 #!/usr/bin/env bash
 cd -- "$( dirname -- "${BASH_SOURCE[0]}" )"
 forge build --config-path ../contracts/eth/foundry.toml
-bridge_contract_code=$(jq .deployedBytecode.object ../contracts/eth/target/Bridge.sol/Bridge.json)
 standard_bridge_contract_code=$(jq .deployedBytecode.object ../contracts/eth/target/StandardBridge.sol/StandardBridge.json)
 predeployed_contracts=$(cat <<EOF
 {
   "alloc": {
-    "0x0000000000000000000000000000000000006A7e": {
-      "code": $bridge_contract_code,
-      "balance": "0x0"
-    },
     "0x0000000000000000000000000000000057d06A7E": {
       "code": $standard_bridge_contract_code,
       "balance": "0x0"

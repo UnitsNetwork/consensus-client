@@ -40,6 +40,7 @@ import units.network.BlocksObserverImpl.BlockWithChannel
 import units.util.HexBytesConverter
 import units.util.HexBytesConverter.toHexNoPrefix
 
+import java.math.BigDecimal
 import scala.annotation.tailrec
 import scala.concurrent.duration.*
 import scala.util.*
@@ -333,7 +334,8 @@ class ELUpdater(
         standardBridgeAddress = chainContractOptions.elStandardBridgeAddress,
         token = x.erc20Address,
         elTo = x.destElAddress,
-        clAmount = x.amount
+        from = x.from,
+        elAmount = BigDecimal.valueOf(x.amount).scaleByPowerOfTen(chainContractClient.getRegisteredAssetData(x.asset).exponent).toBigIntegerExact
       )
     }
 

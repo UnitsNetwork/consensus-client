@@ -5,7 +5,7 @@ import com.wavesplatform.account.Address
 import com.wavesplatform.transaction.utils.EthConverters
 import com.wavesplatform.utils.EthEncoding
 import org.web3j.abi.*
-import org.web3j.abi.datatypes.generated.{Bytes20, Int64, Uint8}
+import org.web3j.abi.datatypes.generated.{Bytes20, Int64, Uint256, Uint8}
 import org.web3j.abi.datatypes.{Event, Function, Type, Address as Web3JAddress, DynamicArray as Web3JArray}
 import units.client.engine.model.GetLogsResponseEntry
 import units.eth.{EthAddress, EthereumConstants}
@@ -20,7 +20,7 @@ import scala.util.control.NonFatal
 
 object StandardBridge {
   val FinalizeBridgeErc20Function = "finalizeBridgeERC20"
-  val FinalizeBridgeErc20Gas      = BigInteger.valueOf(100_000L) // Should be enough to run this function
+  val FinalizeBridgeErc20Gas      = BigInteger.valueOf(1_000_000L) // Should be enough to run this function
 
   val UpdateAssetRegistryFunction = "updateAssetRegistry"
   val UpdateAssetRegistryGas      = BigInteger.valueOf(500_000L)
@@ -199,8 +199,9 @@ object StandardBridge {
       transferIndex: Long,
       standardBridgeAddress: EthAddress,
       token: EthAddress,
+      from: EthAddress,
       elTo: EthAddress,
-      clAmount: Long
+      elAmount: BigInteger
   ): DepositedTransaction = DepositedTransaction.create(
     sourceHash = DepositedTransaction.mkUserDepositedSourceHash(transferIndex),
     from = EthereumConstants.ZeroAddress.hexNoPrefix,
@@ -209,16 +210,17 @@ object StandardBridge {
     value = BigInteger.ZERO,
     gas = FinalizeBridgeErc20Gas,
     isSystemTx = true, // Gas won't be consumed
-    data = HexBytesConverter.toBytes(finalizeBridgeErc20Call(token, elTo, clAmount))
+    data = HexBytesConverter.toBytes(finalizeBridgeErc20Call(token, from, elTo, elAmount))
   )
 
-  def finalizeBridgeErc20Call(token: EthAddress, elTo: EthAddress, clAmount: Long): String = {
+  def finalizeBridgeErc20Call(token: EthAddress, from: EthAddress, elTo: EthAddress, clAmount: BigInteger): String = {
     val function = new Function(
       FinalizeBridgeErc20Function,
       util.Arrays.asList[Type[?]](
         new Web3JAddress(token.hexNoPrefix),
+        new Web3JAddress(from.hexNoPrefix),
         new Web3JAddress(elTo.hexNoPrefix),
-        new Int64(clAmount)
+        new Uint256(clAmount)
       ),
       Collections.emptyList
     )

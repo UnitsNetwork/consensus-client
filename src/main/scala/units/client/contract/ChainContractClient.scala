@@ -8,12 +8,13 @@ import com.wavesplatform.consensus.{FairPoSCalculator, PoSCalculator}
 import com.wavesplatform.lang.Global
 import com.wavesplatform.serialization.ByteBufferOps
 import com.wavesplatform.state.{BinaryDataEntry, Blockchain, DataEntry, EmptyDataEntry, IntegerDataEntry, StringDataEntry}
-import com.wavesplatform.transaction.Asset
+import com.wavesplatform.transaction.Asset as WAsset
 import units.BlockHash
 import units.client.contract.ChainContractClient.*
 import units.eth.{EthAddress, Gwei}
 import units.util.HexBytesConverter
 
+import java.math.BigInteger
 import java.nio.ByteBuffer
 import scala.annotation.tailrec
 import scala.reflect.ClassTag
@@ -252,23 +253,25 @@ trait ChainContractClient {
           amount = rawAmount.toLongOption.getOrElse(fail(s"Expected an integer amount of a native transfer, got: $rawAmount"))
         )
 
-      case Array(rawDestElAddress, rawAmount, rawAssetIndex) =>
+      case Array(rawDestElAddress, rawFromAddress, rawAmount, rawAssetIndex) =>
         val assetIndex = rawAssetIndex.toIntOption.getOrElse(fail(s"Expected an asset index in asset transfer, got: $rawAssetIndex"))
         val asset      = getRegisteredAsset(assetIndex)
         val assetData  = getRegisteredAssetData(asset)
 
         ContractTransfer.Asset(
           index = atIndex,
+          from = EthAddress.unsafeFrom(rawFromAddress),
           destElAddress = EthAddress.unsafeFrom(rawDestElAddress),
           amount = rawAmount.toLongOption.getOrElse(fail(s"Expected an integer amount of a native transfer, got: $rawAmount")),
-          erc20Address = assetData.erc20Address
+          erc20Address = assetData.erc20Address,
+          asset
         )
 
       case xs => fail(s"Expected two elements in a native transfer, got ${xs.length}: $raw")
     }
   }
 
-  private def getRegisteredAssetData(asset: Asset): Registry.RegisteredAsset = {
+  def getRegisteredAssetData(asset: WAsset): Registry.RegisteredAsset = {
     val key   = s"assetRegistry_${Registry.stringifyAsset(asset)}"
     val raw   = getStringData(key).getOrElse(fail(s"Can't find a registered asset $asset at $key"))
     val parts = raw.split(Sep)
@@ -291,7 +294,7 @@ trait ChainContractClient {
       .map(getRegisteredAssetData)
       .toList
 
-  private def getRegisteredAsset(registryIndex: Int): Asset =
+  private def getRegisteredAsset(registryIndex: Int): WAsset =
     getStringData(s"assetRegistryIndex_$registryIndex") match {
       case None          => fail(s"Can't find a registered asset at $registryIndex")
       case Some(assetId) => Registry.parseAsset(assetId)
@@ -352,21 +355,21 @@ object ChainContractClient {
 
   object ContractTransfer {
     case class Native(index: Long, destElAddress: EthAddress, amount: Long)                          extends ContractTransfer
-    case class Asset(index: Long, destElAddress: EthAddress, amount: Long, erc20Address: EthAddress) extends ContractTransfer
+    case class Asset(index: Long, from: EthAddress, destElAddress: EthAddress, amount: Long, erc20Address: EthAddress, asset: WAsset) extends ContractTransfer
   }
 
   object Registry {
     val WavesAssetName = "WAVES"
 
-    case class RegisteredAsset(asset: Asset, index: Int, erc20Address: EthAddress, exponent: Int) {
+    case class RegisteredAsset(asset: WAsset, index: Int, erc20Address: EthAddress, exponent: Int) {
       override def toString: String = s"RegisteredAsset($asset, i=$index, $erc20Address, e=$exponent)"
     }
 
-    def parseAsset(rawAssetId: String): Asset =
-      if (rawAssetId == WavesAssetName) Asset.Waves
-      else Asset.IssuedAsset(ByteStr.decodeBase58(rawAssetId).getOrElse(fail(s"Can't decode an asset id: $rawAssetId")))
+    def parseAsset(rawAssetId: String): WAsset =
+      if (rawAssetId == WavesAssetName) WAsset.Waves
+      else WAsset.IssuedAsset(ByteStr.decodeBase58(rawAssetId).getOrElse(fail(s"Can't decode an asset id: $rawAssetId")))
 
-    def stringifyAsset(asset: Asset): String = asset.fold(WavesAssetName)(_.id.toString)
+    def stringifyAsset(asset: WAsset): String = asset.fold(WavesAssetName)(_.id.toString)
   }
 
   private def fail(reason: String, cause: Throwable = null): Nothing = throw new InconsistentContractData(reason, cause)

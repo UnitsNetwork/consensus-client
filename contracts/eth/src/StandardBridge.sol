@@ -6,7 +6,7 @@ import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC16
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IUnitsMintableERC20 } from "src/IUnitsMintableERC20.sol";
+import { IUnitsMintableERC20 } from "@unit0/IUnitsMintableERC20.sol";
 
 contract StandardBridge {
     using SafeERC20 for IERC20;
@@ -35,7 +35,7 @@ contract StandardBridge {
 
     event RegistryUpdated(address[] addedTokens, uint8[] addedTokenExponents, address[] removedTokens);
 
-    /// @notice Ensures that the caller is an empty adddress.
+    /// @notice Ensures that the caller is an empty address.
     modifier onlyMiner() {
         require(
             msg.sender == address(0),
