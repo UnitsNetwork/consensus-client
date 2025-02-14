@@ -1,0 +1,10 @@
+[profile.default]
+src = "src"
+out = "target"
+libs = ["lib"]
+remappings = [
+    '@unit0/=src',
+    '@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts',
+    'forge-std/=lib/forge-std/src',
+    'safe-contracts/=lib/safe-contracts/contracts'
+]

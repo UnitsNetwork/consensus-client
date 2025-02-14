@@ -1,5 +1,6 @@
 package units.docker
 
+import com.google.common.io.Files
 import okhttp3.Interceptor
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.Network.NetworkImpl
@@ -11,13 +12,15 @@ import units.client.JwtAuthenticationBackend
 import units.client.engine.{EngineApiClient, HttpEngineApiClient, LoggedEngineApiClient}
 import units.docker.EcContainer.{EnginePort, RpcPort}
 import units.http.OkHttpLogger
-import units.test.TestEnvironment.ConfigsDir
+import units.test.TestEnvironment.{ConfigsDir, DefaultLogsDir}
 
+import java.io.File
 import java.time.Clock
 import scala.io.Source
 
 class OpGethContainer(network: NetworkImpl, number: Int, ip: String)(implicit httpClientBackend: SttpBackend[Identity, Any])
     extends EcContainer(number) {
+
   protected override val container = new GenericContainer(DockerImages.OpGethExecutionClient)
     .withNetwork(network)
     .withExposedPorts(RpcPort, EnginePort)

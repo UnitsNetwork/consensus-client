@@ -77,11 +77,11 @@ func mkNativeTransferEntries(destElAddressHex: String, amount: Int) = {
   ]
 }
 # destElAddressHex - without 0x
-func mkAssetTransferEntries(destElAddressHex: String, amount: Int, assetIndex: Int) = {
+func mkAssetTransferEntries(destElAddressHex: String, fromAddressHex: String, amount: Int, assetIndex: Int) = {
   let currTransferIndex = transfersCount
   let key = transferKey(currTransferIndex)
   [
-    StringEntry(key, "0x" + destElAddressHex + SEP + amount.toString() + SEP + assetIndex.toString()),
+    StringEntry(key, "0x" + destElAddressHex + SEP + "0x" + fromAddressHex + SEP + amount.toString() + SEP + assetIndex.toString()),
     IntegerEntry(transfersCountKey, currTransferIndex + 1)
   ]
 }
@@ -830,6 +830,7 @@ func transfer(destElAddressHex: String) = {
 @Callable(i)
 func assetTransfer(destElAddressHex: String) = {
   strict normalizedDestElAddressHex = normalizeEthAddress(destElAddressHex)
+  let fromAddressHex = i.caller.bytes.drop(2).take(20).toBase16String()
 
   strict checkPayment = if (size(i.payments) == 1) then true else throw("Expected one payment as a transfer amount, got " + i.payments.size().toString())
 
@@ -844,7 +845,7 @@ func assetTransfer(destElAddressHex: String) = {
   }
 
   let assetIndex = getAssetIndex(assetIdBase58OrWaves)
-  mkAssetTransferEntries(normalizedDestElAddressHex, t.amount, assetIndex) # We don't burn tokens, because they can be transferred back
+  preActions ++ mkAssetTransferEntries(normalizedDestElAddressHex, fromAddressHex, t.amount, assetIndex)
 }
 
 # blockHashHex without 0x
@@ -905,9 +906,9 @@ func withdrawAsset(blockHashHex: String, merkleProof: List[ByteVector], transfer
 
   # See ERC20BridgeInitiated:
   # token:    12 left padding (see TypeEncoder.encodeAddress) + 20 bytes
-  # clTo:     20 + 12 right padding bytes (see TypeEncoder.encodeBytes)
+  # clTo:     12 left padding (see TypeEncoder.encodeAddress) + 20 bytes
   # clAmount: 24 left padding (see TypeEncoder.encodeNumeric) + 8 bytes
-  let elEventData       = zeroAmountBytes.take(12) + erc20Address + recipientPkHash + zeroAmountBytes.take(36) + amountBytes
+  let elEventData       = zeroAmountBytes.take(12) + erc20Address + zeroAmountBytes.take(12) + recipientPkHash + zeroAmountBytes.take(24) + amountBytes
   let elEventDataDigest = blake2b256_16Kb(elEventData)
 
   let calculatedRootHash = createMerkleRoot(merkleProof, elEventDataDigest, transferIndexInBlock)

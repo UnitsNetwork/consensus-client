@@ -28,7 +28,7 @@ object NativeBridge {
   val ElSentNativeEventTopic = org.web3j.abi.EventEncoder.encode(ElSentNativeEventDef)
 
   /** @param amount
-    *   In waves units, see bridge.sol
+    *   In waves units, see Bridge.sol
     */
   case class ElSentNativeEvent(wavesAddress: Address, amount: Long)
 
@@ -91,5 +91,5 @@ object NativeBridge {
     }
 
   def clToGweiNativeTokenAmount(amountInWavesAsset: Long): Gwei =
-    Gwei.ofRawGwei(BigInteger.valueOf(amountInWavesAsset).multiply(BigInteger.valueOf(10))) // 1 unit is 10 Gwei (see bridge.sol)
+    Gwei.ofRawGwei(BigInteger.valueOf(amountInWavesAsset).multiply(BigInteger.valueOf(10))) // 1 unit is 10 Gwei (see Bridge.sol)
 }

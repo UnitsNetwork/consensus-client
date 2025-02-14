@@ -45,5 +45,5 @@ exec geth \
   --log.format=terminal \
   --log.rotate \
   --log.compress \
-  --bootnodes="" \
+  --bootnodes=""
   $EXTRA_ARGS

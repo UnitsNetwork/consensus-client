@@ -8,12 +8,13 @@ import com.wavesplatform.consensus.{FairPoSCalculator, PoSCalculator}
 import com.wavesplatform.lang.Global
 import com.wavesplatform.serialization.ByteBufferOps
 import com.wavesplatform.state.{BinaryDataEntry, Blockchain, DataEntry, EmptyDataEntry, IntegerDataEntry, StringDataEntry}
-import com.wavesplatform.transaction.Asset
-import units.BlockHash
+import com.wavesplatform.transaction.Asset as WAsset
+import units.{BlockHash, EAmount, WAmount, scale}
 import units.client.contract.ChainContractClient.*
 import units.eth.{EthAddress, Gwei}
 import units.util.HexBytesConverter
 
+import java.math.{BigDecimal, BigInteger}
 import java.nio.ByteBuffer
 import scala.annotation.tailrec
 import scala.reflect.ClassTag
@@ -247,28 +248,32 @@ trait ChainContractClient {
     raw.split(Sep) match {
       case Array(rawDestElAddress, rawAmount) =>
         ContractTransfer.Native(
-          index = atIndex,
-          destElAddress = EthAddress.unsafeFrom(rawDestElAddress),
+          idx = atIndex,
+          to = EthAddress.unsafeFrom(rawDestElAddress),
           amount = rawAmount.toLongOption.getOrElse(fail(s"Expected an integer amount of a native transfer, got: $rawAmount"))
         )
 
-      case Array(rawDestElAddress, rawAmount, rawAssetIndex) =>
+      case Array(rawDestElAddress, rawFromAddress, rawAmount, rawAssetIndex) =>
         val assetIndex = rawAssetIndex.toIntOption.getOrElse(fail(s"Expected an asset index in asset transfer, got: $rawAssetIndex"))
         val asset      = getRegisteredAsset(assetIndex)
         val assetData  = getRegisteredAssetData(asset)
 
         ContractTransfer.Asset(
-          index = atIndex,
-          destElAddress = EthAddress.unsafeFrom(rawDestElAddress),
-          amount = rawAmount.toLongOption.getOrElse(fail(s"Expected an integer amount of a native transfer, got: $rawAmount")),
-          erc20Address = assetData.erc20Address
+          idx = atIndex,
+          from = EthAddress.unsafeFrom(rawFromAddress),
+          to = EthAddress.unsafeFrom(rawDestElAddress),
+          amount =
+            try WAmount(rawAmount).scale(assetData.exponent)
+            catch { case e: ArithmeticException => fail(s"Expected an integer amount of a native transfer, got: $rawAmount", e) },
+          tokenAddress = assetData.erc20Address,
+          asset
         )
 
       case xs => fail(s"Expected two elements in a native transfer, got ${xs.length}: $raw")
     }
   }
 
-  private def getRegisteredAssetData(asset: Asset): Registry.RegisteredAsset = {
+  def getRegisteredAssetData(asset: WAsset): Registry.RegisteredAsset = {
     val key   = s"assetRegistry_${Registry.stringifyAsset(asset)}"
     val raw   = getStringData(key).getOrElse(fail(s"Can't find a registered asset $asset at $key"))
     val parts = raw.split(Sep)
@@ -291,7 +296,7 @@ trait ChainContractClient {
       .map(getRegisteredAssetData)
       .toList
 
-  private def getRegisteredAsset(registryIndex: Int): Asset =
+  private def getRegisteredAsset(registryIndex: Int): WAsset =
     getStringData(s"assetRegistryIndex_$registryIndex") match {
       case None          => fail(s"Can't find a registered asset at $registryIndex")
       case Some(assetId) => Registry.parseAsset(assetId)
@@ -344,29 +349,23 @@ object ChainContractClient {
 
   case class EpochContractMeta(miner: Address, prevEpoch: Int, lastBlockHash: BlockHash)
 
-  sealed trait ContractTransfer {
-    def index: Long
-    def destElAddress: EthAddress
-    def amount: Long
-  }
-
-  object ContractTransfer {
-    case class Native(index: Long, destElAddress: EthAddress, amount: Long)                          extends ContractTransfer
-    case class Asset(index: Long, destElAddress: EthAddress, amount: Long, erc20Address: EthAddress) extends ContractTransfer
+  enum ContractTransfer(val index: Long) {
+    case Native(idx: Long, to: EthAddress, amount: Long)                                                                 extends ContractTransfer(idx)
+    case Asset(idx: Long, from: EthAddress, to: EthAddress, amount: EAmount, tokenAddress: EthAddress, asset: WAsset) extends ContractTransfer(idx)
   }
 
   object Registry {
     val WavesAssetName = "WAVES"
 
-    case class RegisteredAsset(asset: Asset, index: Int, erc20Address: EthAddress, exponent: Int) {
+    case class RegisteredAsset(asset: WAsset, index: Int, erc20Address: EthAddress, exponent: Int) {
       override def toString: String = s"RegisteredAsset($asset, i=$index, $erc20Address, e=$exponent)"
     }
 
-    def parseAsset(rawAssetId: String): Asset =
-      if (rawAssetId == WavesAssetName) Asset.Waves
-      else Asset.IssuedAsset(ByteStr.decodeBase58(rawAssetId).getOrElse(fail(s"Can't decode an asset id: $rawAssetId")))
+    def parseAsset(rawAssetId: String): WAsset =
+      if (rawAssetId == WavesAssetName) WAsset.Waves
+      else WAsset.IssuedAsset(ByteStr.decodeBase58(rawAssetId).getOrElse(fail(s"Can't decode an asset id: $rawAssetId")))
 
-    def stringifyAsset(asset: Asset): String = asset.fold(WavesAssetName)(_.id.toString)
+    def stringifyAsset(asset: WAsset): String = asset.fold(WavesAssetName)(_.id.toString)
   }
 
   private def fail(reason: String, cause: Throwable = null): Nothing = throw new InconsistentContractData(reason, cause)

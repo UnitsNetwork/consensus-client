@@ -1,8 +1,13 @@
 import com.github.sbt.git.SbtGit.git.gitCurrentBranch
+import org.web3j.codegen.SolidityFunctionWrapperGenerator
+import org.web3j.tx.Contract
+import play.api.libs.json.Json
 import sbt.Tests.Group
 
+import java.io.FileInputStream
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import scala.sys.process.*
 
 description := "Consensus client integration tests"
 
@@ -11,7 +16,45 @@ libraryDependencies ++= Seq(
   "org.web3j"          % "core"           % "4.9.8"
 ).map(_ % Test)
 
+Test / sourceGenerators += Def.task {
+  val contracts       = Seq("Bridge", "StandardBridge", "TERC20")
+  val contractSources = baseDirectory.value / ".." / "contracts" / "eth"
+  val compiledDir     = contractSources / "target"
+  s"forge build --config-path ${contractSources / "foundry.toml"} ${contractSources / "src"} ${contractSources / "utils" / "TERC20.sol"}" !
+
+  contracts.foreach { contract =>
+    val json    = Json.parse(new FileInputStream(compiledDir / s"$contract.sol" / s"$contract.json"))
+    val abiFile = compiledDir / s"$contract.abi"
+    val binFile = compiledDir / s"$contract.bin"
+
+    IO.write(abiFile, Json.toBytes((json \ "abi").get))
+    IO.write(binFile, (json \ "bytecode" \ "object").as[String])
+
+    new SolidityFunctionWrapperGenerator(
+      binFile,
+      abiFile,
+      (Test / sourceManaged).value,
+      contract,
+      "units.bridge",
+      true,
+      true,
+      true,
+      classOf[Contract],
+      160,
+      true
+    ).generate()
+  }
+
+  contracts.map { contract =>
+    (Test / sourceManaged).value / "units" / "bridge" / s"$contract.java"
+  }
+}
+
 val logsDirectory = taskKey[File]("The directory for logs") // Task to evaluate and recreate the logs directory every time
+
+val updateEthGenesis = taskKey[Unit]("Update eth genesis")
+updateEthGenesis :=
+  (baseDirectory.value / ".." / "local-network" / "update-eth-genesis.sh").toString.!
 
 Global / concurrentRestrictions := {
   val threadNumber = Option(System.getenv("SBT_IT_TEST_THREADS")).fold(1)(_.toInt)
@@ -20,6 +63,8 @@ Global / concurrentRestrictions := {
 
 inConfig(Test)(
   Seq(
+    test := test.dependsOn(updateEthGenesis).value,
+    testOnly := testOnly.dependsOn(updateEthGenesis).evaluated,
     logsDirectory := {
       val runId: String = Option(System.getenv("RUN_ID")).getOrElse(DateTimeFormatter.ofPattern("MM-dd--HH_mm_ss").format(LocalDateTime.now))
       val r             = target.value / "test-logs" / runId

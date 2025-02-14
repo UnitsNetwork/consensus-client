@@ -15,8 +15,8 @@ fi
 # 1. docker volume can't work with symlinks.
 # 2. Just copying files makes easier code, that works both in host and docker.
 mkdir -p ./deploy/setup/{el,waves}
-cp ../src/test/resources/*.sol ./deploy/setup/el/
-cp ../src/test/resources/*.ride ./deploy/setup/waves/
+cp ../contracts/eth/src/*.sol ./deploy/setup/el/
+cp ../contracts/waves/src/*.ride ./deploy/setup/waves/
 
 export COMPOSE_PROFILES="${COMPOSE_PROFILES:-}"
 echo "Compose profiles are: ${COMPOSE_PROFILES}"
