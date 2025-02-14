@@ -3,7 +3,7 @@ package units
 import cats.syntax.either.*
 import cats.syntax.traverse.*
 import com.typesafe.scalalogging.StrictLogging
-import com.wavesplatform.account.{Address, KeyPair}
+import com.wavesplatform.account.{Address, KeyPair, PKKeyPair}
 import com.wavesplatform.common.merkle.Digest
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.crypto
@@ -321,8 +321,12 @@ class ELUpdater(
     val parentBlock = prevState.lastEcBlock
     val epochInfo   = prevState.epochInfo
 
-    wallet.privateKeyAccount(epochInfo.miner) match {
-      case Right(keyPair) if config.miningEnable =>
+    val chosenKeyPair =
+      if (config.privateKeys.nonEmpty) config.privateKeys.map(PKKeyPair(_)).find(_.toAddress == epochInfo.miner)
+      else wallet.privateKeyAccount(epochInfo.miner).toOption
+
+    chosenKeyPair match {
+      case Some(keyPair) if config.miningEnable =>
         logger.trace(s"Designated miner in epoch ${epochInfo.number} is ${epochInfo.miner}, attempting to build payload")
         val refContractBlock = nodeChainInfo match {
           case Left(chainSwitchInfo) => chainSwitchInfo.referenceBlock
