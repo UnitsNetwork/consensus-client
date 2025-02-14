@@ -32,7 +32,6 @@ object BlockToPayloadMapper {
         "blobGasUsed"   -> JsString(EthereumConstants.ZeroHex),
         "excessBlobGas" -> JsString(EthereumConstants.ZeroHex)
       )
-    ) ++ payloadBodyJson
+    ) ++ (payloadBodyJson - "withdrawalsRoot" - "depositRequests")
   }
-
 }

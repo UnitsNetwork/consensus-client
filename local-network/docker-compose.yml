@@ -21,16 +21,20 @@ services:
     container_name: ec-2
     hostname: ec-2
     extends:
-      file: ./configs/besu/besu.yml
-      service: besu
+      file: ./configs/op-geth/op-geth.yml
+      service: op-geth
     ports:
       - "127.0.0.1:28551:8551"
       - "127.0.0.1:28545:8545"
       - "127.0.0.1:28546:8546"
     environment:
       NODE_NUMBER: 2
+      GETH_CONFIG: /tmp/peers.toml
     volumes:
       - ./logs/ec-2:/opt/besu/logs
+      - ./configs/ec-common/peers-geth.toml:/tmp/peers.toml
+      - ./configs/ec-common/p2p-key-2.hex:/etc/secrets/p2p-key
+      - ./configs/ec-common/jwt-secret-2.hex:/etc/secrets/jwtsecret
 
   # Make sure, you have enough RAM to run additional nodes
   # ec-3:
@@ -147,7 +151,7 @@ services:
 
   update-genesis:
     container_name: update-genesis
-    image: ${WAVES_NODE_IMAGE:-ghcr.io/wavesplatform/waves:test-gengen}
+    image: ${WAVES_NODE_IMAGE:-ghcr.io/wavesplatform/waves:snapshot}
     volumes:
       - ./configs/wavesnode:/tmp/configs
     command:

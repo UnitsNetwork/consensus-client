@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 
 if [ ! -d /root/.ethereum/geth ] ; then
-  geth init /etc/secrets/genesis.json 2>&1 | tee /root/logs/init.log
+  geth init /tmp/genesis.json 2>&1 | tee /root/logs/init.log
 fi
 
 IP_RAW=$(ip -4 addr show dev eth0 | awk '/inet / {print $2}')
@@ -13,11 +13,11 @@ tee /root/logs/log <<EOF
 IP: $IP
 NETWORK: $NETWORK
 PREFIX: ${PREFIX}
+GETH_CONFIG: $GETH_CONFIG
 EOF
 
 # --syncmode full, because default "snap" mode and starting concurrently with ec-1 cause a stopped sync
 exec geth \
-  --config=/tmp/peers.toml \
   --http \
   --http.addr=0.0.0.0 \
   --http.vhosts=* \
@@ -30,12 +30,12 @@ exec geth \
   --ws.origins=* \
   --authrpc.addr=0.0.0.0 \
   --authrpc.vhosts=* \
-  --authrpc.jwtsecret="/etc/secrets/jwt-secret-${NODE_NUMBER}.hex" \
-  --nodekey="/etc/secrets/p2p-key-${NODE_NUMBER}.hex" \
+  --authrpc.jwtsecret=/etc/secrets/jwtsecret \
+  --nodekey=/etc/secrets/p2p-key \
   --nat="extip:${IP}" \
   --netrestrict="${NETWORK}/${PREFIX}" \
-  --bootnodes="${BESU_BOOTNODES}" \
-  --syncmode full \
+  --syncmode="full" \
+  --gcmode="full" \
   --log.file="/root/logs/log" \
   --verbosity=5 \
   --log.format=terminal \
