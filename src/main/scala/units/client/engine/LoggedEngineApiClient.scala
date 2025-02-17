@@ -71,7 +71,7 @@ class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient
       requestId,
       s"getLogs($hash, a={${addresses.mkString(", ")}}, t={${topics.mkString(", ")}})",
       underlying.getLogs(hash, addresses, topics, _),
-      _.view.map(_.data).mkString("{", ", ", "}")
+      _.view.map(x => s"${x.logIndex}, a=${x.address}, d=${x.data}, t=[${x.topics.mkString(",")}]").mkString("{", ", ", "}")
     )
 
   override def onRetry(requestId: Int): Unit = {

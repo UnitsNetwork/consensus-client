@@ -2,15 +2,14 @@ package units.el
 
 import cats.syntax.either.*
 import com.wavesplatform.account.Address
-import com.wavesplatform.transaction.utils.EthConverters
 import com.wavesplatform.utils.EthEncoding
 import org.web3j.abi.*
-import org.web3j.abi.datatypes.generated.{Bytes20, Int64, Uint256, Uint8}
+import org.web3j.abi.datatypes.generated.{Int64, Uint256, Uint8}
 import org.web3j.abi.datatypes.{Event, Function, Type, Address as Web3JAddress, DynamicArray as Web3JArray}
-import units.{EAmount, raw}
 import units.client.engine.model.GetLogsResponseEntry
 import units.eth.{EthAddress, EthereumConstants}
 import units.util.HexBytesConverter
+import units.{EAmount, raw}
 
 import java.math.BigInteger
 import java.util
@@ -70,6 +69,7 @@ object StandardBridge {
             e => s"Can't decode clTo: ${e.getMessage}",
             r => r.asInstanceOf[ClToType]
           )
+          from <- EthAddress.from(from.getValue)
           clTo <- Try(FunctionReturnDecoder.decodeIndexedValue(clTo, ClToTypeRef)).toEither.bimap(
             e => s"Can't decode clTo: ${e.getMessage}",
             r => r.asInstanceOf[ClToType]
@@ -84,25 +84,28 @@ object StandardBridge {
 
             case xs => Left(s"Expected (clAmount: ${classOf[ClAmountType].getSimpleName}) non-indexed fields, got: ${xs.mkString(", ")}")
           }
-        } yield new ERC20BridgeInitiated(localToken, clTo, EthAddress.unsafeFrom(from.getValue), clAmount)
+        } yield new ERC20BridgeInitiated(localToken, clTo, from, clAmount)
       } catch {
         case NonFatal(e) => Left(e.getMessage)
       }).left.map(e => s"Can't decode ${EventDef.getName} event from $log. $e")
   }
 
-  case class ERC20BridgeFinalized(localToken: EthAddress, elTo: EthAddress, amount: EAmount)
+  case class ERC20BridgeFinalized(localToken: EthAddress, from: EthAddress, elTo: EthAddress, amount: EAmount)
   object ERC20BridgeFinalized {
     type LocalTokenType = Web3JAddress
+    type FromType       = Web3JAddress
     type ElToType       = Web3JAddress
     type EAmountType    = Uint256
 
     private val LocalTokenTypeRef = new TypeReference[LocalTokenType](true) {}
+    private val FromTypeRef       = new TypeReference[FromType](true) {}
     private val ElToTypeRef       = new TypeReference[ElToType](true) {}
 
     private val EventDef: Event = new Event(
       "ERC20BridgeFinalized",
       List[TypeReference[?]](
         LocalTokenTypeRef,
+        FromTypeRef,
         ElToTypeRef,
         new TypeReference[EAmountType](false) {}
       ).asJava
@@ -113,15 +116,20 @@ object StandardBridge {
     def decodeLog(log: GetLogsResponseEntry): Either[String, ERC20BridgeFinalized] =
       (try {
         for {
-          (localToken, elTo) <- log.topics match {
-            case _ :: localToken :: elTo :: Nil => Right((localToken, elTo))
-            case _                              => Left(s"Topics should contain 3 or more elements, got ${log.topics.size}")
+          (localToken, from, elTo) <- log.topics match {
+            case _ :: localToken :: from :: elTo :: Nil => Right((localToken, from, elTo))
+            case _                                      => Left(s"Topics should contain 3 or more elements, got ${log.topics.size}")
           }
           localToken <- Try(FunctionReturnDecoder.decodeIndexedValue(localToken, LocalTokenTypeRef)).toEither.bimap(
             e => s"Can't decode localToken: ${e.getMessage}",
             r => r.asInstanceOf[LocalTokenType]
           )
           localToken <- EthAddress.from(localToken.getValue)
+          from <- Try(FunctionReturnDecoder.decodeIndexedValue(from, FromTypeRef)).toEither.bimap(
+            e => s"Can't decode from: ${e.getMessage}",
+            r => r.asInstanceOf[FromType]
+          )
+          from <- EthAddress.from(from.getValue)
           elTo <- Try(FunctionReturnDecoder.decodeIndexedValue(elTo, ElToTypeRef)).toEither.bimap(
             e => s"Can't decode elTo: ${e.getMessage}",
             r => r.asInstanceOf[ElToType]
@@ -136,7 +144,7 @@ object StandardBridge {
 
             case xs => Left(s"Expected (clAmount: ${classOf[EAmountType].getSimpleName}) non-indexed fields, got: ${xs.mkString(", ")}")
           }
-        } yield new ERC20BridgeFinalized(localToken, elTo, EAmount(amount))
+        } yield new ERC20BridgeFinalized(localToken, from, elTo, EAmount(amount))
       } catch {
         case NonFatal(e) => Left(e.getMessage)
       }).left.map(e => s"Can't decode event ${EventDef.getName} from $log. $e")

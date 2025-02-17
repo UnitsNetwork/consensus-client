@@ -13,6 +13,6 @@ package object el {
   val MaxC2ENativeTransfers = 16
   val MinE2CTransfers       = 1024
 
-  val C2ETopics = List(StandardBridge.ERC20BridgeFinalized)
-  val E2CTopics = List(NativeBridge.ElSentNativeEventTopic, StandardBridge.ERC20BridgeInitiated)
+  val C2ETopics = List(StandardBridge.ERC20BridgeFinalized.Topic)
+  val E2CTopics = List(NativeBridge.ElSentNativeEventTopic, StandardBridge.ERC20BridgeInitiated.Topic)
 }

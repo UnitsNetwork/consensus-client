@@ -2,22 +2,18 @@ package units
 
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
-import com.wavesplatform.transaction.Asset
 import com.wavesplatform.transaction.Asset.{IssuedAsset, Waves}
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
-import com.wavesplatform.transaction.{ERC20Address, TxHelpers}
+import com.wavesplatform.transaction.{Asset, TxHelpers}
 import com.wavesplatform.utils.EthEncoding
-import org.web3j.crypto.{Credentials, RawTransaction}
-import org.web3j.protocol.core.DefaultBlockParameterName
-import org.web3j.protocol.core.methods.request.Transaction
+import org.web3j.crypto.Credentials
 import org.web3j.protocol.core.methods.response.TransactionReceipt
 import org.web3j.tx.RawTransactionManager
-import org.web3j.tx.gas.{DefaultGasProvider, StaticGasProvider}
+import org.web3j.tx.gas.DefaultGasProvider
 import org.web3j.utils.Convert
 import units.bridge.{TERC20, WWaves}
-import units.client.contract.HasConsensusLayerDappTxHelpers
 import units.docker.EcContainer
-import units.el.{BridgeMerkleTree, EvmEncoding}
+import units.el.{BridgeMerkleTree, E2CTopics, EvmEncoding}
 import units.eth.EthAddress
 
 import java.math.BigInteger
@@ -86,7 +82,7 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
     "Checking balances in EL->CL->EL transfers" in {
       step("Issue ERC20 token")
       val txManager = new RawTransactionManager(ec1.web3j, elSender, EcContainer.ChainId, 10, 2000)
-      val terc20 = TERC20.load("0x42699a7612a82f1d9c36148af9c77354759b210b", ec1.web3j, txManager, new DefaultGasProvider)
+      val terc20    = TERC20.load("0x42699a7612a82f1d9c36148af9c77354759b210b", ec1.web3j, txManager, new DefaultGasProvider)
 
       val erc20address = EthAddress.unsafeFrom(terc20.getContractAddress)
       log.info(s"Address: $erc20address")
@@ -107,7 +103,11 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
       val blockHash = BlockHash(sendTxnReceipt.getBlockHash)
       step(s"Block with transaction: $blockHash")
 
-      val logsInBlock = ec1.engineApi.getLogs(blockHash, List(nativeBridgeAddress, standardBridgeAddress), Nil).explicitGet()
+      val logsInBlock = ec1.engineApi
+        .getLogs(blockHash, List(nativeBridgeAddress, standardBridgeAddress), Nil)
+        .explicitGet()
+        .filter(_.topics.intersect(E2CTopics).nonEmpty)
+
       val sendTxnLogIndex = logsInBlock.indexWhere(_.transactionHash == sendTxnReceipt.getTransactionHash)
       sendTxnLogIndex shouldBe >=(0)
 
@@ -172,7 +172,7 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
     "Check Waves transfer CL->EL->CL" in {
       withClue("4. Transfer Waves C>E>C") {
         val txManager = new RawTransactionManager(ec1.web3j, elRichAccount1, EcContainer.ChainId, 20, 2000)
-        val wwaves = WWaves.load(WWavesContractAddress.hex, ec1.web3j, txManager, new DefaultGasProvider)
+        val wwaves    = WWaves.load(WWavesContractAddress.hex, ec1.web3j, txManager, new DefaultGasProvider)
 
         waves1.api.broadcastAndWait(ChainContract.registerAsset(Asset.Waves, WWavesContractAddress, 8))
         eventually {
@@ -210,7 +210,11 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
         val blockHash = BlockHash(sendTxnReceipt.getBlockHash)
         step(s"Block with transaction: $blockHash")
 
-        val logsInBlock = ec1.engineApi.getLogs(blockHash, List(nativeBridgeAddress, standardBridgeAddress), Nil).explicitGet()
+        val logsInBlock = ec1.engineApi
+          .getLogs(blockHash, List(nativeBridgeAddress, standardBridgeAddress), Nil)
+          .explicitGet()
+          .filter(_.topics.intersect(E2CTopics).nonEmpty)
+
         val sendTxnLogIndex = logsInBlock.indexWhere(_.transactionHash == sendTxnReceipt.getTransactionHash)
         sendTxnLogIndex shouldBe >=(0)
 
@@ -234,24 +238,23 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
               s"merkleProof={${transferProofs.map(EthEncoding.toHexString).mkString(",")}}"
           )
 
-          def receiverBalance: Long = waves1.api.balance(clRichAccount2.toAddress, Asset.Waves)
+          def receiverBalance: Long = waves1.api.balance(clRecipient.toAddress, Asset.Waves)
 
           val receiverBalanceBefore = receiverBalance
 
-          waves1.api.broadcastAndWait(
-            ChainContract.withdrawAsset(
-              sender = clRichAccount2,
-              blockHash = blockHash,
-              merkleProof = transferProofs,
-              transferIndexInBlock = sendTxnLogIndex,
-              amount = returnAmount,
-              asset = Waves
-            )
+          val withdrawTxn = ChainContract.withdrawAsset(
+            sender = clRecipient,
+            blockHash = blockHash,
+            merkleProof = transferProofs,
+            transferIndexInBlock = sendTxnLogIndex,
+            amount = returnAmount,
+            asset = Waves
           )
 
-          val balanceAfter = receiverBalance
-          balanceAfter shouldBe (receiverBalanceBefore + returnAmount - 500000L)
+          waves1.api.broadcastAndWait(withdrawTxn)
 
+          val balanceAfter = receiverBalance
+          balanceAfter shouldBe (receiverBalanceBefore + returnAmount - withdrawTxn.fee.value)
         }
       }
     }
@@ -285,6 +288,8 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
     ProcessLogger
     (s"forge script -vvvv --config-path ${sys.props("cc.it.contracts.dir")}/foundry.toml ${sys.props("cc.it.contracts.dir")}/scripts/Deployer.s.sol:Deployer " +
       s"--fork-url http://localhost:${ec1.rpcPort} " +
-      s"--broadcast --private-key 8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63").!(ProcessLogger(out => log.info(out), err => log.error(err))).shouldBe(0)
+      s"--broadcast --private-key 8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63")
+      .!(ProcessLogger(out => log.info(out), err => log.error(err)))
+      .shouldBe(0)
   }
 }
