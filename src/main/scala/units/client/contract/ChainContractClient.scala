@@ -223,7 +223,7 @@ trait ChainContractClient {
   }
 
   def getTransfersForPayload(fromIndex: Long, maxNative: Long): Vector[ContractTransfer] = {
-    val maxIndex = fromIndex + getTransfersCount - 1
+    val maxIndex = getTransfersCount - 1
 
     @tailrec def loop(currIndex: Long, foundNative: Long, acc: Vector[ContractTransfer]): Vector[ContractTransfer] =
       if (currIndex > maxIndex || foundNative >= maxNative) acc
@@ -244,7 +244,7 @@ trait ChainContractClient {
 
   private def requireTransfer(atIndex: Long): ContractTransfer = {
     val key = s"nativeTransfer_$atIndex"
-    val raw = getStringData(key).getOrElse(fail(s"Expected a native transfer at '$key', got nothing"))
+    val raw = getStringData(key).getOrElse(fail(s"Expected a transfer at '$key', got nothing"))
     raw.split(Sep) match {
       case Array(rawDestElAddress, rawAmount) =>
         ContractTransfer.Native(
@@ -269,7 +269,7 @@ trait ChainContractClient {
           asset
         )
 
-      case xs => fail(s"Expected two elements in a native transfer, got ${xs.length}: $raw")
+      case xs => fail(s"Unexpected number of elements in a transfer key '$key', got ${xs.length}: $raw")
     }
   }
 

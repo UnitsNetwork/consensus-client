@@ -65,7 +65,7 @@ func minerPkKey(rewardAddress: String)        = "miner_0x" + rewardAddress + "_P
 func minerChainIdKey(miner: Address)          = "miner_" + miner.toString() + "_ChainId"
 
 let transfersCount = this.getInteger(transfersCountKey).valueOrElse(0)
-func transferKey(index: Int) = "nativeTransfer_" + index.toString() # {destElAddressHex with 0x}_{amount} | {destElAddressHex with 0x}_{amount}_{assetRegistryIndex}
+func transferKey(index: Int) = "nativeTransfer_" + index.toString() # {destElAddressHex with 0x}_{amount} | {destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex}
 
 # destElAddressHex - without 0x
 func mkNativeTransferEntries(destElAddressHex: String, amount: Int) = {

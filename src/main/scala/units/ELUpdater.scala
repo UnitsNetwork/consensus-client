@@ -290,7 +290,7 @@ class ELUpdater(
       lastAssetRegistryIndex: Int,
       chainContractOptions: ChainContractOptions,
       prevEpochMinerRewardAddress: Option[EthAddress]
-  ) = {
+  ): JobResult[MiningData] = {
     val startElWithdrawalIndex = lastElWithdrawalIndex + 1
     val startC2ETransferIndex  = lastC2ETransferIndex + 1
 
@@ -351,7 +351,7 @@ class ELUpdater(
       logger.info(
         s"Starting to forge payload $payloadId by miner ${epochInfo.miner} at height ${parentBlock.height + 1} " +
           s"of epoch ${epochInfo.number} (ref=${parentBlock.hash})" +
-          (if (withdrawals.isEmpty) "" else s", ${withdrawals.size} withdrawals") +
+          (if (withdrawals.isEmpty) "" else s", ${withdrawals.size} withdrawals, ") +
           (if (transfers.isEmpty) "" else s"${transfers.size} native transfers from $startC2ETransferIndex") +
           updateAssetRegistryTransaction.fold("")(_ => s", new ${addedAssets.size} assets: {${addedAssets.mkString(", ")}}") +
           (if (assetTransfers.isEmpty) "" else s", ${assetTransfers.size} asset transfers")
@@ -360,7 +360,7 @@ class ELUpdater(
       MiningData(
         payloadId = payloadId,
         nextBlockUnixTs = nextBlockUnixTs,
-        lastC2ENativeTransferIndex = transfers.lastOption.fold(lastC2ETransferIndex)(_.index),
+        lastC2ETransferIndex = transfers.lastOption.fold(lastC2ETransferIndex)(_.index),
         lastElWithdrawalIndex = lastElWithdrawalIndex + withdrawals.size,
         lastAssetRegistryIndex = addedAssets.lastOption.fold(lastAssetRegistryIndex)(_.index)
       )
@@ -412,7 +412,7 @@ class ELUpdater(
               keyPair,
               miningData.payloadId,
               nodeChainInfo,
-              miningData.lastC2ENativeTransferIndex,
+              miningData.lastC2ETransferIndex,
               miningData.lastElWithdrawalIndex,
               miningData.lastAssetRegistryIndex
             )
@@ -468,7 +468,7 @@ class ELUpdater(
               lastEcBlock = parentBlock,
               chainStatus = m.copy(
                 currentPayloadId = miningData.payloadId,
-                lastC2ETransferIndex = miningData.lastC2ENativeTransferIndex,
+                lastC2ETransferIndex = miningData.lastC2ETransferIndex,
                 lastElWithdrawalIndex = miningData.lastElWithdrawalIndex,
                 lastAssetRegistryIndex = miningData.lastAssetRegistryIndex
               )
@@ -1784,7 +1784,7 @@ object ELUpdater {
   private case class MiningData(
       payloadId: PayloadId,
       nextBlockUnixTs: WithdrawalIndex,
-      lastC2ENativeTransferIndex: WithdrawalIndex,
+      lastC2ETransferIndex: WithdrawalIndex,
       lastElWithdrawalIndex: WithdrawalIndex,
       lastAssetRegistryIndex: Int
   )

@@ -1,6 +1,5 @@
 package units.docker
 
-import com.google.common.io.Files
 import okhttp3.Interceptor
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.Network.NetworkImpl
@@ -12,9 +11,8 @@ import units.client.JwtAuthenticationBackend
 import units.client.engine.{EngineApiClient, HttpEngineApiClient, LoggedEngineApiClient}
 import units.docker.EcContainer.{EnginePort, RpcPort}
 import units.http.OkHttpLogger
-import units.test.TestEnvironment.{ConfigsDir, DefaultLogsDir}
+import units.test.TestEnvironment.ConfigsDir
 
-import java.io.File
 import java.time.Clock
 import scala.io.Source
 
@@ -24,11 +22,9 @@ class OpGethContainer(network: NetworkImpl, number: Int, ip: String)(implicit ht
   protected override val container = new GenericContainer(DockerImages.OpGethExecutionClient)
     .withNetwork(network)
     .withExposedPorts(RpcPort, EnginePort)
-    .withFileSystemBind(s"$ConfigsDir/ec-common/genesis.json", "/tmp/genesis.json", BindMode.READ_ONLY)
-    .withFileSystemBind(s"$ConfigsDir/ec-common/peers-geth.toml", "/tmp/peers.toml", BindMode.READ_ONLY)
+    .withEnv("NODE_NUMBER", number.toString)
+    .withFileSystemBind(s"$ConfigsDir/ec-common", "/etc/secrets", BindMode.READ_ONLY)
     .withFileSystemBind(s"$ConfigsDir/op-geth/run-op-geth.sh", "/tmp/run.sh", BindMode.READ_ONLY)
-    .withFileSystemBind(s"$ConfigsDir/ec-common/p2p-key-$number.hex", "/etc/secrets/p2p-key", BindMode.READ_ONLY)
-    .withFileSystemBind(s"$ConfigsDir/ec-common/jwt-secret-$number.hex", "/etc/secrets/jwtsecret", BindMode.READ_ONLY)
     .withFileSystemBind(s"$logFile", "/root/logs/op-geth.log", BindMode.READ_WRITE)
     .withCreateContainerCmdModifier { cmd =>
       cmd
