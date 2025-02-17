@@ -17,10 +17,10 @@ libraryDependencies ++= Seq(
 ).map(_ % Test)
 
 Test / sourceGenerators += Def.task {
-  val contracts       = Seq("Bridge", "StandardBridge", "TERC20")
+  val contracts       = Seq("Bridge", "StandardBridge", "TERC20", "WWaves")
   val contractSources = baseDirectory.value / ".." / "contracts" / "eth"
   val compiledDir     = contractSources / "target"
-  s"forge build --config-path ${contractSources / "foundry.toml"} ${contractSources / "src"} ${contractSources / "utils" / "TERC20.sol"}" !
+  s"forge build --config-path ${contractSources / "foundry.toml"} ${contractSources / "src"} ${contractSources / "utils" / "TERC20.sol"} ${contractSources / "utils" / "WWaves.sol"}" !
 
   contracts.foreach { contract =>
     val json    = Json.parse(new FileInputStream(compiledDir / s"$contract.sol" / s"$contract.json"))
@@ -74,7 +74,8 @@ inConfig(Test)(
     javaOptions ++= Seq(
       s"-Dlogback.configurationFile=${(Test / resourceDirectory).value}/logback-test.xml", // Fixes a logback blaming for multiple configs
       s"-Dcc.it.configs.dir=${baseDirectory.value.getParent}/local-network/configs",
-      s"-Dcc.it.docker.image=consensus-client:${gitCurrentBranch.value}"
+      s"-Dcc.it.docker.image=consensus-client:${gitCurrentBranch.value}",
+      s"-Dcc.it.contracts.dir=${baseDirectory.value / ".." / "contracts" / "eth"}"
     ),
     testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-fFWD", ((Test / logsDirectory).value / "summary.log").toString),
     fork               := true,
