@@ -2,11 +2,13 @@
 from decimal import Decimal
 from time import sleep
 
+from pywaves import Asset
 from units_network import units, waves
 from units_network.chain_contract import HexStr
 from units_network.common_utils import configure_cli_logger
 from units_network.node import Node
 
+from local.erc20 import ERC20
 from local.network import get_local
 
 log = configure_cli_logger(__file__)
@@ -30,6 +32,22 @@ log.info("Approve chain contract on registry")
 network.cl_registry.storeData(
     f"unit_{network.cl_chain_contract.oracleAddress}_approved", "boolean", True
 )
+
+custom_asset = None
+
+cl_issuer = network.cl_rich_accounts[0]
+cl_issuer_assets = cl_issuer.assets()
+if len(cl_issuer_assets) == 0:
+    log.info("Issue a custom CL asset")
+    custom_asset = cl_issuer.issueAsset(
+        "Test TTK token", "Test bridged token", 123_000_000_000, decimals=8
+    )
+    if not custom_asset:
+        raise Exception("Can't deploy a custom CL asset")
+else:
+    custom_asset = Asset(cl_issuer_assets[0])
+
+log.info(f"Custom CL asset id: {custom_asset.assetId}")
 
 script_info = network.cl_chain_contract.oracleAcc.scriptInfo()
 if script_info["script"] is None:
@@ -118,3 +136,12 @@ while True:
         break
     log.info("Wait for at least one block on EL")
     sleep(3)
+
+log.info("Deploying a testing ERC20 token")
+erc20 = ERC20.connect(
+    network.w3,
+    network.el_rich_accounts[0],
+    "setup/el/TERC20.json",
+)
+
+log.info(f"ERC20 token address: {erc20.contract_address}")
