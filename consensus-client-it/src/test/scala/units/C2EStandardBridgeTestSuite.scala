@@ -26,13 +26,12 @@ class C2EStandardBridgeTestSuite extends BaseDockerTestSuite {
         clSender,
         elReceiverAddress,
         issueAsset,
-        UnitsConvert.toWavesAtomic(userAmount, issueAssetTxn.decimals.value),
-        ChainContract.AssetTransferFunctionName
+        UnitsConvert.toWavesAtomic(userAmount, issueAssetTxn.decimals.value)
       )
 
     val rejected = waves1.api.broadcast(transferTxn).left.value
     rejected.error shouldBe ScriptExecutionError.Id
-    rejected.message should include(s"Can't find in a registry: $issueAsset")
+    rejected.message should include(s"Can't find in the registry: $issueAsset")
   }
 
   override def beforeAll(): Unit = {

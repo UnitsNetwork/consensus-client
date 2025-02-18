@@ -6,7 +6,7 @@ import com.wavesplatform.state.IntegerDataEntry
 import com.wavesplatform.test.produce
 import com.wavesplatform.transaction.{Asset, TxHelpers}
 
-class C2ENativeTransfersTestSuite extends BaseIntegrationTestSuite {
+class C2ETransfersTestSuite extends BaseIntegrationTestSuite {
   private val transferSenderAccount  = TxHelpers.secondSigner
   private val validTransferRecipient = "1111111111111111111111111111111111111111"
   private val unrelatedAsset         = TxHelpers.issue(issuer = transferSenderAccount)
@@ -15,11 +15,11 @@ class C2ENativeTransfersTestSuite extends BaseIntegrationTestSuite {
     additionalBalances = List(AddrWithBalance(transferSenderAccount.toAddress))
   )
 
-  "Pass valid address with valid payment" in {
+  "Pass a valid address with a valid payment" in {
     transferFuncTest(validTransferRecipient) should beRight
   }
 
-  "Deny invalid address" in forAll(
+  "Deny an invalid address" in forAll(
     Table(
       "invalid address"                            -> "message",
       ""                                           -> "Invalid Ethereum address",
@@ -32,7 +32,8 @@ class C2ENativeTransfersTestSuite extends BaseIntegrationTestSuite {
     transferFuncTest(address) should produce(message)
   }
 
-  "Deny invalid payment amount" in forAll(
+  // TODO: Return the queue
+  "Deny invalid payment amount for native transfers" ignore forAll(
     Table(
       ("invalid payment amount", "initial queue size", "message"),
       (1, 0, "should be >= 1000000 for queue size of 1"),
@@ -43,21 +44,32 @@ class C2ENativeTransfersTestSuite extends BaseIntegrationTestSuite {
     transferFuncTest(validTransferRecipient, transferAmount, queueSize = initQueueSize) should produce(message)
   }
 
-  "Deny invalid asset" in forAll(
+  "Deny an unregistered asset" in forAll(
     Table(
       "invalid asset"                        -> "message",
-      Asset.Waves                            -> "in the payment, got Waves",
-      Asset.IssuedAsset(unrelatedAsset.id()) -> s"in the payment, got ${unrelatedAsset.id()}"
+      Asset.Waves                            -> "Can't find in the registry: WAVES",
+      Asset.IssuedAsset(unrelatedAsset.id()) -> s"Can't find in the registry: ${unrelatedAsset.id()}"
     )
   ) { case (assetId, message) =>
     transferFuncTest(validTransferRecipient, assetId = Some(assetId)) should produce(message)
+  }
+
+  "Allow a registered asset" in forAll(
+    Table(
+      "invalid asset"                        -> "message",
+      Asset.Waves                            -> "Can't find in the registry: WAVES",
+      Asset.IssuedAsset(unrelatedAsset.id()) -> s"Can't find in the registry: ${unrelatedAsset.id()}"
+    )
+  ) { case (assetId, message) =>
+    transferFuncTest(validTransferRecipient, assetId = Some(assetId), register = true) should beRight
   }
 
   private def transferFuncTest(
       destElAddressHex: String,
       transferAmount: Int = 1_000_000,
       assetId: Option[Asset] = None,
-      queueSize: Int = 0
+      queueSize: Int = 0,
+      register: Boolean = false
   ): Either[Throwable, BlockId] = withExtensionDomain() { d =>
     val amount = Long.MaxValue / 2
     d.appendMicroBlock(
@@ -65,6 +77,7 @@ class C2ENativeTransfersTestSuite extends BaseIntegrationTestSuite {
       TxHelpers.reissue(d.nativeTokenId, d.chainContractAccount, amount),
       TxHelpers.transfer(d.chainContractAccount, transferSenderAccount.toAddress, amount, d.nativeTokenId)
     )
+    assetId.filter(_ => register).foreach(assetId => d.appendMicroBlock(d.ChainContract.registerAsset(assetId, mkRandomEthAddress(), 8)))
     if (queueSize > 0) d.appendMicroBlock(TxHelpers.data(d.chainContractAccount, Seq(IntegerDataEntry("nativeTransfersCount", queueSize))))
 
     d.appendMicroBlockE(d.ChainContract.transferUnsafe(transferSenderAccount, destElAddressHex, assetId.getOrElse(d.nativeTokenId), transferAmount))

@@ -42,9 +42,6 @@ trait HasConsensusLayerDappTxHelpers {
   }
 
   object ChainContract {
-    val NativeTransferFunctionName = "transfer"
-    val AssetTransferFunctionName  = "assetTransfer"
-
     def setScript(): SetScriptTransaction = TxHelpers.setScript(chainContractAccount, CompiledChainContract.script, fee = setScriptFee, version = 2)
 
     def setup(
@@ -233,15 +230,13 @@ trait HasConsensusLayerDappTxHelpers {
         sender: KeyPair,
         destElAddress: EthAddress,
         asset: Asset,
-        amount: Long,
-        function: String = NativeTransferFunctionName
+        amount: Long
     ): InvokeScriptTransaction =
       transferUnsafe(
         sender = sender,
         destElAddressHex = destElAddress.hexNoPrefix,
         asset = asset,
-        amount = amount,
-        function = function
+        amount = amount
       )
 
     /** @param destElAddressHex
@@ -251,13 +246,12 @@ trait HasConsensusLayerDappTxHelpers {
         sender: KeyPair,
         destElAddressHex: String,
         asset: Asset,
-        amount: Long,
-        function: String = NativeTransferFunctionName
+        amount: Long
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = sender,
         dApp = chainContractAddress,
-        func = function.some,
+        func = "transfer".some,
         args = List(Terms.CONST_STRING(destElAddressHex).explicitGet()),
         payments = List(InvokeScriptTransaction.Payment(amount, asset)),
         fee = transferFee

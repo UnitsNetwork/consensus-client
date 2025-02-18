@@ -116,13 +116,13 @@ func mkAssetRegistryEntries(assetIdBase58OrWaves: String, erc20AddressHex: Strin
 
 func getAssetIndex(assetIdBase58OrWaves: String) =
   getString(assetRegistryK + assetIdBase58OrWaves)
-    .valueOrErrorMessage("Can't find in a registry: " + assetIdBase58OrWaves)
+    .valueOrErrorMessage("Can't find in the registry: " + assetIdBase58OrWaves)
     .split(SEP)[0]
     .parseIntValue()
 
 func getAssetErc20Address(assetIdBase58OrWaves: String) =
   getString(assetRegistryK + assetIdBase58OrWaves)
-    .valueOrErrorMessage("Can't find in a registry: " + assetIdBase58OrWaves)
+    .valueOrErrorMessage("Can't find in the registry: " + assetIdBase58OrWaves)
     .split(SEP)[1]
     .split("0x")[1]
     .fromBase16String()
@@ -803,49 +803,34 @@ func leave() = {
 func transfer(destElAddressHex: String) = {
   strict normalizedDestElAddressHex = normalizeEthAddress(destElAddressHex)
 
-  strict checkPayment = if (size(i.payments) == 1) then true else throw("Expected one payment as a transfer amount, got " + i.payments.size().toString())
+  let t = if (size(i.payments) == 1) then i.payments[0] else throw("Expected one payment as a transfer amount, got " + i.payments.size().toString())
+  let nativeTokenIdStr = getStringValue(tokenIdKey)
+  let nativeTokenId    = nativeTokenIdStr.fromBase58String()
+  if (t.assetId == nativeTokenId) then {
+    # TODO Return this logic:
+    # let lastIndex = blockMeta(mainChainLastBlock)._6
+    # let queueSize = transfersCount - lastIndex
+    # strict checkQueueLimit =
+    #        if (queueSize <  160) then amountGtEq(t,     1_000_000, queueSize)
+    #   else if (queueSize < 1600) then amountGtEq(t,    10_000_000, queueSize)
+    #   else if (queueSize < 3200) then amountGtEq(t,   100_000_000, queueSize)
+    #   else if (queueSize < 6400) then amountGtEq(t, 1_000_000_000, queueSize)
+    #   else throw("Transfers denied for queue size of " + queueSize.toString() + ". Wait until current transfers processed")
+    [ Burn(nativeTokenId, t.amount) ] ++ mkNativeTransferEntries(normalizedDestElAddressHex, t.amount)
+  } else {
+    let (assetIdBase58OrWaves, preActions) = match t.assetId {
+      case assetId: ByteVector =>
+        let asset      = assetInfo(assetId).valueOrErrorMessage("Unexpected error: unknown asset")
+        let assetIdStr = assetId.toBase58String()
+        if (asset.issuer == this) then (assetIdStr, [Burn(assetId, t.amount)])
+        else (assetIdStr, [])
+      case _ => (WAVES_ASSET_NAME, [])
+    }
 
-  let tokenIdStr = getStringValue(tokenIdKey)
-  let tokenId    = tokenIdStr.fromBase58String()
-  let t          = i.payments[0]
-  strict checkAssetId = match t.assetId {
-    case assetId: ByteVector =>
-      if (assetId == tokenId) then true
-      else throw("Expected " + tokenIdStr + " in the payment, got " + assetId.toBase58String())
-    case _ => throw("Expected " + tokenIdStr + " in the payment, got Waves")
+    let fromAddressHex = i.caller.bytes.drop(2).take(20).toBase16String()
+    let assetIndex     = getAssetIndex(assetIdBase58OrWaves)
+    preActions ++ mkAssetTransferEntries(normalizedDestElAddressHex, fromAddressHex, t.amount, assetIndex)
   }
-
-  let lastIndex = blockMeta(mainChainLastBlock)._6
-  let queueSize = transfersCount - lastIndex
-  strict checkQueueLimit =
-         if (queueSize <  160) then amountGtEq(t,     1_000_000, queueSize)
-    else if (queueSize < 1600) then amountGtEq(t,    10_000_000, queueSize)
-    else if (queueSize < 3200) then amountGtEq(t,   100_000_000, queueSize)
-    else if (queueSize < 6400) then amountGtEq(t, 1_000_000_000, queueSize)
-    else throw("Transfers denied for queue size of " + queueSize.toString() + ". Wait until current transfers processed")
-
-  mkNativeTransferEntries(normalizedDestElAddressHex, t.amount) ++ [ Burn(tokenId, t.amount) ]
-}
-
-@Callable(i)
-func assetTransfer(destElAddressHex: String) = {
-  strict normalizedDestElAddressHex = normalizeEthAddress(destElAddressHex)
-  let fromAddressHex = i.caller.bytes.drop(2).take(20).toBase16String()
-
-  strict checkPayment = if (size(i.payments) == 1) then true else throw("Expected one payment as a transfer amount, got " + i.payments.size().toString())
-
-  let t = i.payments[0]
-  let (assetIdBase58OrWaves, preActions) = match t.assetId {
-    case assetId: ByteVector =>
-      let asset = assetInfo(assetId).valueOrErrorMessage("Unexpected error: unknown asset")
-      let assetIdStr = assetId.toBase58String()
-      if (asset.issuer == this) then (assetIdStr, [Burn(assetId, t.amount)])
-      else (assetIdStr, [])
-    case _ => (WAVES_ASSET_NAME, [])
-  }
-
-  let assetIndex = getAssetIndex(assetIdBase58OrWaves)
-  preActions ++ mkAssetTransferEntries(normalizedDestElAddressHex, fromAddressHex, t.amount, assetIndex)
 }
 
 # blockHashHex without 0x

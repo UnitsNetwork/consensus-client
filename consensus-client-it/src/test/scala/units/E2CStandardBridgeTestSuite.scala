@@ -156,8 +156,7 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
             clRecipient,
             elReceiverAddress,
             issueAsset,
-            clAmount / 2,
-            ChainContract.AssetTransferFunctionName
+            clAmount / 2
           )
 
         waves1.api.broadcastAndWait(transferTxn)
@@ -183,14 +182,7 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
 
         val chainContractBalanceBefore = waves1.api.balance(chainContractAddress, Asset.Waves)
 
-        def transferTxn: InvokeScriptTransaction =
-          ChainContract.transfer(
-            clRichAccount1,
-            elRichAddress1,
-            Asset.Waves,
-            transferAmount,
-            ChainContract.AssetTransferFunctionName
-          )
+        def transferTxn: InvokeScriptTransaction = ChainContract.transfer(clRichAccount1, elRichAddress1, Asset.Waves, transferAmount)
 
         waves1.api.broadcastAndWait(transferTxn)
         waves1.api.balance(chainContractAddress, Asset.Waves) shouldBe chainContractBalanceBefore + transferAmount
