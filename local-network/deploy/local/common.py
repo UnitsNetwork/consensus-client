@@ -3,10 +3,18 @@ from dataclasses import dataclass
 from decimal import Decimal
 from functools import cached_property
 
+import rlp
 from eth_account.signers.local import LocalAccount
 from pywaves import pw
 from units_network import units
+from web3 import Web3
 from web3.types import Wei
+
+
+def compute_contract_address(sender_address, nonce):
+    sender_bytes = bytes.fromhex(sender_address[2:])
+    computed = Web3.keccak(rlp.encode([sender_bytes, nonce]))
+    return Web3.to_checksum_address(computed[-20:])
 
 
 @dataclass()

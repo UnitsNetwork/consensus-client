@@ -17,6 +17,7 @@ fi
 mkdir -p ./deploy/setup/{el,waves}
 cp ../contracts/eth/src/*.sol ./deploy/setup/el/
 cp ../contracts/eth/target/TERC20.sol/TERC20.json ./deploy/setup/el/
+cp ../contracts/eth/target/StandardBridge.sol/StandardBridge.json ./deploy/setup/el/
 cp ../contracts/waves/src/*.ride ./deploy/setup/waves/
 
 export COMPOSE_PROFILES="${COMPOSE_PROFILES:-}"

@@ -8,7 +8,7 @@ from units_network.chain_contract import HexStr
 from units_network.common_utils import configure_cli_logger
 from units_network.node import Node
 
-from local.erc20 import ERC20
+from local.ContractFactory import ContractFactory
 from local.network import get_local
 
 log = configure_cli_logger(__file__)
@@ -137,11 +137,20 @@ while True:
     log.info("Wait for at least one block on EL")
     sleep(3)
 
-log.info("Deploying a testing ERC20 token")
-erc20 = ERC20.connect(
+log.info("Deploy a testing ERC20 token")
+erc20 = ContractFactory.connect_erc20(
     network.w3,
     network.el_rich_accounts[0],
     "setup/el/TERC20.json",
 )
 
 log.info(f"ERC20 token address: {erc20.contract_address}")
+
+log.info("Deploy the StandardBridge contract")
+erc20 = ContractFactory.connect_standard_bridge(
+    network.w3,
+    network.el_rich_accounts[0],
+    "setup/el/StandardBridge.json",
+)
+
+log.info(f"StandardBridge address: {erc20.contract_address}")
