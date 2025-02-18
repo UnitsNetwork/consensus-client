@@ -143,7 +143,6 @@ erc20 = ContractFactory.connect_erc20(
     network.el_rich_accounts[0],
     "setup/el/TERC20.json",
 )
-
 log.info(f"ERC20 token address: {erc20.contract_address}")
 
 log.info("Deploy the StandardBridge contract")
@@ -152,5 +151,8 @@ erc20 = ContractFactory.connect_standard_bridge(
     network.el_rich_accounts[0],
     "setup/el/StandardBridge.json",
 )
-
 log.info(f"StandardBridge address: {erc20.contract_address}")
+
+log.info("Register the asset")
+r = network.cl_chain_contract.registerAsset(custom_asset, erc20.contract_address, 18)
+waves.force_success(log, r, "Can not register asset")

@@ -4,6 +4,6 @@ WORKDIR /usr/src/app
 
 COPY pyproject.toml ./
 
-RUN pip install --no-cache-dir --editable .
+RUN pip install --no-cache-dir .
 
 CMD ["/bin/bash", "run.sh"]
