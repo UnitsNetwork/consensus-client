@@ -52,10 +52,11 @@ func chainMetaKey(chainId: Int)                       = "chain_" + pad(chainId) 
 func chainLastHeightKey(chainId: Int, miner: Address) = "chain_" + pad(chainId) + "_" + miner.toString()
 func chainForkedHeightKey(chainId: Int)               = "chain_" + pad(chainId) + "ForkedHeight" # Next to the common block
 
-func supportersKey(chainId: Int)              = "chain" + chainId.toString() + "Supporters"
-func minerRewardAddressKey(minerAddr: String) = "miner_" + minerAddr + "_RewardAddress"
-func minerPkKey(rewardAddress: String)        = "miner_0x" + rewardAddress + "_PK"
-func minerChainIdKey(miner: Address)          = "miner_" + miner.toString() + "_ChainId"
+func supportersKey(chainId: Int)                  = "chain" + chainId.toString() + "Supporters"
+func minerRewardAddressKey(minerAddr: String)     = "miner_" + minerAddr + "_RewardAddress"
+func minerPkKey(rewardAddress: String)            = "miner_0x" + rewardAddress + "_PK"
+func minerChainIdKey(miner: Address)              = "miner_" + miner.toString() + "_ChainId"
+func minerSkippedEpochCountKey(minerAddr: String) = "miner_" + minerAddr + "_SkippedEpochCount"
 
 let nativeTransfersCount = this.getInteger(nativeTransfersCountKey).valueOrElse(0)
 func nativeTransferKey(index: Int) = "nativeTransfer_" + index.toString()
@@ -717,4 +718,20 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: Stri
       StringEntry(elBridgeAddressKey, "0x0000000000000000000000000000000000006a7e")
     ] ++ daoEntries
   }
+}
+
+@Callable(i)
+func reportEmptyEpoch() = {
+  strict idleGenerator = match epochMeta(height) {
+    # Epoch is empty at current height
+    case m: Unit => computedGenerator
+    # Epoch is non-empty at current height
+    case _ => throw("Current epoch is non-empty.")
+  }
+  [
+    IntegerEntry(minerSkippedEpochCountKey(idleGenerator), 1) # TODO: increment or set to 1
+    # TODO: remember the reporter
+    # TODO: check on extendMainChain, reward the reporter if correct
+    # TODO: reset counter on extendMainChain on adding a block
+  ]
 }
