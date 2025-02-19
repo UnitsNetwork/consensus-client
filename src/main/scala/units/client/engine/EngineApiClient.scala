@@ -8,9 +8,9 @@ import units.eth.EthAddress
 import units.{BlockHash, JobResult}
 
 trait EngineApiClient {
-  def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int = newRequestId): JobResult[PayloadStatus]
+  def forkChoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int = newRequestId): JobResult[PayloadStatus]
 
-  def forkChoiceUpdateWithPayloadId(
+  def forkChoiceUpdatedWithPayloadId(
       lastBlockHash: BlockHash,
       finalizedBlockHash: BlockHash,
       unixEpochSeconds: Long,

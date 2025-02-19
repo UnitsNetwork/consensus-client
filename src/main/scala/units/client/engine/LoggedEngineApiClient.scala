@@ -14,10 +14,10 @@ import scala.util.chaining.scalaUtilChainingOps
 class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient {
   protected val log: LoggerFacade = LoggerFacade(LoggerFactory.getLogger(underlying.getClass))
 
-  override def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int): JobResult[PayloadStatus] =
-    wrap(requestId, s"forkChoiceUpdate($blockHash, f=$finalizedBlockHash)", underlying.forkChoiceUpdate(blockHash, finalizedBlockHash, _))
+  override def forkChoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int): JobResult[PayloadStatus] =
+    wrap(requestId, s"forkChoiceUpdated($blockHash, f=$finalizedBlockHash)", underlying.forkChoiceUpdated(blockHash, finalizedBlockHash, _))
 
-  override def forkChoiceUpdateWithPayloadId(
+  override def forkChoiceUpdatedWithPayloadId(
       lastBlockHash: BlockHash,
       finalizedBlockHash: BlockHash,
       unixEpochSeconds: Long,
@@ -28,9 +28,9 @@ class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient
       requestId: Int
   ): JobResult[PayloadId] = wrap(
     requestId,
-    s"forkChoiceUpdateWithPayloadId(l=$lastBlockHash, f=$finalizedBlockHash, ts=$unixEpochSeconds, m=$suggestedFeeRecipient, " +
+    s"forkChoiceUpdatedWithPayloadId(l=$lastBlockHash, f=$finalizedBlockHash, ts=$unixEpochSeconds, m=$suggestedFeeRecipient, " +
       s"r=$prevRandao, w={${withdrawals.mkString(", ")}}, t={${transactions.mkString(", ")}})",
-    underlying.forkChoiceUpdateWithPayloadId(
+    underlying.forkChoiceUpdatedWithPayloadId(
       lastBlockHash,
       finalizedBlockHash,
       unixEpochSeconds,

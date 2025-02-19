@@ -22,6 +22,7 @@ class BaseTransfer:
     el_account: LocalAccount
     cl_account: pw.Address
     raw_amount: Decimal
+    # decimals: int # TODO: add this and change functions
 
     @cached_property
     def wei_amount(self) -> Wei:
@@ -43,7 +44,7 @@ class C2ETransfer(BaseTransfer):
         return self.el_account
 
     def __repr__(self) -> str:
-        return f"C2E(from={self.cl_account.address}, to={self.el_account.address}, {self.raw_amount} UNIT0)"
+        return f"C2E(from={self.cl_account.address}, to={self.el_account.address}, {self.raw_amount})"
 
 
 @dataclass()
@@ -57,7 +58,7 @@ class E2CTransfer(BaseTransfer):
         return self.cl_account
 
     def __repr__(self) -> str:
-        return f"E2C(from={self.el_account.address}, to={self.cl_account.address}, {self.raw_amount} UNIT0)"
+        return f"E2C(from={self.el_account.address}, to={self.cl_account.address}, {self.raw_amount})"
 
 
 _INSIDE_DOCKER = None

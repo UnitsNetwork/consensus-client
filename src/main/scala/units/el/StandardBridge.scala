@@ -23,7 +23,7 @@ object StandardBridge {
   val FinalizeBridgeErc20Gas      = BigInteger.valueOf(1_000_000L) // Should be enough to run this function
 
   val UpdateAssetRegistryFunction = "updateAssetRegistry"
-  val UpdateAssetRegistryGas      = BigInteger.valueOf(500_000L)
+  val UpdateAssetRegistryGas      = BigInteger.valueOf(1_000_000L)
 
   case class ERC20BridgeInitiated(localToken: EthAddress, clTo: Address, elFrom: EthAddress, clAmount: Long)
   object ERC20BridgeInitiated extends BridgeMerkleTree[ERC20BridgeInitiated] {

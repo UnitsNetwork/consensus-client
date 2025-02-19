@@ -14,9 +14,7 @@ class ContractFactory:
         with open(compiled_contract_path, "r") as file:
             compiled_contract = json.load(file)
 
-        nonce = w3.eth.get_transaction_count(account.address, "pending")
-        contract_address = compute_contract_address(account.address, nonce)
-
+        contract_address = compute_contract_address(account.address, 0)
         code = w3.eth.get_code(contract_address)
         if not code or code == b"":
             receipt = ContractFactory.deploy(w3, account, compiled_contract)

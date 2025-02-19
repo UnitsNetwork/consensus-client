@@ -6,7 +6,8 @@ import units.eth.Gwei
 object UnitsConvert {
   val NativeTokenElDecimals = 18
   val NativeTokenClDecimals = 8
-  
+  val WavesDecimals         = 8
+
   def toUnitsInWaves(userAmount: BigDecimal): Long               = toWavesAtomic(userAmount, NativeTokenClDecimals)
   def toWavesAtomic(userAmount: BigDecimal, decimals: Int): Long = toAtomic(userAmount, decimals).bigInteger.longValueExact()
 

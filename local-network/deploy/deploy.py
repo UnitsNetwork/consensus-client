@@ -33,21 +33,7 @@ network.cl_registry.storeData(
     f"unit_{network.cl_chain_contract.oracleAddress}_approved", "boolean", True
 )
 
-custom_asset = None
-
-cl_issuer = network.cl_rich_accounts[0]
-cl_issuer_assets = cl_issuer.assets()
-if len(cl_issuer_assets) == 0:
-    log.info("Issue a custom CL asset")
-    custom_asset = cl_issuer.issueAsset(
-        "Test TTK token", "Test bridged token", 123_000_000_000, decimals=8
-    )
-    if not custom_asset:
-        raise Exception("Can't deploy a custom CL asset")
-else:
-    custom_asset = Asset(cl_issuer_assets[0])
-
-log.info(f"Custom CL asset id: {custom_asset.assetId}")
+log.info(f"Test CL asset id: {network.cl_test_asset.assetId}")
 
 script_info = network.cl_chain_contract.oracleAcc.scriptInfo()
 if script_info["script"] is None:
@@ -137,22 +123,9 @@ while True:
     log.info("Wait for at least one block on EL")
     sleep(3)
 
-log.info("Deploy a testing ERC20 token")
-erc20 = ContractFactory.connect_erc20(
-    network.w3,
-    network.el_rich_accounts[0],
-    "setup/el/TERC20.json",
-)
-log.info(f"ERC20 token address: {erc20.contract_address}")
+log.info(f"ERC20 token address: {network.el_test_erc20.contract_address}")
+log.info(f"StandardBridge address: {network.el_standard_bridge.contract_address}")
 
-log.info("Deploy the StandardBridge contract")
-erc20 = ContractFactory.connect_standard_bridge(
-    network.w3,
-    network.el_rich_accounts[0],
-    "setup/el/StandardBridge.json",
-)
-log.info(f"StandardBridge address: {erc20.contract_address}")
-
-log.info("Register the asset")
-r = network.cl_chain_contract.registerAsset(custom_asset, erc20.contract_address, 18)
-waves.force_success(log, r, "Can not register asset")
+# log.info("Register the asset")
+# r = network.register_test_asset()
+# waves.force_success(log, r, "Can not register asset")

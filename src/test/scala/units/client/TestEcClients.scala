@@ -65,7 +65,7 @@ class TestEcClients private (
 
   val engineApi = new LoggedEngineApiClient(
     new EngineApiClient {
-      override def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int): JobResult[PayloadStatus] = {
+      override def forkChoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int): JobResult[PayloadStatus] = {
         knownBlocks.get().get(blockHash) match {
           case Some(cid) =>
             currChainIdValue.set(cid)
@@ -80,7 +80,7 @@ class TestEcClients private (
         }
       }.asRight
 
-      override def forkChoiceUpdateWithPayloadId(
+      override def forkChoiceUpdatedWithPayloadId(
           lastBlockHash: BlockHash,
           finalizedBlockHash: BlockHash,
           unixEpochSeconds: Long,

@@ -16,7 +16,7 @@ import units.{BlockHash, ClientError, JobResult}
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 
 class HttpEngineApiClient(val config: JsonRpcClient.Config, val backend: SttpBackend[Identity, ?]) extends EngineApiClient with JsonRpcClient {
-  def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int): JobResult[PayloadStatus] = {
+  def forkChoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int): JobResult[PayloadStatus] = {
     sendEngineRequest[ForkChoiceUpdatedRequest, ForkChoiceUpdatedResponse](
       ForkChoiceUpdatedRequest(blockHash, finalizedBlockHash, None, requestId),
       BlockExecutionTimeout,
@@ -30,7 +30,7 @@ class HttpEngineApiClient(val config: JsonRpcClient.Config, val backend: SttpBac
       }
   }
 
-  def forkChoiceUpdateWithPayloadId(
+  def forkChoiceUpdatedWithPayloadId(
       lastBlockHash: BlockHash,
       finalizedBlockHash: BlockHash,
       unixEpochSeconds: Long,

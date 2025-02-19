@@ -18,9 +18,9 @@ import units.eth.EthAddress
 
 import java.math.BigInteger
 import scala.jdk.OptionConverters.RichOptional
+import scala.sys.process.*
 
-// TODO: asset registered in EL/CL first cases, WAVES
-class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
+class StandardBridgeTestSuite extends BaseDockerTestSuite {
   private val clAssetOwner = clRichAccount2
   private val clRecipient  = clRichAccount1
   private val elSender     = elRichAccount1
@@ -38,6 +38,7 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
   private val enoughElAmount = elAmount * testTransfers
 
   private val WWavesContractAddress = EthAddress.unsafeFrom("0xa50a51c09a5c451c52bb714527e1974b686d8e77")
+  private val TErc20Address         = EthAddress.unsafeFrom("0x42699a7612a82f1d9c36148af9c77354759b210b")
 
   private val tenGwei = BigInt(Convert.toWei("10", Convert.Unit.GWEI).toBigIntegerExact)
 
@@ -81,24 +82,20 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
 
     "Checking balances in EL->CL->EL transfers" in {
       step("Issue ERC20 token")
-      val txManager = new RawTransactionManager(ec1.web3j, elSender, EcContainer.ChainId, 10, 2000)
-      val terc20    = TERC20.load("0x42699a7612a82f1d9c36148af9c77354759b210b", ec1.web3j, txManager, new DefaultGasProvider)
+      val txManager      = new RawTransactionManager(ec1.web3j, elSender, EcContainer.ChainId, 10, 2000)
+      val terc20         = TERC20.load(TErc20Address.hex, ec1.web3j, txManager, new DefaultGasProvider)
+      val terc20Decimals = terc20.call_decimals().send().intValueExact()
 
-      val erc20address = EthAddress.unsafeFrom(terc20.getContractAddress)
-      log.info(s"Address: $erc20address")
-      log.info(s"Balance of ${elSender.getAddress}: ${getBalance(erc20address.toString, elSender.getAddress)}")
+      log.info(s"Address: $TErc20Address")
+      log.info(s"Balance of ${elSender.getAddress}: ${getBalance(TErc20Address, elSender.getAddress)}")
 
-      step("Register asset")
-      waves1.api.broadcastAndWait(ChainContract.registerAsset(issueAsset, erc20address, 18))
-      eventually {
-        standardBridge.isRegistered(erc20address) shouldBe true
-      }
+      registerAsset(issueAsset, TErc20Address, terc20Decimals)
 
       step("Send allowance")
       terc20.send_approve(standardBridgeAddress.toString, elAmount.bigInteger).send()
 
-      step("Broadcast StandardBridge.sendBridgeErc20 transaction")
-      val sendTxnReceipt = sendBridgeErc20(elSender, erc20address, elAmount)
+      step("Initiate EL->CL transfer. Broadcast StandardBridge.sendBridgeErc20 transaction")
+      val sendTxnReceipt = sendBridgeErc20(elSender, TErc20Address, elAmount)
 
       val blockHash = BlockHash(sendTxnReceipt.getBlockHash)
       step(s"Block with transaction: $blockHash")
@@ -125,45 +122,43 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
         currFinalizedHeight should be >= blockConfirmationHeight
       }
 
-      withClue("3. Assets received: ") {
-        step(
-          s"Broadcast withdrawAsset transaction: transferIndexInBlock=$sendTxnLogIndex, amount=$clAmount, " +
-            s"merkleProof={${transferProofs.map(EthEncoding.toHexString).mkString(",")}}"
+      step(
+        s"Broadcast withdrawAsset transaction: transferIndexInBlock=$sendTxnLogIndex, amount=$clAmount, " +
+          s"merkleProof={${transferProofs.map(EthEncoding.toHexString).mkString(",")}}"
+      )
+
+      def clRecipientBalance: Long = waves1.api.balance(clRecipient.toAddress, issueAsset)
+
+      val recipientBalanceBefore = clRecipientBalance
+
+      waves1.api.broadcastAndWait(
+        ChainContract.withdrawAsset(
+          sender = clRecipient,
+          blockHash = blockHash,
+          merkleProof = transferProofs,
+          transferIndexInBlock = sendTxnLogIndex,
+          amount = clAmount,
+          asset = issueAsset
         )
+      )
 
-        def receiverBalance: Long = waves1.api.balance(clRecipient.toAddress, issueAsset)
+      withClue("Assets recieved after EL->CL: ") {
+        val balanceAfter = clRecipientBalance
+        balanceAfter shouldBe (recipientBalanceBefore + clAmount)
+      }
 
-        val receiverBalanceBefore = receiverBalance
+      step("Initiate CL->EL transfer. Broadcast ChainContract.transfer transaction")
+      val elRecipientAddress = EthAddress.unsafeFrom("0xAAAA00000000000000000000000000000000AAAA")
 
-        waves1.api.broadcastAndWait(
-          ChainContract.withdrawAsset(
-            sender = clRecipient,
-            blockHash = blockHash,
-            merkleProof = transferProofs,
-            transferIndexInBlock = sendTxnLogIndex,
-            amount = clAmount,
-            asset = issueAsset
-          )
-        )
+      val returnUserAmount = BigDecimal(userAmount) / 2
+      val returnClAmount   = UnitsConvert.toWavesAtomic(returnUserAmount, issueAssetTxn.decimals.value)
+      val returnElAmount   = UnitsConvert.toAtomic(returnUserAmount, terc20Decimals)
 
-        val balanceAfter = receiverBalance
-        balanceAfter shouldBe (receiverBalanceBefore + clAmount)
-
-        val elReceiverAddress = EthAddress.unsafeFrom("0xAAAA00000000000000000000000000000000AAAA")
-
-        def transferTxn: InvokeScriptTransaction =
-          ChainContract.transfer(
-            clRecipient,
-            elReceiverAddress,
-            issueAsset,
-            clAmount / 2
-          )
-
-        waves1.api.broadcastAndWait(transferTxn)
+      waves1.api.broadcastAndWait(ChainContract.transfer(clRecipient, elRecipientAddress, issueAsset, returnClAmount))
+      withClue("Assets received: ") {
         eventually {
-          val halfAmount = elAmount.bigInteger.divide(BigInteger.valueOf(2))
-          getBalance(erc20address.hex, elReceiverAddress.hex) shouldBe halfAmount
-          getBalance(erc20address.hex, standardBridgeAddress.hex) shouldBe halfAmount
+          getBalance(TErc20Address, elRecipientAddress.hex) shouldBe returnElAmount
+          getBalance(TErc20Address, standardBridgeAddress.hex) shouldBe returnElAmount
         }
       }
     }
@@ -173,12 +168,11 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
         val txManager = new RawTransactionManager(ec1.web3j, elRichAccount1, EcContainer.ChainId, 20, 2000)
         val wwaves    = WWaves.load(WWavesContractAddress.hex, ec1.web3j, txManager, new DefaultGasProvider)
 
-        waves1.api.broadcastAndWait(ChainContract.registerAsset(Asset.Waves, WWavesContractAddress, 8))
-        eventually {
-          standardBridge.isRegistered(WWavesContractAddress) shouldBe true
-        }
+        registerAsset(Asset.Waves, WWavesContractAddress, wwaves.call_decimals().send().intValueExact())
 
-        val transferAmount = 55_00000000L
+        val transferUserAmount = 55
+        // Same for EL and CL, because has same decimals
+        val transferAmount = UnitsConvert.toWavesAtomic(transferUserAmount, UnitsConvert.WavesDecimals)
 
         val chainContractBalanceBefore = waves1.api.balance(chainContractAddress, Asset.Waves)
 
@@ -186,10 +180,9 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
 
         waves1.api.broadcastAndWait(transferTxn)
         waves1.api.balance(chainContractAddress, Asset.Waves) shouldBe chainContractBalanceBefore + transferAmount
-
         eventually {
-          getBalance(wwaves.getContractAddress, elRichAddress1.hex) shouldBe BigInteger.valueOf(transferAmount)
-          wwaves.call_totalSupply().send() shouldBe BigInteger.valueOf(transferAmount)
+          getBalance(WWavesContractAddress, elRichAddress1.hex) shouldBe BigInt(transferAmount)
+          wwaves.call_totalSupply().send() shouldEqual BigInteger.valueOf(transferAmount)
         }
 
         val returnAmount = 32_00000000L
@@ -252,15 +245,15 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
     }
   }
 
-  private def getBalance(contractAddress: String, account: String) = {
-    val sender: Credentials = elSender
-    val txnManager          = new RawTransactionManager(ec1.web3j, sender, EcContainer.ChainId)
-    val gasProvider         = new DefaultGasProvider
-    val contract            = TERC20.load(standardBridgeAddress.hex, ec1.web3j, sender, gasProvider) // TODO move to class?
-    val funcCall            = contract.call_balanceOf(account).encodeFunctionCall()
+  private def getBalance(erc20Address: EthAddress, account: String): BigInt = {
+    val sender         = elSender
+    val txnManager     = new RawTransactionManager(ec1.web3j, sender, EcContainer.ChainId)
+    val gasProvider    = new DefaultGasProvider
+    val standardBridge = TERC20.load(standardBridgeAddress.hex, ec1.web3j, sender, gasProvider) // TODO move to class?
+    val funcCall       = standardBridge.call_balanceOf(account).encodeFunctionCall()
 
-    val c = TERC20.load(contractAddress, ec1.web3j, txnManager, gasProvider)
-    c.call_balanceOf(account).send()
+    val token = TERC20.load(erc20Address.hex, ec1.web3j, txnManager, gasProvider)
+    token.call_balanceOf(account).send()
   }
 
   override def beforeAll(): Unit = {
@@ -275,13 +268,19 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
     step("Prepare: wait for first block in EC")
     while (ec1.web3j.ethBlockNumber().send().getBlockNumber.compareTo(BigInteger.ONE) < 0) Thread.sleep(5000)
 
-    import scala.sys.process.*
-
-    ProcessLogger
     (s"forge script -vvvv --config-path ${sys.props("cc.it.contracts.dir")}/foundry.toml ${sys.props("cc.it.contracts.dir")}/scripts/Deployer.s.sol:Deployer " +
       s"--fork-url http://localhost:${ec1.rpcPort} " +
       s"--broadcast --private-key 8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63")
-      .!(ProcessLogger(out => log.info(out), err => log.error(err)))
+      .!(ProcessLogger(log.info(_), log.error(_)))
       .shouldBe(0)
   }
+
+  private def registerAsset(asset: Asset, erc20Address: EthAddress, decimals: Int): Unit =
+    if (!standardBridge.isRegistered(erc20Address)) {
+      step(s"Register asset: CL=$asset, EL=$erc20Address, decimals=$decimals")
+      waves1.api.broadcastAndWait(ChainContract.registerAsset(asset, erc20Address, decimals))
+      eventually {
+        standardBridge.isRegistered(erc20Address) shouldBe true
+      }
+    }
 }
