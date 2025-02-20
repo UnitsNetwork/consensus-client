@@ -47,6 +47,7 @@ func pad(i: Int) = {
 
 func blockE2CTransfersKey(blockHashHex: String)       = "elToClTransfers_0x" + blockHashHex
 func epochMetaKey(epoch: Int)                         = "epoch_" + pad(epoch) # {minerAddress},{prevEpoch},{lastBlockHash}
+func epochReportedEmptyKey(epoch: Int)                = "epoch_" + pad(epoch) + "_ReportedEmpty" # {reporterAddress}
 func chainFirstBlockIdKey(chainId: Int)               = "chain" + chainId.toString() + "FirstBlock"
 func chainMetaKey(chainId: Int)                       = "chain_" + pad(chainId) # {height},{lastBlockHash}
 func chainLastHeightKey(chainId: Int, miner: Address) = "chain_" + pad(chainId) + "_" + miner.toString()
@@ -187,6 +188,13 @@ let (computedGenerator, computedTotalBalance) = {
   }
   FOLD<50>(allMiners, ("", 0, INT_MAX, []), processMiner)
 }
+
+
+let markEpochNonEmptyAndResetSkippedEpochCount = 
+  [
+    DeleteEntry(minerSkippedEpochCountKey(computedGenerator)),
+    DeleteEntry(epochReportedEmptyKey(height))
+  ]
 
 let (mclbIgnored1, mainChainEpoch) = blockMeta(mainChainLastBlock)
 
@@ -354,6 +362,16 @@ func getUpdateFinalizedBlockAction(caller: Address, newBlockHashHex: String, pre
   )
 }
 
+func rewardEmptyEpochReporter(epochNumber: Int) = 
+  match getString(epochReportedEmptyKey(height)) {
+    case u: Unit => []
+    case str =>
+      [
+        DeleteEntry(epochReportedEmptyKey(height))
+        # TODO: transfer a reward
+      ]
+  }
+
 @Callable(i)
 func extendMainChain(
   blockHashHex: String,
@@ -384,7 +402,7 @@ func extendMainChain(
     IntegerEntry(minerChainIdKey(i.originCaller), mainChainId),
     IntegerEntry(chainLastHeightKey(mainChainId, i.originCaller), newChainHeight),
     thisEpochMeta
-  ] ++ updateFinalizedBlock
+  ] ++ updateFinalizedBlock ++ markEpochNonEmptyAndResetSkippedEpochCount
 }
 
 @Callable(i)
@@ -425,7 +443,7 @@ func startAltChain(
     IntegerEntry(chainLastHeightKey(mainChainId, i.originCaller), newChainHeight),
     StringEntry(supportersKey(newChainId), i.originCaller.toString()),
     IntegerEntry(lastChainIdKey, newChainId)
-  ]
+  ] ++ markEpochNonEmptyAndResetSkippedEpochCount
 }
 
 @Callable(i)
@@ -482,7 +500,7 @@ func extendAltChain(
     thisEpochMeta,
     IntegerEntry(minerChainIdKey(i.originCaller), chainId),
     IntegerEntry(chainLastHeightKey(chainId, i.originCaller), newChainHeight)
-  ] ++ updateMainChainData ++ addSupporter(chainId, i.originCaller) ++ updateMainChainLastMinedBlock
+  ] ++ updateMainChainData ++ addSupporter(chainId, i.originCaller) ++ updateMainChainLastMinedBlock ++ markEpochNonEmptyAndResetSkippedEpochCount
 }
 
 @Callable(i)
@@ -512,7 +530,7 @@ func appendBlock(
     IntegerEntry(chainLastHeightKey(chainId, i.originCaller), newChainHeight),
     mkChainMetaEntry(chainId, newChainHeight, blockHashHex),
     StringEntry(epochMetaKey(height), thisEpochMiner.value().toString() + SEP + thisEpochRef.toString() + SEP + blockHashHex)
-  ]
+  ] ++ markEpochNonEmptyAndResetSkippedEpochCount
 }
 
 @Callable(i)
@@ -722,16 +740,20 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: Stri
 
 @Callable(i)
 func reportEmptyEpoch() = {
-  strict idleGenerator = match epochMeta(height) {
-    # Epoch is empty at current height
-    case m: Unit => computedGenerator
-    # Epoch is non-empty at current height
+  strict checkEpochEmpty = match epochMeta(height) {
+    case u: Unit => unit
     case _ => throw("Current epoch is non-empty.")
   }
-  [
-    IntegerEntry(minerSkippedEpochCountKey(idleGenerator), 1) # TODO: increment or set to 1
-    # TODO: remember the reporter
+  strict checkEpochNotReported = match getString(epochReportedEmptyKey(height)) {
+    case u: Unit => unit
+    case _ => throw("Current epoch is already reported to be empty.")
+  }
+  strict skippedEpochCount = getInteger(minerSkippedEpochCountKey(computedGenerator)).valueOrElse(0)
+  strict scriptActions = 
+    [
+      IntegerEntry(minerSkippedEpochCountKey(computedGenerator), skippedEpochCount + 1),
+      StringEntry(epochReportedEmptyKey(height), i.originCaller.toString())
+    ]
+  scriptActions
     # TODO: check on extendMainChain, reward the reporter if correct
-    # TODO: reset counter on extendMainChain on adding a block
-  ]
 }
