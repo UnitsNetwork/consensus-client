@@ -14,6 +14,7 @@ class BaseContract:
                 "from": sender_account.address,
                 "nonce": nonce,
                 "gasPrice": self.w3.eth.gas_price,
+                "chainId": self.w3.eth.chain_id,
             }
         )
         signed_tx = sender_account.sign_transaction(tx)

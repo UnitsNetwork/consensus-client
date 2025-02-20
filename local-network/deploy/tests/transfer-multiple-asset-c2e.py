@@ -3,10 +3,9 @@ from decimal import Decimal
 from time import sleep
 
 from eth_typing import ChecksumAddress
-from units_network import units, waves
-from units_network import common_utils
+from pywaves import Address
+from units_network import common_utils, units, waves
 from units_network.common_utils import configure_cli_logger
-from web3 import Web3
 from web3.types import Wei
 
 from local.common import C2ETransfer
@@ -34,61 +33,45 @@ def main():
             el_account=network.el_rich_accounts[0],
             raw_amount=Decimal("0.01"),
         ),
-        # C2ETransfer(
-        #     cl_account=network.cl_rich_accounts[1],
-        #     el_account=network.el_rich_accounts[1],
-        #     raw_amount=Decimal("0.03"),
-        # ),
+        C2ETransfer(
+            cl_account=network.cl_rich_accounts[1],
+            el_account=network.el_rich_accounts[1],
+            raw_amount=Decimal("0.03"),
+        ),
     ]
 
-    log.info("Register the asset")
-    r = network.register_test_asset()
-    waves.force_success(log, r, "Can not register asset")
-
-    sleep(10)
-
-    d = network.cl_chain_contract.getData(
-        f"assetRegistry_{network.cl_test_asset.assetId}"
-    )
-    log.info(f"[C] Data: {d}")
-
-    ratio = network.el_standard_bridge.token_ratio(
-        Web3.to_checksum_address(network.el_test_erc20.contract_address)
-    )
-    log.info(f"[E] Ratio: {ratio}")
-
-    log.info("[E] Deposit into StandardBridge")
+    log.info("[E] Deposit initial balance into StandardBridge")
     total_amount = Wei(0)
     for t in transfers:
         total_amount = Wei(total_amount + t.wei_amount)
 
-    # network.el_test_erc20.approve(
-    #     network.el_standard_bridge.contract_address,
-    #     total_amount,
-    #     network.el_rich_accounts[1],
-    # )
-
-    log.info(
-        f"[E] Test token: {network.el_test_erc20.contract_address}, "
-        + f"StandardBridge: {network.el_standard_bridge.contract_address}"
+    log.info("[E] Deposit: Approve transfers")
+    approve_txn = network.el_test_erc20.approve(
+        network.el_standard_bridge.contract_address,
+        total_amount,
+        network.el_rich_accounts[0],
     )
+    approve_result = network.w3.eth.wait_for_transaction_receipt(approve_txn)
+    log.info(f"[E] Approved: {approve_result}")
 
-    network.el_standard_bridge.bridge_erc20(
+    log.info("[E] Deposit: Send StandardBridge.bridgeERC20")
+    bridge_txn = network.el_standard_bridge.bridge_erc20(
         network.el_test_erc20.contract_address,
         common_utils.waves_public_key_hash_bytes(network.cl_rich_accounts[0].address),
         total_amount,
-        network.el_rich_accounts[1],
+        network.el_rich_accounts[0],
     )
+    bridge_result = network.w3.eth.wait_for_transaction_receipt(bridge_txn)
+    log.info(f"[E] Sent: {bridge_result}")
 
     cl_asset = network.cl_test_asset
     log.info(
-        f"[C] Asset id: {cl_asset.assetId}, ERC20 address: {network.el_test_erc20.contract_address}"
+        f"[C] Test asset id: {cl_asset.assetId}, ERC20 address: {network.el_test_erc20.contract_address}"
     )
 
-    # log.info("[C] Distribute test asset")
-
+    min_cl_balance: dict[Address, int] = {}
     expected_balances: dict[ChecksumAddress, Wei] = {}
-    for i, t in enumerate(transfers):
+    for t in transfers:
         to_address = t.to_account.address
         if to_address not in expected_balances:
             balance_before = network.el_test_erc20.get_balance(to_address)
@@ -101,6 +84,22 @@ def main():
             expected_balances[to_address] + t.wei_amount
         )
 
+        min_cl_balance[t.from_account] = (
+            min_cl_balance.get(t.from_account, 0) + t.waves_atomic_amount
+        )
+
+    log.info("[C] Distrubute tokens before sending")
+    for cl_address, min_balance in min_cl_balance.items():
+        if cl_address == network.cl_test_asset_issuer:
+            continue
+        transfer_txn = network.cl_test_asset_issuer.sendAsset(
+            cl_address, network.cl_test_asset, min_balance
+        )
+        waves.force_success(
+            log, transfer_txn, f"Can not send {min_balance} test assets to {cl_address}"
+        )
+
+    for i, t in enumerate(transfers):
         log.info(f"[C] #{i} Call ChainContract.transfer for {t}")
         transfer_result = network.cl_chain_contract.transfer(
             t.from_account, t.to_account.address, cl_asset, t.waves_atomic_amount

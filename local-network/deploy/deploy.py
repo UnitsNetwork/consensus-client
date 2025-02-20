@@ -2,13 +2,12 @@
 from decimal import Decimal
 from time import sleep
 
-from pywaves import Asset
 from units_network import units, waves
 from units_network.chain_contract import HexStr
 from units_network.common_utils import configure_cli_logger
 from units_network.node import Node
+from web3 import Web3
 
-from local.ContractFactory import ContractFactory
 from local.network import get_local
 
 log = configure_cli_logger(__file__)
@@ -123,9 +122,30 @@ while True:
     log.info("Wait for at least one block on EL")
     sleep(3)
 
+log.info("Set bridge address in ChainContract")
+update_txn = network.cl_chain_contract.storeData(
+    "elStandardBridgeAddress", "string", network.el_standard_bridge.contract_address
+)
+waves.force_success(
+    log, update_txn, "Can not change ChainContract.elStandardBridgeAddress"
+)
+
 log.info(f"ERC20 token address: {network.el_test_erc20.contract_address}")
 log.info(f"StandardBridge address: {network.el_standard_bridge.contract_address}")
 
-# log.info("Register the asset")
-# r = network.register_test_asset()
-# waves.force_success(log, r, "Can not register asset")
+log.info("Register the asset")
+ratio_txn = network.register_test_asset()
+waves.force_success(log, ratio_txn, "Can not register asset")
+
+attempts = 10
+while attempts > 0:
+    ratio = network.el_standard_bridge.token_ratio(
+        Web3.to_checksum_address(network.el_test_erc20.contract_address)
+    )
+    if ratio > 0:
+        log.info(f"Token registered, ratio: {ratio}")
+        break
+    sleep(3)
+    attempts -= 1
+
+log.info("Done")
