@@ -16,6 +16,7 @@ import units.docker.EcContainer
 import units.el.{BridgeMerkleTree, E2CTopics, EvmEncoding}
 import units.eth.EthAddress
 
+import java.io.File
 import java.math.BigInteger
 import scala.jdk.OptionConverters.RichOptional
 
@@ -37,7 +38,7 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
   private val enoughClAmount = clAmount * testTransfers
   private val enoughElAmount = elAmount * testTransfers
 
-  private val WWavesContractAddress = EthAddress.unsafeFrom("0xa50a51c09a5c451c52bb714527e1974b686d8e77")
+  private val WWavesContractAddress = EthAddress.unsafeFrom("0x2e1f232a9439c3d459fceca0beef13acc8259dd8")
 
   private val tenGwei = BigInt(Convert.toWei("10", Convert.Unit.GWEI).toBigIntegerExact)
 
@@ -82,7 +83,7 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
     "Checking balances in EL->CL->EL transfers" in {
       step("Issue ERC20 token")
       val txManager = new RawTransactionManager(ec1.web3j, elSender, EcContainer.ChainId, 10, 2000)
-      val terc20    = TERC20.load("0x42699a7612a82f1d9c36148af9c77354759b210b", ec1.web3j, txManager, new DefaultGasProvider)
+      val terc20    = TERC20.load("0x9b8397f1b0fecd3a1a40cdd5e8221fa461898517", ec1.web3j, txManager, new DefaultGasProvider)
 
       val erc20address = EthAddress.unsafeFrom(terc20.getContractAddress)
       log.info(s"Address: $erc20address")
@@ -285,11 +286,12 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
 
     import scala.sys.process.*
 
-    ProcessLogger
-    (s"forge script -vvvv --config-path ${sys.props("cc.it.contracts.dir")}/foundry.toml ${sys.props("cc.it.contracts.dir")}/scripts/Deployer.s.sol:Deployer " +
-      s"--fork-url http://localhost:${ec1.rpcPort} " +
-      s"--broadcast --private-key 8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63")
-      .!(ProcessLogger(out => log.info(out), err => log.error(err)))
+    Process(
+      s"forge script -vvvv scripts/Deployer.s.sol:Deployer --fork-url http://localhost:${ec1.rpcPort} --broadcast",
+      new File(sys.props("cc.it.contracts.dir")),
+      "CHAIN_ID"    -> EcContainer.ChainId.toString,
+      "PRIVATE_KEY" -> elRichAccount1ProvateKey
+    ).!(ProcessLogger(out => log.info(out), err => log.error(err)))
       .shouldBe(0)
   }
 }

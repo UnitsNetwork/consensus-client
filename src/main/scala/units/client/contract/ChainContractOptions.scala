@@ -11,10 +11,10 @@ import units.eth.{EthAddress, Gwei}
 case class ChainContractOptions(
     miningReward: Gwei,
     elNativeBridgeAddress: EthAddress,
-    elStandardBridgeAddress: EthAddress,
+    elStandardBridgeAddress: Option[EthAddress],
     assetTransfersActivationEpoch: Long
 ) {
-  val bridgeAddresses: List[EthAddress] = List(elNativeBridgeAddress, elStandardBridgeAddress)
+  val bridgeAddresses: List[EthAddress] = elStandardBridgeAddress.fold(List(elNativeBridgeAddress))(a => List(a, elNativeBridgeAddress))
   
   def startEpochChainFunction(epoch: Int, reference: BlockHash, vrf: ByteStr, chainInfo: Option[ChainInfo]): ContractFunction =
     chainInfo match {

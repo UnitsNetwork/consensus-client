@@ -29,7 +29,7 @@ class WavesNodeContainer(
     ecEngineApiUrl: String,
     genesisConfigPath: Path
 )(implicit httpClientBackend: SttpBackend[Identity, Any])
-    extends BaseContainer(s"wavesnode-$number") {
+    extends BaseContainer(s"waves-node-$number") {
   private val logFile = new File(s"$DefaultLogsDir/waves-$number.log")
   GFiles.touch(logFile)
 

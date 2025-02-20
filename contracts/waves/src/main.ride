@@ -969,6 +969,19 @@ func createAndRegisterAsset(erc20AddressHex: String, elDecimals: Int, name: Stri
   mkAssetRegistryEntries(assetIdB58, normalizedErc20Address, elDecimals - clDecimals)
 }
 
+@Callable(i)
+func enableTokenTransfers(standardBridgeAddress: String, wavesERC20AddressHex: String, activationEpoch: Int) = {
+  let standardBridgeWasNotConfigured = match getString(elStandardBridgeAddressKey) {
+    case address: String => address == "" || throw("Standard bridge has already been configured at " + address)
+    case _ => true
+  }
+
+  if (standardBridgeWasNotConfigured) then [
+    StringEntry(elStandardBridgeAddressKey, normalizeEthAddress(standardBridgeAddress)),
+    IntegerEntry(assetTransfersActivationEpochKey, activationEpoch)
+  ] ++ mkAssetRegistryEntries("WAVES", normalizeEthAddress(wavesERC20AddressHex), 0) else []
+}
+
 # genesisBlockHashHex without 0x
 @Callable(i)
 func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: String, daoReward: Int) = {
@@ -1010,9 +1023,7 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: Stri
       StringEntry(finalizedBlockKey, genesisBlockHashHex),
       issue,
       StringEntry(tokenIdKey, tokenId.toBase58String()),
-      StringEntry(elNativeBridgeAddressKey, "0x0000000000000000000000000000000000006a7e"),
-      StringEntry(elStandardBridgeAddressKey, "0x0000000000000000000000000000000057d06a7e"),
-      IntegerEntry(assetTransfersActivationEpochKey, 0)
+      StringEntry(elNativeBridgeAddressKey, "0x0000000000000000000000000000000000006a7e")
     ] ++ daoEntries
   }
 }

@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 from decimal import Decimal
 from time import sleep
+from subprocess import call
+import sys, os, logging
 
 from units_network import units, waves
 from units_network.chain_contract import HexStr
@@ -9,7 +11,7 @@ from units_network.node import Node
 
 from local.network import get_local
 
-log = configure_cli_logger(__file__)
+log = logging.getLogger(__name__)
 network = get_local()
 
 
@@ -37,7 +39,7 @@ if script_info["script"] is None:
 
     with open("setup/waves/main.ride", "r", encoding="utf-8") as file:
         source = file.read()
-    r = network.cl_chain_contract.setScript(source, 4_700_000)
+    r = network.cl_chain_contract.setScript(source, 4_800_000)
     waves.force_success(log, r, "Can not set the chain contract script")
 
 if not network.cl_chain_contract.isContractSetup():
@@ -118,3 +120,16 @@ while True:
         break
     log.info("Wait for at least one block on EL")
     sleep(3)
+
+log.info("Deploying StandardBridge contracts")
+try:
+    retcode = call("/root/.foundry/bin/forge script --force -vvvv scripts/Deployer.s.sol:Deployer --private-key $PRIVATE_KEY --fork-url http://ec-1:8545 --broadcast",
+        shell=True,
+        cwd='/tmp/contracts'
+    )
+    if retcode < 0:
+        print("Child was terminated by signal", -retcode, file=sys.stderr)
+    else:
+        print("Child returned", retcode, file=sys.stderr)
+except OSError as e:
+    print("Execution failed:", e, file=sys.stderr)
