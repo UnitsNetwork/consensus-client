@@ -10,7 +10,9 @@ class Erc20(BaseContract):
 
     def get_balance(self, address) -> Wei:
         address = Web3.to_checksum_address(address)
-        return self.contract.functions.balanceOf(address).call()
+        return self.contract.functions.balanceOf(address).call(
+            block_identifier="pending"
+        )
 
     def approve(self, spender_address, amount: Wei, sender_account):
         return self.send_transaction(
