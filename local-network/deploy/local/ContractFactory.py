@@ -17,7 +17,7 @@ class ContractFactory:
         contract_address = compute_contract_address(account.address, 0)
         code = w3.eth.get_code(contract_address)
         if not code or code == b"":
-            receipt = ContractFactory.deploy(w3, account, compiled_contract)
+            receipt = ContractFactory.deploy(w3, account, 0, compiled_contract)
             deployed_address = receipt.contractAddress
 
             if deployed_address != contract_address:
@@ -28,13 +28,12 @@ class ContractFactory:
         return contract_address, compiled_contract["abi"]
 
     @staticmethod
-    def deploy(w3, account, compiled_contract):
+    def deploy(w3, account, nonce, compiled_contract):
         """
         The JSON is expected to have the bytecode at the JSON path "bytecode/object" (a 0x-prefixed hex string).
         """
         bytecode = compiled_contract["bytecode"]["object"]
 
-        nonce = w3.eth.get_transaction_count(account.address, "pending")
         tx = {
             "from": account.address,
             "nonce": nonce,

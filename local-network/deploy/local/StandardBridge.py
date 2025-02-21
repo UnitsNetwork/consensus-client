@@ -42,7 +42,9 @@ class ERC20BridgeInitiatedEvent:
     cl_amount: int
 
     def to_merkle_leaf(self) -> bytes:
-        local_token_bytes = bytes.fromhex(self.local_token[2:].zfill(40))
-        cl_to_bytes = bytes.fromhex(self.cl_to[2:].zfill(40))
-        cl_amount_bytes = self.cl_amount.to_bytes(32, byteorder="big", signed=False)
+        local_token_bytes = bytes.fromhex(self.local_token[2:]).rjust(32, b"\x00")
+        cl_to_bytes = bytes.fromhex(self.cl_to[2:]).rjust(32, b"\x00")
+        cl_amount_bytes = self.cl_amount.to_bytes(
+            8, byteorder="big", signed=False
+        ).rjust(32, b"\x00")
         return local_token_bytes + cl_to_bytes + cl_amount_bytes

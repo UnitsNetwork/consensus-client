@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 from functools import cached_property
+import logging
 from typing import List, Optional
 import os
 
 from eth_account.signers.local import LocalAccount
 from pywaves import Address, Asset, pw
-from units_network import networks
+from units_network import networks, waves
 from units_network.chain_contract import ChainContract, HexStr
 from units_network.networks import Network, NetworkSettings
 from web3 import Account
@@ -44,25 +45,38 @@ class ExtendedNetwork(Network):
         return ChainContract(seed="devnet cc", nonce=0)
 
     @cached_property
-    def cl_test_asset_issuer(self) -> Address:
-        return self.cl_rich_accounts[0]
-
-    @cached_property
     def cl_test_asset(self) -> Asset:
-        cl_issuer_asset_ids = self.cl_test_asset_issuer.assets()
-
+        log = logging.getLogger("ExtendedNetwork")
         test_asset_name = "Test TTK token"
-        for asset_id in cl_issuer_asset_ids:
-            asset = Asset(asset_id)
+
+        cl_issuer_assets = self.cl_chain_contract_registered_assets()
+        for asset in cl_issuer_assets:
             if asset.name.decode("ascii") == test_asset_name:
                 return asset
 
-        test_asset = self.cl_test_asset_issuer.issueAsset(
-            test_asset_name, "Test bridged token", 123_000_000_000, decimals=8
+        register_txn = self.cl_chain_contract.createAndRegisterAsset(
+            erc20Address=self.el_test_erc20.contract_address,
+            elDecimals=self.el_test_erc20.decimals,
+            name=test_asset_name,
+            description="Test bridged token",
+            clDecimals=8,
+            txFee=100_500_000,
         )
-        if not test_asset:
-            raise Exception("Can't deploy a custom CL asset")
-        return test_asset
+
+        waves.force_success(log, register_txn, "Can not register asset")
+
+        # TODO: fix dup
+        cl_issuer_assets = self.cl_chain_contract_registered_assets()
+        for asset in cl_issuer_assets:
+            if asset.name.decode("ascii") == test_asset_name:
+                return asset
+
+        raise Exception("Can't deploy a custom CL asset")
+
+    # TODO: Move
+    def cl_chain_contract_registered_assets(self):
+        xs = self.cl_chain_contract.getData(regex="assetRegistryIndex_.*")
+        return [Asset(x["value"]) for x in xs]
 
     @cached_property
     def cl_miners(self) -> List[Miner]:
@@ -135,13 +149,6 @@ class ExtendedNetwork(Network):
             self.w3,
             self.el_rich_accounts[1],
             os.getcwd() + "/setup/el/TERC20.json",
-        )
-
-    def register_test_asset(self):
-        return self.cl_chain_contract.registerAsset(
-            self.cl_test_asset,
-            self.el_test_erc20.contract_address,
-            self.el_test_erc20.decimals(),
         )
 
 

@@ -32,8 +32,6 @@ network.cl_registry.storeData(
     f"unit_{network.cl_chain_contract.oracleAddress}_approved", "boolean", True
 )
 
-log.info(f"Test CL asset id: {network.cl_test_asset.assetId}")
-
 script_info = network.cl_chain_contract.oracleAcc.scriptInfo()
 if script_info["script"] is None:
     log.info("Set chain contract script")
@@ -130,12 +128,10 @@ waves.force_success(
     log, update_txn, "Can not change ChainContract.elStandardBridgeAddress"
 )
 
-log.info(f"ERC20 token address: {network.el_test_erc20.contract_address}")
 log.info(f"StandardBridge address: {network.el_standard_bridge.contract_address}")
-
-log.info("Register the asset")
-ratio_txn = network.register_test_asset()
-waves.force_success(log, ratio_txn, "Can not register asset")
+log.info(f"ERC20 token address: {network.el_test_erc20.contract_address}")
+log.info("Issue and register CL representation of EL token")
+log.info(f"Test CL asset id: {network.cl_test_asset.assetId}")
 
 attempts = 10
 while attempts > 0:

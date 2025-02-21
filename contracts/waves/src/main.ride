@@ -951,7 +951,7 @@ func createAndRegisterAsset(erc20AddressHex: String, elDecimals: Int, name: Stri
   let normalizedErc20Address = normalizeEthAddress(erc20AddressHex)
   strict elNotRegistered     = isElAssetRegistered(normalizedErc20Address) && throw("EL asset is already registered: 0x" + normalizedErc20Address)
 
-  mkAssetRegistryEntries(assetIdB58, normalizedErc20Address, elDecimals - clDecimals)
+  [ issue ] ++ mkAssetRegistryEntries(assetIdB58, normalizedErc20Address, elDecimals - clDecimals)
 }
 
 # genesisBlockHashHex without 0x
