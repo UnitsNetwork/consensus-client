@@ -362,15 +362,19 @@ func getUpdateFinalizedBlockAction(caller: Address, newBlockHashHex: String, pre
   )
 }
 
-func rewardEmptyEpochReporter(epochNumber: Int) = 
+func rewardEmptyEpochReporter(epochNumber: Int) = {
+  let tokenId = getStringValue(tokenIdKey).fromBase58String()
+  let rewardAmount = 50000000 # 0.5 UNIT0
   match getString(epochReportedEmptyKey(height)) {
     case u: Unit => []
-    case str =>
+    case reporterAddress =>
       [
-        DeleteEntry(epochReportedEmptyKey(height))
-        # TODO: transfer a reward
+        DeleteEntry(epochReportedEmptyKey(height)),
+        Reissue(tokenId, rewardAmount, true),
+        ScriptTransfer(Address(reporterAddress.fromBase58String()), rewardAmount, tokenId)
       ]
   }
+}
 
 @Callable(i)
 func extendMainChain(
@@ -402,7 +406,7 @@ func extendMainChain(
     IntegerEntry(minerChainIdKey(i.originCaller), mainChainId),
     IntegerEntry(chainLastHeightKey(mainChainId, i.originCaller), newChainHeight),
     thisEpochMeta
-  ] ++ updateFinalizedBlock ++ markEpochNonEmptyAndResetSkippedEpochCount
+  ] ++ updateFinalizedBlock ++ markEpochNonEmptyAndResetSkippedEpochCount ++ rewardEmptyEpochReporter(height - 1)
 }
 
 @Callable(i)
@@ -443,7 +447,7 @@ func startAltChain(
     IntegerEntry(chainLastHeightKey(mainChainId, i.originCaller), newChainHeight),
     StringEntry(supportersKey(newChainId), i.originCaller.toString()),
     IntegerEntry(lastChainIdKey, newChainId)
-  ] ++ markEpochNonEmptyAndResetSkippedEpochCount
+  ] ++ markEpochNonEmptyAndResetSkippedEpochCount ++ rewardEmptyEpochReporter(height - 1)
 }
 
 @Callable(i)
@@ -500,7 +504,7 @@ func extendAltChain(
     thisEpochMeta,
     IntegerEntry(minerChainIdKey(i.originCaller), chainId),
     IntegerEntry(chainLastHeightKey(chainId, i.originCaller), newChainHeight)
-  ] ++ updateMainChainData ++ addSupporter(chainId, i.originCaller) ++ updateMainChainLastMinedBlock ++ markEpochNonEmptyAndResetSkippedEpochCount
+  ] ++ updateMainChainData ++ addSupporter(chainId, i.originCaller) ++ updateMainChainLastMinedBlock ++ markEpochNonEmptyAndResetSkippedEpochCount ++ rewardEmptyEpochReporter(height - 1)
 }
 
 @Callable(i)
@@ -749,11 +753,8 @@ func reportEmptyEpoch() = {
     case _ => throw("Current epoch is already reported to be empty.")
   }
   strict skippedEpochCount = getInteger(minerSkippedEpochCountKey(computedGenerator)).valueOrElse(0)
-  strict scriptActions = 
-    [
-      IntegerEntry(minerSkippedEpochCountKey(computedGenerator), skippedEpochCount + 1),
-      StringEntry(epochReportedEmptyKey(height), i.originCaller.toString())
-    ]
-  scriptActions
-    # TODO: check on extendMainChain, reward the reporter if correct
+  [
+    IntegerEntry(minerSkippedEpochCountKey(computedGenerator), skippedEpochCount + 1),
+    StringEntry(epochReportedEmptyKey(height), i.originCaller.toString())
+  ]
 }
