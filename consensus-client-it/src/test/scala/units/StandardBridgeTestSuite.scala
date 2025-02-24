@@ -275,10 +275,14 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
       .shouldBe(0)
   }
 
-  private def registerAsset(asset: Asset, erc20Address: EthAddress, decimals: Int): Unit =
+  private def registerAsset(asset: Asset, erc20Address: EthAddress, elDecimals: Int): Unit =
     if (!standardBridge.isRegistered(erc20Address)) {
-      step(s"Register asset: CL=$asset, EL=$erc20Address, decimals=$decimals")
-      waves1.api.broadcastAndWait(ChainContract.registerAsset(asset, erc20Address, decimals))
+      step(s"Register asset: CL=$asset, EL=$erc20Address, elDecimals=$elDecimals")
+      val txn = asset match {
+        case asset: Asset.IssuedAsset => ChainContract.registerAsset(asset, erc20Address, elDecimals)
+        case Asset.Waves              => ChainContract.registerWaves(erc20Address, chainContract.getAssetRegistrySize)
+      }
+      waves1.api.broadcastAndWait(txn)
       eventually {
         standardBridge.isRegistered(erc20Address) shouldBe true
       }

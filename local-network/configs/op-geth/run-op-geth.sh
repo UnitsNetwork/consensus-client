@@ -15,7 +15,7 @@ tee $LOG_FILE <<EOF
 IP: $IP
 NETWORK: $NETWORK
 PREFIX: ${PREFIX}
-GETH_CONFIG: $GETH_CONFIG
+EXTRA_ARGS: $EXTRA_ARGS
 EOF
 
 # --syncmode full, because default "snap" mode and starting concurrently with ec-1 cause a stopped sync

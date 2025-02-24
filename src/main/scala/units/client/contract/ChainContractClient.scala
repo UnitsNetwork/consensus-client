@@ -342,7 +342,7 @@ object ChainContractClient {
   private val AllMinersKey       = "allMiners"
   private val MainChainIdKey     = "mainChainId"
   private val BlockHashBytesSize = 32
-  private val Sep                = ","
+  val Sep                        = ","
 
   private class InconsistentContractData(message: String, cause: Throwable = null)
       extends IllegalStateException(s"Probably, your have to upgrade your client. $message", cause)
@@ -350,7 +350,7 @@ object ChainContractClient {
   case class EpochContractMeta(miner: Address, prevEpoch: Int, lastBlockHash: BlockHash)
 
   enum ContractTransfer(val index: Long) {
-    case Native(idx: Long, to: EthAddress, amount: Long)                                                                 extends ContractTransfer(idx)
+    case Native(idx: Long, to: EthAddress, amount: Long)                                                              extends ContractTransfer(idx)
     case Asset(idx: Long, from: EthAddress, to: EthAddress, amount: EAmount, tokenAddress: EthAddress, asset: WAsset) extends ContractTransfer(idx)
   }
 

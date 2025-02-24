@@ -7,8 +7,10 @@ import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
-import com.wavesplatform.state.{BooleanDataEntry, DataEntry}
+import com.wavesplatform.lang.v1.compiler.Terms.EXPR
+import com.wavesplatform.state.{BooleanDataEntry, DataEntry, IntegerDataEntry, StringDataEntry}
 import com.wavesplatform.test.NumericExt
+import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.TxHelpers.defaultSigner
 import com.wavesplatform.transaction.smart.{InvokeScriptTransaction, SetScriptTransaction}
 import com.wavesplatform.transaction.{Asset, DataTransaction, TxHelpers}
@@ -78,18 +80,56 @@ trait HasConsensusLayerDappTxHelpers {
       fee = leaveFee
     )
 
-    def registerAsset(asset: Asset, erc20Address: EthAddress, elDecimals: Int, invoker: KeyPair = chainContractAccount): InvokeScriptTransaction =
+    // see main.ride: mkAssetRegistryEntries
+    def registerWaves(erc20Address: EthAddress, currRegistrySize: Long): DataTransaction =
+      TxHelpers.data(
+        chainContractAccount,
+        List(
+          StringDataEntry(
+            s"assetRegistry_${ChainContractClient.Registry.WavesAssetName}",
+            s"$currRegistrySize${ChainContractClient.Sep}${erc20Address.hex}${ChainContractClient.Sep}0"
+          ),
+          StringDataEntry(s"assetRegistryIndex_$currRegistrySize", ChainContractClient.Registry.WavesAssetName),
+          IntegerDataEntry(s"assetRegistryAssetE_${erc20Address.hex}", currRegistrySize),
+          IntegerDataEntry("assetRegistrySize", currRegistrySize + 1)
+        )
+      )
+
+    def registerAsset(
+        asset: IssuedAsset,
+        erc20Address: EthAddress,
+        elDecimals: Int,
+        invoker: KeyPair = chainContractAccount
+    ): InvokeScriptTransaction =
       registerAsset(asset, erc20Address.hexNoPrefix, elDecimals, invoker)
 
-    def registerAsset(asset: Asset, erc20AddressHex: String, elDecimals: Int, invoker: KeyPair): InvokeScriptTransaction =
+    def registerAsset(asset: IssuedAsset, erc20AddressHex: String, elDecimals: Int, invoker: KeyPair): InvokeScriptTransaction =
+      registerAssets(List(asset), List(erc20AddressHex), List(elDecimals), invoker)
+
+    def registerAssets(assets: List[IssuedAsset], erc20AddressHex: List[String], elDecimals: List[Int], invoker: KeyPair): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = invoker,
         dApp = chainContractAddress,
-        func = "registerAsset".some,
+        func = "registerAssets".some,
         args = List(
-          Terms.CONST_STRING(asset.fold(ChainContractClient.Registry.WavesAssetName)(_.id.toString)).explicitGet(),
-          Terms.CONST_STRING(erc20AddressHex).explicitGet(),
-          Terms.CONST_LONG(elDecimals)
+          Terms
+            .ARR(
+              assets.map(x => Terms.CONST_STRING(x.id.toString).explicitGet()).toVector,
+              limited = true
+            )
+            .explicitGet(),
+          Terms
+            .ARR(
+              erc20AddressHex.map(x => Terms.CONST_STRING(x).explicitGet()).toVector,
+              limited = true
+            )
+            .explicitGet(),
+          Terms
+            .ARR(
+              elDecimals.map(Terms.CONST_LONG(_)).toVector,
+              limited = true
+            )
+            .explicitGet()
         )
       )
 

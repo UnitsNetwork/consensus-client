@@ -53,10 +53,17 @@ class ChainContractImpureTestSuite extends BaseIntegrationTestSuite {
       }
 
       def test(d: ExtensionDomain, asset: Asset): Unit = {
-        val txn1 = d.ChainContract.registerAsset(asset, standardBridgeAddress, 8)
+        val txn1 = asset match {
+          case asset: Asset.IssuedAsset => d.ChainContract.registerAsset(asset, standardBridgeAddress, 8)
+          case Asset.Waves              => d.ChainContract.registerWaves(standardBridgeAddress, d.chainContractClient.getAssetRegistrySize)
+        }
         d.appendMicroBlock(txn1)
 
-        val txn2 = d.ChainContract.registerAsset(asset, EthAddress.from("0x10000000000000000000000000000155C3d06a7E").value, 8)
+        val newErc20Address = EthAddress.from("0x10000000000000000000000000000155C3d06a7E").value
+        val txn2 = asset match {
+          case asset: Asset.IssuedAsset => d.ChainContract.registerAsset(asset, newErc20Address, 8)
+          case Asset.Waves              => d.ChainContract.registerWaves(newErc20Address, d.chainContractClient.getAssetRegistrySize)
+        }
         val name = asset.fold(ChainContractClient.Registry.WavesAssetName)(_.id.toString)
         d.appendMicroBlockE(txn2).left.value.getMessage should include(s"CL asset is already registered: $name")
       }

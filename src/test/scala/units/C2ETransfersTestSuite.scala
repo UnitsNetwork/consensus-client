@@ -9,7 +9,7 @@ import com.wavesplatform.transaction.{Asset, TxHelpers}
 class C2ETransfersTestSuite extends BaseIntegrationTestSuite {
   private val transferSenderAccount  = TxHelpers.secondSigner
   private val validTransferRecipient = "1111111111111111111111111111111111111111"
-  private val unrelatedAsset         = TxHelpers.issue(issuer = transferSenderAccount)
+  private val issueAssetTxn          = TxHelpers.issue(issuer = transferSenderAccount)
 
   override protected val defaultSettings: TestSettings = super.defaultSettings.copy(
     additionalBalances = List(AddrWithBalance(transferSenderAccount.toAddress))
@@ -46,9 +46,9 @@ class C2ETransfersTestSuite extends BaseIntegrationTestSuite {
 
   "Deny an unregistered asset" in forAll(
     Table(
-      "invalid asset"                        -> "message",
-      Asset.Waves                            -> "Can't find in the registry: WAVES",
-      Asset.IssuedAsset(unrelatedAsset.id()) -> s"Can't find in the registry: ${unrelatedAsset.id()}"
+      "invalid asset"     -> "message",
+      Asset.Waves         -> "Can't find in the registry: WAVES",
+      issueAssetTxn.asset -> s"Can't find in the registry: ${issueAssetTxn.id()}"
     )
   ) { case (assetId, message) =>
     transferFuncTest(validTransferRecipient, assetId = Some(assetId)) should produce(message)
@@ -56,12 +56,30 @@ class C2ETransfersTestSuite extends BaseIntegrationTestSuite {
 
   "Allow a registered asset" in forAll(
     Table(
-      "invalid asset"                        -> "message",
-      Asset.Waves                            -> "Can't find in the registry: WAVES",
-      Asset.IssuedAsset(unrelatedAsset.id()) -> s"Can't find in the registry: ${unrelatedAsset.id()}"
+      "Asset",
+      Asset.Waves,
+      issueAssetTxn.asset
     )
-  ) { case (assetId, message) =>
-    transferFuncTest(validTransferRecipient, assetId = Some(assetId), register = true) should beRight
+  ) { asset =>
+    transferFuncTest(validTransferRecipient, assetId = Some(asset), register = true) should beRight
+  }
+
+  "Register multiple assets" in withExtensionDomain() { d =>
+    val issueAsset2Txn = TxHelpers.issue(issuer = transferSenderAccount)
+    d.appendMicroBlock(issueAssetTxn, issueAsset2Txn)
+
+    val assets = List(issueAssetTxn.asset, issueAsset2Txn.asset)
+    val registerTxn = d.ChainContract.registerAssets(
+      assets = assets,
+      erc20AddressHex = List.fill(2)(mkRandomEthAddress().hex),
+      elDecimals = List.fill(2)(8),
+      invoker = d.chainContractAccount
+    )
+
+    d.appendMicroBlockE(registerTxn) should beRight
+
+    val registeredAssets = d.chainContractClient.getAllRegisteredAssets.map(_.asset)
+    registeredAssets shouldBe assets
   }
 
   private def transferFuncTest(
@@ -73,11 +91,19 @@ class C2ETransfersTestSuite extends BaseIntegrationTestSuite {
   ): Either[Throwable, BlockId] = withExtensionDomain() { d =>
     val amount = Long.MaxValue / 2
     d.appendMicroBlock(
-      unrelatedAsset,
+      issueAssetTxn,
       TxHelpers.reissue(d.nativeTokenId, d.chainContractAccount, amount),
       TxHelpers.transfer(d.chainContractAccount, transferSenderAccount.toAddress, amount, d.nativeTokenId)
     )
-    assetId.filter(_ => register).foreach(assetId => d.appendMicroBlock(d.ChainContract.registerAsset(assetId, mkRandomEthAddress(), 8)))
+
+    assetId
+      .filter(_ => register)
+      .map {
+        case asset: Asset.IssuedAsset => d.ChainContract.registerAsset(asset, mkRandomEthAddress(), 8)
+        case Asset.Waves              => d.ChainContract.registerWaves(mkRandomEthAddress(), d.chainContractClient.getAssetRegistrySize)
+      }
+      .foreach(d.appendMicroBlock(_))
+
     if (queueSize > 0) d.appendMicroBlock(TxHelpers.data(d.chainContractAccount, Seq(IntegerDataEntry("nativeTransfersCount", queueSize))))
 
     d.appendMicroBlockE(d.ChainContract.transferUnsafe(transferSenderAccount, destElAddressHex, assetId.getOrElse(d.nativeTokenId), transferAmount))

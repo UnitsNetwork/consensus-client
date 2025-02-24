@@ -1,3 +1,4 @@
+from functools import cached_property
 from web3 import Web3
 from web3.types import Wei
 
@@ -5,6 +6,7 @@ from local.BaseContract import BaseContract
 
 
 class Erc20(BaseContract):
+    @cached_property
     def decimals(self):
         return self.contract.functions.decimals().call()
 
