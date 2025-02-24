@@ -401,14 +401,20 @@ func extendMainChain(
   let updateFinalizedBlock = getUpdateFinalizedBlockAction(i.originCaller, blockHashHex, mainChainEpoch)
 
   let newChainHeight = mainChainHeight + 1
-    ++ markCurrentEpochNonEmptyAndResetSkippedEpochCount
-    ++ [
+
+  [
     mkBlockMetaEntry(blockHashHex, newChainHeight, mainChainLastBlock, mainChainId, e2cTransfersRootHashHex, lastC2ETransferIndex),
     mkChainMetaEntry(mainChainId, newChainHeight, blockHashHex),
     IntegerEntry(minerChainIdKey(i.originCaller), mainChainId),
     IntegerEntry(chainLastHeightKey(mainChainId, i.originCaller), newChainHeight),
     thisEpochMeta
-  ] ++ updateFinalizedBlock
+  ] 
+  ++ updateFinalizedBlock
+  ++ markCurrentEpochNonEmptyAndResetSkippedEpochCount
+  # TODO: fold
+  ++ rewardEmptyEpochReporter(3)
+  ++ rewardEmptyEpochReporter(4)
+  ++ rewardEmptyEpochReporter(5)
 }
 
 @Callable(i)
@@ -449,7 +455,12 @@ func startAltChain(
     IntegerEntry(chainLastHeightKey(mainChainId, i.originCaller), newChainHeight),
     StringEntry(supportersKey(newChainId), i.originCaller.toString()),
     IntegerEntry(lastChainIdKey, newChainId)
-  ] # TODO: Mark, reward
+  ]
+  ++ markCurrentEpochNonEmptyAndResetSkippedEpochCount
+  # TODO: fold
+  ++ rewardEmptyEpochReporter(3)
+  ++ rewardEmptyEpochReporter(4)
+  ++ rewardEmptyEpochReporter(5)
 }
 
 @Callable(i)
@@ -536,7 +547,12 @@ func appendBlock(
     IntegerEntry(chainLastHeightKey(chainId, i.originCaller), newChainHeight),
     mkChainMetaEntry(chainId, newChainHeight, blockHashHex),
     StringEntry(epochMetaKey(height), thisEpochMiner.value().toString() + SEP + thisEpochRef.toString() + SEP + blockHashHex)
-  ] ++ markCurrentEpochNonEmptyAndResetSkippedEpochCount
+  ]
+  ++ markCurrentEpochNonEmptyAndResetSkippedEpochCount
+  # TODO: fold
+  ++ rewardEmptyEpochReporter(3)
+  ++ rewardEmptyEpochReporter(4)
+  ++ rewardEmptyEpochReporter(5)
 }
 
 @Callable(i)
