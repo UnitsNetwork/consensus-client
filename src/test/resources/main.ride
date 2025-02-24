@@ -190,7 +190,7 @@ let (computedGenerator, computedTotalBalance) = {
 }
 
 
-let markEpochNonEmptyAndResetSkippedEpochCount = 
+let markCurrentEpochNonEmptyAndResetSkippedEpochCount = 
   [
     DeleteEntry(minerSkippedEpochCountKey(computedGenerator)),
     DeleteEntry(epochReportedEmptyKey(height))
@@ -400,13 +400,14 @@ func extendMainChain(
   let updateFinalizedBlock = getUpdateFinalizedBlockAction(i.originCaller, blockHashHex, mainChainEpoch)
 
   let newChainHeight = mainChainHeight + 1
-  [
+    ++ markCurrentEpochNonEmptyAndResetSkippedEpochCount
+    ++ [
     mkBlockMetaEntry(blockHashHex, newChainHeight, mainChainLastBlock, mainChainId, e2cTransfersRootHashHex, lastC2ETransferIndex),
     mkChainMetaEntry(mainChainId, newChainHeight, blockHashHex),
     IntegerEntry(minerChainIdKey(i.originCaller), mainChainId),
     IntegerEntry(chainLastHeightKey(mainChainId, i.originCaller), newChainHeight),
     thisEpochMeta
-  ] ++ updateFinalizedBlock ++ markEpochNonEmptyAndResetSkippedEpochCount ++ rewardEmptyEpochReporter(height - 1)
+  ] ++ updateFinalizedBlock
 }
 
 @Callable(i)
@@ -447,7 +448,7 @@ func startAltChain(
     IntegerEntry(chainLastHeightKey(mainChainId, i.originCaller), newChainHeight),
     StringEntry(supportersKey(newChainId), i.originCaller.toString()),
     IntegerEntry(lastChainIdKey, newChainId)
-  ] ++ markEpochNonEmptyAndResetSkippedEpochCount ++ rewardEmptyEpochReporter(height - 1)
+  ] # TODO: Mark, reward
 }
 
 @Callable(i)
@@ -504,7 +505,7 @@ func extendAltChain(
     thisEpochMeta,
     IntegerEntry(minerChainIdKey(i.originCaller), chainId),
     IntegerEntry(chainLastHeightKey(chainId, i.originCaller), newChainHeight)
-  ] ++ updateMainChainData ++ addSupporter(chainId, i.originCaller) ++ updateMainChainLastMinedBlock ++ markEpochNonEmptyAndResetSkippedEpochCount ++ rewardEmptyEpochReporter(height - 1)
+  ] ++ updateMainChainData ++ addSupporter(chainId, i.originCaller) ++ updateMainChainLastMinedBlock  # TODO: Mark, reward
 }
 
 @Callable(i)
@@ -534,7 +535,7 @@ func appendBlock(
     IntegerEntry(chainLastHeightKey(chainId, i.originCaller), newChainHeight),
     mkChainMetaEntry(chainId, newChainHeight, blockHashHex),
     StringEntry(epochMetaKey(height), thisEpochMiner.value().toString() + SEP + thisEpochRef.toString() + SEP + blockHashHex)
-  ] ++ markEpochNonEmptyAndResetSkippedEpochCount
+  ] ++ markCurrentEpochNonEmptyAndResetSkippedEpochCount
 }
 
 @Callable(i)
