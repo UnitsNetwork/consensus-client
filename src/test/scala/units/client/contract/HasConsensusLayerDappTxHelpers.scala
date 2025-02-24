@@ -133,16 +133,16 @@ trait HasConsensusLayerDappTxHelpers {
         )
       )
 
-    def createAndRegisterAsset(
+    def issueAndRegister(
         erc20Address: EthAddress,
         elDecimals: Int,
         name: String,
         description: String,
         clDecimals: Int,
         invoker: KeyPair = chainContractAccount
-    ): InvokeScriptTransaction = createAndRegisterAsset(erc20Address.hexNoPrefix, elDecimals, name, description, clDecimals, invoker)
+    ): InvokeScriptTransaction = issueAndRegister(erc20Address.hexNoPrefix, elDecimals, name, description, clDecimals, invoker)
 
-    def createAndRegisterAsset(
+    def issueAndRegister(
         erc20AddressHex: String,
         elDecimals: Int,
         name: String,
@@ -153,14 +153,15 @@ trait HasConsensusLayerDappTxHelpers {
       TxHelpers.invoke(
         invoker = invoker,
         dApp = chainContractAddress,
-        func = "createAndRegisterAsset".some,
+        func = "issueAndRegister".some,
         args = List(
           Terms.CONST_STRING(erc20AddressHex).explicitGet(),
           Terms.CONST_LONG(elDecimals),
           Terms.CONST_STRING(name).explicitGet(),
           Terms.CONST_STRING(description).explicitGet(),
           Terms.CONST_LONG(clDecimals)
-        )
+        ),
+        fee = issueAndRegisterFee
       )
 
     def extendMainChain(
@@ -354,16 +355,17 @@ object HasConsensusLayerDappTxHelpers {
 
   object DefaultFees {
     object ChainContract {
-      val setScriptFee       = 0.05.waves
-      val setupFee           = 2.waves
-      val joinFee            = 0.1.waves
-      val leaveFee           = 0.1.waves
-      val extendMainChainFee = 0.1.waves
-      val appendBlockFee     = 0.1.waves
-      val startAltChainFee   = 0.1.waves
-      val extendAltChainFee  = 0.1.waves
-      val transferFee        = 0.1.waves
-      val withdrawFee        = 0.1.waves
+      val setScriptFee        = 0.05.waves
+      val setupFee            = 2.waves
+      val joinFee             = 0.1.waves
+      val leaveFee            = 0.1.waves
+      val extendMainChainFee  = 0.1.waves
+      val appendBlockFee      = 0.1.waves
+      val startAltChainFee    = 0.1.waves
+      val extendAltChainFee   = 0.1.waves
+      val transferFee         = 0.1.waves
+      val withdrawFee         = 0.1.waves
+      val issueAndRegisterFee = 1.005.waves
     }
   }
 }
