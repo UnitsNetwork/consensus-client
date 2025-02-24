@@ -1,6 +1,5 @@
 package units
 
-import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.db.WithState.AddrWithBalance
 import com.wavesplatform.state.{IntegerDataEntry, StringDataEntry}
 import com.wavesplatform.transaction.Asset.IssuedAsset
@@ -13,11 +12,6 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
 
   override protected val defaultSettings: TestSettings =
     super.defaultSettings.copy(initialMiners = List(miner1, miner2)).withEnabledElMining
-
-  private def unit0asset(d: ExtensionDomain): IssuedAsset = d.accountsApi.data(d.chainContractAddress, "tokenId") match {
-    case Some(StringDataEntry(_, tokenId)) => IssuedAsset(ByteStr.decodeBase58(tokenId).get)
-    case _                                 => throw new Exception("tokenId not found")
-  }
 
   "Empty epoch confirmed, reporter rewarded" in {
     val settings = defaultSettings
@@ -66,7 +60,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
 
       // Assertion: a reporter reward is paid
       d.portfolio(miner2.address) shouldBe
-        Seq((unit0asset(d), 50_000_000L))
+        Seq((d.token, 50_000_000L))
     }
   }
 
@@ -114,8 +108,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         Some(IntegerDataEntry(minerSkippedEpochCountKey, 2L))
 
       // Assertion: a reporter reward is paid
-      d.portfolio(miner2.address) shouldBe
-        Seq((unit0asset(d), 100_000_000L))
+      d.portfolio(miner2.address) shouldBe Seq((d.token, 100_000_000L))
     }
   }
 
@@ -177,7 +170,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(miner2.account, ecBlockAfter))
 
       // Assertion: first reporter is rewarded only once
-      d.portfolio(miner2.address) shouldBe Seq((unit0asset(d), 50_000_000L))
+      d.portfolio(miner2.address) shouldBe Seq((d.token, 50_000_000L))
 
       // Assertion: second reporter is not rewarded at all
       d.portfolio(miner3.address) shouldBe Seq.empty
