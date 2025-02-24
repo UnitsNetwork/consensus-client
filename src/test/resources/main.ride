@@ -364,12 +364,12 @@ func getUpdateFinalizedBlockAction(caller: Address, newBlockHashHex: String, pre
 
 func rewardEmptyEpochReporter(epochNumber: Int) = {
   let tokenId = getStringValue(tokenIdKey).fromBase58String()
-  let rewardAmount = 50000000 # 0.5 UNIT0
-  match getString(epochReportedEmptyKey(height)) {
+  let rewardAmount = 50000000
+  match getString(epochReportedEmptyKey(epochNumber)) {
     case u: Unit => []
     case reporterAddress =>
       [
-        DeleteEntry(epochReportedEmptyKey(height)),
+        DeleteEntry(epochReportedEmptyKey(epochNumber)),
         Reissue(tokenId, rewardAmount, true),
         ScriptTransfer(Address(reporterAddress.fromBase58String()), rewardAmount, tokenId)
       ]
