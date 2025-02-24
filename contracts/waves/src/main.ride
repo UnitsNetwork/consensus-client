@@ -15,7 +15,9 @@ let MAX_CL_TO_EL_TRANSFERS = 16
 let WAVES_ASSET_NAME       = "WAVES"
 
 # 1024 symbols
-let zeroesStr   = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+let zeroesStr = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+# 36 bytes
+let zeroBytes   = base16'000000000000000000000000000000000000000000000000000000000000000000000000'
 let indexes_10  = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 let offsets_100 = "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::".split_4C("")
 
@@ -844,13 +846,11 @@ func withdraw(blockHashHex: String, merkleProof: List[ByteVector], transferIndex
   let recipientPkHash = recipient.bytes.drop(2) # Drop version and networkChainId
     .take(PUBLIC_KEY_HASH_SIZE)
 
-  # zeroAmountBytes: 36 bytes padding max
-  let zeroAmountBytes = base16'0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'
-  let amountBytes     = amount.toBytes()
+  let amountBytes = amount.toBytes()
 
   # recipientPkHash: 20 + 12 right padding bytes (see TypeEncoder.encodeBytes)
   # amountBytes:     24 left padding (see TypeEncoder.encodeNumeric) + 8 bytes
-  let elEventData       = recipientPkHash + zeroAmountBytes.take(zeroAmountBytes.size() - amountBytes.size()) + amountBytes
+  let elEventData       = recipientPkHash + zeroBytes.take(36) + amountBytes
   let elEventDataDigest = blake2b256_16Kb(elEventData)
 
   let calculatedRootHash = createMerkleRoot(merkleProof, elEventDataDigest, transferIndexInBlock)
@@ -874,30 +874,31 @@ func withdraw(blockHashHex: String, merkleProof: List[ByteVector], transferIndex
 func withdrawAsset(blockHashHex: String, merkleProof: List[ByteVector], transferIndexInBlock: Int, amount: Int, assetIdBase58OrWaves: String) = {
   strict normalizedBlockHashHex = validateBlockHash(cut0x(blockHashHex))
 
-  let tokenId     = getStringValue(tokenIdKey)
-  strict notToken = assetIdBase58OrWaves == tokenId && throw("Use 'withdraw' function for native token withdrawals")
-
   strict assetId   = parseAssetId(assetIdBase58OrWaves)
   let erc20Address = getAssetErc20Address(assetIdBase58OrWaves)
-
-  strict withdrawBlockMeta = commonWithdrawChecks(normalizedBlockHashHex, merkleProof, transferIndexInBlock, amount)
 
   let recipient       = i.originCaller
   let recipientPkHash = recipient.bytes.drop(2) # Drop version and networkChainId
     .take(PUBLIC_KEY_HASH_SIZE)
 
-  # zeroAmountBytes: 36 bytes padding max
-  let zeroAmountBytes = base16'000000000000000000000000000000000000000000000000000000000000000000000000'
-  let amountBytes     = amount.toBytes()
+  let amountBytes = amount.toBytes()
+  let tokenId     = getStringValue(tokenIdKey)
+  let elEventData = if (assetIdBase58OrWaves == tokenId) then {
+    # recipientPkHash: 20 + 12 right padding bytes (see TypeEncoder.encodeBytes)
+    # amountBytes:     24 left padding (see TypeEncoder.encodeNumeric) + 8 bytes
+    recipientPkHash + zeroBytes.take(36) + amountBytes
+  } else {
+    # See ERC20BridgeInitiated:
+    # token:    12 left padding (see TypeEncoder.encodeAddress) + 20 bytes
+    # clTo:     12 left padding (see TypeEncoder.encodeAddress) + 20 bytes
+    # clAmount: 24 left padding (see TypeEncoder.encodeNumeric) + 8 bytes
+    zeroBytes.take(12) + erc20Address + zeroBytes.take(12) + recipientPkHash + zeroBytes.take(24) + amountBytes
+  }
 
-  # See ERC20BridgeInitiated:
-  # token:    12 left padding (see TypeEncoder.encodeAddress) + 20 bytes
-  # clTo:     12 left padding (see TypeEncoder.encodeAddress) + 20 bytes
-  # clAmount: 24 left padding (see TypeEncoder.encodeNumeric) + 8 bytes
-  let elEventData       = zeroAmountBytes.take(12) + erc20Address + zeroAmountBytes.take(12) + recipientPkHash + zeroAmountBytes.take(24) + amountBytes
   let elEventDataDigest = blake2b256_16Kb(elEventData)
 
   let calculatedRootHash = createMerkleRoot(merkleProof, elEventDataDigest, transferIndexInBlock)
+  let withdrawBlockMeta  = commonWithdrawChecks(normalizedBlockHashHex, merkleProof, transferIndexInBlock, amount)
   let expectedRootHash   = withdrawBlockMeta._5
   strict equalHashes     = calculatedRootHash == expectedRootHash || throw(
     "Expected root hash: " + expectedRootHash.toBase16String() + ", got: " + calculatedRootHash.toBase16String() +
