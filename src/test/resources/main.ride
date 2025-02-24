@@ -368,11 +368,12 @@ func rewardEmptyEpochReporter(epochNumber: Int) = {
   match getString(epochReportedEmptyKey(epochNumber)) {
     case u: Unit => []
     case reporterAddress =>
-      [
+      if epochNumber != height then [
         DeleteEntry(epochReportedEmptyKey(epochNumber)),
         Reissue(tokenId, rewardAmount, true),
         ScriptTransfer(Address(reporterAddress.fromBase58String()), rewardAmount, tokenId)
       ]
+      else []
   }
 }
 

@@ -223,7 +223,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(miner2.account, ecBlockAfter))
 
       // Assertion: a reporter is not rewarded
-//      d.portfolio(miner2.address) shouldBe Seq.empty // TODO: fix
+      d.portfolio(miner2.address) shouldBe Seq.empty
     }
   }
 
