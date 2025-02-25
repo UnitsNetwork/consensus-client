@@ -18,6 +18,11 @@ def main():
     log = configure_cli_logger(__file__)
     network = get_local()
 
+    log.info("==== E2C Transfer test ====")
+    log.info(
+        f"[C] Test asset id: {network.cl_test_asset.assetId}, ERC20 address: {network.el_test_erc20.contract_address}"
+    )
+
     transfers = [
         C2ETransfer(
             cl_account=network.cl_rich_accounts[0],
@@ -52,6 +57,7 @@ def main():
             min_el_balance.get(t.to_account, 0) + t.wei_amount
         )
 
+    txns = []
     for el_account, min_balance in min_el_balance.items():
         log.info(f"[E] Approve transfer of {min_balance} for StandardBridge")
         approve_txn = network.el_test_erc20.approve(
@@ -59,7 +65,10 @@ def main():
             min_balance,
             el_account,
         )
-        approve_result = network.w3.eth.wait_for_transaction_receipt(approve_txn)
+        txns.append(approve_txn)
+
+    for txn in txns:
+        approve_result = network.w3.eth.wait_for_transaction_receipt(txn)
         log.info(f"Approved: {approve_result}")
 
     log.info("[E] Start E2C transfers")
@@ -113,12 +122,6 @@ def main():
         log.info(f"[E] Parsed event: {evt}")
         merkle_leaves.append(evt.to_merkle_leaf().hex())
 
-    # E2CTransferParams(
-    #     block_with_transfer_hash=block_hash,
-    #     merkle_proofs=get_merkle_proofs(merkle_leaves, transfer_index_in_block),
-    #     transfer_index_in_block=transfer_index_in_block,
-    # )
-
     log.info("[C] Wait the block on ChainContract")
     withdraw_block_meta = network.require_settled_block(block_hash, block_number)
 
@@ -162,13 +165,7 @@ def main():
         )
         assert actual_balance == expected_balance
 
-    exit(0)
-
-    cl_asset = network.cl_test_asset
-    log.info(
-        f"[C] Test asset id: {cl_asset.assetId}, ERC20 address: {network.el_test_erc20.contract_address}"
-    )
-
+    log.info("==== C2E Transfer test ====")
     expected_balances: dict[ChecksumAddress, Wei] = {}
     for t in transfers:
         to_address = t.to_account.address
@@ -183,19 +180,25 @@ def main():
             expected_balances[to_address] + t.wei_amount
         )
 
+    txns = []
     for i, t in enumerate(transfers):
         log.info(f"[C] #{i} Call ChainContract.transfer for {t}")
-        transfer_result = network.cl_chain_contract.transfer(
-            t.from_account, t.to_account.address, cl_asset, t.waves_atomic_amount
+        txn = network.cl_chain_contract.transfer(
+            t.from_account,
+            t.to_account.address,
+            network.cl_test_asset,
+            t.waves_atomic_amount,
         )
-        waves.force_success(
-            log, transfer_result, "Can not send the chain_contract.transfer transaction"
-        )
-        log.info(f"[C] #{i} ChainContract.transfer result: {transfer_result}")
+        txns.append(txn)
 
-    el_curr_height = network.w3.eth.block_number
+    for i, txn in enumerate(txns):
+        waves.force_success(
+            log, txn, "Can not send the ChainContract.transfer transaction"
+        )
+        log.info(f"[C] #{i} ChainContract.transfer result: {txn}")
 
     wait_blocks = 2
+    el_curr_height = network.w3.eth.block_number
     el_target_height = el_curr_height + wait_blocks
     while el_curr_height < el_target_height:
         log.info(f"[E] Waiting {el_target_height}, current height: {el_curr_height}")
