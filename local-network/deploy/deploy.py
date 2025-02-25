@@ -27,10 +27,10 @@ while True:
 log.info(f"Registry address: {network.cl_registry.oracleAddress}")
 log.info(f"Chain contract address: {network.cl_chain_contract.oracleAddress}")
 
-log.info("Approve chain contract on registry")
-network.cl_registry.storeData(
-    f"unit_{network.cl_chain_contract.oracleAddress}_approved", "boolean", True
-)
+key = f"unit_{network.cl_chain_contract.oracleAddress}_approved"
+if len(network.cl_registry.getData(regex=key)) == 0:
+    log.info("Approve chain contract on registry")
+    network.cl_registry.storeData(key, "boolean", True)
 
 script_info = network.cl_chain_contract.oracleAcc.scriptInfo()
 if script_info["script"] is None:
@@ -38,7 +38,7 @@ if script_info["script"] is None:
 
     with open("setup/waves/main.ride", "r", encoding="utf-8") as file:
         source = file.read()
-    r = network.cl_chain_contract.setScript(source, 4_700_000)
+    r = network.cl_chain_contract.setScript(source)
     waves.force_success(log, r, "Can not set the chain contract script")
 
 if not network.cl_chain_contract.isContractSetup():
@@ -96,9 +96,7 @@ log.info(f"Miners: {joined_miners}")
 for miner in network.cl_miners:
     if miner.account.address not in joined_miners:
         log.info(f"Call ChainContract.join by miner f{miner.account.address}")
-        r = network.cl_chain_contract.join_v2(
-            miner.account, miner.el_reward_address_hex
-        )
+        r = network.cl_chain_contract.join(miner.account, miner.el_reward_address_hex)
         waves.force_success(
             log,
             r,
@@ -120,17 +118,19 @@ while True:
     log.info("Wait for at least one block on EL")
     sleep(3)
 
-log.info("Set bridge address in ChainContract")
-update_txn = network.cl_chain_contract.storeData(
-    "elStandardBridgeAddress", "string", network.el_standard_bridge.contract_address
-)
-waves.force_success(
-    log, update_txn, "Can not change ChainContract.elStandardBridgeAddress"
-)
+key = "elStandardBridgeAddress"
+elStandardBridgeAddress = network.cl_chain_contract.getData(key)
+if elStandardBridgeAddress != network.el_standard_bridge.contract_address:
+    log.info(
+        f"Set bridge address in ChainContract to {network.el_standard_bridge.contract_address}, current: {elStandardBridgeAddress}"
+    )
+    update_txn = network.cl_chain_contract.storeData(
+        key, "string", network.el_standard_bridge.contract_address
+    )
+    waves.force_success(log, update_txn, f"Can not change ChainContract.{key}")
 
 log.info(f"StandardBridge address: {network.el_standard_bridge.contract_address}")
 log.info(f"ERC20 token address: {network.el_test_erc20.contract_address}")
-log.info("Issue and register CL representation of EL token")
 log.info(f"Test CL asset id: {network.cl_test_asset.assetId}")
 
 attempts = 10

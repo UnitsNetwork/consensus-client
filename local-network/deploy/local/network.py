@@ -54,7 +54,8 @@ class ExtendedNetwork(Network):
             if asset.name.decode("ascii") == test_asset_name:
                 return asset
 
-        register_txn = self.cl_chain_contract.createAndRegisterAsset(
+        register_txn = self.cl_chain_contract.issueAndRegister(
+            sender=self.cl_chain_contract.oracleAcc,
             erc20Address=self.el_test_erc20.contract_address,
             elDecimals=self.el_test_erc20.decimals,
             name=test_asset_name,
