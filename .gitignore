@@ -8,3 +8,4 @@ metals.sbt
 docker/data
 docker/logs
 docker/secrets.env
+*.log

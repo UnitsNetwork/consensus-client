@@ -20,6 +20,8 @@ cp ../contracts/eth/target/TERC20.sol/TERC20.json ./deploy/setup/el/
 cp ../contracts/eth/target/StandardBridge.sol/StandardBridge.json ./deploy/setup/el/
 cp ../contracts/waves/src/*.ride ./deploy/setup/waves/
 
+./update-eth-genesis.sh
+
 export COMPOSE_PROFILES="${COMPOSE_PROFILES:-}"
 echo "Compose profiles are: ${COMPOSE_PROFILES}"
 

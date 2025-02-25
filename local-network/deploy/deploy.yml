@@ -7,5 +7,6 @@ services:
     platform: linux/amd64 # HACK for Apple Silicon
     environment:
       LOGGING_CONFIG: /usr/src/app/logging.conf
+      LOGGING_DIR: /var/log/deploy 
     volumes:
       - .:/usr/src/app
