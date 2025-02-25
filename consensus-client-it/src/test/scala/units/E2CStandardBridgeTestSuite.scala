@@ -2,6 +2,7 @@ package units
 
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
+import com.wavesplatform.lang.v1.compiler.Terms.{CONST_BYTESTR, CONST_LONG, CONST_STRING}
 import com.wavesplatform.transaction.Asset.{IssuedAsset, Waves}
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import com.wavesplatform.transaction.{Asset, TxHelpers}
@@ -11,14 +12,16 @@ import org.web3j.protocol.core.methods.response.TransactionReceipt
 import org.web3j.tx.RawTransactionManager
 import org.web3j.tx.gas.DefaultGasProvider
 import org.web3j.utils.Convert
+import play.api.libs.json.Json
 import units.bridge.{TERC20, WWaves}
 import units.docker.EcContainer
 import units.el.{BridgeMerkleTree, E2CTopics, EvmEncoding}
 import units.eth.EthAddress
 
-import java.io.File
+import java.io.{File, FileInputStream}
 import java.math.BigInteger
 import scala.jdk.OptionConverters.RichOptional
+import scala.util.Using
 
 // TODO: asset registered in EL/CL first cases, WAVES
 class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
@@ -175,11 +178,6 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
         val txManager = new RawTransactionManager(ec1.web3j, elRichAccount1, EcContainer.ChainId, 20, 2000)
         val wwaves    = WWaves.load(WWavesContractAddress.hex, ec1.web3j, txManager, new DefaultGasProvider)
 
-        waves1.api.broadcastAndWait(ChainContract.registerAsset(Asset.Waves, WWavesContractAddress, 8))
-        eventually {
-          standardBridge.isRegistered(WWavesContractAddress) shouldBe true
-        }
-
         val transferAmount = 55_00000000L
 
         val chainContractBalanceBefore = waves1.api.balance(chainContractAddress, Asset.Waves)
@@ -286,12 +284,22 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
 
     import scala.sys.process.*
 
+    val contractsDir = new File(sys.props("cc.it.contracts.dir"))
     Process(
-      s"forge script -vvvv scripts/Deployer.s.sol:Deployer --fork-url http://localhost:${ec1.rpcPort} --broadcast",
-      new File(sys.props("cc.it.contracts.dir")),
-      "CHAIN_ID"    -> EcContainer.ChainId.toString,
-      "PRIVATE_KEY" -> elRichAccount1ProvateKey
+      s"forge script -vvvv scripts/Deployer.s.sol:Deployer --private-key $elRichAccount1ProvateKey --fork-url http://localhost:${ec1.rpcPort} --broadcast",
+      contractsDir,
+      "CHAIN_ID"    -> EcContainer.ChainId.toString
     ).!(ProcessLogger(out => log.info(out), err => log.error(err)))
       .shouldBe(0)
+
+    val contractAddresses = Using(new FileInputStream(new File(s"$contractsDir/target/deployments/${EcContainer.ChainId}/.deploy"))) { fis =>
+      Json.parse(fis)
+    }.get.as[Map[String, String]]
+
+    waves1.api.broadcastAndWait(ChainContract.enableTokenTransfers(
+      EthAddress.unsafeFrom(contractAddresses("StandardBridge")),
+      EthAddress.unsafeFrom(contractAddresses("WWaves")),
+      5
+    ))
   }
 }

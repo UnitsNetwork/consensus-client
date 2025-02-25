@@ -7,6 +7,7 @@ import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
+import com.wavesplatform.lang.v1.compiler.Terms.{CONST_LONG, CONST_STRING}
 import com.wavesplatform.state.{BooleanDataEntry, DataEntry}
 import com.wavesplatform.test.NumericExt
 import com.wavesplatform.transaction.TxHelpers.defaultSigner
@@ -64,6 +65,13 @@ trait HasConsensusLayerDappTxHelpers {
       ),
       fee = setupFee,
       invoker = invoker
+    )
+
+    def enableTokenTransfers(standardBridge: EthAddress, wwaves: EthAddress, activationHeight: Int): InvokeScriptTransaction = TxHelpers.invoke(
+      chainContractAddress,
+      Some("enableTokenTransfers"),
+      Seq(CONST_STRING(standardBridge.hex.drop(2)).explicitGet(), CONST_STRING(wwaves.hex.drop(2)).explicitGet(), CONST_LONG(activationHeight)),
+      invoker = chainContractAccount
     )
 
     def join(minerAccount: KeyPair, elRewardAddress: EthAddress): InvokeScriptTransaction = TxHelpers.invoke(
@@ -126,7 +134,7 @@ trait HasConsensusLayerDappTxHelpers {
         )
       )
 
-    def extendMainChain(
+    def extendMainChainV2(
         minerAccount: KeyPair,
         block: L2BlockLike,
         e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
@@ -134,9 +142,9 @@ trait HasConsensusLayerDappTxHelpers {
         lastAssetRegistryIndex: Int = -1,
         vrf: ByteStr = currentHitSource
     ): InvokeScriptTransaction =
-      extendMainChain(minerAccount, block.hash, block.parentHash, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex, vrf)
+      extendMainChainV2(minerAccount, block.hash, block.parentHash, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex, vrf)
 
-    def extendMainChain(
+    def extendMainChainV2(
         minerAccount: KeyPair,
         blockHash: BlockHash,
         parentBlockHash: BlockHash,
@@ -156,6 +164,37 @@ trait HasConsensusLayerDappTxHelpers {
           Terms.CONST_STRING(e2cTransfersRootHashHex.drop(2)).explicitGet(),
           Terms.CONST_LONG(lastC2ETransferIndex),
           Terms.CONST_LONG(lastAssetRegistryIndex)
+        ),
+        fee = extendMainChainFee
+      )
+
+    def extendMainChain(
+          minerAccount: KeyPair,
+          block: L2BlockLike,
+          e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
+          lastC2ETransferIndex: Long = -1,
+          vrf: ByteStr = currentHitSource
+      ): InvokeScriptTransaction =
+        extendMainChain(minerAccount, block.hash, block.parentHash, e2cTransfersRootHashHex, lastC2ETransferIndex, vrf)
+
+    def extendMainChain(
+        minerAccount: KeyPair,
+        blockHash: BlockHash,
+        parentBlockHash: BlockHash,
+        e2cTransfersRootHashHex: String,
+        lastC2ETransferIndex: Long,
+        vrf: ByteStr
+    ): InvokeScriptTransaction =
+      TxHelpers.invoke(
+        invoker = minerAccount,
+        dApp = chainContractAddress,
+        func = "extendMainChain".some,
+        args = List(
+          Terms.CONST_STRING(blockHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(parentBlockHash.drop(2)).explicitGet(),
+          Terms.CONST_BYTESTR(vrf).explicitGet(),
+          Terms.CONST_STRING(e2cTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(lastC2ETransferIndex)
         ),
         fee = extendMainChainFee
       )

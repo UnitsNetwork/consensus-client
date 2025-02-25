@@ -44,6 +44,7 @@ class WavesNodeContainer(
           "-Dwaves.miner.quorum=0",
           s"-Dunits.defaults.chain-contract=$chainContractAddress",
           s"-Dunits.defaults.execution-client-address=$ecEngineApiUrl",
+          s"-Dunits.defaults.jwt-secret-file=/etc/secrets/jwtsecret.hex",
           "-Dlogback.file.level=TRACE",
           "-Dfile.encoding=UTF-8",
           "-XX:+IgnoreUnrecognizedVMOptions",

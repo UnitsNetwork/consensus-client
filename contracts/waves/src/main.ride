@@ -977,7 +977,7 @@ func enableTokenTransfers(standardBridgeAddress: String, wavesERC20AddressHex: S
   }
 
   if (standardBridgeWasNotConfigured) then [
-    StringEntry(elStandardBridgeAddressKey, normalizeEthAddress(standardBridgeAddress)),
+    StringEntry(elStandardBridgeAddressKey, "0x" + normalizeEthAddress(standardBridgeAddress)),
     IntegerEntry(assetTransfersActivationEpochKey, activationEpoch)
   ] ++ mkAssetRegistryEntries("WAVES", normalizeEthAddress(wavesERC20AddressHex), 0) else []
 }

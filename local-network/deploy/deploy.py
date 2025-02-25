@@ -2,7 +2,7 @@
 from decimal import Decimal
 from time import sleep
 from subprocess import call
-import sys, os, logging
+import sys, json
 
 from units_network import units, waves
 from units_network.chain_contract import HexStr
@@ -11,7 +11,7 @@ from units_network.node import Node
 
 from local.network import get_local
 
-log = logging.getLogger(__name__)
+log = configure_cli_logger(__file__)
 network = get_local()
 
 
@@ -133,3 +133,37 @@ try:
         print("Child returned", retcode, file=sys.stderr)
 except OSError as e:
     print("Execution failed:", e, file=sys.stderr)
+
+with open('/tmp/contracts/target/deployments/1337/.deploy', 'r') as deployFile:
+    deployments = json.load(deployFile)
+    standard_bridge_address = deployments['StandardBridge']
+    log.info(f'StandardBridge address: {standard_bridge_address}')
+    wwaves_address = deployments['WWaves']
+    log.info(f'WWaves address: {wwaves_address}')
+    r = network.cl_chain_contract.oracleAcc.invokeScript(
+        dappAddress=network.cl_chain_contract.oracleAddress,
+        functionName='enableTokenTransfers',
+        params=[
+            {
+                'type': 'string',
+                'value': standard_bridge_address
+            },
+            {
+                'type': 'string',
+                'value': wwaves_address
+            },
+            {
+                'type': 'integer',
+                'value': 5
+            },
+        ]
+    )
+    waves.force_success(
+        log,
+        r,
+        'could not enable token transfers',
+        wait=False,
+    )
+    txn_id = r["id"]  # type: ignore
+    log.info(f"Transaction id: {txn_id}")  # type: ignore
+    waves.wait_for(txn_id)
