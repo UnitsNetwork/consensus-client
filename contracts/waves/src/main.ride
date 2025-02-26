@@ -857,7 +857,7 @@ func withdraw(blockHashHex: String, merkleProof: List[ByteVector], transferIndex
   let expectedRootHash   = withdrawBlockMeta._5
   strict equalHashes = calculatedRootHash == expectedRootHash || throw(
     "Expected root hash: " + expectedRootHash.toBase16String() + ", got: " + calculatedRootHash.toBase16String() +
-    ". Event data digest: " + elEventDataDigest.toBase64String() + ". Check your withdraw arguments"
+    ". Event data digest: " + elEventDataDigest.toBase16String() + ". Check your withdraw arguments"
   )
 
   let tokenId      = getStringValue(tokenIdKey).fromBase58String()
