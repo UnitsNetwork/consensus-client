@@ -40,7 +40,7 @@ def main():
     ]
 
     el_curr_height = network.w3.eth.block_number
-    cl_token = network.cl_chain_contract.getToken()
+    cl_token = network.cl_chain_contract.getNativeToken()
     log.info(f"[C] Token id: {cl_token.assetId}")
 
     expected_balances: dict[ChecksumAddress, Wei] = {}

@@ -2,10 +2,10 @@
 from decimal import Decimal
 from typing import List, Tuple
 
-from hexbytes import HexBytes
+from eth_typing import HexStr
 from pywaves import pw
 from units_network import common_utils, exceptions, units, waves
-from units_network.bridge import E2CTransferParams
+from units_network.bridges import E2CTransferParams
 from web3 import Web3
 from web3.types import Nonce, TxReceipt
 
@@ -41,7 +41,7 @@ def main():
         ),
     ]
 
-    send_native_txn_hashes: List[Tuple[E2CTransfer, HexBytes]] = []
+    send_native_txn_hashes: List[Tuple[E2CTransfer, HexStr]] = []
     nonces = {
         x.address: network.w3.eth.get_transaction_count(x.address)
         for x in network.el_rich_accounts
@@ -49,18 +49,16 @@ def main():
     for i, t in enumerate(transfers):
         log.info(f"[E] #{i} Call Bridge.sendNative for {t}")
         nonce = nonces[t.from_account.address]
-        txn_hash = network.el_bridge.send_native(
-            from_eth_account=t.from_account,
-            to_waves_pk_hash=common_utils.waves_public_key_hash_bytes(
-                t.to_account.address
-            ),
-            amount=t.wei_amount,
+        txn_hash = network.bridges.native_bridge.send_native(
+            cl_to=t.to_account,
+            el_amount=t.wei_amount,
+            sender_account=t.from_account,
             nonce=nonce,
         )
         nonces[t.from_account.address] = Nonce(nonce + 1)
         send_native_txn_hashes.append((t, txn_hash))
 
-    cl_token = network.cl_chain_contract.getToken()
+    cl_token = network.cl_chain_contract.getNativeToken()
 
     expected_balances: dict[pw.Address, int] = {}
     for i, (t, txn_hash) in enumerate(send_native_txn_hashes):
@@ -82,7 +80,7 @@ def main():
             )
             log.info(f"[E] #{i} Bridge.sendNative receipt: {Web3.to_json(txn_receipt)}")  # type: ignore
 
-            transfer_params = network.el_bridge.get_transfer_params(
+            transfer_params = network.bridges.get_e2c_transfer_params(
                 txn_receipt["blockHash"], txn_receipt["transactionHash"]
             )
             log.info(f"[C] #{i} Transfer params: {transfer_params}")

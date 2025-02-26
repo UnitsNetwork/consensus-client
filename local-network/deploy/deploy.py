@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from decimal import Decimal
+import os
 from time import sleep
 
 from units_network import units, waves
@@ -8,6 +9,7 @@ from units_network.common_utils import configure_cli_logger
 from units_network.node import Node
 from web3 import Web3
 
+from local.ContractFactory import ContractFactory
 from local.network import get_local
 
 log = configure_cli_logger(__file__)
@@ -55,7 +57,7 @@ if not network.cl_chain_contract.isContractSetup():
     )
     waves.force_success(log, r, "Can not setup the chain contract")
 
-cl_token = network.cl_chain_contract.getToken()
+cl_token = network.cl_chain_contract.getNativeToken()
 cl_poor_accounts = []
 for cl_account in network.cl_rich_accounts:
     if cl_account.balance(cl_token.assetId) <= 0:
@@ -87,12 +89,17 @@ if cl_poor_accounts_number > 0:
         log.info(f"Transaction id: {txn_id}")
         txn_ids.append(txn_id)
 
+for txn_id in txn_ids:
+    waves.wait_for(txn_id)
+    log.info(f"Distrubute UNIT0 tokens transaction {txn_id} confirmed")
+
 r = network.cl_chain_contract.evaluate("allMiners")
 joined_miners = []
 for entry in r["result"]["value"]:
     joined_miners.append(entry["value"])
 log.info(f"Miners: {joined_miners}")
 
+txn_ids = []
 for miner in network.cl_miners:
     if miner.account.address not in joined_miners:
         log.info(f"Call ChainContract.join by miner f{miner.account.address}")
@@ -109,7 +116,7 @@ for miner in network.cl_miners:
 
 for txn_id in txn_ids:
     waves.wait_for(txn_id)
-    log.info(f"{txn_id} confirmed")
+    log.info(f"Join transaction {txn_id} confirmed")
 
 while True:
     r = network.w3.eth.get_block("latest")
@@ -118,24 +125,38 @@ while True:
     log.info("Wait for at least one block on EL")
     sleep(3)
 
+ContractFactory.maybe_deploy(
+    network.w3,
+    network.el_rich_accounts[0],
+    os.getcwd() + "/setup/el/StandardBridge.json",
+)
+
+ContractFactory.maybe_deploy(
+    network.w3,
+    network.el_rich_accounts[1],
+    os.getcwd() + "/setup/el/TERC20.json",
+)
+
 key = "elStandardBridgeAddress"
-elStandardBridgeAddress = network.cl_chain_contract.getData(key)
-if elStandardBridgeAddress != network.el_standard_bridge.contract_address:
+standard_bridge = network.bridges.standard_bridge
+curr_standard_bridge_address = network.cl_chain_contract.getData(key)
+expected_standard_bridge_address = standard_bridge.contract_address.lower()
+if curr_standard_bridge_address != expected_standard_bridge_address:
     log.info(
-        f"Set bridge address in ChainContract to {network.el_standard_bridge.contract_address}, current: {elStandardBridgeAddress}"
+        f"Set bridge address in ChainContract to {expected_standard_bridge_address}, current: {curr_standard_bridge_address}"
     )
     update_txn = network.cl_chain_contract.storeData(
-        key, "string", network.el_standard_bridge.contract_address
+        key, "string", expected_standard_bridge_address
     )
     waves.force_success(log, update_txn, f"Can not change ChainContract.{key}")
 
-log.info(f"StandardBridge address: {network.el_standard_bridge.contract_address}")
+log.info(f"StandardBridge address: {standard_bridge.contract_address}")
 log.info(f"ERC20 token address: {network.el_test_erc20.contract_address}")
 log.info(f"Test CL asset id: {network.cl_test_asset.assetId}")
 
 attempts = 10
 while attempts > 0:
-    ratio = network.el_standard_bridge.token_ratio(
+    ratio = standard_bridge.token_ratio(
         Web3.to_checksum_address(network.el_test_erc20.contract_address)
     )
     if ratio > 0:

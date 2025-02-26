@@ -48,7 +48,7 @@ def main():
     ]
 
     log.info(
-        f"[C] Prepare: Approve EL spendings by StandardBridge {network.el_standard_bridge.contract_address}"
+        f"[C] Prepare: Approve EL spendings by StandardBridge {network.bridges.standard_bridge.contract_address}"
     )
 
     min_el_balance: dict[LocalAccount, Wei] = {}
@@ -61,7 +61,7 @@ def main():
     for el_account, min_balance in min_el_balance.items():
         log.info(f"[E] Approve transfer of {min_balance} for StandardBridge")
         approve_txn = network.el_test_erc20.approve(
-            network.el_standard_bridge.contract_address,
+            network.bridges.standard_bridge.contract_address,
             min_balance,
             el_account,
         )
@@ -79,7 +79,7 @@ def main():
         log.info(
             f"[E] Send StandardBridge.bridgeERC20: {t.wei_amount} from {t.el_account.address}"
         )
-        bridge_txn = network.el_standard_bridge.bridge_erc20(
+        bridge_txn = network.bridges.standard_bridge.bridge_erc20(
             network.el_test_erc20.contract_address,
             common_utils.waves_public_key_hash_bytes(t.cl_account.address),
             t.wei_amount,
@@ -110,7 +110,7 @@ def main():
         # TODO: filter params changed
         FilterParams(
             blockHash=block_hash,
-            address=network.el_standard_bridge.contract_address,
+            address=network.bridges.standard_bridge.contract_address,
         )
     )
     filtered_logs = block_logs  # TODO:
@@ -118,7 +118,7 @@ def main():
 
     merkle_leaves = []
     for i, x in enumerate(block_logs):
-        evt = network.el_standard_bridge.parse_erc20_bridge_initiated(x)
+        evt = network.bridges.standard_bridge.parse_erc20_bridge_initiated(x)
         log.info(f"[E] Parsed event: {evt}")
         merkle_leaves.append(evt.to_merkle_leaf().hex())
 

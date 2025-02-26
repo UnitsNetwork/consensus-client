@@ -1,20 +1,17 @@
+import logging
 from dataclasses import dataclass
 from functools import cached_property
-import logging
 from typing import List, Optional
-import os
 
 from eth_account.signers.local import LocalAccount
-from pywaves import Address, Asset, pw
+from pywaves import Asset, pw
 from units_network import networks, waves
 from units_network.chain_contract import ChainContract, HexStr
+from units_network.erc20 import Erc20
 from units_network.networks import Network, NetworkSettings
 from web3 import Account
 
-from local.ContractFactory import ContractFactory
-from local.Erc20 import Erc20
-from local.StandardBridge import StandardBridge
-from local.common import in_docker
+from local.common import compute_contract_address, in_docker
 
 
 def get_waves_api_url(n: int) -> str:
@@ -32,6 +29,10 @@ class Miner:
 
 
 class ExtendedNetwork(Network):
+    def __init__(self, settings: NetworkSettings):
+        super().__init__(settings)
+        self.log = logging.getLogger("ExtendedNetwork")
+
     @cached_property
     def cl_dao(self) -> pw.Address:
         return pw.Address(seed="devnet dao", nonce=0)
@@ -46,14 +47,13 @@ class ExtendedNetwork(Network):
 
     @cached_property
     def cl_test_asset(self) -> Asset:
-        log = logging.getLogger("ExtendedNetwork")
         test_asset_name = "Test TTK token"
 
-        cl_issuer_assets = self.cl_chain_contract_registered_assets()
-        for asset in cl_issuer_assets:
-            if asset.name.decode("ascii") == test_asset_name:
-                return asset
+        asset = self._find_registered_asset(test_asset_name)
+        if asset:
+            return asset
 
+        self.log.info(f"Registering {test_asset_name}")
         register_txn = self.cl_chain_contract.issueAndRegister(
             sender=self.cl_chain_contract.oracleAcc,
             erc20Address=self.el_test_erc20.contract_address,
@@ -63,21 +63,20 @@ class ExtendedNetwork(Network):
             clDecimals=8,
             txFee=100_500_000,
         )
+        waves.force_success(self.log, register_txn, "Can not register asset")
 
-        waves.force_success(log, register_txn, "Can not register asset")
-
-        # TODO: fix dup
-        cl_issuer_assets = self.cl_chain_contract_registered_assets()
-        for asset in cl_issuer_assets:
-            if asset.name.decode("ascii") == test_asset_name:
-                return asset
+        asset = self._find_registered_asset(test_asset_name)
+        if asset:
+            return asset
 
         raise Exception("Can't deploy a custom CL asset")
 
-    # TODO: Move
-    def cl_chain_contract_registered_assets(self):
-        xs = self.cl_chain_contract.getData(regex="assetRegistryIndex_.*")
-        return [Asset(x["value"]) for x in xs]
+    def _find_registered_asset(self, name: str) -> Optional[Asset]:
+        cl_issuer_assets = self.cl_chain_contract.getRegisteredAssets()
+        for asset in cl_issuer_assets:
+            if asset.name.decode("ascii") == name:
+                return asset
+        return None
 
     @cached_property
     def cl_miners(self) -> List[Miner]:
@@ -137,19 +136,9 @@ class ExtendedNetwork(Network):
         ]
 
     @cached_property
-    def el_standard_bridge(self) -> StandardBridge:
-        return ContractFactory.connect_standard_bridge(
-            self.w3,
-            self.el_rich_accounts[0],
-            os.getcwd() + "/setup/el/StandardBridge.json",
-        )
-
-    @cached_property
     def el_test_erc20(self) -> Erc20:
-        return ContractFactory.connect_erc20(
-            self.w3,
-            self.el_rich_accounts[1],
-            os.getcwd() + "/setup/el/TERC20.json",
+        return self.get_erc20(
+            compute_contract_address(self.el_rich_accounts[1].address, 0)
         )
 
 
