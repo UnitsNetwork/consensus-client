@@ -7,7 +7,7 @@ from units_network import units, waves
 from units_network.common_utils import configure_cli_logger
 from web3.types import Wei
 
-from local.common import C2ETransfer
+from local.common import TransferBuilder
 from local.network import get_local
 
 
@@ -15,27 +15,28 @@ def main():
     log = configure_cli_logger(__file__)
     network = get_local()
 
+    tb = TransferBuilder(network.cl_test_asset, network.el_test_erc20.decimals)
     transfers = [
-        C2ETransfer(
+        tb.create(
             cl_account=network.cl_rich_accounts[0],
             el_account=network.el_rich_accounts[0],
-            raw_amount=Decimal("0.01"),
+            user_amount=Decimal("0.01"),
         ),
-        C2ETransfer(
+        tb.create(
             cl_account=network.cl_rich_accounts[0],
             el_account=network.el_rich_accounts[1],
-            raw_amount=Decimal("0.02"),
+            user_amount=Decimal("0.02"),
         ),
         # Same as first
-        C2ETransfer(
+        tb.create(
             cl_account=network.cl_rich_accounts[0],
             el_account=network.el_rich_accounts[0],
-            raw_amount=Decimal("0.01"),
+            user_amount=Decimal("0.01"),
         ),
-        C2ETransfer(
+        tb.create(
             cl_account=network.cl_rich_accounts[1],
             el_account=network.el_rich_accounts[1],
-            raw_amount=Decimal("0.03"),
+            user_amount=Decimal("0.03"),
         ),
     ]
 
@@ -46,21 +47,21 @@ def main():
     expected_balances: dict[ChecksumAddress, Wei] = {}
     txns = []
     for i, t in enumerate(transfers):
-        to_address = t.to_account.address
+        to_address = t.el_account.address
         if to_address in expected_balances:
             expected_balances[to_address] = Wei(
-                expected_balances[to_address] + t.wei_amount
+                expected_balances[to_address] + t.el_atomic_amount
             )
         else:
             balance_before = network.w3.eth.get_balance(to_address)
-            expected_balances[to_address] = Wei(balance_before + t.wei_amount)
+            expected_balances[to_address] = Wei(balance_before + t.el_atomic_amount)
             log.info(
-                f"[E] {to_address} balance before: {units.wei_to_raw(balance_before)} UNIT0"
+                f"[E] {to_address} balance before: {units.atomic_to_user(balance_before, units.UNIT0_EL_DECIMALS)} UNIT0"
             )
 
         log.info(f"[C] #{i} Call ChainContract.transfer for {t}")
         txn = network.cl_chain_contract.transfer(
-            t.from_account, t.to_account.address, cl_token, t.waves_atomic_amount
+            t.cl_account, t.el_account.address, cl_token, t.cl_atomic_amount
         )
         txns.append(txn)
 
@@ -81,7 +82,8 @@ def main():
     for to_address, expected_balance in expected_balances.items():
         balance_after = network.w3.eth.get_balance(to_address)
         log.info(
-            f"[E] {to_address} balance after: {units.wei_to_raw(balance_after)} UNIT0, expected: {units.wei_to_raw(expected_balance)} UNIT0"
+            f"[E] {to_address} balance after: {units.atomic_to_user(balance_after, units.UNIT0_EL_DECIMALS)} UNIT0, "
+            + f"expected: {units.atomic_to_user(expected_balance, units.UNIT0_EL_DECIMALS)} UNIT0"
         )
 
         assert balance_after == expected_balance

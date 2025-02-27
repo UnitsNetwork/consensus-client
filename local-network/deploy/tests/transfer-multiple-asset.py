@@ -2,15 +2,15 @@
 from decimal import Decimal
 from time import sleep
 
-from eth_account.signers.local import LocalAccount
+from eth_account.signers.base import BaseAccount
 from eth_typing import ChecksumAddress
 from pywaves import Address
 from units_network import common_utils, units, waves
 from units_network.common_utils import configure_cli_logger
 from units_network.merkle import get_merkle_proofs
-from web3.types import FilterParams, Wei
+from web3.types import Wei
 
-from local.common import C2ETransfer
+from local.common import TransferBuilder
 from local.network import get_local
 
 
@@ -23,27 +23,28 @@ def main():
         f"[C] Test asset id: {network.cl_test_asset.assetId}, ERC20 address: {network.el_test_erc20.contract_address}"
     )
 
+    tb = TransferBuilder(network.cl_test_asset, network.el_test_erc20.decimals)
     transfers = [
-        C2ETransfer(
+        tb.create(
             cl_account=network.cl_rich_accounts[0],
             el_account=network.el_rich_accounts[0],
-            raw_amount=Decimal("0.01"),
+            user_amount=Decimal("0.01"),
         ),
-        C2ETransfer(
+        tb.create(
             cl_account=network.cl_rich_accounts[0],
             el_account=network.el_rich_accounts[1],
-            raw_amount=Decimal("0.02"),
+            user_amount=Decimal("0.02"),
         ),
         # Same as first
-        C2ETransfer(
+        tb.create(
             cl_account=network.cl_rich_accounts[0],
             el_account=network.el_rich_accounts[0],
-            raw_amount=Decimal("0.01"),
+            user_amount=Decimal("0.01"),
         ),
-        C2ETransfer(
+        tb.create(
             cl_account=network.cl_rich_accounts[1],
             el_account=network.el_rich_accounts[1],
-            raw_amount=Decimal("0.03"),
+            user_amount=Decimal("0.03"),
         ),
     ]
 
@@ -51,15 +52,17 @@ def main():
         f"[C] Prepare: Approve EL spendings by StandardBridge {network.bridges.standard_bridge.contract_address}"
     )
 
-    min_el_balance: dict[LocalAccount, Wei] = {}
+    min_el_balance: dict[BaseAccount, Wei] = {}
     for t in transfers:
-        min_el_balance[t.to_account] = Wei(
-            min_el_balance.get(t.to_account, 0) + t.wei_amount
+        min_el_balance[t.el_account] = Wei(
+            min_el_balance.get(t.el_account, 0) + t.el_atomic_amount
         )
 
     txns = []
     for el_account, min_balance in min_el_balance.items():
-        log.info(f"[E] Approve transfer of {min_balance} for StandardBridge")
+        log.info(
+            f"[E] Approve transfer of {min_balance} for StandardBridge from {el_account.address}"
+        )
         approve_txn = network.el_test_erc20.approve(
             network.bridges.standard_bridge.contract_address,
             min_balance,
@@ -77,18 +80,17 @@ def main():
     bridge_txns = []
     for t in transfers:
         log.info(
-            f"[E] Send StandardBridge.bridgeERC20: {t.wei_amount} from {t.el_account.address}"
+            f"[E] Send StandardBridge.bridgeERC20: {t.el_atomic_amount} from {t.el_account.address}"
         )
         bridge_txn = network.bridges.standard_bridge.bridge_erc20(
             network.el_test_erc20.contract_address,
-            common_utils.waves_public_key_hash_bytes(t.cl_account.address),
-            t.wei_amount,
+            common_utils.waves_public_key_hash_bytes(t.cl_account),
+            t.el_atomic_amount,
             t.el_account,
         )
         bridge_txns.append(bridge_txn)
 
     block_hash = None
-    block_number = 0
     for txn in bridge_txns:
         bridge_result = network.w3.eth.wait_for_transaction_receipt(txn)
         log.info(f"Sent: {bridge_result}")
@@ -100,33 +102,23 @@ def main():
                 )
         else:
             block_hash = curr_block_hash
-            block_number = bridge_result["blockNumber"]
 
     if not block_hash:
         raise Exception("Impossible: block_hash is empty")
 
-    log.info(f"[E] Get logs of {block_hash.hex()}")
-    block_logs = network.w3.eth.get_logs(
-        # TODO: filter params changed
-        FilterParams(
-            blockHash=block_hash,
-            address=network.bridges.standard_bridge.contract_address,
-        )
-    )
-    filtered_logs = block_logs  # TODO:
-    log.info(f"Block logs: {filtered_logs}")
+    log.info(f"[E] Get transfer parameters of {block_hash.hex()}")
 
-    merkle_leaves = []
-    for i, x in enumerate(block_logs):
-        evt = network.bridges.standard_bridge.parse_erc20_bridge_initiated(x)
-        log.info(f"[E] Parsed event: {evt}")
-        merkle_leaves.append(evt.to_merkle_leaf().hex())
+    block_logs = network.bridges.get_e2c_block_logs(block_hash)
+    log.info(f"Block logs: {block_logs}")
+
+    merkle_leaves = network.bridges.get_e2c_merkle_leaves(block_logs)
+    log.info(f"Merkle leaves: {merkle_leaves}")
 
     log.info("[C] Wait the block on ChainContract")
-    withdraw_block_meta = network.require_settled_block(block_hash, block_number)
+    withdraw_block_meta = network.cl_chain_contract.waitForBlock(block_hash)
 
     log.info("[C] Wait the block finalization")
-    network.require_finalized_block(withdraw_block_meta)
+    network.cl_chain_contract.waitForFinalized(withdraw_block_meta)
 
     log.info("[C] Call ChainContract.withdrawAsset")
     expected_cl_balances: dict[Address, int] = {}
@@ -139,17 +131,17 @@ def main():
                 f"[C] {t.cl_account.address} balance before: {balance_before} (atomic: {balance_before})"
             )
         expected_cl_balances[t.cl_account] = (
-            expected_cl_balances[t.cl_account] + t.waves_atomic_amount
+            expected_cl_balances[t.cl_account] + t.cl_atomic_amount
         )
 
     withdraw_txns = []
     for i, t in enumerate(transfers):
         txn = network.cl_chain_contract.withdrawAsset(
             sender=transfers[i].cl_account,
-            blockHashWithTransfer=block_hash.hex(),
+            blockHashWithTransfer=block_hash,
             merkleProofs=get_merkle_proofs(merkle_leaves, i),
             transferIndexInBlock=i,
-            atomicAmount=transfers[i].waves_atomic_amount,
+            atomicAmount=transfers[i].cl_atomic_amount,
             asset=network.cl_test_asset,
         )
         withdraw_txns.append(txn)
@@ -168,26 +160,26 @@ def main():
     log.info("==== C2E Transfer test ====")
     expected_balances: dict[ChecksumAddress, Wei] = {}
     for t in transfers:
-        to_address = t.to_account.address
+        to_address = t.el_account.address
         if to_address not in expected_balances:
             balance_before = network.el_test_erc20.get_balance(to_address)
             expected_balances[to_address] = balance_before
             log.info(
-                f"[E] {to_address} balance before: {units.wei_to_raw(balance_before)} (atomic: {balance_before})"
+                f"[E] {to_address} balance before: {units.atomic_to_user(balance_before, t.el_token_decimals)} (atomic: {balance_before})"
             )
 
         expected_balances[to_address] = Wei(
-            expected_balances[to_address] + t.wei_amount
+            expected_balances[to_address] + t.el_atomic_amount
         )
 
     txns = []
     for i, t in enumerate(transfers):
         log.info(f"[C] #{i} Call ChainContract.transfer for {t}")
         txn = network.cl_chain_contract.transfer(
-            t.from_account,
-            t.to_account.address,
+            t.cl_account,
+            t.el_account.address,
             network.cl_test_asset,
-            t.waves_atomic_amount,
+            t.cl_atomic_amount,
         )
         txns.append(txn)
 
@@ -208,8 +200,8 @@ def main():
     for to_address, expected_balance in expected_balances.items():
         balance_after = network.el_test_erc20.get_balance(to_address)
         log.info(
-            f"[E] {to_address} balance after: {units.wei_to_raw(balance_after)} (atomic: {balance_after}), "
-            + f"expected: {units.wei_to_raw(expected_balance)} (atomic: {expected_balance})"
+            f"[E] {to_address} balance after: {units.atomic_to_user(balance_after, network.el_test_erc20.decimals)} (atomic: {balance_after}), "
+            + f"expected: {units.atomic_to_user(expected_balance, network.el_test_erc20.decimals)} (atomic: {expected_balance})"
         )
         assert balance_after == expected_balance
 

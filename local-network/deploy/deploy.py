@@ -1,16 +1,15 @@
 #!/usr/bin/env python
-from decimal import Decimal
 import os
+from decimal import Decimal
 from time import sleep
 
 from units_network import units, waves
-from units_network.chain_contract import HexStr
 from units_network.common_utils import configure_cli_logger
-from units_network.node import Node
 from web3 import Web3
 
 from local.ContractFactory import ContractFactory
 from local.network import get_local
+from local.node import Node
 
 log = configure_cli_logger(__file__)
 network = get_local()
@@ -48,9 +47,9 @@ if not network.cl_chain_contract.isContractSetup():
     el_genesis_block = network.w3.eth.get_block(0)
 
     assert "hash" in el_genesis_block
-    el_genesis_block_hash = HexStr(el_genesis_block["hash"].to_0x_hex())
+    el_genesis_block_hash = el_genesis_block["hash"]
 
-    log.info(f"Genesis block hash: {el_genesis_block_hash}")
+    log.info(f"Genesis block hash: {el_genesis_block_hash.to_0x_hex()}")
 
     r = network.cl_chain_contract.setup(
         el_genesis_block_hash, daoAddress=network.cl_dao.address
@@ -67,13 +66,14 @@ cl_poor_accounts_number = len(cl_poor_accounts)
 txn_ids = []
 if cl_poor_accounts_number > 0:
     user_amount_for_each = Decimal(100)
-    atomic_amount_for_each = units.raw_to_waves_atomic(user_amount_for_each)
-    quantity = units.raw_to_waves_atomic(user_amount_for_each * cl_poor_accounts_number)
+    atomic_amount_for_each = units.user_to_atomic(
+        user_amount_for_each, cl_token.decimals
+    )
     log.info(
         f"Issue {user_amount_for_each * cl_poor_accounts_number} UNIT0 additional tokens for testing purposes"
     )
     reissue_txn_id = network.cl_chain_contract.oracleAcc.reissueAsset(
-        cl_token, quantity, reissuable=True
+        cl_token, atomic_amount_for_each * cl_poor_accounts_number, reissuable=True
     )
     waves.wait_for(reissue_txn_id)
 
@@ -103,7 +103,7 @@ txn_ids = []
 for miner in network.cl_miners:
     if miner.account.address not in joined_miners:
         log.info(f"Call ChainContract.join by miner f{miner.account.address}")
-        r = network.cl_chain_contract.join(miner.account, miner.el_reward_address_hex)
+        r = network.cl_chain_contract.join(miner.account, miner.el_reward_address)
         waves.force_success(
             log,
             r,

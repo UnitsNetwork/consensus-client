@@ -4,12 +4,13 @@ from functools import cached_property
 from typing import List, Optional
 
 from eth_account.signers.local import LocalAccount
+from eth_typing import ChecksumAddress, HexStr
 from pywaves import Asset, pw
 from units_network import networks, waves
-from units_network.chain_contract import ChainContract, HexStr
+from units_network.chain_contract import ChainContract
 from units_network.erc20 import Erc20
 from units_network.networks import Network, NetworkSettings
-from web3 import Account
+from web3 import Account, Web3
 
 from local.common import compute_contract_address, in_docker
 
@@ -25,7 +26,16 @@ def get_ec_api_url(n: int) -> str:
 @dataclass
 class Miner:
     account: pw.Address
-    el_reward_address_hex: HexStr
+    el_reward_address: ChecksumAddress
+
+    @classmethod
+    def new(cls, cl_seed: str, el_reward_address: str, cl_nonce: int = 0) -> "Miner":
+        return cls(
+            account=pw.Address(seed=cl_seed, nonce=cl_nonce),
+            el_reward_address=Web3.to_checksum_address(
+                Web3.to_hex(hexstr=HexStr(el_reward_address))
+            ),
+        )
 
 
 class ExtendedNetwork(Network):
@@ -81,15 +91,7 @@ class ExtendedNetwork(Network):
     @cached_property
     def cl_miners(self) -> List[Miner]:
         return [
-            Miner(
-                account=pw.Address(
-                    seed="devnet-1",
-                    nonce=0,
-                ),
-                el_reward_address_hex=HexStr(
-                    "0x7dbcf9c6c3583b76669100f9be3caf6d722bc9f9"
-                ),
-            ),
+            Miner.new("devnet-1", "0x7dbcf9c6c3583b76669100f9be3caf6d722bc9f9"),
             # TODO: Until fixed an issue with rollback
             # Miner(
             #     account=pw.Address(
@@ -144,7 +146,7 @@ class ExtendedNetwork(Network):
 
 local_net = NetworkSettings(
     name="LocalNet",
-    chain_id_str="D",
+    cl_chain_id_str="D",
     cl_node_api_url=get_waves_api_url(1),
     el_node_api_url=get_ec_api_url(1),
     chain_contract_address="3FXDd4LoxxqVLfMk8M25f8CQvfCtGMyiXV1",
