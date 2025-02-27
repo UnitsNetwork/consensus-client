@@ -18,7 +18,7 @@ import units.docker.*
 import units.docker.WavesNodeContainer.generateWavesGenesisConfig
 import units.el.{NativeBridgeClient, StandardBridgeClient}
 import units.eth.Gwei
-import units.test.{CustomMatchers, IntegrationTestEventually, TestEnvironment}
+import units.test.{CustomMatchers, IntegrationTestEventually}
 
 trait BaseDockerTestSuite
     extends AnyFreeSpec
@@ -44,15 +44,8 @@ trait BaseDockerTestSuite
 
   private implicit val httpClientBackend: SttpBackend[Identity, Any] = new LoggingBackend(HttpClientSyncBackend())
 
-  protected lazy val ec1: EcContainer = {
-    val constructor = TestEnvironment.ExecutionClient.getOrElse("op-geth") match {
-      case "besu"    => new BesuContainer(_, _, _)
-      case "geth"    => new GethContainer(_, _, _)
-      case "op-geth" => new OpGethContainer(_, _, _)
-    }
-
-    constructor(network, 1, Networks.ipForNode(2) /* ipForNode(1) is assigned to Ryuk */ )
-  }
+  protected lazy val ec1: EcContainer =
+    new OpGethContainer(network, 1, Networks.ipForNode(2) /* ipForNode(1) is assigned to Ryuk */ )
 
   protected lazy val waves1: WavesNodeContainer = new WavesNodeContainer(
     network = network,

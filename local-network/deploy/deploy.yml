@@ -9,3 +9,4 @@ services:
       LOGGING_CONFIG: /usr/src/app/logging.conf
     volumes:
       - .:/usr/src/app
+      - ../../contracts/eth:/tmp/contracts

@@ -24,7 +24,7 @@ object ForkChoiceUpdatedRequest {
       "jsonrpc" -> "2.0",
       "method"  -> "engine_forkchoiceUpdatedV3",
       "params" -> Json.arr(
-        Json.obj("headBlockHash" -> o.lastBlockHash, "safeBlockHash" -> o.lastBlockHash, "finalizedBlockHash" -> o.finalizedBlockHash),
+        Json.obj("headBlockHash" -> o.lastBlockHash, "safeBlockHash" -> o.finalizedBlockHash, "finalizedBlockHash" -> o.finalizedBlockHash),
         o.attrs
           .map(attr =>
             Json.obj(
