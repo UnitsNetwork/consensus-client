@@ -286,7 +286,7 @@ class E2CStandardBridgeTestSuite extends BaseDockerTestSuite {
 
     val contractsDir = new File(sys.props("cc.it.contracts.dir"))
     Process(
-      s"forge script -vvvv scripts/Deployer.s.sol:Deployer --private-key $elRichAccount1ProvateKey --fork-url http://localhost:${ec1.rpcPort} --broadcast",
+      s"forge script -vvvv scripts/Deployer.s.sol:Deployer --private-key $elRichAccount1PrivateKey --fork-url http://localhost:${ec1.rpcPort} --broadcast",
       contractsDir,
       "CHAIN_ID"    -> EcContainer.ChainId.toString
     ).!(ProcessLogger(out => log.info(out), err => log.error(err)))

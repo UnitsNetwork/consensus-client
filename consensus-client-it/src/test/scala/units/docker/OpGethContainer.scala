@@ -1,7 +1,7 @@
 package units.docker
 
 import okhttp3.Interceptor
-import org.testcontainers.containers.{BindMode, ComposeContainer}
+import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.Network.NetworkImpl
 import org.web3j.protocol.Web3j
 import org.web3j.protocol.http.HttpService
@@ -13,7 +13,6 @@ import units.docker.EcContainer.{EnginePort, RpcPort}
 import units.http.OkHttpLogger
 import units.test.TestEnvironment.ConfigsDir
 
-import java.io.File
 import java.time.Clock
 import scala.io.Source
 
@@ -33,8 +32,8 @@ class OpGethContainer(network: NetworkImpl, number: Int, ip: String)(implicit ht
         .withName(s"${network.getName}-$hostName")
         .withHostName(hostName)
         .withIpv4Address(ip)
-        .withEnv("GETH_NETWORKID", "1337")
-        .withEnv("NODE_NUMBER", number.toString)
+        //        .withEnv("GETH_NETWORKID", "1337")
+        //        .withEnv("NODE_NUMBER", number.toString)
         .withEntrypoint("/bin/sh", "-c")
         .withCmd(
           s"""if [ ! -d /root/.ethereum/geth/chaindata ] ; then

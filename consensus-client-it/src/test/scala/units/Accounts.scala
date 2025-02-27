@@ -24,8 +24,8 @@ trait Accounts {
   val clRichAccount1 = mkKeyPair("devnet rich", 0)
   val clRichAccount2 = mkKeyPair("devnet rich", 1)
 
-  val elRichAccount1ProvateKey = "8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63"
-  val elRichAccount1           = Credentials.create(elRichAccount1ProvateKey)
+  val elRichAccount1PrivateKey = "8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63"
+  val elRichAccount1 = Credentials.create(elRichAccount1PrivateKey)
   val elRichAddress1           = EthAddress.unsafeFrom(elRichAccount1.getAddress)
 
   val elRichAccount2 = Credentials.create("ae6ae8e5ccbfb04590405997ee2d52d2b330726137b875053c36d94e974d162f")
