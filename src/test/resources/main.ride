@@ -361,7 +361,44 @@ func getUpdateFinalizedBlockAction(caller: Address, newBlockHashHex: String, pre
 
 # ------ Approach A
 
-# func rewardEmptyEpochReporters() = {
+let rewardEmptyEpochReporters = {
+  let tokenIdStr = getStringValue(tokenIdKey)
+  let tokenId    = tokenIdStr.fromBase58String()
+  let rewardAmount = 50000000
+  let currentHeightPadded = pad(height)
+
+  func step(acc: (Int, List[DeleteEntry|Reissue|ScriptTransfer]), next: String) = {
+    let (offset, actions) = acc
+    let epochNumber = height - offset
+    match getString(epochReportedEmptyKey(epochNumber)) {
+      case u: Unit => (offset + 1, actions)
+      case reporterAddress =>
+      (offset + 1, 
+        [
+          DeleteEntry(epochReportedEmptyKey(epochNumber)),
+          Reissue(tokenId, rewardAmount, true),
+          ScriptTransfer(Address(reporterAddress.fromBase58String()), rewardAmount, tokenId)
+        ] ++ actions
+      )
+    }
+  }
+
+  let (_offset,rewardActions) = FOLD<100>(offsets_100, (1, []), step)
+  DeleteEntry(minerSkippedEpochCountKey(computedGenerator)) :: DeleteEntry(epochReportedEmptyKey(height)) :: rewardActions
+}
+
+# ------ Approach B
+
+# let epochsReportedEmptyRaw = getString(epochsReportedEmptyKey).valueOrElse("")
+# let epochsReportedEmpty = match epochsReportedEmptyRaw {
+#   case "" => []
+#   case raw: String => {
+#       func reportedEpochsToPairs(accum: List[(String, String)], raw: String) = (raw.take(8), raw.drop(9)) :: accum
+#       FOLD<100>(raw.split_4C(SEP), [], reportedEpochsToPairs)
+#     }
+# }
+
+# let rewardEmptyEpochReporters = {
 #   let tokenIdStr = getStringValue(tokenIdKey)
 #   let tokenId    = tokenIdStr.fromBase58String()
 #   let rewardAmount = 50000000
@@ -372,37 +409,10 @@ func getUpdateFinalizedBlockAction(caller: Address, newBlockHashHex: String, pre
 #     then actions 
 #     else ScriptTransfer(Address(elem._2.fromBase58String()), rewardAmount, tokenId) :: actions
 
-#   let rewardActions = FOLD<10>(epochsReportedEmpty, [], rewardReporter)
+#   let rewardActions = FOLD<100>(epochsReportedEmpty, [], rewardReporter)
 #   let reissueAction = Reissue(tokenId, rewardActions.size() * rewardAmount, true)
-#   reissueAction :: rewardActions ++ markCurrentEpochNonEmptyAndResetSkippedEpochCount
+#   reissueAction :: DeleteEntry(epochsReportedEmptyKey)  :: DeleteEntry(minerSkippedEpochCountKey(computedGenerator)) :: rewardActions
 # }
-
-# ------ Approach B
-
-let epochsReportedEmptyRaw = getString(epochsReportedEmptyKey).valueOrElse("")
-let epochsReportedEmpty = match epochsReportedEmptyRaw {
-  case "" => []
-  case raw: String => {
-      func reportedEpochsToPairs(accum: List[(String, String)], raw: String) = (raw.take(8), raw.drop(9)) :: accum
-      FOLD<100>(raw.split_4C(SEP), [], reportedEpochsToPairs)
-    }
-}
-
-let rewardEmptyEpochReporters = {
-  let tokenIdStr = getStringValue(tokenIdKey)
-  let tokenId    = tokenIdStr.fromBase58String()
-  let rewardAmount = 50000000
-  let currentHeightPadded = pad(height)
-
-  func rewardReporter(actions: List[ScriptTransfer], elem: (String, String)) = 
-    if elem._1 == currentHeightPadded
-    then actions 
-    else ScriptTransfer(Address(elem._2.fromBase58String()), rewardAmount, tokenId) :: actions
-
-  let rewardActions = FOLD<100>(epochsReportedEmpty, [], rewardReporter)
-  let reissueAction = Reissue(tokenId, rewardActions.size() * rewardAmount, true)
-  reissueAction :: DeleteEntry(epochsReportedEmptyKey)  :: DeleteEntry(minerSkippedEpochCountKey(computedGenerator)) :: rewardActions
-}
 
 # ------ end Empty epochs
 
@@ -777,42 +787,42 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: Stri
 
 
 # Approach A
-# @Callable(i)
-# func reportEmptyEpoch() = {
-#   strict checkEpochEmpty = match epochMeta(height) {
-#     case u: Unit => unit
-#     case _ => throw("Current epoch is non-empty.")
-#   }
-#   strict checkEpochNotReported = match getString(epochReportedEmptyKey(height)) {
-#     case u: Unit => unit
-#     case _ => throw("Current epoch is already reported to be empty.")
-#   }
-#   let skippedEpochCount = getInteger(minerSkippedEpochCountKey(computedGenerator)).valueOrElse(0)
-#   [
-#     IntegerEntry(minerSkippedEpochCountKey(computedGenerator), skippedEpochCount + 1),
-#     StringEntry(epochReportedEmptyKey(height), i.originCaller.toString())
-#   ]
-# }
-
-# Approach B
 @Callable(i)
 func reportEmptyEpoch() = {
   strict checkEpochEmpty = match epochMeta(height) {
     case u: Unit => unit
     case _ => throw("Current epoch is non-empty.")
   }
-  strict checkEpochNotReported = match epochsReportedEmptyRaw.indexOf(pad(height) + SEP2) {
+  strict checkEpochNotReported = match getString(epochReportedEmptyKey(height)) {
     case u: Unit => unit
     case _ => throw("Current epoch is already reported to be empty.")
   }
   let skippedEpochCount = getInteger(minerSkippedEpochCountKey(computedGenerator)).valueOrElse(0)
-  let thisEpochString = pad(height) + SEP2 + i.originCaller.toString()
-  let emptyEpochsStringUpdated = match getString(epochsReportedEmptyKey) {
-    case u: Unit => thisEpochString
-    case s: String => thisEpochString + SEP + epochsReportedEmptyRaw
-  }
   [
     IntegerEntry(minerSkippedEpochCountKey(computedGenerator), skippedEpochCount + 1),
-    StringEntry(epochsReportedEmptyKey, emptyEpochsStringUpdated)
+    StringEntry(epochReportedEmptyKey(height), i.originCaller.toString())
   ]
 }
+
+# Approach B
+# @Callable(i)
+# func reportEmptyEpoch() = {
+#   strict checkEpochEmpty = match epochMeta(height) {
+#     case u: Unit => unit
+#     case _ => throw("Current epoch is non-empty.")
+#   }
+#   strict checkEpochNotReported = match epochsReportedEmptyRaw.indexOf(pad(height) + SEP2) {
+#     case u: Unit => unit
+#     case _ => throw("Current epoch is already reported to be empty.")
+#   }
+#   let skippedEpochCount = getInteger(minerSkippedEpochCountKey(computedGenerator)).valueOrElse(0)
+#   let thisEpochString = pad(height) + SEP2 + i.originCaller.toString()
+#   let emptyEpochsStringUpdated = match getString(epochsReportedEmptyKey) {
+#     case u: Unit => thisEpochString
+#     case s: String => thisEpochString + SEP + epochsReportedEmptyRaw
+#   }
+#   [
+#     IntegerEntry(minerSkippedEpochCountKey(computedGenerator), skippedEpochCount + 1),
+#     StringEntry(epochsReportedEmptyKey, emptyEpochsStringUpdated)
+#   ]
+# }
