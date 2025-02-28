@@ -59,7 +59,7 @@ class ExtendedNetwork(Network):
     def cl_test_asset(self) -> Asset:
         test_asset_name = "Test TTK token"
 
-        asset = self._find_registered_asset(test_asset_name)
+        asset = self.cl_chain_contract.findRegisteredAsset(test_asset_name)
         if asset:
             return asset
 
@@ -75,18 +75,11 @@ class ExtendedNetwork(Network):
         )
         waves.force_success(self.log, register_txn, "Can not register asset")
 
-        asset = self._find_registered_asset(test_asset_name)
+        asset = self.cl_chain_contract.findRegisteredAsset(test_asset_name)
         if asset:
             return asset
 
         raise Exception("Can't deploy a custom CL asset")
-
-    def _find_registered_asset(self, name: str) -> Optional[Asset]:
-        cl_issuer_assets = self.cl_chain_contract.getRegisteredAssets()
-        for asset in cl_issuer_assets:
-            if asset.name.decode("ascii") == name:
-                return asset
-        return None
 
     @cached_property
     def cl_miners(self) -> List[Miner]:
