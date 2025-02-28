@@ -33,7 +33,8 @@ object ForkChoiceUpdatedRequest {
               "suggestedFeeRecipient" -> attr.suggestedFeeRecipient,
               "withdrawals"           -> attr.withdrawals,
               "parentBeaconBlockRoot" -> EthereumConstants.EmptyRootHashHex,
-              "transactions"          -> attr.transactions
+              "transactions"          -> attr.transactions,
+              "gasLimit"              -> "0x1000000"
             )
           )
           .getOrElse[JsValue](JsNull)

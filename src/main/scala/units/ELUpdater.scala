@@ -255,14 +255,9 @@ class ELUpdater(
       rollbackBlock <- mkRollbackBlock(targetHash)
       _                   = logger.info(s"Intermediate rollback block: ${rollbackBlock.hash}")
       fixedFinalizedBlock = if (finalizedBlock.height > rollbackBlock.parentBlock.height) rollbackBlock.parentBlock else finalizedBlock
-      _           <- confirmBlock(rollbackBlock.hash, fixedFinalizedBlock.hash)
-      _           <- confirmBlock(target, fixedFinalizedBlock)
-      lastEcBlock <- engineApiClient.getLastExecutionBlock()
-      _ <- Either.cond(
-        targetHash == lastEcBlock.hash,
-        (),
-        ClientError(s"Rollback to $targetHash error: last execution block ${lastEcBlock.hash} is not equal to target block hash")
-      )
+      _            <- confirmBlock(rollbackBlock.hash, fixedFinalizedBlock.hash)
+      lastEcBlockE <- engineApiClient.getBlockByHash(target.hash)
+      lastEcBlock  <- lastEcBlockE.toRight(ClientError(s"Could not load target block ${target.hash}"))
     } yield {
       logger.info(s"Rollback to $targetHash finished successfully")
       val updatedLastValidatedBlock = if (lastEcBlock.height < prevState.fullValidationStatus.lastValidatedBlock.height) {
@@ -1278,7 +1273,8 @@ class ELUpdater(
         chainContractClient.getRegisteredAssets(startAssetRegistryIndex to contractBlock.lastAssetRegistryIndex)
       }
 
-    val relatedElRawLogs = ecBlockLogs.filter(x => elStandardBridgeAddress.contains(x.address) && x.topics.contains(StandardBridge.RegistryUpdated.Topic))
+    val relatedElRawLogs =
+      ecBlockLogs.filter(x => elStandardBridgeAddress.contains(x.address) && x.topics.contains(StandardBridge.RegistryUpdated.Topic))
     for {
       _ <- relatedElRawLogs match {
         case Nil =>
