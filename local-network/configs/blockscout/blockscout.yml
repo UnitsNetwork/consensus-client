@@ -21,9 +21,12 @@ services:
 
   backend:
     depends_on:
-      - db
-      - redis
-      - ec-1
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
+      ec-1:
+        condition: service_healthy
     extends:
       file: ./backend/backend.yml
       service: backend

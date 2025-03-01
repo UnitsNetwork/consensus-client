@@ -17,7 +17,7 @@ import com.wavesplatform.transaction.TxValidationError.InvokeRejectError
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import com.wavesplatform.transaction.smart.script.trace.TracedResult
 import com.wavesplatform.transaction.{Asset, Proofs, Transaction, TransactionSignOps, TransactionType, TxPositiveAmount, TxVersion}
-import com.wavesplatform.utils.{EthEncoding, Time, UnsupportedFeature, forceStopApplication}
+import com.wavesplatform.utils.{Time, UnsupportedFeature, forceStopApplication}
 import com.wavesplatform.utx.UtxPool
 import com.wavesplatform.wallet.Wallet
 import io.netty.channel.Channel
@@ -29,15 +29,18 @@ import units.ELUpdater.State.*
 import units.ELUpdater.State.ChainStatus.{FollowingChain, Mining, WaitForNewChain}
 import units.client.L2BlockLike
 import units.client.contract.*
+import units.client.contract.ChainContractClient.ContractTransfer
 import units.client.engine.EngineApiClient
 import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.model.*
 import units.client.engine.model.Withdrawal.WithdrawalIndex
-import units.eth.{EmptyL2Block, EthAddress, EthereumConstants}
+import units.el.*
+import units.eth.{EmptyL2Block, EthAddress, EthNumber, EthereumConstants}
 import units.network.BlocksObserverImpl.BlockWithChannel
 import units.util.HexBytesConverter
 import units.util.HexBytesConverter.toHexNoPrefix
 
+import java.math.BigDecimal
 import scala.annotation.tailrec
 import scala.concurrent.duration.*
 import scala.util.*
@@ -163,7 +166,9 @@ class ELUpdater(
       Proofs.empty,
       blockchain.settings.addressSchemeCharacter.toByte
     ).signWith(invoker.privateKey)
-    logger.info(s"Invoking $contractAddress '${fc.function.funcName}' for block ${blockData.hash}->${blockData.parentHash}, txId=${tx.id()}")
+    logger.info(
+      s"Invoking $contractAddress '${fc.function.funcName}'(${fc.args.mkString(", ")}) for block ${blockData.hash}->${blockData.parentHash}, txId=${tx.id()}"
+    )
 
     broadcastTx(tx).resultE match {
       case Right(true)  => Either.unit
@@ -220,8 +225,13 @@ class ELUpdater(
                 ClientError(s"Failed to broadcast block ${newBlock.hash}: ${err.toString}")
               )
               ecBlock = newBlock.toEcBlock
-              transfersRootHash <- getE2CTransfersRootHash(ecBlock.hash, chainContractOptions.elBridgeAddress)
-              funcCall          <- contractFunction.toFunctionCall(ecBlock.hash, transfersRootHash, m.lastC2ETransferIndex)
+              ecBlockLogs <- engineApiClient.getLogs(
+                hash = ecBlock.hash,
+                addresses = chainContractOptions.bridgeAddresses,
+                topics = Nil
+              )
+              transfersRootHash <- BridgeMerkleTree.getE2CTransfersRootHash(ecBlockLogs).leftMap(ClientError.apply)
+              funcCall          <- contractFunction.toFunctionCall(ecBlock.hash, transfersRootHash, m.lastC2ETransferIndex, m.lastAssetRegistryIndex)
               _ <- callContract(
                 funcCall,
                 ecBlock,
@@ -276,29 +286,61 @@ class ELUpdater(
       epochInfo: EpochInfo,
       parentBlock: EcBlock,
       finalizedBlock: ContractBlock,
-      nextBlockUnixTs: Long,
-      lastC2ETransferIndex: Long,
+      nextBlockUnixTs: WithdrawalIndex,
+      lastC2ETransferIndex: WithdrawalIndex,
       lastElWithdrawalIndex: WithdrawalIndex,
+      lastAssetRegistryIndex: Int,
       chainContractOptions: ChainContractOptions,
       prevEpochMinerRewardAddress: Option[EthAddress]
   ): JobResult[MiningData] = {
-    val firstElWithdrawalIndex = lastElWithdrawalIndex + 1
+    val startElWithdrawalIndex = lastElWithdrawalIndex + 1
     val startC2ETransferIndex  = lastC2ETransferIndex + 1
 
     val rewardWithdrawal = prevEpochMinerRewardAddress
-      .map(Withdrawal(firstElWithdrawalIndex, _, chainContractOptions.miningReward))
+      .map(Withdrawal(startElWithdrawalIndex, _, chainContractOptions.miningReward))
       .toVector
 
-    val transfers =
-      chainContractClient
-        .getNativeTransfers(
-          fromIndex = startC2ETransferIndex,
-          maxItems = ChainContractClient.MaxC2ETransfers - rewardWithdrawal.size
-        )
+    val transfers = chainContractClient.getTransfersForPayload(
+      fromIndex = startC2ETransferIndex,
+      maxNative = MaxC2ENativeTransfers - rewardWithdrawal.size
+    )
 
-    val transferWithdrawals = toWithdrawals(transfers, rewardWithdrawal.lastOption.fold(firstElWithdrawalIndex)(_.index + 1))
+    val (nativeTransfers, assetTransfers) = transfers.partitionMap {
+      case x: ContractTransfer.Native => x.asLeft
+      case x: ContractTransfer.Asset  => x.asRight
+    }
 
-    val withdrawals = rewardWithdrawal ++ transferWithdrawals
+    val nativeTransferWithdrawals = toWithdrawals(nativeTransfers, rewardWithdrawal.lastOption.fold(startElWithdrawalIndex)(_.index + 1))
+    val withdrawals               = rewardWithdrawal ++ nativeTransferWithdrawals
+
+    val startAssetRegistryIndex = lastAssetRegistryIndex + 1
+    val assetRegistrySize       = chainContractClient.getAssetRegistrySize
+    val addedAssets =
+      if (startAssetRegistryIndex == assetRegistrySize) Nil
+      else chainContractClient.getRegisteredAssets(startAssetRegistryIndex until assetRegistrySize)
+
+    val updateAssetRegistryTransaction =
+      if (addedAssets.isEmpty) None
+      else
+        chainContractOptions.elStandardBridgeAddress.map { sba =>
+          StandardBridge.mkUpdateAssetRegistryTransaction(
+            standardBridgeAddress = sba,
+            addedTokenExponents = addedAssets.map(_.exponent),
+            addedTokens = addedAssets.map(_.erc20Address)
+          )
+        }
+
+    val depositedTransactions = updateAssetRegistryTransaction.toVector ++ (for {
+      sba <- chainContractOptions.elStandardBridgeAddress.toVector
+      x   <- assetTransfers
+    } yield StandardBridge.mkFinalizeBridgeErc20Transaction(
+      transferIndex = x.index,
+      standardBridgeAddress = sba,
+      token = x.tokenAddress,
+      to = x.to,
+      from = x.from,
+      amount = x.amount
+    ))
 
     confirmBlockAndStartMining(
       parentBlock,
@@ -306,14 +348,26 @@ class ELUpdater(
       nextBlockUnixTs,
       epochInfo.rewardAddress,
       calculateRandao(epochInfo.hitSource, parentBlock.hash),
-      withdrawals
+      withdrawals,
+      depositedTransactions
     ).map { payloadId =>
       logger.info(
         s"Starting to forge payload $payloadId by miner ${epochInfo.miner} at height ${parentBlock.height + 1} " +
-          s"of epoch ${epochInfo.number} (ref=${parentBlock.hash}), ${withdrawals.size} withdrawals, ${transfers.size} transfers from $startC2ETransferIndex"
+          s"of epoch ${epochInfo.number} (ref=${parentBlock.hash})" +
+          (if (withdrawals.isEmpty) "" else s", ${withdrawals.size} withdrawals from EL index=$startElWithdrawalIndex") +
+          (if (transfers.isEmpty) "" else s", total ${transfers.size} transfers from $startC2ETransferIndex") +
+          (if (nativeTransfers.isEmpty) "" else s", ${nativeTransfers.size} native") +
+          (if (assetTransfers.isEmpty) "" else s", ${assetTransfers.size} asset transfers") +
+          updateAssetRegistryTransaction.fold("")(_ => s", ${addedAssets.size} new assets: {${addedAssets.mkString(", ")}}")
       )
 
-      MiningData(payloadId, nextBlockUnixTs, transfers.lastOption.fold(lastC2ETransferIndex)(_.index), lastElWithdrawalIndex + withdrawals.size)
+      MiningData(
+        payloadId = payloadId,
+        nextBlockUnixTs = nextBlockUnixTs,
+        lastC2ETransferIndex = transfers.lastOption.fold(lastC2ETransferIndex)(_.index),
+        lastElWithdrawalIndex = lastElWithdrawalIndex + withdrawals.size,
+        lastAssetRegistryIndex = addedAssets.lastOption.fold(lastAssetRegistryIndex)(_.index)
+      )
     }
   }
 
@@ -335,14 +389,14 @@ class ELUpdater(
         val lastC2ETransferIndex = refContractBlock.lastC2ETransferIndex
 
         (for {
-          elWithdrawalIndexBefore <-
-            parentBlock.withdrawals.lastOption.map(_.index) match {
-              case Some(r) => Right(r)
-              case None =>
-                if (parentBlock.height - 1 <= EthereumConstants.GenesisBlockHeight) Right(-1L)
-                else getLastWithdrawalIndex(parentBlock.parentHash)
-            }
+          elWithdrawalIndexBefore <- parentBlock.withdrawals.lastOption.map(_.index) match {
+            case Some(r) => Right(r)
+            case None =>
+              if (parentBlock.height - 1 <= EthereumConstants.GenesisBlockHeight) Right(-1L)
+              else getLastWithdrawalIndex(parentBlock.parentHash)
+          }
           nextBlockUnixTs = (parentBlock.timestamp + config.blockDelay.toSeconds).max(time.correctedTime() / 1000 + config.blockDelay.toSeconds)
+          _               = prevState.lastContractBlock
           miningData <- startBuildingPayload(
             epochInfo,
             parentBlock,
@@ -350,6 +404,7 @@ class ELUpdater(
             nextBlockUnixTs,
             lastC2ETransferIndex,
             elWithdrawalIndexBefore,
+            prevState.lastContractBlock.lastAssetRegistryIndex,
             prevState.options,
             Option.unless(parentBlock.height == EthereumConstants.GenesisBlockHeight)(parentBlock.minerRewardL2Address)
           )
@@ -357,7 +412,14 @@ class ELUpdater(
           val newState = prevState.copy(
             epochInfo = epochInfo,
             lastEcBlock = parentBlock,
-            chainStatus = Mining(keyPair, miningData.payloadId, nodeChainInfo, miningData.lastC2ETransferIndex, miningData.lastElWithdrawalIndex)
+            chainStatus = Mining(
+              keyPair,
+              miningData.payloadId,
+              nodeChainInfo,
+              miningData.lastC2ETransferIndex,
+              miningData.lastElWithdrawalIndex,
+              miningData.lastAssetRegistryIndex
+            )
           )
 
           setState("12", newState)
@@ -366,7 +428,7 @@ class ELUpdater(
               miningData.payloadId,
               parentBlock.hash,
               miningData.nextBlockUnixTs,
-              newState.options.startEpochChainFunction(parentBlock.hash, epochInfo.hitSource, nodeChainInfo.toOption),
+              newState.options.startEpochChainFunction(epochInfo.number, parentBlock.hash, epochInfo.hitSource, nodeChainInfo.toOption),
               newState.options
             )
           )
@@ -395,6 +457,7 @@ class ELUpdater(
           nextBlockUnixTs,
           m.lastC2ETransferIndex,
           m.lastElWithdrawalIndex,
+          m.lastAssetRegistryIndex,
           chainContractOptions,
           None
         ).fold[Unit](
@@ -410,7 +473,8 @@ class ELUpdater(
               chainStatus = m.copy(
                 currentPayloadId = miningData.payloadId,
                 lastC2ETransferIndex = miningData.lastC2ETransferIndex,
-                lastElWithdrawalIndex = miningData.lastElWithdrawalIndex
+                lastElWithdrawalIndex = miningData.lastElWithdrawalIndex,
+                lastAssetRegistryIndex = miningData.lastAssetRegistryIndex
               )
             )
             setState("11", newState)
@@ -419,7 +483,7 @@ class ELUpdater(
                 miningData.payloadId,
                 parentBlock.hash,
                 miningData.nextBlockUnixTs,
-                chainContractOptions.appendFunction(parentBlock.hash),
+                chainContractOptions.appendFunction(epochInfo.number, parentBlock.hash),
                 chainContractOptions
               )
             )
@@ -1075,7 +1139,7 @@ class ELUpdater(
             logger.debug(s"Block ${networkBlock.hash} was successfully partially validated")
             broadcastAndConfirmBlock(networkBlock, ch, prevState, nodeChainInfo, returnToMainChainInfo)
           case Left(err) =>
-            logger.error(s"Block ${networkBlock.hash} prevalidation error: ${err.message}, ignoring block")
+            logger.error(s"Block ${networkBlock.hash} prevalidation error: ${err.message}, ignoring block") // TODO partial validation
         }
     }
   }
@@ -1091,7 +1155,7 @@ class ELUpdater(
       .fold[Unit](
         err => logger.error(s"Can't confirm block ${block.hash} of chain ${nodeChainInfo.id}: ${err.message}"),
         _ => {
-          logger.info(s"Successfully confirmed block ${block.hash} of chain ${nodeChainInfo.id}")
+          logger.info(s"Successfully confirmed block ${block.hash} of chain ${nodeChainInfo.id}") // TODO confirmed on EL
           followChainAndRequestNextBlock(
             prevState.epochInfo,
             nodeChainInfo,
@@ -1182,11 +1246,14 @@ class ELUpdater(
     rollbackBlock    <- Either.fromOption(rollbackBlockOpt, ClientError("Rollback block hash is not defined as latest valid hash"))
   } yield RollbackBlock(rollbackBlock, parentBlock)
 
-  private def toWithdrawals(transfers: Vector[ChainContractClient.ContractTransfer], firstWithdrawalIndex: Long): Vector[Withdrawal] =
+  private def toWithdrawals(transfers: Vector[ContractTransfer.Native], firstElBlockWithdrawalIndex: Long): Vector[Withdrawal] =
     transfers.zipWithIndex.map { case (x, i) =>
-      val index = firstWithdrawalIndex + i
-      Withdrawal(index, x.destElAddress, Bridge.clToGweiNativeTokenAmount(x.amount))
+      val index = firstElBlockWithdrawalIndex + i
+      toWithdrawal(x, index)
     }
+
+  private def toWithdrawal(transfer: ContractTransfer.Native, ecBlockWithdrawalIndex: Long): Withdrawal =
+    Withdrawal(ecBlockWithdrawalIndex, transfer.to, NativeBridge.clToGweiNativeTokenAmount(transfer.amount))
 
   private def getLastWithdrawalIndex(hash: BlockHash): JobResult[WithdrawalIndex] =
     engineApiClient.getBlockByHash(hash).flatMap {
@@ -1200,23 +1267,73 @@ class ELUpdater(
         }
     }
 
-  private def getE2CTransfersRootHash(hash: BlockHash, elBridgeAddress: EthAddress): JobResult[Digest] =
-    for {
-      elRawLogs <- engineApiClient.getLogs(hash, elBridgeAddress, Bridge.ElSentNativeEventTopic)
-      rootHash <- {
-        val relatedElRawLogs = elRawLogs.filter(x => x.address == elBridgeAddress && x.topics.contains(Bridge.ElSentNativeEventTopic))
-        Bridge
-          .mkTransfersHash(relatedElRawLogs)
-          .leftMap(e => ClientError(e))
-          .map { rootHash =>
-            if (rootHash.isEmpty) rootHash
-            else {
-              logger.debug(s"EL->CL transfers root hash of $hash: ${EthEncoding.toHexString(rootHash)}")
-              rootHash
-            }
-          }
+  private def validateAssetRegistryUpdate(
+      hash: BlockHash,
+      ecBlockLogs: List[GetLogsResponseEntry],
+      contractBlock: ContractBlock,
+      parentContractBlock: ContractBlock,
+      elStandardBridgeAddress: Option[EthAddress]
+  ): JobResult[Unit] = {
+    val expectedAddedAssets =
+      if (parentContractBlock.lastAssetRegistryIndex == contractBlock.lastAssetRegistryIndex) Nil
+      else {
+        val startAssetRegistryIndex = parentContractBlock.lastAssetRegistryIndex + 1
+        chainContractClient.getRegisteredAssets(startAssetRegistryIndex to contractBlock.lastAssetRegistryIndex)
       }
-    } yield rootHash
+
+    val relatedElRawLogs = ecBlockLogs.filter(x => elStandardBridgeAddress.contains(x.address) && x.topics.contains(StandardBridge.RegistryUpdated.Topic))
+    for {
+      _ <- relatedElRawLogs match {
+        case Nil =>
+          Either.cond(
+            expectedAddedAssets.isEmpty,
+            (),
+            ClientError(s"Expected one asset registry event with ${expectedAddedAssets.size} assets, got 0")
+          )
+
+        case elRawLog :: Nil =>
+          if (expectedAddedAssets.isEmpty) ClientError(s"Expected no asset registry events, got 1: $elRawLog").asLeft
+          else
+            for {
+              elEvent <- StandardBridge.RegistryUpdated.decodeLog(elRawLog.data).leftMap(ClientError(_))
+              _ <- Either.cond(
+                elEvent.addedTokens.size == expectedAddedAssets.size,
+                true,
+                ClientError(s"Expected ${expectedAddedAssets.size} added assets in a RegistryUpdated event, got ${elEvent.addedTokens.size}")
+              )
+              _ <- Either.cond(
+                elEvent.addedTokenExponents.size == expectedAddedAssets.size,
+                true,
+                ClientError(
+                  s"Expected ${expectedAddedAssets.size} added exponent assets in a RegistryUpdated event, got ${elEvent.addedTokenExponents.size}"
+                )
+              )
+              _ <- elEvent.addedTokens.lazyZip(elEvent.addedTokenExponents).lazyZip(expectedAddedAssets).zipWithIndex.toList.traverse {
+                case ((actual, actualExponent, expected), i) =>
+                  for {
+                    _ <- Either.cond(
+                      actual == expected.erc20Address,
+                      (),
+                      ClientError(s"Added asset #$i: expected ${expected.erc20Address}, got $actual")
+                    )
+                    _ <- Either.cond(
+                      actualExponent == expected.exponent,
+                      (),
+                      ClientError(s"Added asset exponent #$i: expected ${expected.exponent}, got $actualExponent")
+                    )
+                  } yield ()
+              }
+              _ <- Either.cond(
+                elEvent.removedTokens.isEmpty,
+                true,
+                ClientError(s"Removing assets is not supported, got ${elEvent.removedTokens.size} addresses")
+              )
+            } yield ()
+
+        case xs => ClientError(s"Expected one asset registry event with ${expectedAddedAssets.size} assets, got ${xs.size}").asLeft
+      }
+    } yield ()
+  }
 
   private def skipFinalizedBlocksValidation(curState: Working[ChainStatus]) = {
     if (curState.finalizedBlock.height > curState.fullValidationStatus.lastValidatedBlock.height) {
@@ -1254,23 +1371,22 @@ class ELUpdater(
     }
   }
 
-  private def validateE2CTransfers(contractBlock: ContractBlock, elBridgeAddress: EthAddress): JobResult[Unit] =
-    getE2CTransfersRootHash(contractBlock.hash, elBridgeAddress).flatMap { elRootHash =>
-      // elRootHash is the source of true
-      if (java.util.Arrays.equals(contractBlock.e2cTransfersRootHash, elRootHash)) Either.unit
-      else
-        Left(
-          ClientError(
-            s"EL to CL transfers hash of ${contractBlock.hash} are different: " +
-              s"EL=${toHexNoPrefix(elRootHash)}, " +
-              s"CL=${toHexNoPrefix(contractBlock.e2cTransfersRootHash)}"
-          )
-        )
-    }
+  private def validateE2CTransfers(contractBlock: ContractBlock, ecBlockLogs: List[GetLogsResponseEntry]): Either[String, Unit] =
+    for {
+      elRootHash <- BridgeMerkleTree.getE2CTransfersRootHash(ecBlockLogs)
+      _ <- Either.cond(
+        java.util.Arrays.equals(contractBlock.e2cTransfersRootHash, elRootHash), // elRootHash is the source of true
+        (),
+        s"EL to CL transfers hash of ${contractBlock.hash} are different: " +
+          s"EL=${toHexNoPrefix(elRootHash)}, " +
+          s"CL=${toHexNoPrefix(contractBlock.e2cTransfersRootHash)}"
+      )
+    } yield ()
 
-  private def validateWithdrawals(
+  private def validateC2E(
       contractBlock: ContractBlock,
       ecBlock: EcBlock,
+      ecBlockLogs: List[GetLogsResponseEntry],
       fullValidationStatus: FullValidationStatus,
       chainContractOptions: ChainContractOptions
   ): JobResult[Option[WithdrawalIndex]] = {
@@ -1295,15 +1411,108 @@ class ELUpdater(
           if (ecBlock.height - 1 <= EthereumConstants.GenesisBlockHeight) Right(-1L)
           else getLastWithdrawalIndex(ecBlock.parentHash)
       }
-      lastElWithdrawalIndex <- validateC2ETransfers(
-        ecBlock,
-        contractBlock,
-        prevMinerElRewardAddress,
-        chainContractOptions,
-        elWithdrawalIndexBefore
+
+      parentContractBlock = chainContractClient
+        .getBlock(contractBlock.parentHash)
+        .getOrElse(throw new RuntimeException(s"Can't find a parent block ${contractBlock.parentHash} of block ${contractBlock.hash}"))
+
+      expectedTransfers = chainContractClient.getTransfers(
+        fromIndex = parentContractBlock.lastC2ETransferIndex + 1,
+        max = contractBlock.lastC2ETransferIndex - parentContractBlock.lastC2ETransferIndex
       )
-        .leftMap(ClientError.apply)
+
+      (prevWithdrawalIndex, actualTransferWithdrawals) <- {
+        val expectedNativeTransfersNumber = expectedTransfers.count {
+          case _: ContractTransfer.Native => true
+          case _                          => false
+        }
+
+        prevMinerElRewardAddress match {
+          case None =>
+            if (ecBlock.withdrawals.size == expectedNativeTransfersNumber) (elWithdrawalIndexBefore, ecBlock.withdrawals).asRight
+            else ClientError(s"Expected $expectedNativeTransfersNumber withdrawals, got ${ecBlock.withdrawals.size}").asLeft
+
+          case Some(prevMinerElRewardAddress) => // With a mining reward
+            ecBlock.withdrawals match {
+              case actualReward +: actualWithdrawalsForTransfers if ecBlock.withdrawals.size == expectedNativeTransfersNumber + 1 =>
+                val expectedReward = Withdrawal(elWithdrawalIndexBefore + 1, prevMinerElRewardAddress, chainContractOptions.miningReward)
+                validateWithdrawal(actualReward, expectedReward)
+                  .map(_ => (elWithdrawalIndexBefore + 1, actualWithdrawalsForTransfers))
+                  .leftMap(e => ClientError(s"Failed a reward withdrawal validation. $e"))
+              case _ =>
+                ClientError(s"Expected ${expectedNativeTransfersNumber + 1} (at least reward) withdrawals, got ${ecBlock.withdrawals.size}").asLeft
+            }
+        }
+      }
+
+      lastElWithdrawalIndex <- {
+        val c2eLogs = ecBlockLogs.filter(_.topics.intersect(C2ETopics).nonEmpty)
+        validateC2ETransfers(actualTransferWithdrawals, c2eLogs, expectedTransfers, prevWithdrawalIndex).leftMap(ClientError.apply)
+      }
     } yield Some(lastElWithdrawalIndex)
+  }
+
+  private def validateC2ETransfers(
+      actualWithdrawals: Seq[Withdrawal],
+      actualTransferLogs: List[GetLogsResponseEntry],
+      expectedTransfers: Seq[ContractTransfer],
+      prevWithdrawalIndex: Long
+  ): Either[String, Long] = {
+    val totalTransfers = expectedTransfers.size
+
+    @tailrec
+    def loop(
+        actualWithdrawals: Seq[Withdrawal],
+        actualTransferLogs: List[GetLogsResponseEntry],
+        expectedTransfers: Seq[ContractTransfer],
+        prevWithdrawalIndex: Long,
+        currTransferNumber: Int
+    ): Either[String, Long] = {
+      def logPrefix = s"[$currTransferNumber/$totalTransfers]"
+      expectedTransfers match {
+        case Seq() =>
+          for {
+            _ <- Either.cond(
+              actualWithdrawals.isEmpty,
+              (),
+              s"$logPrefix Found ${actualWithdrawals.size} unexpected withdrawals: ${actualWithdrawals.take(MaxTransfersInLogs).mkString(", ")}"
+            )
+            _ <- Either.cond(
+              actualTransferLogs.isEmpty,
+              (),
+              s"$logPrefix Found ${actualTransferLogs.size} unexpected transfers: ${actualTransferLogs.take(MaxTransfersInLogs).mkString(", ")}"
+            )
+          } yield prevWithdrawalIndex
+
+        case expectedTransfer +: restExpectedTransfers =>
+          expectedTransfer match {
+            case expectedTransfer: ContractTransfer.Native =>
+              actualWithdrawals match {
+                case Seq() => s"$logPrefix Not found EL block withdrawal #$prevWithdrawalIndex, expected $expectedTransfer transfer".asLeft
+                case actualWithdrawal +: restActualWithdrawals =>
+                  val expectedWithdrawal = toWithdrawal(expectedTransfer, prevWithdrawalIndex + 1)
+                  validateWithdrawal(actualWithdrawal, expectedWithdrawal) match {
+                    case Left(e) => e.asLeft
+                    case _ => loop(restActualWithdrawals, actualTransferLogs, restExpectedTransfers, expectedWithdrawal.index, currTransferNumber + 1)
+                  }
+              }
+
+            case expectedTransfer: ContractTransfer.Asset =>
+              actualTransferLogs match {
+                case Nil => s"$logPrefix Not found EL transfer log, expected $expectedTransfer transfer".asLeft
+                case actualTransferLog :: restActualTransferLogs =>
+                  StandardBridge.ERC20BridgeFinalized
+                    .decodeLog(actualTransferLog)
+                    .flatMap(validateC2EAssetTransfer(actualTransferLog.logIndex, _, expectedTransfer)) match {
+                    case Left(e) => e.asLeft
+                    case _ => loop(actualWithdrawals, restActualTransferLogs, restExpectedTransfers, prevWithdrawalIndex, currTransferNumber + 1)
+                  }
+              }
+          }
+      }
+    }
+
+    loop(actualWithdrawals, actualTransferLogs, expectedTransfers, prevWithdrawalIndex, currTransferNumber = 1)
   }
 
   private def validateBlockFull(
@@ -1333,9 +1542,18 @@ class ELUpdater(
           (),
           ClientError(s"Miner in EC block ${ecBlock.minerRewardL2Address} should be equal to miner on contract ${contractBlock.minerRewardL2Address}")
         )
-        _                            <- validateE2CTransfers(contractBlock, prevState.options.elBridgeAddress)
-        updatedLastElWithdrawalIndex <- validateWithdrawals(contractBlock, ecBlock, prevState.fullValidationStatus, prevState.options)
-        _                            <- validateRandao(ecBlock, contractBlock.epoch)
+        parentContractBlock <- chainContractClient
+          .getBlock(contractBlock.parentHash)
+          .toRight(ClientError(s"Can't find a parent block ${contractBlock.parentHash} of block ${contractBlock.hash} on chain contract"))
+        ecBlockLogs <- engineApiClient.getLogs(
+          hash = ecBlock.hash,
+          addresses = prevState.options.bridgeAddresses,
+          topics = Nil
+        )
+        _ <- validateE2CTransfers(contractBlock, ecBlockLogs).leftMap(ClientError.apply)
+        _ <- validateAssetRegistryUpdate(ecBlock.hash, ecBlockLogs, contractBlock, parentContractBlock, prevState.options.elStandardBridgeAddress)
+        _ <- validateRandao(ecBlock, contractBlock.epoch)
+        updatedLastElWithdrawalIndex <- validateC2E(contractBlock, ecBlock, ecBlockLogs, prevState.fullValidationStatus, prevState.options)
       } yield updatedLastElWithdrawalIndex
 
     validationResult.map { lastElWithdrawalIndex =>
@@ -1420,74 +1638,56 @@ class ELUpdater(
     loop(curState.lastContractBlock, List.empty)
   }
 
-  private def validateC2ETransfers(
-      ecBlock: EcBlock,
-      contractBlock: ContractBlock,
-      prevMinerElRewardAddress: Option[EthAddress],
-      options: ChainContractOptions,
-      elWithdrawalIndexBefore: WithdrawalIndex
-  ): Either[String, WithdrawalIndex] = {
-    val parentContractBlock = chainContractClient
-      .getBlock(contractBlock.parentHash)
-      .getOrElse(throw new RuntimeException(s"Can't find a parent block ${contractBlock.parentHash} of block ${contractBlock.hash}"))
-
-    val expectedTransfers = chainContractClient.getNativeTransfers(
-      parentContractBlock.lastC2ETransferIndex + 1,
-      contractBlock.lastC2ETransferIndex - parentContractBlock.lastC2ETransferIndex
+  private def validateWithdrawal(actual: Withdrawal, expected: Withdrawal): Either[String, Unit] = for {
+    _ <- Either.cond(
+      actual.index == expected.index,
+      (),
+      s"Withdrawal #${actual.index}: expected index ${expected.index} for $actual"
     )
+    _ <- Either.cond(
+      actual.address == expected.address,
+      (),
+      s"Withdrawal #${actual.index}: expected address ${expected.address}, got: ${actual.address}"
+    )
+    _ <- Either.cond(
+      actual.amount == expected.amount,
+      (),
+      s"Withdrawal #${actual.index}: expected amount ${expected.amount}, got: ${actual.amount}"
+    )
+  } yield ()
 
-    val firstWithdrawalIndex = elWithdrawalIndexBefore + 1
+  private def validateC2EAssetTransfer(
+      logIndex: EthNumber,
+      elTransferEvent: StandardBridge.ERC20BridgeFinalized,
+      expectedTransfer: ContractTransfer.Asset
+  ): Either[String, Unit] = {
+    def errorPrefix = s"C2E asset transfer with logIndex=$logIndex, transferIndex=${expectedTransfer.index}"
     for {
-      expectedWithdrawals <- prevMinerElRewardAddress match {
-        case None =>
-          if (ecBlock.withdrawals.size == expectedTransfers.size) toWithdrawals(expectedTransfers, firstWithdrawalIndex).asRight
-          else s"Expected ${expectedTransfers.size} withdrawals, got ${ecBlock.withdrawals.size}".asLeft
-
-        case Some(prevMinerElRewardAddress) =>
-          if (ecBlock.withdrawals.size == expectedTransfers.size + 1) { // +1 for reward
-            val rewardWithdrawal = Withdrawal(firstWithdrawalIndex, prevMinerElRewardAddress, options.miningReward)
-            val userWithdrawals  = toWithdrawals(expectedTransfers, rewardWithdrawal.index + 1)
-
-            (rewardWithdrawal +: userWithdrawals).asRight
-          } else s"Expected ${expectedTransfers.size + 1} (at least reward) withdrawals, got ${ecBlock.withdrawals.size}".asLeft
-      }
-      _ <- validateC2ETransfers(ecBlock, expectedWithdrawals)
-    } yield expectedWithdrawals.lastOption.fold(elWithdrawalIndexBefore)(_.index)
+      _ <- Either.cond(
+        elTransferEvent.localToken == expectedTransfer.tokenAddress,
+        (),
+        s"$errorPrefix: got ERC20 address: ${elTransferEvent.localToken}, expected: ${expectedTransfer.tokenAddress}"
+      )
+      _ <- Either.cond(
+        elTransferEvent.elTo == expectedTransfer.to,
+        (),
+        s"$errorPrefix: got address: ${elTransferEvent.elTo}, expected: ${expectedTransfer.to}"
+      )
+      _ <- Either.cond(
+        elTransferEvent.amount == expectedTransfer.amount,
+        (),
+        s"$errorPrefix: got amount: ${elTransferEvent.amount}, expected ${expectedTransfer.amount}"
+      )
+    } yield ()
   }
-
-  private def validateC2ETransfers(ecBlock: EcBlock, expectedWithdrawals: Seq[Withdrawal]): Either[String, Unit] =
-    ecBlock.withdrawals
-      .zip(expectedWithdrawals)
-      .zipWithIndex
-      .toList
-      .traverse { case ((actual, expected), i) =>
-        for {
-          _ <- Either.cond(
-            actual.index == expected.index,
-            (),
-            s"Withdrawal #$i: expected index ${expected.index}, got ${actual.index} for $actual"
-          )
-          _ <- Either.cond(
-            actual.address == expected.address,
-            (),
-            s"Withdrawal #$i: expected address ${expected.address}, got: ${actual.address}"
-          )
-          _ <- Either.cond(
-            actual.amount == expected.amount,
-            (),
-            s"Withdrawal #$i: expected amount ${expected.amount}, got: ${actual.amount}"
-          )
-        } yield ()
-      }
-      .map(_ => ())
 
   private def confirmBlock(block: L2BlockLike, finalizedBlock: L2BlockLike): JobResult[PayloadStatus] = {
     val finalizedBlockHash = if (finalizedBlock.height > block.height) block.hash else finalizedBlock.hash
-    engineApiClient.forkChoiceUpdate(block.hash, finalizedBlockHash)
+    engineApiClient.forkChoiceUpdated(block.hash, finalizedBlockHash)
   }
 
   private def confirmBlock(hash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus] =
-    engineApiClient.forkChoiceUpdate(hash, finalizedBlockHash)
+    engineApiClient.forkChoiceUpdated(hash, finalizedBlockHash)
 
   private def confirmBlockAndStartMining(
       lastBlock: EcBlock,
@@ -1495,17 +1695,19 @@ class ELUpdater(
       unixEpochSeconds: Long,
       suggestedFeeRecipient: EthAddress,
       prevRandao: String,
-      withdrawals: Vector[Withdrawal]
+      withdrawals: Vector[Withdrawal],
+      depositedTransactions: Vector[DepositedTransaction]
   ): JobResult[PayloadId] = {
     val finalizedBlockHash = if (finalizedBlock.height > lastBlock.height) lastBlock.hash else finalizedBlock.hash
     engineApiClient
-      .forkChoiceUpdateWithPayloadId(
+      .forkChoiceUpdatedWithPayloadId(
         lastBlock.hash,
         finalizedBlockHash,
         unixEpochSeconds,
         suggestedFeeRecipient,
         prevRandao,
-        withdrawals
+        withdrawals,
+        depositedTransactions
       )
   }
 
@@ -1528,6 +1730,8 @@ object ELUpdater {
   val ClChangedProcessingDelay: FiniteDuration        = 50.millis
   val MiningRetryInterval: FiniteDuration             = 5.seconds
   val WaitRequestedBlockTimeout: FiniteDuration       = 2.seconds
+  val MaxC2EAssetTransfersInBlock                     = Int.MaxValue
+  val MaxTransfersInLogs                              = 5 // Cut huge logs
 
   case class EpochInfo(number: Int, miner: Address, rewardAddress: EthAddress, hitSource: ByteStr, prevEpochLastBlockHash: Option[BlockHash])
 
@@ -1560,12 +1764,16 @@ object ELUpdater {
           currentPayloadId: String,
           nodeChainInfo: Either[ChainSwitchInfo, ChainInfo],
           lastC2ETransferIndex: Long,
-          lastElWithdrawalIndex: WithdrawalIndex
+          lastElWithdrawalIndex: WithdrawalIndex,
+          lastAssetRegistryIndex: Int
       ) extends ChainStatus {
         override def lastContractBlock: ContractBlock = nodeChainInfo match {
           case Left(chainSwitchInfo) => chainSwitchInfo.referenceBlock
           case Right(chainInfo)      => chainInfo.lastBlock
         }
+
+        override def toString: String =
+          s"Mining(m=${keyPair.toAddress}, pid=$currentPayloadId, $nodeChainInfo, c2e=$lastC2ETransferIndex, lwi=$lastElWithdrawalIndex, lari=$lastAssetRegistryIndex)"
       }
 
       case class WaitForNewChain(chainSwitchInfo: ChainSwitchInfo) extends ChainStatus {
@@ -1592,7 +1800,13 @@ object ELUpdater {
     case class Requested(contractBlock: ContractBlock) extends BlockRequestResult
   }
 
-  private case class MiningData(payloadId: PayloadId, nextBlockUnixTs: Long, lastC2ETransferIndex: Long, lastElWithdrawalIndex: WithdrawalIndex)
+  private case class MiningData(
+      payloadId: PayloadId,
+      nextBlockUnixTs: WithdrawalIndex,
+      lastC2ETransferIndex: WithdrawalIndex,
+      lastElWithdrawalIndex: WithdrawalIndex,
+      lastAssetRegistryIndex: Int
+  )
 
   private case class BlockForValidation(contractBlock: ContractBlock, ecBlock: EcBlock) {
     val hash: BlockHash = contractBlock.hash

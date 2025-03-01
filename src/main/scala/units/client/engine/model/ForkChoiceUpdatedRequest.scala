@@ -10,14 +10,21 @@ import units.util.HexBytesConverter.*
 case class ForkChoiceUpdatedRequest(lastBlockHash: BlockHash, finalizedBlockHash: BlockHash, attrs: Option[ForkChoiceAttributes], id: Int)
 
 object ForkChoiceUpdatedRequest {
-  case class ForkChoiceAttributes(unixEpochSeconds: Long, suggestedFeeRecipient: EthAddress, prevRandao: String, withdrawals: Vector[Withdrawal])
+  // TODO Type of transactions (signed transactions hex)
+  case class ForkChoiceAttributes(
+      unixEpochSeconds: Long,
+      suggestedFeeRecipient: EthAddress,
+      prevRandao: String,
+      withdrawals: Vector[Withdrawal],
+      transactions: Vector[String]
+  )
 
   implicit val writes: Writes[ForkChoiceUpdatedRequest] = (o: ForkChoiceUpdatedRequest) => {
     Json.obj(
       "jsonrpc" -> "2.0",
       "method"  -> "engine_forkchoiceUpdatedV3",
       "params" -> Json.arr(
-        Json.obj("headBlockHash" -> o.lastBlockHash, "safeBlockHash" -> o.lastBlockHash, "finalizedBlockHash" -> o.finalizedBlockHash),
+        Json.obj("headBlockHash" -> o.lastBlockHash, "safeBlockHash" -> o.finalizedBlockHash, "finalizedBlockHash" -> o.finalizedBlockHash),
         o.attrs
           .map(attr =>
             Json.obj(
@@ -25,7 +32,8 @@ object ForkChoiceUpdatedRequest {
               "prevRandao"            -> attr.prevRandao,
               "suggestedFeeRecipient" -> attr.suggestedFeeRecipient,
               "withdrawals"           -> attr.withdrawals,
-              "parentBeaconBlockRoot" -> EthereumConstants.EmptyRootHashHex
+              "parentBeaconBlockRoot" -> EthereumConstants.EmptyRootHashHex,
+              "transactions"          -> attr.transactions
             )
           )
           .getOrElse[JsValue](JsNull)

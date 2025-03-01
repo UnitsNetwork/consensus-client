@@ -1,0 +1,13 @@
+[profile.default]
+src = "src"
+out = "target"
+libs = ["lib"]
+remappings = [
+    '@units/=src',
+    '@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts',
+    'forge-std/=lib/forge-std/src',
+    'safe-contracts/=lib/safe-contracts/contracts'
+]
+fs_permissions = [
+    { access='read-write', path='./target/deployments/' }
+]

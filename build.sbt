@@ -35,7 +35,8 @@ libraryDependencies ++= {
     "com.wavesplatform"              % "node"          % node % Provided,
     "com.softwaremill.sttp.client3" %% "core"          % sttpVersion,
     "com.softwaremill.sttp.client3" %% "play-json"     % sttpVersion,
-    "com.github.jwt-scala"          %% "jwt-play-json" % "10.0.1"
+    "com.github.jwt-scala"          %% "jwt-play-json" % "10.0.1",
+    "org.web3j"                      % "core"          % "4.9.8"
   )
 }
 
@@ -95,14 +96,20 @@ inTask(docker)(
       ImageName(s"consensus-client:${gitCurrentBranch.value}"), // Integration tests
       ImageName("consensus-client:local")                       // local-network
     ),
-    dockerfile   := NativeDockerfile(baseDirectory.value / "docker" / "Dockerfile"),
-    buildOptions := BuildOptions(cache = true)
+    dockerfile := NativeDockerfile(baseDirectory.value / "docker" / "Dockerfile"),
+    buildOptions := BuildOptions(
+      pullBaseImage = BuildOptions.Pull.IfMissing
+    )
   )
 )
 
 docker := docker.dependsOn(LocalRootProject / buildTarballsForDocker).value
 
-lazy val `consensus-client` = project.in(file("."))
+lazy val `consensus-client` = project
+  .in(file("."))
+  .settings(
+    Test / resources += baseDirectory.value / "contracts" / "waves" / "src" / "main.ride"
+  )
 
 lazy val `consensus-client-it` = project
   .dependsOn(

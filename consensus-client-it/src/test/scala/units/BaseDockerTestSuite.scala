@@ -16,9 +16,9 @@ import units.client.contract.HasConsensusLayerDappTxHelpers
 import units.client.engine.model.BlockNumber
 import units.docker.*
 import units.docker.WavesNodeContainer.generateWavesGenesisConfig
-import units.el.ElBridgeClient
+import units.el.{NativeBridgeClient, StandardBridgeClient}
 import units.eth.Gwei
-import units.test.{CustomMatchers, IntegrationTestEventually, TestEnvironment}
+import units.test.{CustomMatchers, IntegrationTestEventually}
 
 trait BaseDockerTestSuite
     extends AnyFreeSpec
@@ -31,7 +31,10 @@ trait BaseDockerTestSuite
     with ReportingTestName
     with IntegrationTestEventually
     with Accounts
+    with TestDefaults
     with HasConsensusLayerDappTxHelpers {
+  BaseDockerTestSuite.init()
+
   override val currentHitSource: ByteStr = ByteStr.empty
   protected val rewardAmount: Gwei       = Gwei.ofRawGwei(2_000_000_000L)
 
@@ -41,15 +44,8 @@ trait BaseDockerTestSuite
 
   private implicit val httpClientBackend: SttpBackend[Identity, Any] = new LoggingBackend(HttpClientSyncBackend())
 
-  protected lazy val ec1: EcContainer = {
-    val constructor = TestEnvironment.ExecutionClient.getOrElse("op-geth") match {
-      case "besu"    => new BesuContainer(_, _, _)
-      case "geth"    => new GethContainer(_, _, _)
-      case "op-geth" => new OpGethContainer(_, _, _)
-    }
-
-    constructor(network, 1, Networks.ipForNode(2) /* ipForNode(1) is assigned to Ryuk */ )
-  }
+  protected lazy val ec1: EcContainer =
+    new OpGethContainer(network, 1, Networks.ipForNode(2) /* ipForNode(1) is assigned to Ryuk */ )
 
   protected lazy val waves1: WavesNodeContainer = new WavesNodeContainer(
     network = network,
@@ -61,8 +57,9 @@ trait BaseDockerTestSuite
     genesisConfigPath = wavesGenesisConfigPath
   )
 
-  protected lazy val chainContract = new HttpChainContractClient(waves1.api, chainContractAddress)
-  protected lazy val elBridge      = new ElBridgeClient(ec1.web3j, elBridgeAddress)
+  protected lazy val chainContract  = new HttpChainContractClient(waves1.api, chainContractAddress)
+  protected lazy val nativeBridge   = new NativeBridgeClient(ec1.web3j, NativeBridgeAddress)
+  protected lazy val standardBridge = new StandardBridgeClient(ec1.web3j, StandardBridgeAddress, elRichAccount2)
 
   protected def startNodes(): Unit = {
     ec1.start()
@@ -79,13 +76,13 @@ trait BaseDockerTestSuite
   }
 
   protected def setupChain(): Unit = {
-    log.info("Approve chain on registry")
+    step("Approve chain on registry")
     waves1.api.broadcast(ChainRegistry.approve())
 
-    log.info("Set script")
+    step("Set script")
     waves1.api.broadcastAndWait(ChainContract.setScript())
 
-    log.info("Setup chain contract")
+    step("Setup chain contract")
     val genesisBlock = ec1.engineApi.getBlockByNumber(BlockNumber.Number(0)).explicitGet().getOrElse(fail("No EL genesis block"))
     waves1.api.broadcastAndWait(
       ChainContract.setup(
@@ -96,9 +93,9 @@ trait BaseDockerTestSuite
         invoker = chainContractAccount
       )
     )
-    log.info(s"Token id: ${chainContract.token}")
+    log.info(s"Native token id: ${chainContract.nativeTokenId}")
 
-    log.info("EL miner #1 join")
+    step("EL miner #1 join")
     val joinMiner1Result = waves1.api.broadcastAndWait(
       ChainContract.join(
         minerAccount = miner11Account,
@@ -107,7 +104,7 @@ trait BaseDockerTestSuite
     )
 
     val epoch1Number = joinMiner1Result.height + 1
-    log.info(s"Wait for #$epoch1Number epoch")
+    step(s"Wait for #$epoch1Number epoch")
     waves1.api.waitForHeight(epoch1Number)
   }
 
@@ -118,7 +115,6 @@ trait BaseDockerTestSuite
   }
 
   override def beforeAll(): Unit = {
-    BaseDockerTestSuite.init()
     super.beforeAll()
     log.debug(s"Docker network name: ${network.getName}, id: ${network.getId}") // Force create network
 

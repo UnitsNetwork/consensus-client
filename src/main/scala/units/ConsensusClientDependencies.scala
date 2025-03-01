@@ -23,6 +23,7 @@ class ConsensusClientDependencies(val config: ClientConfig) extends AutoCloseabl
   private val blockObserverScheduler =
     Schedulers.singleThread(s"block-observer-${config.chainContract}", reporter = { e => log.warn("Error in BlockObserver", e) })
   val globalScheduler: Scheduler = monix.execution.Scheduler.global
+    .withUncaughtExceptionReporter((ex: Throwable) => log.warn("Error in Global Scheduler", ex))
   val eluScheduler: SchedulerService =
     NonInterruptingScheduledExecutor(s"el-updater-${config.chainContract}", reporter = { e => log.warn("Exception in ELUpdater", e) })
 

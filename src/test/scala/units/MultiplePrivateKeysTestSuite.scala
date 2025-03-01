@@ -4,7 +4,7 @@ import com.wavesplatform.settings.WavesSettings
 import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.wallet.Wallet
 
-class MultiplePrivateKeysTestSuite extends BaseIntegrationTestSuite {
+class MultiplePrivateKeysTestSuite extends BaseTestSuite {
   private val minerFromWallet = ElMinerSettings(Wallet.generateNewAccount(super.defaultSettings.walletSeed, 0))
 
   private val miner1 = ElMinerSettings(TxHelpers.signer(1))

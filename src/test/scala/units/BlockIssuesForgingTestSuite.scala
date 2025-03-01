@@ -10,7 +10,7 @@ import units.client.engine.model.EcBlock
 
 import scala.concurrent.duration.DurationInt
 
-class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
+class BlockIssuesForgingTestSuite extends BaseTestSuite {
   private val transferReceiver = TxHelpers.secondSigner
 
   private val thisMiner   = ElMinerSettings(Wallet.generateNewAccount(super.defaultSettings.walletSeed, 0))
@@ -62,7 +62,7 @@ class BlockIssuesForgingTestSuite extends BaseIntegrationTestSuite {
       d.receiveNetworkBlock(ecBlock2, otherMiner1.account, ecBlock2Epoch)
       d.triggerScheduledTasks()
 
-      d.ecClients.willForge(d.createEcBlockBuilder("0-0-0", otherMiner1, ecBlock2).rewardPrevMiner().build())
+      d.ecClients.willForge(d.createEcBlockBuilder("0-0-0", otherMiner1, ecBlock2).rewardPrevMiner(1).build())
 
       d.waitForCS[Mining]("Continue") { s =>
         s.nodeChainInfo.isRight shouldBe true

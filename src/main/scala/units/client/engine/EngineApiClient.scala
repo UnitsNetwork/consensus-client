@@ -8,15 +8,16 @@ import units.eth.EthAddress
 import units.{BlockHash, JobResult}
 
 trait EngineApiClient {
-  def forkChoiceUpdate(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int = newRequestId): JobResult[PayloadStatus]
+  def forkChoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int = newRequestId): JobResult[PayloadStatus]
 
-  def forkChoiceUpdateWithPayloadId(
+  def forkChoiceUpdatedWithPayloadId(
       lastBlockHash: BlockHash,
       finalizedBlockHash: BlockHash,
       unixEpochSeconds: Long,
       suggestedFeeRecipient: EthAddress,
       prevRandao: String,
       withdrawals: Vector[Withdrawal] = Vector.empty,
+      transactions: Vector[String] = Vector.empty,
       requestId: Int = newRequestId
   ): JobResult[PayloadId]
 
@@ -36,7 +37,12 @@ trait EngineApiClient {
 
   def blockExists(hash: BlockHash, requestId: Int = newRequestId): JobResult[Boolean]
 
-  def getLogs(hash: BlockHash, address: EthAddress, topic: String, requestId: Int = newRequestId): JobResult[List[GetLogsResponseEntry]]
+  def getLogs(
+      hash: BlockHash,
+      addresses: List[EthAddress],
+      topics: List[String],
+      requestId: Int = newRequestId
+  ): JobResult[List[GetLogsResponseEntry]]
 
   def onRetry(requestId: Int): Unit = {}
 }

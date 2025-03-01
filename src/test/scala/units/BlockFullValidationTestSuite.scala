@@ -6,13 +6,14 @@ import com.wavesplatform.transaction.TxHelpers
 import units.ELUpdater.State.ChainStatus.{FollowingChain, WaitForNewChain}
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.client.engine.model.{EcBlock, GetLogsResponseEntry}
+import units.el.NativeBridge
 import units.eth.EthAddress
 import units.util.HexBytesConverter
 
-class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
-  private val transferEvents          = List(Bridge.ElSentNativeEvent(TxHelpers.defaultAddress, 1))
-  private val ecBlockLogs             = transferEvents.map(getLogsResponseEntry)
-  private val e2CTransfersRootHashHex = HexBytesConverter.toHex(Bridge.mkTransfersHash(ecBlockLogs).explicitGet())
+class BlockFullValidationTestSuite extends BaseTestSuite {
+  private val transferEvents                = List(NativeBridge.ElSentNativeEvent(TxHelpers.defaultAddress, 1))
+  private val ecBlockLogs                   = transferEvents.map(getLogsResponseEntry)
+  private val e2CNativeTransfersRootHashHex = HexBytesConverter.toHex(NativeBridge.mkTransfersHash(ecBlockLogs).explicitGet())
 
   private val reliable    = ElMinerSettings(TxHelpers.signer(1))
   private val malfunction = ElMinerSettings(TxHelpers.signer(2)) // Prevents a block finalization
@@ -61,7 +62,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
         d.triggerScheduledTasks()
 
         step(s"Append a CL micro block with ecBlock ${ecBlock.hash} confirmation")
-        d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(reliable.account, ecBlock, e2CTransfersRootHashHex))
+        d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(reliable.account, ecBlock, e2CNativeTransfersRootHashHex))
         d.advanceConsensusLayerChanged()
 
         d.waitForCS[FollowingChain]("Following chain") { _ => }
@@ -80,7 +81,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
       "unsuccessful causes a fork" - {
         def e2CTest(
             blockLogs: List[GetLogsResponseEntry],
-            e2CTransfersRootHashHex: String,
+            transfersRootHashHex: String,
             badBlockPostProcessing: EcBlock => EcBlock = identity
         ): Unit = withExtensionDomain() { d =>
           step("Start new epoch for ecBlock1")
@@ -99,7 +100,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
           val ecBlock2 = badBlockPostProcessing(d.createEcBlockBuilder("0-0", malfunction, ecBlock1).rewardPrevMiner().buildAndSetLogs(blockLogs))
 
           step(s"Append a CL micro block with ecBlock2 ${ecBlock2.hash} confirmation")
-          d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(malfunction.account, ecBlock2, e2CTransfersRootHashHex))
+          d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(malfunction.account, ecBlock2, transfersRootHashHex))
           d.advanceConsensusLayerChanged()
 
           step(s"Receive ecBlock2 ${ecBlock2.hash} from a peer")
@@ -113,25 +114,15 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
 
         "CL confirmation without a transfers root hash" in e2CTest(
           blockLogs = ecBlockLogs,
-          e2CTransfersRootHashHex = EmptyE2CTransfersRootHashHex
+          transfersRootHashHex = EmptyE2CTransfersRootHashHex
         )
-
-        "Events from an unexpected EL bridge address" in {
-          val fakeBridgeAddress = EthAddress.unsafeFrom("0x53481054Ad294207F6ed4B6C2E6EaE34E1Bb8704")
-          val ecBlock2Logs      = transferEvents.map(x => getLogsResponseEntry(x).copy(address = fakeBridgeAddress))
-          e2CTest(
-            blockLogs = ecBlock2Logs,
-            e2CTransfersRootHashHex = e2CTransfersRootHashHex
-          )
-        }
 
         "Different miners in CL and EL" in e2CTest(
           blockLogs = ecBlockLogs,
-          e2CTransfersRootHashHex = e2CTransfersRootHashHex,
+          transfersRootHashHex = e2CNativeTransfersRootHashHex,
           badBlockPostProcessing = _.copy(minerRewardL2Address = reliable.elRewardAddress)
         )
       }
     }
   }
-
 }

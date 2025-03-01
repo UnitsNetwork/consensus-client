@@ -12,7 +12,7 @@ services:
       FRONT_PROXY_PASS: ${FRONT_PROXY_PASS:-http://bs-frontend:3000}
       BESU_RPC_PROXY_PASS: ${BESU_RPC_PROXY_PASS:-http://ec-1:8545}
       BESU_WS_PROXY_PASS: ${BESU_WS_PROXY_PASS:-http://ec-1:8546}
-      WAVES_PROXY_PASS: ${WAVES_PROXY_PASS:-http://wavesnode-1:6869}
+      WAVES_PROXY_PASS: ${WAVES_PROXY_PASS:-http://waves-node-1:6869}
     ports:
       - '127.0.0.1:3000:3000'
       - '127.0.0.1:3001:3001'

@@ -26,4 +26,6 @@ object EthereumConstants {
 
   val EmptyBlockNonceHex = "0x" + "0" * 16
   val EmptyBlockNonceRlp = rlpString(EmptyBlockNonceHex)
+
+  val ZeroAddress = EthAddress.unsafeFrom("0x" + "0" * 40)
 }
