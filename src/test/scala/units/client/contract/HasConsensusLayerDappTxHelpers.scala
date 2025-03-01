@@ -7,9 +7,7 @@ import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
-import com.wavesplatform.lang.v1.compiler.Terms.EXPR
-import com.wavesplatform.state.{BooleanDataEntry, DataEntry, IntegerDataEntry, StringDataEntry}
-import com.wavesplatform.lang.v1.compiler.Terms.{CONST_LONG, CONST_STRING}
+import com.wavesplatform.lang.v1.compiler.Terms.{CONST_LONG, CONST_STRING, EXPR}
 import com.wavesplatform.state.{BooleanDataEntry, DataEntry}
 import com.wavesplatform.test.NumericExt
 import com.wavesplatform.transaction.Asset.IssuedAsset
@@ -88,21 +86,6 @@ trait HasConsensusLayerDappTxHelpers {
       func = "leave".some,
       fee = leaveFee
     )
-
-    // see main.ride: mkAssetRegistryEntries
-    def registerWaves(erc20Address: EthAddress, currRegistrySize: Long): DataTransaction =
-      TxHelpers.data(
-        chainContractAccount,
-        List(
-          StringDataEntry(
-            s"assetRegistry_${ChainContractClient.Registry.WavesAssetName}",
-            s"$currRegistrySize${ChainContractClient.Sep}${erc20Address.hex}${ChainContractClient.Sep}0"
-          ),
-          StringDataEntry(s"assetRegistryIndex_$currRegistrySize", ChainContractClient.Registry.WavesAssetName),
-          IntegerDataEntry(s"assetRegistryAssetE_${erc20Address.hex}", currRegistrySize),
-          IntegerDataEntry("assetRegistrySize", currRegistrySize + 1)
-        )
-      )
 
     def registerAsset(
         asset: IssuedAsset,

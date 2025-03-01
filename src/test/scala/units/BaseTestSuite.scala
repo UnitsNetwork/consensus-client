@@ -1,10 +1,13 @@
 package units
 
 import com.wavesplatform.account.KeyPair
+import com.wavesplatform.common.utils.EitherExt2
+import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.database.{RDB, loadActiveLeases}
 import com.wavesplatform.db.WithDomain
 import com.wavesplatform.db.WithState.AddrWithBalance
 import com.wavesplatform.events.BlockchainUpdateTriggers
+import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.state.BlockchainUpdaterImpl
 import com.wavesplatform.test.{BaseSuite, NumericExt}
 import com.wavesplatform.transaction.TxHelpers
@@ -14,14 +17,14 @@ import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues}
 import units.client.engine.model.GetLogsResponseEntry
 import units.el.NativeBridge
 import units.el.NativeBridge.ElSentNativeEvent
-import units.eth.{EthAddress, EthNumber}
+import units.eth.EthNumber
 import units.test.CustomMatchers
 import units.util.HexBytesConverter
 
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.ThreadLocalRandom
 
-trait BaseIntegrationTestSuite
+trait BaseTestSuite
     extends AnyFreeSpec
     with BaseSuite
     with ScorexLogging
@@ -48,8 +51,23 @@ trait BaseIntegrationTestSuite
             defaultSettings.daoRewardAccount.map(_.toAddress),
             defaultSettings.daoRewardAmount
           )
-        ) ++
-          settings.initialMiners.map { x => d.ChainContract.join(x.account, x.elRewardAddress) }
+        )
+          ++ settings.initialMiners.map { x => d.ChainContract.join(x.account, x.elRewardAddress) }
+          ++ Option
+            .when(settings.enableTokenTransfers) {
+              TxHelpers.invoke(
+                dApp = d.chainContractAddress,
+                func = Some("enableTokenTransfers"),
+                args = List(
+                  Terms.CONST_STRING(standardBridgeAddress.hex).explicitGet(),
+                  Terms.CONST_STRING("0xb9A219631Aed55eBC3D998f17C3840B7eC39C0cc").explicitGet(), // wavesERC20AddressHex
+                  Terms.CONST_LONG(0)                                                             // activationEpoch
+                ),
+                fee = 0.1.waves,
+                invoker = d.chainContractAccount
+              )
+            }
+            .toList
 
       d.appendBlock(txs*)
       d.advanceConsensusLayerChanged()

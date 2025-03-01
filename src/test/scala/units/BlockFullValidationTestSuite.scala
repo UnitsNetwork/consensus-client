@@ -10,7 +10,7 @@ import units.el.NativeBridge
 import units.eth.EthAddress
 import units.util.HexBytesConverter
 
-class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
+class BlockFullValidationTestSuite extends BaseTestSuite {
   private val transferEvents                = List(NativeBridge.ElSentNativeEvent(TxHelpers.defaultAddress, 1))
   private val ecBlockLogs                   = transferEvents.map(getLogsResponseEntry)
   private val e2CNativeTransfersRootHashHex = HexBytesConverter.toHex(NativeBridge.mkTransfersHash(ecBlockLogs).explicitGet())
@@ -125,5 +125,4 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
       }
     }
   }
-
 }

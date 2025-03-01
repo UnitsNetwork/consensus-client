@@ -13,7 +13,7 @@ import units.client.contract.HasConsensusLayerDappTxHelpers.DefaultFees
 import units.el.NativeBridge
 import units.util.HexBytesConverter
 
-class E2CNativeTransfersTestSuite extends BaseIntegrationTestSuite {
+class E2CNativeTransfersTestSuite extends BaseTestSuite {
   private val transferReceiver     = TxHelpers.secondSigner
   private val transfer             = NativeBridge.ElSentNativeEvent(transferReceiver.toAddress, 1)
   private val transferEvent        = getLogsResponseEntry(transfer)

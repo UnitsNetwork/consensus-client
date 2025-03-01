@@ -976,10 +976,14 @@ func enableTokenTransfers(standardBridgeAddress: String, wavesERC20AddressHex: S
     case _ => true
   }
 
-  if (standardBridgeWasNotConfigured) then [
-    StringEntry(elStandardBridgeAddressKey, "0x" + normalizeEthAddress(standardBridgeAddress)),
-    IntegerEntry(assetTransfersActivationEpochKey, activationEpoch)
-  ] ++ mkAssetRegistryEntries("WAVES", normalizeEthAddress(wavesERC20AddressHex), 0) else []
+  if (standardBridgeWasNotConfigured)
+    then
+      mkAssetRegistryEntries(assetRegistrySize, "WAVES", normalizeEthAddress(wavesERC20AddressHex), 0) ++ [
+        StringEntry(elStandardBridgeAddressKey, "0x" + normalizeEthAddress(standardBridgeAddress)),
+        IntegerEntry(assetTransfersActivationEpochKey, activationEpoch),
+        IntegerEntry(assetRegistrySizeKey, assetRegistrySize + 1)
+      ]
+    else []
 }
 
 # genesisBlockHashHex without 0x

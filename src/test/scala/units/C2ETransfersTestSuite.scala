@@ -6,7 +6,7 @@ import com.wavesplatform.state.IntegerDataEntry
 import com.wavesplatform.test.produce
 import com.wavesplatform.transaction.{Asset, TxHelpers}
 
-class C2ETransfersTestSuite extends BaseIntegrationTestSuite {
+class C2ETransfersTestSuite extends BaseTestSuite {
   private val transferSenderAccount  = TxHelpers.secondSigner
   private val validTransferRecipient = "1111111111111111111111111111111111111111"
   private val issueAssetTxn          = TxHelpers.issue(issuer = transferSenderAccount)
@@ -79,7 +79,7 @@ class C2ETransfersTestSuite extends BaseIntegrationTestSuite {
     d.appendMicroBlockE(registerTxn) should beRight
 
     val registeredAssets = d.chainContractClient.getAllRegisteredAssets.map(_.asset)
-    registeredAssets shouldBe assets
+    registeredAssets shouldBe List(Asset.Waves, issueAssetTxn.asset, issueAsset2Txn.asset)
   }
 
   private def transferFuncTest(
@@ -88,7 +88,7 @@ class C2ETransfersTestSuite extends BaseIntegrationTestSuite {
       assetId: Option[Asset] = None,
       queueSize: Int = 0,
       register: Boolean = false
-  ): Either[Throwable, BlockId] = withExtensionDomain() { d =>
+  ): Either[Throwable, BlockId] = withExtensionDomain(defaultSettings.copy(enableTokenTransfers = register)) { d =>
     val amount = Long.MaxValue / 2
     d.appendMicroBlock(
       issueAssetTxn,
@@ -97,11 +97,7 @@ class C2ETransfersTestSuite extends BaseIntegrationTestSuite {
     )
 
     assetId
-      .filter(_ => register)
-      .map {
-        case asset: Asset.IssuedAsset => d.ChainContract.registerAsset(asset, mkRandomEthAddress(), 8)
-        case Asset.Waves              => d.ChainContract.registerWaves(mkRandomEthAddress(), d.chainContractClient.getAssetRegistrySize)
-      }
+      .collect { case asset: Asset.IssuedAsset if register => d.ChainContract.registerAsset(asset, mkRandomEthAddress(), 8) }
       .foreach(d.appendMicroBlock(_))
 
     if (queueSize > 0) d.appendMicroBlock(TxHelpers.data(d.chainContractAccount, Seq(IntegerDataEntry("nativeTransfersCount", queueSize))))

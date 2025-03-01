@@ -1,10 +1,10 @@
 package units.client.contract
 
 import com.wavesplatform.transaction.{Asset, TxHelpers}
-import units.BaseIntegrationTestSuite
+import units.BaseTestSuite
 import units.eth.EthAddress
 
-class ChainContractImpureTestSuite extends BaseIntegrationTestSuite {
+class ChainContractImpureTestSuite extends BaseTestSuite {
   "registerAsset" - {
     "Unknown asset" in withExtensionDomain() { d =>
       val issueTxn    = TxHelpers.issue(d.chainRegistryAccount, 1, 8)
@@ -56,12 +56,12 @@ class ChainContractImpureTestSuite extends BaseIntegrationTestSuite {
     }
 
     "Registers an asset" in withExtensionDomain() { d =>
-      d.chainContractClient.getAssetRegistrySize shouldBe 0
+      d.chainContractClient.getAssetRegistrySize shouldBe 1 // Waves
 
       val issueTxn = TxHelpers.issue(d.chainRegistryAccount, 1, 8)
       d.appendMicroBlock(issueTxn, d.ChainContract.registerAsset(issueTxn.asset, standardBridgeAddress, 8))
 
-      d.chainContractClient.getAssetRegistrySize shouldBe 1
+      d.chainContractClient.getAssetRegistrySize shouldBe 2
     }
   }
 
@@ -94,12 +94,12 @@ class ChainContractImpureTestSuite extends BaseIntegrationTestSuite {
     }
 
     "Registers an asset" in withExtensionDomain() { d =>
-      d.chainContractClient.getAssetRegistrySize shouldBe 0
+      d.chainContractClient.getAssetRegistrySize shouldBe 1 // Waves
 
       val txn = d.ChainContract.issueAndRegister(standardBridgeAddress, 8, "test", "test", 8)
       d.appendMicroBlock(txn)
 
-      d.chainContractClient.getAssetRegistrySize shouldBe 1
+      d.chainContractClient.getAssetRegistrySize shouldBe 2
     }
   }
 }
