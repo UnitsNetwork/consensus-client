@@ -3,53 +3,53 @@ from dataclasses import dataclass
 from decimal import Decimal
 from functools import cached_property
 
-from eth_account.signers.local import LocalAccount
+import rlp
+from eth_account.signers.base import BaseAccount
 from pywaves import pw
 from units_network import units
+from web3 import Web3
 from web3.types import Wei
 
 
+def compute_contract_address(sender_address, nonce):
+    sender_bytes = bytes.fromhex(sender_address[2:])
+    computed = Web3.keccak(rlp.encode([sender_bytes, nonce]))
+    return Web3.to_checksum_address(computed[-20:])
+
+
 @dataclass()
-class BaseTransfer:
-    el_account: LocalAccount
+class Transfer:
     cl_account: pw.Address
-    raw_amount: Decimal
+    el_account: BaseAccount
+
+    user_amount: Decimal
+
+    cl_asset: pw.Asset
+    el_token_decimals: int
 
     @cached_property
-    def wei_amount(self) -> Wei:
-        return units.raw_to_wei(self.raw_amount)
+    def cl_atomic_amount(self) -> int:
+        return units.user_to_atomic(self.user_amount, self.cl_asset.decimals)
 
     @cached_property
-    def waves_atomic_amount(self) -> int:
-        return units.raw_to_waves_atomic(self.raw_amount)
+    def el_atomic_amount(self) -> Wei:
+        return Wei(units.user_to_atomic(self.user_amount, self.el_token_decimals))
+
+    def __repr__(self) -> str:
+        return f"Transfer(cl={self.cl_account.address}, el={self.el_account.address}, amount={self.user_amount} of {self.cl_asset.assetId}"
 
 
 @dataclass()
-class C2ETransfer(BaseTransfer):
-    @property
-    def from_account(self) -> pw.Address:
-        return self.cl_account
+class TransferBuilder:
+    cl_asset: pw.Asset
+    el_token_decimals: int
 
-    @property
-    def to_account(self) -> LocalAccount:
-        return self.el_account
-
-    def __repr__(self) -> str:
-        return f"C2E(from={self.cl_account.address}, to={self.el_account.address}, {self.raw_amount} UNIT0)"
-
-
-@dataclass()
-class E2CTransfer(BaseTransfer):
-    @property
-    def from_account(self) -> LocalAccount:
-        return self.el_account
-
-    @property
-    def to_account(self) -> pw.Address:
-        return self.cl_account
-
-    def __repr__(self) -> str:
-        return f"E2C(from={self.el_account.address}, to={self.cl_account.address}, {self.raw_amount} UNIT0)"
+    def create(
+        self, cl_account: pw.Address, el_account: BaseAccount, user_amount: Decimal
+    ) -> Transfer:
+        return Transfer(
+            cl_account, el_account, user_amount, self.cl_asset, self.el_token_decimals
+        )
 
 
 _INSIDE_DOCKER = None

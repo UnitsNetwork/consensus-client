@@ -1,15 +1,19 @@
+import logging
 from dataclasses import dataclass
 from functools import cached_property
 from typing import List, Optional
 
 from eth_account.signers.local import LocalAccount
-from pywaves import pw
-from units_network import networks
-from units_network.chain_contract import ChainContract, HexStr
+from eth_typing import ChecksumAddress, HexStr
+from pywaves import Asset, pw
+from units_network import networks, waves
+from units_network.chain_contract import ChainContract
+from units_network.erc20 import Erc20
 from units_network.networks import Network, NetworkSettings
-from web3 import Account
+from web3 import Account, Web3
 
-from local.common import in_docker
+from local.Deployments import Deployments
+from local.common import compute_contract_address, in_docker
 
 
 def get_waves_api_url(n: int) -> str:
@@ -23,10 +27,23 @@ def get_ec_api_url(n: int) -> str:
 @dataclass
 class Miner:
     account: pw.Address
-    el_reward_address_hex: HexStr
+    el_reward_address: ChecksumAddress
+
+    @classmethod
+    def new(cls, cl_seed: str, el_reward_address: str, cl_nonce: int = 0) -> "Miner":
+        return cls(
+            account=pw.Address(seed=cl_seed, nonce=cl_nonce),
+            el_reward_address=Web3.to_checksum_address(
+                Web3.to_hex(hexstr=HexStr(el_reward_address))
+            ),
+        )
 
 
 class ExtendedNetwork(Network):
+    def __init__(self, settings: NetworkSettings):
+        super().__init__(settings)
+        self.log = logging.getLogger("ExtendedNetwork")
+
     @cached_property
     def cl_dao(self) -> pw.Address:
         return pw.Address(seed="devnet dao", nonce=0)
@@ -40,17 +57,35 @@ class ExtendedNetwork(Network):
         return ChainContract(seed="devnet cc", nonce=0)
 
     @cached_property
+    def cl_test_asset(self) -> Asset:
+        test_asset_name = "TestToken"
+
+        asset = self.cl_chain_contract.findRegisteredAsset(test_asset_name)
+        if asset:
+            return asset
+
+        self.log.info(f"Registering {test_asset_name}")
+        register_txn = self.cl_chain_contract.issueAndRegister(
+            sender=self.cl_chain_contract.oracleAcc,
+            erc20Address=self.el_test_erc20.contract_address,
+            elDecimals=self.el_test_erc20.decimals,
+            name=test_asset_name,
+            description="Test bridged token",
+            clDecimals=8,
+            txFee=100_500_000,
+        )
+        waves.force_success(self.log, register_txn, "Can not register asset")
+
+        asset = self.cl_chain_contract.findRegisteredAsset(test_asset_name)
+        if asset:
+            return asset
+
+        raise Exception("Can't deploy a custom CL asset")
+
+    @cached_property
     def cl_miners(self) -> List[Miner]:
         return [
-            Miner(
-                account=pw.Address(
-                    seed="devnet-1",
-                    nonce=0,
-                ),
-                el_reward_address_hex=HexStr(
-                    "0x7dbcf9c6c3583b76669100f9be3caf6d722bc9f9"
-                ),
-            ),
+            Miner.new("devnet-1", "0x7dbcf9c6c3583b76669100f9be3caf6d722bc9f9"),
             # TODO: Until fixed an issue with rollback
             # Miner(
             #     account=pw.Address(
@@ -96,10 +131,14 @@ class ExtendedNetwork(Network):
             ),
         ]
 
+    @cached_property
+    def el_test_erc20(self) -> Erc20:
+        return self.get_erc20(Deployments.load().terc20)  # TODO: fix
+
 
 local_net = NetworkSettings(
     name="LocalNet",
-    chain_id_str="D",
+    cl_chain_id_str="D",
     cl_node_api_url=get_waves_api_url(1),
     el_node_api_url=get_ec_api_url(1),
     chain_contract_address="3FXDd4LoxxqVLfMk8M25f8CQvfCtGMyiXV1",

@@ -21,7 +21,7 @@ import units.util.HexBytesConverter
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.ThreadLocalRandom
 
-trait BaseIntegrationTestSuite
+trait BaseTestSuite
     extends AnyFreeSpec
     with BaseSuite
     with ScorexLogging
@@ -44,12 +44,21 @@ trait BaseIntegrationTestSuite
           d.ChainContract.setScript(),
           d.ChainContract.setup(
             d.ecGenesisBlock,
-            elMinerDefaultReward.amount.longValue(),
+            ElMinerDefaultReward.amount.longValue(),
             defaultSettings.daoRewardAccount.map(_.toAddress),
             defaultSettings.daoRewardAmount
           )
-        ) ++
-          settings.initialMiners.map { x => d.ChainContract.join(x.account, x.elRewardAddress) }
+        )
+          ++ settings.initialMiners.map { x => d.ChainContract.join(x.account, x.elRewardAddress) }
+          ++ Option
+            .when(settings.enableTokenTransfers) {
+              d.ChainContract.enableTokenTransfers(
+                StandardBridgeAddress,
+                EthAddress.unsafeFrom("0xb9A219631Aed55eBC3D998f17C3840B7eC39C0cc"),
+                activationEpoch = 0
+              )
+            }
+            .toList
 
       d.appendBlock(txs*)
       d.advanceConsensusLayerChanged()
@@ -74,9 +83,9 @@ trait BaseIntegrationTestSuite
           rocksDBWriter = blockchain,
           settings = settings.wavesSettings,
           chainRegistryAccount = chainRegistryAccount,
-          nativeBridgeAddress = nativeBridgeAddress,
-          standardBridgeAddress = standardBridgeAddress,
-          elMinerDefaultReward = elMinerDefaultReward
+          nativeBridgeAddress = NativeBridgeAddress,
+          standardBridgeAddress = StandardBridgeAddress,
+          elMinerDefaultReward = ElMinerDefaultReward
         )
 
         d.wallet.generateNewAccounts(2) // Enough for now
@@ -118,7 +127,7 @@ trait BaseIntegrationTestSuite
   protected def getLogsResponseEntry(event: ElSentNativeEvent): GetLogsResponseEntry =
     GetLogsResponseEntry(
       EthNumber(0),
-      nativeBridgeAddress,
+      NativeBridgeAddress,
       NativeBridge.ElSentNativeEvent.encodeArgs(event),
       List(NativeBridge.ElSentNativeEventTopic),
       ""

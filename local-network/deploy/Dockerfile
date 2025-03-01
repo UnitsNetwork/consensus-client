@@ -8,6 +8,6 @@ RUN curl -L https://foundry.paradigm.xyz | bash
 ENV PATH=$PATH:/root/.foundry/bin
 RUN foundryup
 
-RUN pip install --no-cache-dir --editable .
+RUN pip install --no-cache-dir .
 
 CMD ["/bin/bash", "run.sh"]

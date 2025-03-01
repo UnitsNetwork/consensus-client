@@ -14,8 +14,8 @@ case class ChainContractOptions(
     elStandardBridgeAddress: Option[EthAddress],
     assetTransfersActivationEpoch: Long
 ) {
-  val bridgeAddresses: List[EthAddress] = elStandardBridgeAddress.fold(List(elNativeBridgeAddress))(a => List(a, elNativeBridgeAddress))
-  
+  val bridgeAddresses: List[EthAddress] = elNativeBridgeAddress :: elStandardBridgeAddress.toList
+
   def startEpochChainFunction(epoch: Int, reference: BlockHash, vrf: ByteStr, chainInfo: Option[ChainInfo]): ContractFunction =
     chainInfo match {
       case Some(chainInfo) =>

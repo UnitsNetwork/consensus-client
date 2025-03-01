@@ -13,7 +13,7 @@ contract StandardBridge {
 
     /// @notice Mapping that stores deposits for a given local token.
     mapping(address => uint256) public deposits;
-    mapping(address => uint64)  public tokenRatios;
+    mapping(address => uint256) public tokenRatios;
 
     event ERC20BridgeInitiated(
         address indexed localToken,
@@ -44,9 +44,7 @@ contract StandardBridge {
         require(addedTokens.length == addedTokenExponents.length, "Different sizes of added tokens and their exponents");
 
         for (uint256 i = 0; i < addedTokens.length; i++) {
-            uint8 exponent = addedTokenExponents[i];
-            require(exponent <= 10, string.concat("Invalid token exponent: ", Strings.toString(uint(exponent))));
-            tokenRatios[addedTokens[i]] = uint64(10 ** addedTokenExponents[i]); // log2(10^18) = 59.79... < 64
+            tokenRatios[addedTokens[i]] = uint256(10 ** addedTokenExponents[i]);
         }
 
         emit RegistryUpdated(addedTokens, addedTokenExponents, new address[](0));
@@ -95,7 +93,7 @@ contract StandardBridge {
     )
     internal
     {
-        uint64 ratio = tokenRatios[_localToken];
+        uint256 ratio = tokenRatios[_localToken];
         require(ratio > 0, "Token is not registered");
 
         uint256 minAmountInWei = 1 * ratio;

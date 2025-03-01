@@ -166,7 +166,9 @@ class ELUpdater(
       Proofs.empty,
       blockchain.settings.addressSchemeCharacter.toByte
     ).signWith(invoker.privateKey)
-    logger.info(s"Invoking $contractAddress '${fc.function.funcName}' for block ${blockData.hash}->${blockData.parentHash}, txId=${tx.id()}")
+    logger.info(
+      s"Invoking $contractAddress '${fc.function.funcName}'(${fc.args.mkString(", ")}) for block ${blockData.hash}->${blockData.parentHash}, txId=${tx.id()}"
+    )
 
     broadcastTx(tx).resultE match {
       case Right(true)  => Either.unit
@@ -352,10 +354,11 @@ class ELUpdater(
       logger.info(
         s"Starting to forge payload $payloadId by miner ${epochInfo.miner} at height ${parentBlock.height + 1} " +
           s"of epoch ${epochInfo.number} (ref=${parentBlock.hash})" +
-          (if (withdrawals.isEmpty) "" else s", ${withdrawals.size} withdrawals, ") +
-          (if (transfers.isEmpty) "" else s"${transfers.size} native transfers from $startC2ETransferIndex") +
-          updateAssetRegistryTransaction.fold("")(_ => s", new ${addedAssets.size} assets: {${addedAssets.mkString(", ")}}") +
-          (if (assetTransfers.isEmpty) "" else s", ${assetTransfers.size} asset transfers")
+          (if (withdrawals.isEmpty) "" else s", ${withdrawals.size} withdrawals from EL index=$startElWithdrawalIndex") +
+          (if (transfers.isEmpty) "" else s", total ${transfers.size} transfers from $startC2ETransferIndex") +
+          (if (nativeTransfers.isEmpty) "" else s", ${nativeTransfers.size} native") +
+          (if (assetTransfers.isEmpty) "" else s", ${assetTransfers.size} asset transfers") +
+          updateAssetRegistryTransaction.fold("")(_ => s", ${addedAssets.size} new assets: {${addedAssets.mkString(", ")}}")
       )
 
       MiningData(
@@ -1449,52 +1452,67 @@ class ELUpdater(
     } yield Some(lastElWithdrawalIndex)
   }
 
-  @tailrec
   private def validateC2ETransfers(
       actualWithdrawals: Seq[Withdrawal],
       actualTransferLogs: List[GetLogsResponseEntry],
       expectedTransfers: Seq[ContractTransfer],
       prevWithdrawalIndex: Long
-  ): Either[String, Long] = expectedTransfers match {
-    case Seq() =>
-      for {
-        _ <- Either.cond(
-          actualWithdrawals.isEmpty,
-          (),
-          s"Found ${actualWithdrawals.size} unexpected withdrawals: ${actualWithdrawals.take(MaxTransfersInLogs).mkString(", ")}"
-        )
-        _ <- Either.cond(
-          actualTransferLogs.isEmpty,
-          (),
-          s"Found ${actualTransferLogs.size} unexpected transfers: ${actualTransferLogs.take(MaxTransfersInLogs).mkString(", ")}"
-        )
-      } yield prevWithdrawalIndex
+  ): Either[String, Long] = {
+    val totalTransfers = expectedTransfers.size
 
-    case expectedTransfer +: restExpectedTransfers =>
-      expectedTransfer match {
-        case expectedTransfer: ContractTransfer.Native =>
-          actualWithdrawals match {
-            case Seq() => s"Not found EL block withdrawal #$prevWithdrawalIndex, expected $expectedTransfer transfer".asLeft
-            case actualWithdrawal +: restActualWithdrawals =>
-              val expectedWithdrawal = toWithdrawal(expectedTransfer, prevWithdrawalIndex + 1)
-              validateWithdrawal(actualWithdrawal, expectedWithdrawal) match {
-                case Left(e) => e.asLeft
-                case _       => validateC2ETransfers(restActualWithdrawals, actualTransferLogs, restExpectedTransfers, expectedWithdrawal.index)
+    @tailrec
+    def loop(
+        actualWithdrawals: Seq[Withdrawal],
+        actualTransferLogs: List[GetLogsResponseEntry],
+        expectedTransfers: Seq[ContractTransfer],
+        prevWithdrawalIndex: Long,
+        currTransferNumber: Int
+    ): Either[String, Long] = {
+      def logPrefix = s"[$currTransferNumber/$totalTransfers]"
+      expectedTransfers match {
+        case Seq() =>
+          for {
+            _ <- Either.cond(
+              actualWithdrawals.isEmpty,
+              (),
+              s"$logPrefix Found ${actualWithdrawals.size} unexpected withdrawals: ${actualWithdrawals.take(MaxTransfersInLogs).mkString(", ")}"
+            )
+            _ <- Either.cond(
+              actualTransferLogs.isEmpty,
+              (),
+              s"$logPrefix Found ${actualTransferLogs.size} unexpected transfers: ${actualTransferLogs.take(MaxTransfersInLogs).mkString(", ")}"
+            )
+          } yield prevWithdrawalIndex
+
+        case expectedTransfer +: restExpectedTransfers =>
+          expectedTransfer match {
+            case expectedTransfer: ContractTransfer.Native =>
+              actualWithdrawals match {
+                case Seq() => s"$logPrefix Not found EL block withdrawal #$prevWithdrawalIndex, expected $expectedTransfer transfer".asLeft
+                case actualWithdrawal +: restActualWithdrawals =>
+                  val expectedWithdrawal = toWithdrawal(expectedTransfer, prevWithdrawalIndex + 1)
+                  validateWithdrawal(actualWithdrawal, expectedWithdrawal) match {
+                    case Left(e) => e.asLeft
+                    case _ => loop(restActualWithdrawals, actualTransferLogs, restExpectedTransfers, expectedWithdrawal.index, currTransferNumber + 1)
+                  }
               }
-          }
 
-        case expectedTransfer: ContractTransfer.Asset =>
-          actualTransferLogs match {
-            case Nil => s"Not found EL transfer log, expected $expectedTransfer transfer".asLeft
-            case actualTransferLog :: restActualTransferLogs =>
-              StandardBridge.ERC20BridgeFinalized
-                .decodeLog(actualTransferLog)
-                .flatMap(validateC2EAssetTransfer(actualTransferLog.logIndex, _, expectedTransfer)) match {
-                case Left(e) => e.asLeft
-                case _       => validateC2ETransfers(actualWithdrawals, restActualTransferLogs, restExpectedTransfers, prevWithdrawalIndex)
+            case expectedTransfer: ContractTransfer.Asset =>
+              actualTransferLogs match {
+                case Nil => s"$logPrefix Not found EL transfer log, expected $expectedTransfer transfer".asLeft
+                case actualTransferLog :: restActualTransferLogs =>
+                  StandardBridge.ERC20BridgeFinalized
+                    .decodeLog(actualTransferLog)
+                    .flatMap(validateC2EAssetTransfer(actualTransferLog.logIndex, _, expectedTransfer)) match {
+                    case Left(e) => e.asLeft
+                    case _ => loop(actualWithdrawals, restActualTransferLogs, restExpectedTransfers, prevWithdrawalIndex, currTransferNumber + 1)
+                  }
               }
           }
       }
+    }
+
+    loop(actualWithdrawals, actualTransferLogs, expectedTransfers, prevWithdrawalIndex, currTransferNumber = 1)
   }
 
   private def validateBlockFull(
@@ -1665,11 +1683,11 @@ class ELUpdater(
 
   private def confirmBlock(block: L2BlockLike, finalizedBlock: L2BlockLike): JobResult[PayloadStatus] = {
     val finalizedBlockHash = if (finalizedBlock.height > block.height) block.hash else finalizedBlock.hash
-    engineApiClient.forkChoiceUpdate(block.hash, finalizedBlockHash)
+    engineApiClient.forkChoiceUpdated(block.hash, finalizedBlockHash)
   }
 
   private def confirmBlock(hash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus] =
-    engineApiClient.forkChoiceUpdate(hash, finalizedBlockHash)
+    engineApiClient.forkChoiceUpdated(hash, finalizedBlockHash)
 
   private def confirmBlockAndStartMining(
       lastBlock: EcBlock,
@@ -1682,7 +1700,7 @@ class ELUpdater(
   ): JobResult[PayloadId] = {
     val finalizedBlockHash = if (finalizedBlock.height > lastBlock.height) lastBlock.hash else finalizedBlock.hash
     engineApiClient
-      .forkChoiceUpdateWithPayloadId(
+      .forkChoiceUpdatedWithPayloadId(
         lastBlock.hash,
         finalizedBlockHash,
         unixEpochSeconds,

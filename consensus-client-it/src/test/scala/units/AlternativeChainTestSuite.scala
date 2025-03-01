@@ -4,10 +4,10 @@ import com.wavesplatform.account.KeyPair
 import com.wavesplatform.api.LoggingBackend.LoggingOptions
 import com.wavesplatform.api.http.ApiError.ScriptExecutionError
 import com.wavesplatform.common.state.ByteStr
+import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.transaction.TxHelpers
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
-import com.wavesplatform.common.utils.EitherExt2.explicitGet
 
 import scala.annotation.tailrec
 
@@ -57,6 +57,18 @@ class AlternativeChainTestSuite extends BaseDockerTestSuite {
         Terms.CONST_LONG(-1)
       )
     )
+
+    // Replacement after activation:
+    // val txn = ChainContract.extendMainChain(
+    //   minerAccount = minerAccount,
+    //   blockHash = BlockHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+    //   parentBlockHash = lastContractBlock.hash,
+    //   e2cTransfersRootHashHex = EmptyE2CTransfersRootHashHex,
+    //   lastC2ETransferIndex = -1,
+    //   lastAssetRegistryIndex = -1,
+    //   vrf = ByteStr.decodeBase58(lastWavesBlock.VRF).get
+    // )
+
     waves1.api.broadcast(txn) match {
       case Left(e) if e.error == ScriptExecutionError.Id =>
         log.debug(s"Failed to send an EL-block confirmation: $e")

@@ -16,7 +16,9 @@ let WAVES_ASSET_NAME       = "WAVES"
 
 # 1024 symbols
 let zeroesStr = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-
+# 36 bytes
+let zeroBytes   = base16'000000000000000000000000000000000000000000000000000000000000000000000000'
+let indexes_10  = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 let offsets_100 = "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::".split_4C("")
 
 let allMinersKey               = "allMiners"
@@ -37,6 +39,7 @@ let assetRegistryK       = "assetRegistry_"         # Asset Id -> Settings (inde
 let assetRegistryELK     = "assetRegistryAssetE_0x" # ERC20 address -> Index
 let assetRegistryIndexK  = "assetRegistryIndex_"    # Index (starts from 0) -> Asset Id
 let assetRegistrySizeKey = "assetRegistrySize"
+let assetRegistrySize = getInteger(assetRegistrySizeKey).valueOrElse(0)
 
 func pad(i: Int) = {
   let s = i.toString()
@@ -92,42 +95,42 @@ let assetTransfersActivated          = height >= assetTransfersActivationEpoch
 func requireAssetTransfersActivated()    = assetTransfersActivated || throw("Asset transfers must be activated")
 func requireAssetTransfersNotActivated() = assetTransfersActivated && throw("Asset transfers must not be activated")
 
+func parseIssuedAssetId(assetIdBase58: String) = {
+  let assetId = assetIdBase58.fromBase58String()
+  if (assetId.size() == ASSET_ID_SIZE) then assetId
+  else throw("Invalid asset: " + assetIdBase58)
+}
+
 func parseAssetId(assetIdBase58OrWaves: String) =
   if (assetIdBase58OrWaves == WAVES_ASSET_NAME) then unit
-  else {
-    let assetId = assetIdBase58OrWaves.fromBase58String()
-    if (assetId.size() == ASSET_ID_SIZE) then assetId
-    else throw("Invalid asset: " + assetIdBase58OrWaves)
-  }
+  else parseIssuedAssetId(assetIdBase58OrWaves)
 
-# assetIdBase58OrWaves - "Asset ID in Base58" | WAVES_ASSET_NAME
+# assetIdBase58 - "Asset ID in Base58"
 # erc20AddressHex without 0x
 # ratioExponent: EL decimals - CL decimals
-func mkAssetRegistryEntries(assetIdBase58OrWaves: String, erc20AddressHex: String, ratioExponent: Int) = {
+func mkAssetRegistryEntries(currIndex: Int, assetIdBase58: String, erc20AddressHex: String, ratioExponent: Int) = {
   strict checkRatioExponent = ratioExponent <= 18 || throw("Ratio exponent > 18 not supported: " + ratioExponent.toString())
-  let currIndex = getInteger(assetRegistrySizeKey).valueOrElse(0)
   [
-    StringEntry(assetRegistryK + assetIdBase58OrWaves, currIndex.toString() + SEP + "0x" + erc20AddressHex + SEP + ratioExponent.toString()),
-    StringEntry(assetRegistryIndexK + currIndex.toString(), assetIdBase58OrWaves),
-    IntegerEntry(assetRegistryELK + erc20AddressHex, currIndex),
-    IntegerEntry(assetRegistrySizeKey, currIndex + 1)
+    StringEntry(assetRegistryK + assetIdBase58, currIndex.toString() + SEP + "0x" + erc20AddressHex + SEP + ratioExponent.toString()),
+    StringEntry(assetRegistryIndexK + currIndex.toString(), assetIdBase58),
+    IntegerEntry(assetRegistryELK + erc20AddressHex, currIndex)
   ]
 }
 
 func getAssetIndex(assetIdBase58OrWaves: String) =
   getString(assetRegistryK + assetIdBase58OrWaves)
-    .valueOrErrorMessage("Can't find in a registry: " + assetIdBase58OrWaves)
+    .valueOrErrorMessage("Can't find in the registry: " + assetIdBase58OrWaves)
     .split(SEP)[0]
     .parseIntValue()
 
 func getAssetErc20Address(assetIdBase58OrWaves: String) =
   getString(assetRegistryK + assetIdBase58OrWaves)
-    .valueOrErrorMessage("Can't find in a registry: " + assetIdBase58OrWaves)
+    .valueOrErrorMessage("Can't find in the registry: " + assetIdBase58OrWaves)
     .split(SEP)[1]
     .split("0x")[1]
     .fromBase16String()
 
-func isClAssetRegistered(assetIdBase58OrWaves: String) = getString(assetRegistryK + assetIdBase58OrWaves).isDefined()
+func isClAssetRegistered(assetIdBase58: String) = getString(assetRegistryK + assetIdBase58).isDefined()
 # erc20AddressHex without 0x
 func isElAssetRegistered(erc20AddressHex: String) = getInteger(assetRegistryELK + erc20AddressHex).isDefined()
 
@@ -803,49 +806,34 @@ func leave() = {
 func transfer(destElAddressHex: String) = {
   strict normalizedDestElAddressHex = normalizeEthAddress(destElAddressHex)
 
-  strict checkPayment = if (size(i.payments) == 1) then true else throw("Expected one payment as a transfer amount, got " + i.payments.size().toString())
+  let t = if (size(i.payments) == 1) then i.payments[0] else throw("Expected one payment as a transfer amount, got " + i.payments.size().toString())
+  let nativeTokenIdStr = getStringValue(tokenIdKey)
+  let nativeTokenId    = nativeTokenIdStr.fromBase58String()
+  if (t.assetId == nativeTokenId) then {
+    # TODO Return this logic:
+    # let lastIndex = blockMeta(mainChainLastBlock)._6
+    # let queueSize = transfersCount - lastIndex
+    # strict checkQueueLimit =
+    #        if (queueSize <  160) then amountGtEq(t,     1_000_000, queueSize)
+    #   else if (queueSize < 1600) then amountGtEq(t,    10_000_000, queueSize)
+    #   else if (queueSize < 3200) then amountGtEq(t,   100_000_000, queueSize)
+    #   else if (queueSize < 6400) then amountGtEq(t, 1_000_000_000, queueSize)
+    #   else throw("Transfers denied for queue size of " + queueSize.toString() + ". Wait until current transfers processed")
+    Burn(nativeTokenId, t.amount) :: mkNativeTransferEntries(normalizedDestElAddressHex, t.amount)
+  } else {
+    let (assetIdBase58OrWaves, preActions) = match t.assetId {
+      case assetId: ByteVector =>
+        let asset      = assetInfo(assetId).valueOrErrorMessage("Unexpected error: unknown asset")
+        let assetIdStr = assetId.toBase58String()
+        if (asset.issuer == this) then (assetIdStr, [Burn(assetId, t.amount)])
+        else (assetIdStr, [])
+      case _ => (WAVES_ASSET_NAME, [])
+    }
 
-  let tokenIdStr = getStringValue(tokenIdKey)
-  let tokenId    = tokenIdStr.fromBase58String()
-  let t          = i.payments[0]
-  strict checkAssetId = match t.assetId {
-    case assetId: ByteVector =>
-      if (assetId == tokenId) then true
-      else throw("Expected " + tokenIdStr + " in the payment, got " + assetId.toBase58String())
-    case _ => throw("Expected " + tokenIdStr + " in the payment, got Waves")
+    let fromAddressHex = i.caller.bytes.drop(2).take(20).toBase16String()
+    let assetIndex     = getAssetIndex(assetIdBase58OrWaves)
+    preActions ++ mkAssetTransferEntries(normalizedDestElAddressHex, fromAddressHex, t.amount, assetIndex)
   }
-
-  let lastIndex = blockMeta(mainChainLastBlock)._6
-  let queueSize = transfersCount - lastIndex
-  strict checkQueueLimit =
-         if (queueSize <  160) then amountGtEq(t,     1_000_000, queueSize)
-    else if (queueSize < 1600) then amountGtEq(t,    10_000_000, queueSize)
-    else if (queueSize < 3200) then amountGtEq(t,   100_000_000, queueSize)
-    else if (queueSize < 6400) then amountGtEq(t, 1_000_000_000, queueSize)
-    else throw("Transfers denied for queue size of " + queueSize.toString() + ". Wait until current transfers processed")
-
-  mkNativeTransferEntries(normalizedDestElAddressHex, t.amount) ++ [ Burn(tokenId, t.amount) ]
-}
-
-@Callable(i)
-func assetTransfer(destElAddressHex: String) = {
-  strict normalizedDestElAddressHex = normalizeEthAddress(destElAddressHex)
-  let fromAddressHex = i.caller.bytes.drop(2).take(20).toBase16String()
-
-  strict checkPayment = if (size(i.payments) == 1) then true else throw("Expected one payment as a transfer amount, got " + i.payments.size().toString())
-
-  let t = i.payments[0]
-  let (assetIdBase58OrWaves, preActions) = match t.assetId {
-    case assetId: ByteVector =>
-      let asset = assetInfo(assetId).valueOrErrorMessage("Unexpected error: unknown asset")
-      let assetIdStr = assetId.toBase58String()
-      if (asset.issuer == this) then (assetIdStr, [Burn(assetId, t.amount)])
-      else (assetIdStr, [])
-    case _ => (WAVES_ASSET_NAME, [])
-  }
-
-  let assetIndex = getAssetIndex(assetIdBase58OrWaves)
-  preActions ++ mkAssetTransferEntries(normalizedDestElAddressHex, fromAddressHex, t.amount, assetIndex)
 }
 
 # blockHashHex without 0x
@@ -858,20 +846,18 @@ func withdraw(blockHashHex: String, merkleProof: List[ByteVector], transferIndex
   let recipientPkHash = recipient.bytes.drop(2) # Drop version and networkChainId
     .take(PUBLIC_KEY_HASH_SIZE)
 
-  # zeroAmountBytes: 36 bytes padding max
-  let zeroAmountBytes = base16'0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'
-  let amountBytes     = amount.toBytes()
+  let amountBytes = amount.toBytes()
 
   # recipientPkHash: 20 + 12 right padding bytes (see TypeEncoder.encodeBytes)
   # amountBytes:     24 left padding (see TypeEncoder.encodeNumeric) + 8 bytes
-  let elEventData       = recipientPkHash + zeroAmountBytes.take(zeroAmountBytes.size() - amountBytes.size()) + amountBytes
+  let elEventData       = recipientPkHash + zeroBytes.take(36) + amountBytes
   let elEventDataDigest = blake2b256_16Kb(elEventData)
 
   let calculatedRootHash = createMerkleRoot(merkleProof, elEventDataDigest, transferIndexInBlock)
   let expectedRootHash   = withdrawBlockMeta._5
   strict equalHashes = calculatedRootHash == expectedRootHash || throw(
     "Expected root hash: " + expectedRootHash.toBase16String() + ", got: " + calculatedRootHash.toBase16String() +
-    ". Event data digest: " + elEventDataDigest.toBase64String() + ". Check your withdraw arguments"
+    ". Event data digest: " + elEventDataDigest.toBase16String() + ". Check your withdraw arguments"
   )
 
   let tokenId      = getStringValue(tokenIdKey).fromBase58String()
@@ -888,30 +874,31 @@ func withdraw(blockHashHex: String, merkleProof: List[ByteVector], transferIndex
 func withdrawAsset(blockHashHex: String, merkleProof: List[ByteVector], transferIndexInBlock: Int, amount: Int, assetIdBase58OrWaves: String) = {
   strict normalizedBlockHashHex = validateBlockHash(cut0x(blockHashHex))
 
-  let tokenId     = getStringValue(tokenIdKey)
-  strict notToken = assetIdBase58OrWaves == tokenId && throw("Use 'withdraw' function for native token withdrawals")
-
   strict assetId   = parseAssetId(assetIdBase58OrWaves)
   let erc20Address = getAssetErc20Address(assetIdBase58OrWaves)
-
-  strict withdrawBlockMeta = commonWithdrawChecks(normalizedBlockHashHex, merkleProof, transferIndexInBlock, amount)
 
   let recipient       = i.originCaller
   let recipientPkHash = recipient.bytes.drop(2) # Drop version and networkChainId
     .take(PUBLIC_KEY_HASH_SIZE)
 
-  # zeroAmountBytes: 36 bytes padding max
-  let zeroAmountBytes = base16'000000000000000000000000000000000000000000000000000000000000000000000000'
-  let amountBytes     = amount.toBytes()
+  let amountBytes = amount.toBytes()
+  let tokenId     = getStringValue(tokenIdKey)
+  let elEventData = if (assetIdBase58OrWaves == tokenId) then {
+    # recipientPkHash: 20 + 12 right padding bytes (see TypeEncoder.encodeBytes)
+    # amountBytes:     24 left padding (see TypeEncoder.encodeNumeric) + 8 bytes
+    recipientPkHash + zeroBytes.take(36) + amountBytes
+  } else {
+    # See ERC20BridgeInitiated:
+    # token:    12 left padding (see TypeEncoder.encodeAddress) + 20 bytes
+    # clTo:     12 left padding (see TypeEncoder.encodeAddress) + 20 bytes
+    # clAmount: 24 left padding (see TypeEncoder.encodeNumeric) + 8 bytes
+    zeroBytes.take(12) + erc20Address + zeroBytes.take(12) + recipientPkHash + zeroBytes.take(24) + amountBytes
+  }
 
-  # See ERC20BridgeInitiated:
-  # token:    12 left padding (see TypeEncoder.encodeAddress) + 20 bytes
-  # clTo:     12 left padding (see TypeEncoder.encodeAddress) + 20 bytes
-  # clAmount: 24 left padding (see TypeEncoder.encodeNumeric) + 8 bytes
-  let elEventData       = zeroAmountBytes.take(12) + erc20Address + zeroAmountBytes.take(12) + recipientPkHash + zeroAmountBytes.take(24) + amountBytes
   let elEventDataDigest = blake2b256_16Kb(elEventData)
 
   let calculatedRootHash = createMerkleRoot(merkleProof, elEventDataDigest, transferIndexInBlock)
+  let withdrawBlockMeta  = commonWithdrawChecks(normalizedBlockHashHex, merkleProof, transferIndexInBlock, amount)
   let expectedRootHash   = withdrawBlockMeta._5
   strict equalHashes     = calculatedRootHash == expectedRootHash || throw(
     "Expected root hash: " + expectedRootHash.toBase16String() + ", got: " + calculatedRootHash.toBase16String() +
@@ -933,27 +920,39 @@ func withdrawAsset(blockHashHex: String, merkleProof: List[ByteVector], transfer
   ]
 }
 
-# assetIdBase58OrWaves - "Asset ID in Base58" | WAVES_ASSET_NAME
 @Callable(i)
-func registerAsset(assetIdBase58OrWaves: String, erc20AddressHex: String, elDecimals: Int) = {
+func registerAssets(assetIds: List[String], erc20Addresses: List[String], elDecimals: List[Int]) = {
   strict validCaller = i.originCaller == this || throw("Only owner of chain contract can do this")
 
-  strict clNotRegistered = isClAssetRegistered(assetIdBase58OrWaves) && throw("CL asset is already registered: " + assetIdBase58OrWaves)
+  let assetIdsSize  = assetIds.size()
+  strict validSizes = assetIdsSize == erc20Addresses.size() && assetIdsSize == elDecimals.size() || throw("Expected same sizes of arguments")
 
-  let normalizedErc20Address = normalizeEthAddress(erc20AddressHex)
-  strict elNotRegistered     = isElAssetRegistered(normalizedErc20Address) && throw("EL asset is already registered: 0x" + normalizedErc20Address)
+  func processAsset(prev: (List[StringEntry | IntegerEntry], Int, List[String], List[String]), i: Int) = {
+    if (i >= assetIdsSize) then prev
+    else {
+      let assetIdBase58   = assetIds[i]
+      let erc20AddressHex = normalizeEthAddress(erc20Addresses[i])
 
-  strict assetId = parseAssetId(assetIdBase58OrWaves)
-  strict clDecimals = match assetId {
-    case assetId: ByteVector => assetInfo(assetId).valueOrErrorMessage("Unknown asset " + assetIdBase58OrWaves).decimals
-    case _ => 8 # WAVES asset decimals
+      let currAssetRegistrySize    = prev._2
+      let registeredAssetIdsBase58 = prev._3
+      let registeredErc20Addresses = prev._4
+
+      strict clNotRegistered = (isClAssetRegistered(assetIdBase58)   || registeredAssetIdsBase58.containsElement(assetIdBase58)) && throw("CL asset is already registered: " + assetIdBase58)
+      strict elNotRegistered = (isElAssetRegistered(erc20AddressHex) || registeredErc20Addresses.containsElement(erc20AddressHex)) && throw("EL asset is already registered: 0x" + erc20AddressHex)
+
+      strict clDecimals = assetInfo(parseIssuedAssetId(assetIdBase58)).valueOrErrorMessage("Unknown asset " + assetIdBase58).decimals
+      let dataEntries = mkAssetRegistryEntries(currAssetRegistrySize, assetIdBase58, erc20AddressHex, elDecimals[i] - clDecimals)
+
+      (dataEntries ++ prev._1, currAssetRegistrySize + 1, assetIdBase58 :: registeredAssetIdsBase58, erc20AddressHex :: registeredErc20Addresses)
+    }
   }
 
-  mkAssetRegistryEntries(assetIdBase58OrWaves, normalizedErc20Address, elDecimals - clDecimals)
+  let (actions, newAssetRegistrySize) = FOLD<10>(indexes_10, ([], assetRegistrySize, [], []), processAsset)
+  actions :+ IntegerEntry(assetRegistrySizeKey, newAssetRegistrySize)
 }
 
 @Callable(i)
-func createAndRegisterAsset(erc20AddressHex: String, elDecimals: Int, name: String, description: String, clDecimals: Int) = {
+func issueAndRegister(erc20AddressHex: String, elDecimals: Int, name: String, description: String, clDecimals: Int) = {
   strict validCaller   = i.originCaller == this || throw("Only owner of chain contract can do this")
   strict validDecimals = elDecimals <= 8 && elDecimals == clDecimals || elDecimals > clDecimals || throw("Invalid decimals, EL=" + elDecimals.toString() + ", CL=" + clDecimals.toString())
 
@@ -966,7 +965,8 @@ func createAndRegisterAsset(erc20AddressHex: String, elDecimals: Int, name: Stri
   let normalizedErc20Address = normalizeEthAddress(erc20AddressHex)
   strict elNotRegistered     = isElAssetRegistered(normalizedErc20Address) && throw("EL asset is already registered: 0x" + normalizedErc20Address)
 
-  mkAssetRegistryEntries(assetIdB58, normalizedErc20Address, elDecimals - clDecimals)
+  mkAssetRegistryEntries(assetRegistrySize, assetIdB58, normalizedErc20Address, elDecimals - clDecimals) ++
+    [ IntegerEntry(assetRegistrySizeKey, assetRegistrySize + 1), issue ]
 }
 
 @Callable(i)
@@ -976,10 +976,14 @@ func enableTokenTransfers(standardBridgeAddress: String, wavesERC20AddressHex: S
     case _ => true
   }
 
-  if (standardBridgeWasNotConfigured) then [
-    StringEntry(elStandardBridgeAddressKey, "0x" + normalizeEthAddress(standardBridgeAddress)),
-    IntegerEntry(assetTransfersActivationEpochKey, activationEpoch)
-  ] ++ mkAssetRegistryEntries("WAVES", normalizeEthAddress(wavesERC20AddressHex), 0) else []
+  if (standardBridgeWasNotConfigured)
+    then
+      mkAssetRegistryEntries(assetRegistrySize, "WAVES", normalizeEthAddress(wavesERC20AddressHex), 0) ++ [
+        StringEntry(elStandardBridgeAddressKey, "0x" + normalizeEthAddress(standardBridgeAddress)),
+        IntegerEntry(assetTransfersActivationEpochKey, activationEpoch),
+        IntegerEntry(assetRegistrySizeKey, assetRegistrySize + 1)
+      ]
+    else []
 }
 
 # genesisBlockHashHex without 0x

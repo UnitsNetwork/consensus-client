@@ -7,9 +7,10 @@ import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
-import com.wavesplatform.lang.v1.compiler.Terms.{CONST_LONG, CONST_STRING}
+import com.wavesplatform.lang.v1.compiler.Terms.{CONST_LONG, CONST_STRING, EXPR}
 import com.wavesplatform.state.{BooleanDataEntry, DataEntry}
 import com.wavesplatform.test.NumericExt
+import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.TxHelpers.defaultSigner
 import com.wavesplatform.transaction.smart.{InvokeScriptTransaction, SetScriptTransaction}
 import com.wavesplatform.transaction.{Asset, DataTransaction, TxHelpers}
@@ -43,9 +44,6 @@ trait HasConsensusLayerDappTxHelpers {
   }
 
   object ChainContract {
-    val NativeTransferFunctionName = "transfer"
-    val AssetTransferFunctionName  = "assetTransfer"
-
     def setScript(): SetScriptTransaction = TxHelpers.setScript(chainContractAccount, CompiledChainContract.script, fee = setScriptFee, version = 2)
 
     def setup(
@@ -67,10 +65,10 @@ trait HasConsensusLayerDappTxHelpers {
       invoker = invoker
     )
 
-    def enableTokenTransfers(standardBridge: EthAddress, wwaves: EthAddress, activationHeight: Int): InvokeScriptTransaction = TxHelpers.invoke(
+    def enableTokenTransfers(standardBridge: EthAddress, wwaves: EthAddress, activationEpoch: Int): InvokeScriptTransaction = TxHelpers.invoke(
       chainContractAddress,
       Some("enableTokenTransfers"),
-      Seq(CONST_STRING(standardBridge.hex.drop(2)).explicitGet(), CONST_STRING(wwaves.hex.drop(2)).explicitGet(), CONST_LONG(activationHeight)),
+      Seq(CONST_STRING(standardBridge.hex.drop(2)).explicitGet(), CONST_STRING(wwaves.hex.drop(2)).explicitGet(), CONST_LONG(activationEpoch)),
       invoker = chainContractAccount
     )
 
@@ -89,31 +87,54 @@ trait HasConsensusLayerDappTxHelpers {
       fee = leaveFee
     )
 
-    def registerAsset(asset: Asset, erc20Address: EthAddress, elDecimals: Int, invoker: KeyPair = chainContractAccount): InvokeScriptTransaction =
+    def registerAsset(
+        asset: IssuedAsset,
+        erc20Address: EthAddress,
+        elDecimals: Int,
+        invoker: KeyPair = chainContractAccount
+    ): InvokeScriptTransaction =
       registerAsset(asset, erc20Address.hexNoPrefix, elDecimals, invoker)
 
-    def registerAsset(asset: Asset, erc20AddressHex: String, elDecimals: Int, invoker: KeyPair): InvokeScriptTransaction =
+    def registerAsset(asset: IssuedAsset, erc20AddressHex: String, elDecimals: Int, invoker: KeyPair): InvokeScriptTransaction =
+      registerAssets(List(asset), List(erc20AddressHex), List(elDecimals), invoker)
+
+    def registerAssets(assets: List[IssuedAsset], erc20AddressHex: List[String], elDecimals: List[Int], invoker: KeyPair): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = invoker,
         dApp = chainContractAddress,
-        func = "registerAsset".some,
+        func = "registerAssets".some,
         args = List(
-          Terms.CONST_STRING(asset.fold(ChainContractClient.Registry.WavesAssetName)(_.id.toString)).explicitGet(),
-          Terms.CONST_STRING(erc20AddressHex).explicitGet(),
-          Terms.CONST_LONG(elDecimals)
+          Terms
+            .ARR(
+              assets.map(x => Terms.CONST_STRING(x.id.toString).explicitGet()).toVector,
+              limited = true
+            )
+            .explicitGet(),
+          Terms
+            .ARR(
+              erc20AddressHex.map(x => Terms.CONST_STRING(x).explicitGet()).toVector,
+              limited = true
+            )
+            .explicitGet(),
+          Terms
+            .ARR(
+              elDecimals.map(Terms.CONST_LONG(_)).toVector,
+              limited = true
+            )
+            .explicitGet()
         )
       )
 
-    def createAndRegisterAsset(
+    def issueAndRegister(
         erc20Address: EthAddress,
         elDecimals: Int,
         name: String,
         description: String,
         clDecimals: Int,
         invoker: KeyPair = chainContractAccount
-    ): InvokeScriptTransaction = createAndRegisterAsset(erc20Address.hexNoPrefix, elDecimals, name, description, clDecimals, invoker)
+    ): InvokeScriptTransaction = issueAndRegister(erc20Address.hexNoPrefix, elDecimals, name, description, clDecimals, invoker)
 
-    def createAndRegisterAsset(
+    def issueAndRegister(
         erc20AddressHex: String,
         elDecimals: Int,
         name: String,
@@ -124,17 +145,18 @@ trait HasConsensusLayerDappTxHelpers {
       TxHelpers.invoke(
         invoker = invoker,
         dApp = chainContractAddress,
-        func = "createAndRegisterAsset".some,
+        func = "issueAndRegister".some,
         args = List(
           Terms.CONST_STRING(erc20AddressHex).explicitGet(),
           Terms.CONST_LONG(elDecimals),
           Terms.CONST_STRING(name).explicitGet(),
           Terms.CONST_STRING(description).explicitGet(),
           Terms.CONST_LONG(clDecimals)
-        )
+        ),
+        fee = issueAndRegisterFee
       )
 
-    def extendMainChainV2(
+    def extendMainChain(
         minerAccount: KeyPair,
         block: L2BlockLike,
         e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
@@ -142,9 +164,9 @@ trait HasConsensusLayerDappTxHelpers {
         lastAssetRegistryIndex: Int = -1,
         vrf: ByteStr = currentHitSource
     ): InvokeScriptTransaction =
-      extendMainChainV2(minerAccount, block.hash, block.parentHash, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex, vrf)
+      extendMainChain(minerAccount, block.hash, block.parentHash, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex, vrf)
 
-    def extendMainChainV2(
+    def extendMainChain(
         minerAccount: KeyPair,
         blockHash: BlockHash,
         parentBlockHash: BlockHash,
@@ -164,37 +186,6 @@ trait HasConsensusLayerDappTxHelpers {
           Terms.CONST_STRING(e2cTransfersRootHashHex.drop(2)).explicitGet(),
           Terms.CONST_LONG(lastC2ETransferIndex),
           Terms.CONST_LONG(lastAssetRegistryIndex)
-        ),
-        fee = extendMainChainFee
-      )
-
-    def extendMainChain(
-          minerAccount: KeyPair,
-          block: L2BlockLike,
-          e2cTransfersRootHashHex: String = EmptyE2CTransfersRootHashHex,
-          lastC2ETransferIndex: Long = -1,
-          vrf: ByteStr = currentHitSource
-      ): InvokeScriptTransaction =
-        extendMainChain(minerAccount, block.hash, block.parentHash, e2cTransfersRootHashHex, lastC2ETransferIndex, vrf)
-
-    def extendMainChain(
-        minerAccount: KeyPair,
-        blockHash: BlockHash,
-        parentBlockHash: BlockHash,
-        e2cTransfersRootHashHex: String,
-        lastC2ETransferIndex: Long,
-        vrf: ByteStr
-    ): InvokeScriptTransaction =
-      TxHelpers.invoke(
-        invoker = minerAccount,
-        dApp = chainContractAddress,
-        func = "extendMainChain".some,
-        args = List(
-          Terms.CONST_STRING(blockHash.drop(2)).explicitGet(),
-          Terms.CONST_STRING(parentBlockHash.drop(2)).explicitGet(),
-          Terms.CONST_BYTESTR(vrf).explicitGet(),
-          Terms.CONST_STRING(e2cTransfersRootHashHex.drop(2)).explicitGet(),
-          Terms.CONST_LONG(lastC2ETransferIndex)
         ),
         fee = extendMainChainFee
       )
@@ -272,15 +263,13 @@ trait HasConsensusLayerDappTxHelpers {
         sender: KeyPair,
         destElAddress: EthAddress,
         asset: Asset,
-        amount: Long,
-        function: String = NativeTransferFunctionName
+        amount: Long
     ): InvokeScriptTransaction =
       transferUnsafe(
         sender = sender,
         destElAddressHex = destElAddress.hexNoPrefix,
         asset = asset,
-        amount = amount,
-        function = function
+        amount = amount
       )
 
     /** @param destElAddressHex
@@ -290,13 +279,12 @@ trait HasConsensusLayerDappTxHelpers {
         sender: KeyPair,
         destElAddressHex: String,
         asset: Asset,
-        amount: Long,
-        function: String = NativeTransferFunctionName
+        amount: Long
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = sender,
         dApp = chainContractAddress,
-        func = function.some,
+        func = "transfer".some,
         args = List(Terms.CONST_STRING(destElAddressHex).explicitGet()),
         payments = List(InvokeScriptTransaction.Payment(amount, asset)),
         fee = transferFee
@@ -359,16 +347,17 @@ object HasConsensusLayerDappTxHelpers {
 
   object DefaultFees {
     object ChainContract {
-      val setScriptFee       = 0.05.waves
-      val setupFee           = 2.waves
-      val joinFee            = 0.1.waves
-      val leaveFee           = 0.1.waves
-      val extendMainChainFee = 0.1.waves
-      val appendBlockFee     = 0.1.waves
-      val startAltChainFee   = 0.1.waves
-      val extendAltChainFee  = 0.1.waves
-      val transferFee        = 0.1.waves
-      val withdrawFee        = 0.1.waves
+      val setScriptFee        = 0.05.waves
+      val setupFee            = 2.waves
+      val joinFee             = 0.1.waves
+      val leaveFee            = 0.1.waves
+      val extendMainChainFee  = 0.1.waves
+      val appendBlockFee      = 0.1.waves
+      val startAltChainFee    = 0.1.waves
+      val extendAltChainFee   = 0.1.waves
+      val transferFee         = 0.1.waves
+      val withdrawFee         = 0.1.waves
+      val issueAndRegisterFee = 1.005.waves
     }
   }
 }

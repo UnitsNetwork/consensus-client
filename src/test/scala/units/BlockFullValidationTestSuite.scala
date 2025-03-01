@@ -10,7 +10,7 @@ import units.el.NativeBridge
 import units.eth.EthAddress
 import units.util.HexBytesConverter
 
-class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
+class BlockFullValidationTestSuite extends BaseTestSuite {
   private val transferEvents                = List(NativeBridge.ElSentNativeEvent(TxHelpers.defaultAddress, 1))
   private val ecBlockLogs                   = transferEvents.map(getLogsResponseEntry)
   private val e2CNativeTransfersRootHashHex = HexBytesConverter.toHex(NativeBridge.mkTransfersHash(ecBlockLogs).explicitGet())
@@ -34,7 +34,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
       d.triggerScheduledTasks()
 
       step(s"Append a CL micro block with ecBlock ${ecBlock.hash} confirmation")
-      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChainV2(reliable.account, ecBlock))
+      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(reliable.account, ecBlock))
       d.advanceConsensusLayerChanged()
 
       withClue("Validation doesn't happen:") {
@@ -62,7 +62,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
         d.triggerScheduledTasks()
 
         step(s"Append a CL micro block with ecBlock ${ecBlock.hash} confirmation")
-        d.appendMicroBlockAndVerify(d.ChainContract.extendMainChainV2(reliable.account, ecBlock, e2CNativeTransfersRootHashHex))
+        d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(reliable.account, ecBlock, e2CNativeTransfersRootHashHex))
         d.advanceConsensusLayerChanged()
 
         d.waitForCS[FollowingChain]("Following chain") { _ => }
@@ -90,7 +90,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
 
           val ecBlock1 = d.createEcBlockBuilder("0", malfunction).buildAndSetLogs()
           d.ecClients.addKnown(ecBlock1)
-          d.appendMicroBlockAndVerify(d.ChainContract.extendMainChainV2(malfunction.account, ecBlock1))
+          d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(malfunction.account, ecBlock1))
           d.advanceConsensusLayerChanged()
 
           step("Start new epoch for ecBlock2")
@@ -100,7 +100,7 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
           val ecBlock2 = badBlockPostProcessing(d.createEcBlockBuilder("0-0", malfunction, ecBlock1).rewardPrevMiner().buildAndSetLogs(blockLogs))
 
           step(s"Append a CL micro block with ecBlock2 ${ecBlock2.hash} confirmation")
-          d.appendMicroBlockAndVerify(d.ChainContract.extendMainChainV2(malfunction.account, ecBlock2, transfersRootHashHex))
+          d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(malfunction.account, ecBlock2, transfersRootHashHex))
           d.advanceConsensusLayerChanged()
 
           step(s"Receive ecBlock2 ${ecBlock2.hash} from a peer")
@@ -125,5 +125,4 @@ class BlockFullValidationTestSuite extends BaseIntegrationTestSuite {
       }
     }
   }
-
 }

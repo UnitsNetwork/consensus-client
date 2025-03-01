@@ -32,8 +32,6 @@ class OpGethContainer(network: NetworkImpl, number: Int, ip: String)(implicit ht
         .withName(s"${network.getName}-$hostName")
         .withHostName(hostName)
         .withIpv4Address(ip)
-        //        .withEnv("GETH_NETWORKID", "1337")
-        //        .withEnv("NODE_NUMBER", number.toString)
         .withEntrypoint("/bin/sh", "-c")
         .withCmd(
           s"""if [ ! -d /root/.ethereum/geth/chaindata ] ; then

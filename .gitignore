@@ -9,3 +9,4 @@ docker/data
 docker/logs
 docker/.env
 local-network/.env
+*.log

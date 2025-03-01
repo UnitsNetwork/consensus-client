@@ -74,8 +74,9 @@ contract Deployer is Script {
 
         vm.stopBroadcast();
 
-        _writeTemp("StandardBridge", address(bridgeProxy));
-        _writeTemp("WWaves", address(wwaves));
+        _writeTemp("standard_bridge", address(bridgeProxy));
+        _writeTemp("wwaves", address(wwaves));
+        _writeTemp("terc20", address(terc20));
     }
 
     /// @notice Adds a deployment to the temp deployments file
