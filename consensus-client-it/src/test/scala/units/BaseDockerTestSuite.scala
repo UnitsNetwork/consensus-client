@@ -58,8 +58,8 @@ trait BaseDockerTestSuite
   )
 
   protected lazy val chainContract  = new HttpChainContractClient(waves1.api, chainContractAddress)
-  protected lazy val nativeBridge   = new NativeBridgeClient(ec1.web3j, nativeBridgeAddress)
-  protected lazy val standardBridge = new StandardBridgeClient(ec1.web3j, standardBridgeAddress, elRichAccount2)
+  protected lazy val nativeBridge   = new NativeBridgeClient(ec1.web3j, NativeBridgeAddress)
+  protected lazy val standardBridge = new StandardBridgeClient(ec1.web3j, StandardBridgeAddress, elRichAccount2)
 
   protected def startNodes(): Unit = {
     ec1.start()
@@ -76,13 +76,13 @@ trait BaseDockerTestSuite
   }
 
   protected def setupChain(): Unit = {
-    log.info("Approve chain on registry")
+    step("Approve chain on registry")
     waves1.api.broadcast(ChainRegistry.approve())
 
-    log.info("Set script")
+    step("Set script")
     waves1.api.broadcastAndWait(ChainContract.setScript())
 
-    log.info("Setup chain contract")
+    step("Setup chain contract")
     val genesisBlock = ec1.engineApi.getBlockByNumber(BlockNumber.Number(0)).explicitGet().getOrElse(fail("No EL genesis block"))
     waves1.api.broadcastAndWait(
       ChainContract.setup(
@@ -95,7 +95,7 @@ trait BaseDockerTestSuite
     )
     log.info(s"Native token id: ${chainContract.nativeTokenId}")
 
-    log.info("EL miner #1 join")
+    step("EL miner #1 join")
     val joinMiner1Result = waves1.api.broadcastAndWait(
       ChainContract.join(
         minerAccount = miner11Account,
@@ -104,7 +104,7 @@ trait BaseDockerTestSuite
     )
 
     val epoch1Number = joinMiner1Result.height + 1
-    log.info(s"Wait for #$epoch1Number epoch")
+    step(s"Wait for #$epoch1Number epoch")
     waves1.api.waitForHeight(epoch1Number)
   }
 

@@ -46,7 +46,7 @@ class RegistryTestSuite extends BaseTestSuite {
             d.ChainContract.setScript(),
             d.ChainContract.setup(
               d.ecGenesisBlock,
-              elMinerDefaultReward.amount.longValue(),
+              ElMinerDefaultReward.amount.longValue(),
               defaultSettings.daoRewardAccount.map(_.toAddress),
               defaultSettings.daoRewardAmount
             )

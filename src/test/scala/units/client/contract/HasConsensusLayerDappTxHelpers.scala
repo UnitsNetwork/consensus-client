@@ -65,10 +65,10 @@ trait HasConsensusLayerDappTxHelpers {
       invoker = invoker
     )
 
-    def enableTokenTransfers(standardBridge: EthAddress, wwaves: EthAddress, activationHeight: Int): InvokeScriptTransaction = TxHelpers.invoke(
+    def enableTokenTransfers(standardBridge: EthAddress, wwaves: EthAddress, activationEpoch: Int): InvokeScriptTransaction = TxHelpers.invoke(
       chainContractAddress,
       Some("enableTokenTransfers"),
-      Seq(CONST_STRING(standardBridge.hex.drop(2)).explicitGet(), CONST_STRING(wwaves.hex.drop(2)).explicitGet(), CONST_LONG(activationHeight)),
+      Seq(CONST_STRING(standardBridge.hex.drop(2)).explicitGet(), CONST_STRING(wwaves.hex.drop(2)).explicitGet(), CONST_LONG(activationEpoch)),
       invoker = chainContractAccount
     )
 

@@ -67,7 +67,7 @@ class E2CNativeBridgeTestSuite extends BaseDockerTestSuite {
 
     "L2-379 Checking balances in EL->CL transfers" in {
       step("Broadcast Bridge.sendNative transaction")
-      def bridgeBalance       = ec1.web3j.ethGetBalance(nativeBridgeAddress.hex, DefaultBlockParameterName.LATEST).send().getBalance
+      def bridgeBalance       = ec1.web3j.ethGetBalance(NativeBridgeAddress.hex, DefaultBlockParameterName.LATEST).send().getBalance
       val bridgeBalanceBefore = bridgeBalance
       val sendTxnReceipt      = sendNative()
 
@@ -79,7 +79,7 @@ class E2CNativeBridgeTestSuite extends BaseDockerTestSuite {
       val blockHash = BlockHash(sendTxnReceipt.getBlockHash)
       step(s"Block with transaction: $blockHash")
 
-      val logsInBlock     = ec1.engineApi.getLogs(blockHash, List(nativeBridgeAddress, standardBridgeAddress), Nil).explicitGet()
+      val logsInBlock     = ec1.engineApi.getLogs(blockHash, List(NativeBridgeAddress, StandardBridgeAddress), Nil).explicitGet()
       val sendTxnLogIndex = logsInBlock.indexWhere(_.transactionHash == sendTxnReceipt.getTransactionHash)
       sendTxnLogIndex shouldBe >=(0)
 
