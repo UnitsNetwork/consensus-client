@@ -14,7 +14,7 @@ import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues}
 import units.client.engine.model.GetLogsResponseEntry
 import units.el.NativeBridge
 import units.el.NativeBridge.ElSentNativeEvent
-import units.eth.EthNumber
+import units.eth.{EthAddress, EthNumber}
 import units.test.CustomMatchers
 import units.util.HexBytesConverter
 

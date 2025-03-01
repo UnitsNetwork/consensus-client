@@ -9,6 +9,8 @@ import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.lang.v1.compiler.Terms.EXPR
 import com.wavesplatform.state.{BooleanDataEntry, DataEntry, IntegerDataEntry, StringDataEntry}
+import com.wavesplatform.lang.v1.compiler.Terms.{CONST_LONG, CONST_STRING}
+import com.wavesplatform.state.{BooleanDataEntry, DataEntry}
 import com.wavesplatform.test.NumericExt
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.TxHelpers.defaultSigner
@@ -63,6 +65,13 @@ trait HasConsensusLayerDappTxHelpers {
       ),
       fee = setupFee,
       invoker = invoker
+    )
+
+    def enableTokenTransfers(standardBridge: EthAddress, wwaves: EthAddress, activationHeight: Int): InvokeScriptTransaction = TxHelpers.invoke(
+      chainContractAddress,
+      Some("enableTokenTransfers"),
+      Seq(CONST_STRING(standardBridge.hex.drop(2)).explicitGet(), CONST_STRING(wwaves.hex.drop(2)).explicitGet(), CONST_LONG(activationHeight)),
+      invoker = chainContractAccount
     )
 
     def join(minerAccount: KeyPair, elRewardAddress: EthAddress): InvokeScriptTransaction = TxHelpers.invoke(

@@ -198,8 +198,7 @@ trait ChainContractClient {
       .map(EthAddress.unsafeFrom)
       .getOrElse(throw new IllegalStateException("elBridgeAddress is empty on contract")),
     elStandardBridgeAddress = getStringData("elStandardBridgeAddress")
-      .map(EthAddress.unsafeFrom)
-      .getOrElse(throw new IllegalStateException("elStandardBridgeAddress is empty on contract")),
+      .map(EthAddress.unsafeFrom),
     assetTransfersActivationEpoch = getAssetTransfersActivationEpoch
   )
 

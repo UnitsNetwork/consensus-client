@@ -7,5 +7,6 @@ metals.sbt
 .idea
 docker/data
 docker/logs
-docker/secrets.env
+docker/.env
+local-network/.env
 *.log

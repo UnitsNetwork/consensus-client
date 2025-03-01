@@ -6,81 +6,95 @@ services:
     container_name: ec-1
     hostname: ec-1
     extends:
-      file: ./configs/op-geth/op-geth.yml
+      file: ../docker/services/op-geth.yml
       service: op-geth
     environment:
       NODE_NUMBER: 1
+      GETH_NETWORKID: 1337
     ports:
       - "127.0.0.1:18551:8551" # Engine port - doesn't have all APIs
       - "127.0.0.1:18545:8545" # RPC port, for Metamask e.g.
       - "127.0.0.1:18546:8546" # WebSocket
     volumes:
       - ./logs/ec-1:/root/logs
+      - ./configs/ec-common/p2p-key-1.hex:/etc/secrets/p2p-key:ro
+      - ./configs/ec-common/jwtsecret.hex:/etc/secrets/jwtsecret:ro
+      - ./configs/ec-common/peers.toml:/etc/config.toml:ro
+      - ./configs/ec-common/genesis.json:/tmp/genesis.json:ro
 
   # TODO: Until fixed an issue with rollback
   # ec-2:
   #   container_name: ec-2
   #   hostname: ec-2
   #   extends:
-  #     file: ./configs/op-geth/op-geth.yml
+  #     file: ../docker/services/op-geth.yml
   #     service: op-geth
-  #   ports:
-  #     - "127.0.0.1:28551:8551" # Engine port
-  #     - "127.0.0.1:28545:8545" # RPC port
   #   environment:
   #     NODE_NUMBER: 2
-  #     EXTRA_ARGS: "--config=/etc/secrets/peers-geth.toml"
+  #     GETH_NETWORKID: 1337
+  #   ports:
+  #     - "127.0.0.1:28551:8551" # Engine port - doesn't have all APIs
+  #     - "127.0.0.1:28545:8545" # RPC port, for Metamask e.g.
+  #     - "127.0.0.1:28546:8546" # WebSocket
   #   volumes:
   #     - ./logs/ec-2:/root/logs
-  #    - ./configs/ec-common/peers-geth.toml:/tmp/peers.toml
-  #    - ./configs/ec-common/p2p-key-2.hex:/etc/secrets/p2p-key
-  #    - ./configs/ec-common/jwt-secret-2.hex:/etc/secrets/jwtsecret
+  #     - ./configs/ec-common/p2p-key-2.hex:/etc/secrets/p2p-key:ro
+  #     - ./configs/ec-common/jwtsecret.hex:/etc/secrets/jwtsecret:ro
+  #     - ./configs/ec-common/peers.toml:/etc/config.toml:ro
 
   # Make sure, you have enough RAM to run additional nodes
   # ec-3:
   #   container_name: ec-3
   #   hostname: ec-3
   #   extends:
-  #     file: ./configs/besu/besu.yml
-  #     service: besu
+  #     file: ../docker/services/op-geth.yml
+  #     service: op-geth
   #   environment:
   #     NODE_NUMBER: 3
+  #     GETH_NETWORKID: 1337
   #   ports:
-  #     - "127.0.0.1:38551:8551"
-  #     - "127.0.0.1:38545:8545"
-  #     - "127.0.0.1:38546:8546"
+  #     - "127.0.0.1:38551:8551" # Engine port - doesn't have all APIs
+  #     - "127.0.0.1:38545:8545" # RPC port, for Metamask e.g.
+  #     - "127.0.0.1:38546:8546" # WebSocket
   #   volumes:
-  #     - ./logs/ec-3:/opt/besu/logs
+  #     - ./logs/ec-3:/root/logs
+  #     - ./configs/ec-common/p2p-key-3.hex:/etc/secrets/p2p-key:ro
+  #     - ./configs/ec-common/jwtsecret.hex:/etc/secrets/jwtsecret:ro
+  #     - ./configs/ec-common/peers.toml:/etc/config.toml:ro
 
-  # Geth is not recommended for now, because of rollback issue
   # ec-4:
   #   container_name: ec-4
   #   hostname: ec-4
   #   extends:
-  #     file: ./configs/geth/geth.yml
-  #     service: geth
+  #     file: ../docker/services/op-geth.yml
+  #     service: op-geth
   #   environment:
   #     NODE_NUMBER: 4
+  #     GETH_NETWORKID: 1337
   #   ports:
-  #     - "127.0.0.1:48551:8551"
-  #     - "127.0.0.1:48545:8545"
+  #     - "127.0.0.1:48551:8551" # Engine port - doesn't have all APIs
+  #     - "127.0.0.1:48545:8545" # RPC port, for Metamask e.g.
+  #     - "127.0.0.1:48546:8546" # WebSocket
   #   volumes:
   #     - ./logs/ec-4:/root/logs
+  #     - ./configs/ec-common/p2p-key-4.hex:/etc/secrets/p2p-key:ro
+  #     - ./configs/ec-common/jwtsecret.hex:/etc/secrets/jwtsecret:ro
+  #     - ./configs/ec-common/peers.toml:/etc/config.toml:ro
 
-  wavesnode-1:
-    container_name: wavesnode-1
-    hostname: wavesnode-1
-    extends:
-      file: ./configs/wavesnode/wavesnode.yml
-      service: wavesnode
+  waves-node-1:
+    container_name: waves-node-1
+    hostname: waves-node-1
     image: ${WAVES_NODE_IMAGE_1:-${WAVES_NODE_IMAGE:-consensus-client:local}}
     ports:
       - "127.0.0.1:16869:6869"
     environment:
+      JAVA_OPTS: -Dlogback.file.level=TRACE ${JAVA_OPTS:-}
       NODE_NUMBER: 1
       WAVES_WALLET_SEED: HnyGuCEnV1A # devnet-1, addr: 3FNraPMYcfuGREcxorNSEBHgNLjmYtaHy9e
     volumes:
-      - ./logs/wavesnode-1:/var/log/waves
+      - ./logs/waves-node-1:/var/log/waves
+      - ./configs/ec-common/jwtsecret.hex:/etc/secrets/jwtsecret:ro
+      - ./configs/wavesnode:/etc/waves:ro
     depends_on:
       ec-1:
         condition: service_healthy
@@ -88,9 +102,9 @@ services:
         condition: service_completed_successfully
 
   # TODO: Until fixed an issue with rollback
-  # wavesnode-2:
-  #   container_name: wavesnode-2
-  #   hostname: wavesnode-2
+  # waves-node-2:
+  #   container_name: waves-node-2
+  #   hostname: waves-node-2
   #   extends:
   #     file: ./configs/wavesnode/wavesnode.yml
   #     service: wavesnode
@@ -101,16 +115,16 @@ services:
   #     NODE_NUMBER: 2
   #     WAVES_WALLET_SEED: HnyGuCEnV1B # devnet-2, addr: 3FSrRN8X7cDsLyYTScS8Yf8KSwZgJBwf1jU
   #   volumes:
-  #     - ./logs/wavesnode-2:/var/log/waves
+  #     - ./logs/waves-node-2:/var/log/waves
   #   depends_on:
   #     ec-2:
   #       condition: service_healthy
   #     update-genesis:
   #       condition: service_completed_successfully
 
-  # wavesnode-3:
-  #   container_name: wavesnode-3
-  #   hostname: wavesnode-3
+  # waves-node-3:
+  #   container_name: waves-node-3
+  #   hostname: waves-node-3
   #   extends:
   #     file: ./configs/wavesnode/wavesnode.yml
   #     service: wavesnode
@@ -122,16 +136,16 @@ services:
   #     WAVES_WALLET_SEED: HnyGuCEnV1C # devnet-3, addr: 3Fkh3dNmLS6NQtVbHcrADegwLo9DviBL5Ro
   #     JAVA_OPTS: -Dwaves.miner.enable=no
   #   volumes:
-  #     - ./logs/wavesnode-3:/var/log/waves
+  #     - ./logs/waves-node-3:/var/log/waves
   #   depends_on:
   #     ec-3:
   #       condition: service_healthy
   #     update-genesis:
   #       condition: service_completed_successfully
 
-  # wavesnode-4:
-  #   container_name: wavesnode-4
-  #   hostname: wavesnode-4
+  # waves-node-4:
+  #   container_name: waves-node-4
+  #   hostname: waves-node-4
   #   extends:
   #     file: ./configs/wavesnode/wavesnode.yml
   #     service: wavesnode
@@ -143,7 +157,7 @@ services:
   #     WAVES_WALLET_SEED: HnyGuCEnV1D # devnet-4, addr: 3FXMRA1tPsn8LApkqVEQJgzsVdMBrnnd8vp
   #     JAVA_OPTS: -Dwaves.miner.enable=no
   #   volumes:
-  #     - ./logs/wavesnode-4:/var/log/waves
+  #     - ./logs/waves-node-4:/var/log/waves
   #   depends_on:
   #     ec-3:
   #       condition: service_healthy
@@ -153,6 +167,8 @@ services:
   update-genesis:
     container_name: update-genesis
     image: ${WAVES_NODE_IMAGE:-ghcr.io/wavesplatform/waves:snapshot}
+    environment:
+      JAVA_OPTS: ${JAVA_OPTS:-}
     volumes:
       - ./configs/wavesnode:/tmp/configs
     command:
@@ -168,10 +184,11 @@ services:
       service: deploy
     environment:
       MAIN: deploy.py
+      PRIVATE_KEY: 8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63
     volumes:
       - ./logs/deploy:/var/log/deploy
     depends_on:
-      wavesnode-1:
+      waves-node-1:
         condition: service_healthy
       ec-1:
         condition: service_healthy

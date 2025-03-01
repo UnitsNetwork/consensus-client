@@ -322,24 +322,25 @@ class ELUpdater(
     val updateAssetRegistryTransaction =
       if (addedAssets.isEmpty) None
       else
-        Some(
+        chainContractOptions.elStandardBridgeAddress.map { sba =>
           StandardBridge.mkUpdateAssetRegistryTransaction(
-            standardBridgeAddress = chainContractOptions.elStandardBridgeAddress,
+            standardBridgeAddress = sba,
             addedTokenExponents = addedAssets.map(_.exponent),
             addedTokens = addedAssets.map(_.erc20Address)
           )
-        )
+        }
 
-    val depositedTransactions = updateAssetRegistryTransaction.toVector ++ assetTransfers.map { x =>
-      StandardBridge.mkFinalizeBridgeErc20Transaction(
-        transferIndex = x.index,
-        standardBridgeAddress = chainContractOptions.elStandardBridgeAddress,
-        token = x.tokenAddress,
-        to = x.to,
-        from = x.from,
-        amount = x.amount
-      )
-    }
+    val depositedTransactions = updateAssetRegistryTransaction.toVector ++ (for {
+      sba <- chainContractOptions.elStandardBridgeAddress.toVector
+      x   <- assetTransfers
+    } yield StandardBridge.mkFinalizeBridgeErc20Transaction(
+      transferIndex = x.index,
+      standardBridgeAddress = sba,
+      token = x.tokenAddress,
+      to = x.to,
+      from = x.from,
+      amount = x.amount
+    ))
 
     confirmBlockAndStartMining(
       parentBlock,
@@ -1271,7 +1272,7 @@ class ELUpdater(
       ecBlockLogs: List[GetLogsResponseEntry],
       contractBlock: ContractBlock,
       parentContractBlock: ContractBlock,
-      elStandardBridgeAddress: EthAddress
+      elStandardBridgeAddress: Option[EthAddress]
   ): JobResult[Unit] = {
     val expectedAddedAssets =
       if (parentContractBlock.lastAssetRegistryIndex == contractBlock.lastAssetRegistryIndex) Nil
@@ -1280,7 +1281,7 @@ class ELUpdater(
         chainContractClient.getRegisteredAssets(startAssetRegistryIndex to contractBlock.lastAssetRegistryIndex)
       }
 
-    val relatedElRawLogs = ecBlockLogs.filter(x => x.address == elStandardBridgeAddress && x.topics.contains(StandardBridge.RegistryUpdated.Topic))
+    val relatedElRawLogs = ecBlockLogs.filter(x => elStandardBridgeAddress.contains(x.address) && x.topics.contains(StandardBridge.RegistryUpdated.Topic))
     for {
       _ <- relatedElRawLogs match {
         case Nil =>

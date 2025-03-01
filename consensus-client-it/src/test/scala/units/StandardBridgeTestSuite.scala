@@ -2,6 +2,7 @@ package units
 
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
+import com.wavesplatform.lang.v1.compiler.Terms.{CONST_BYTESTR, CONST_LONG, CONST_STRING}
 import com.wavesplatform.transaction.Asset.{IssuedAsset, Waves}
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import com.wavesplatform.transaction.{Asset, TxHelpers}
@@ -11,14 +12,17 @@ import org.web3j.protocol.core.methods.response.TransactionReceipt
 import org.web3j.tx.RawTransactionManager
 import org.web3j.tx.gas.DefaultGasProvider
 import org.web3j.utils.Convert
+import play.api.libs.json.Json
 import units.bridge.{TERC20, WWaves}
 import units.docker.EcContainer
 import units.el.{BridgeMerkleTree, E2CTopics, EvmEncoding}
 import units.eth.EthAddress
 
+import java.io.{File, FileInputStream}
 import java.math.BigInteger
 import scala.jdk.OptionConverters.RichOptional
 import scala.sys.process.*
+import scala.util.Using
 
 class StandardBridgeTestSuite extends BaseDockerTestSuite {
   private val clAssetOwner = clRichAccount2
@@ -37,8 +41,8 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
   private val enoughClAmount = clAmount * testTransfers
   private val enoughElAmount = elAmount * testTransfers
 
-  private val WWavesContractAddress = EthAddress.unsafeFrom("0xa50a51c09a5c451c52bb714527e1974b686d8e77")
-  private val TErc20Address         = EthAddress.unsafeFrom("0x42699a7612a82f1d9c36148af9c77354759b210b")
+  private val WWavesContractAddress = EthAddress.unsafeFrom("0x2e1f232a9439c3d459fceca0beef13acc8259dd8")
+  private val TErc20Address         = EthAddress.unsafeFrom("0x9b8397f1b0fecd3a1a40cdd5e8221fa461898517")
 
   private val tenGwei = BigInt(Convert.toWei("10", Convert.Unit.GWEI).toBigIntegerExact)
 
@@ -83,7 +87,7 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
     "Checking balances in EL->CL->EL transfers" in {
       step("Issue ERC20 token")
       val txManager      = new RawTransactionManager(ec1.web3j, elSender, EcContainer.ChainId, 10, 2000)
-      val terc20         = TERC20.load(TErc20Address.hex, ec1.web3j, txManager, new DefaultGasProvider)
+      val terc20         = TERC20.load("0x9b8397f1b0fecd3a1a40cdd5e8221fa461898517", ec1.web3j, txManager, new DefaultGasProvider)
       val terc20Decimals = terc20.call_decimals().send().intValueExact()
 
       log.info(s"Address: $TErc20Address")
@@ -167,8 +171,6 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
       withClue("4. Transfer Waves C>E>C") {
         val txManager = new RawTransactionManager(ec1.web3j, elRichAccount1, EcContainer.ChainId, 20, 2000)
         val wwaves    = WWaves.load(WWavesContractAddress.hex, ec1.web3j, txManager, new DefaultGasProvider)
-
-        registerAsset(Asset.Waves, WWavesContractAddress, wwaves.call_decimals().send().intValueExact())
 
         val transferUserAmount = 55
         // Same for EL and CL, because has same decimals
@@ -268,11 +270,24 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
     step("Prepare: wait for first block in EC")
     while (ec1.web3j.ethBlockNumber().send().getBlockNumber.compareTo(BigInteger.ONE) < 0) Thread.sleep(5000)
 
-    (s"forge script -vvvv --config-path ${sys.props("cc.it.contracts.dir")}/foundry.toml ${sys.props("cc.it.contracts.dir")}/scripts/Deployer.s.sol:Deployer " +
-      s"--fork-url http://localhost:${ec1.rpcPort} " +
-      s"--broadcast --private-key 8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63")
-      .!(ProcessLogger(log.info(_), log.error(_)))
-      .shouldBe(0)
+    val contractsDir = new File(sys.props("cc.it.contracts.dir"))
+    Process(
+      s"forge script -vvvv scripts/Deployer.s.sol:Deployer --private-key $elRichAccount1PrivateKey --fork-url http://localhost:${ec1.rpcPort} --broadcast",
+      contractsDir,
+      "CHAIN_ID" -> EcContainer.ChainId.toString
+    ).!(ProcessLogger(out => log.info(out), err => log.error(err)))
+
+    val contractAddresses = Using(new FileInputStream(new File(s"$contractsDir/target/deployments/${EcContainer.ChainId}/.deploy"))) { fis =>
+      Json.parse(fis)
+    }.get.as[Map[String, String]]
+
+    waves1.api.broadcastAndWait(
+      ChainContract.enableTokenTransfers(
+        EthAddress.unsafeFrom(contractAddresses("StandardBridge")),
+        EthAddress.unsafeFrom(contractAddresses("WWaves")),
+        5
+      )
+    )
   }
 
   private def registerAsset(asset: Asset, erc20Address: EthAddress, elDecimals: Int): Unit =

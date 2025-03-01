@@ -2,6 +2,8 @@
 import os
 from decimal import Decimal
 from time import sleep
+from subprocess import call
+import sys, json
 
 from units_network import units, waves
 from units_network.common_utils import configure_cli_logger
@@ -125,17 +127,67 @@ while True:
     log.info("Wait for at least one block on EL")
     sleep(3)
 
-ContractFactory.maybe_deploy(
-    network.w3,
-    network.el_rich_accounts[0],
-    os.getcwd() + "/setup/el/StandardBridge.json",
-)
+log.info("Deploying the StandardBridge contract")
+try:
+    retcode = call("/root/.foundry/bin/forge script --force -vvvv scripts/Deployer.s.sol:Deployer --private-key $PRIVATE_KEY --fork-url http://ec-1:8545 --broadcast",
+        shell=True,
+        cwd='/tmp/contracts'
+    )
+    if retcode < 0:
+        print("Child was terminated by signal", -retcode, file=sys.stderr)
+    else:
+        print("Child returned", retcode, file=sys.stderr)
+except OSError as e:
+    print("Execution failed:", e, file=sys.stderr)
 
-ContractFactory.maybe_deploy(
-    network.w3,
-    network.el_rich_accounts[1],
-    os.getcwd() + "/setup/el/TERC20.json",
-)
+with open('/tmp/contracts/target/deployments/1337/.deploy', 'r') as deployFile:
+    deployments = json.load(deployFile)
+    standard_bridge_address = deployments['StandardBridge']
+    log.info(f'StandardBridge address: {standard_bridge_address}')
+    wwaves_address = deployments['WWaves']
+    log.info(f'WWaves address: {wwaves_address}')
+    r = network.cl_chain_contract.oracleAcc.invokeScript(
+        dappAddress=network.cl_chain_contract.oracleAddress,
+        functionName='enableTokenTransfers',
+        params=[
+            {
+                'type': 'string',
+                'value': standard_bridge_address
+            },
+            {
+                'type': 'string',
+                'value': wwaves_address
+            },
+            {
+                'type': 'integer',
+                'value': 5
+            },
+        ]
+    )
+    waves.force_success(
+        log,
+        r,
+        'could not enable token transfers',
+        wait=False,
+    )
+    txn_id = r["id"]  # type: ignore
+    log.info(f"Transaction id: {txn_id}")  # type: ignore
+    waves.wait_for(txn_id)
+
+# OLD:
+# ContractFactory.maybe_deploy(
+#     network.w3,
+#     network.el_rich_accounts[0],
+#     os.getcwd() + "/setup/el/StandardBridge.json",
+# )
+#
+#
+# log.info("Deploying the test ERC20 contract")
+# ContractFactory.maybe_deploy(
+#     network.w3,
+#     network.el_rich_accounts[1],
+#     os.getcwd() + "/setup/el/TERC20.json",
+# )
 
 key = "elStandardBridgeAddress"
 standard_bridge = network.bridges.standard_bridge

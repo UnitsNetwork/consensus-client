@@ -16,7 +16,7 @@ from local.common import compute_contract_address, in_docker
 
 
 def get_waves_api_url(n: int) -> str:
-    return f"http://wavesnode-{n}:6869" if in_docker() else f"http://127.0.0.1:{n}6869"
+    return f"http://waves-node-{n}:6869" if in_docker() else f"http://127.0.0.1:{n}6869"
 
 
 def get_ec_api_url(n: int) -> str:

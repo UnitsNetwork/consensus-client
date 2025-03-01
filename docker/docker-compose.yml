@@ -1,28 +1,39 @@
 services:
-  besu:
-    profiles: [besu]
-    hostname: execution-client
+  op-geth:
+    hostname: op-geth
     extends:
-      file: ./services/besu.yml
-      service: besu
-
-  geth-init:
-    profiles: [geth]
-    extends:
-      file: ./services/geth.yml
-      service: geth-init
-
-  geth:
-    profiles: [geth]
-    hostname: execution-client
-    extends:
-      file: ./services/geth.yml
-      service: geth
-    depends_on:
-      geth-init:
-        condition: service_completed_successfully
+      file: ./services/op-geth.yml
+      service: op-geth
+    environment:
+      GETH_CONFIG: /etc/config.toml
+      GETH_NETWORKID: $NETWORKID
+      GETH_MINER_GASLIMIT: $GASLIMIT
+    ports:
+      - '30303:30303/tcp'
+      - '30303:30303/udp'
+    volumes:
+      - ./data/secrets:/etc/secrets:ro
+      - ./data/op-geth:/root/.ethereum/geth
+      - ./peers-${NETWORK}.toml:/etc/config.toml
+      - ./genesis-${NETWORK}.json:/tmp/genesis.json
 
   waves-node:
-    extends:
-      file: ./services/waves-node.yml
-      service: waves-node
+    container_name: waves-node
+    image: ghcr.io/unitsnetwork/consensus-client:${WAVES_NODE_TAG:-${NETWORK:-snapshot}}
+    stop_grace_period: 5m
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      JAVA_OPTS: $JAVA_OPTS -Dwaves.blockchain.type=$NETWORK -Dlogback.file.level=TRACE
+      WAVES_WALLET_PASSWORD: $WAVES_WALLET_PASSWORD
+      WAVES_WALLET_SEED: $WAVES_WALLET_SEED
+    ports:
+      - 127.0.0.1:6869:6869
+      - 6868:6868
+      - 6865:6865
+    volumes:
+      - ./data/secrets:/etc/secrets:ro
+      - ./data/waves:/var/lib/waves/data
+      - ./waves-${NETWORK}.conf:/etc/waves/waves.conf:ro
+      - ./logback.xml:/etc/waves/logback.xml
+      - ./logs/waves:/var/log/waves

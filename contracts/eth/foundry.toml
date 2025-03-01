@@ -8,3 +8,6 @@ remappings = [
     'forge-std/=lib/forge-std/src',
     'safe-contracts/=lib/safe-contracts/contracts'
 ]
+fs_permissions = [
+    { access='read-write', path='./target/deployments/' }
+]
