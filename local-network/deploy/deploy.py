@@ -1,15 +1,14 @@
 #!/usr/bin/env python
 import os
+import subprocess
 from decimal import Decimal
 from time import sleep
-from subprocess import call
-import sys, json
 
 from units_network import units, waves
 from units_network.common_utils import configure_cli_logger
 from web3 import Web3
 
-from local.ContractFactory import ContractFactory
+from local.Deployments import Deployments
 from local.network import get_local
 from local.node import Node
 
@@ -128,87 +127,50 @@ while True:
     sleep(3)
 
 log.info("Deploying the StandardBridge contract")
-try:
-    retcode = call("/root/.foundry/bin/forge script --force -vvvv scripts/Deployer.s.sol:Deployer --private-key $PRIVATE_KEY --fork-url http://ec-1:8545 --broadcast",
-        shell=True,
-        cwd='/tmp/contracts'
-    )
-    if retcode < 0:
-        print("Child was terminated by signal", -retcode, file=sys.stderr)
-    else:
-        print("Child returned", retcode, file=sys.stderr)
-except OSError as e:
-    print("Execution failed:", e, file=sys.stderr)
+contracts_dir = os.getenv("CONTRACTS_DIR") or os.path.join(
+    os.getcwd(), "..", "..", "contracts", "eth"
+)
 
-with open('/tmp/contracts/target/deployments/1337/.deploy', 'r') as deployFile:
-    deployments = json.load(deployFile)
-    standard_bridge_address = deployments['StandardBridge']
-    log.info(f'StandardBridge address: {standard_bridge_address}')
-    wwaves_address = deployments['WWaves']
-    log.info(f'WWaves address: {wwaves_address}')
-    r = network.cl_chain_contract.oracleAcc.invokeScript(
+# TODO: check if deployment is required
+try:
+    cmd = f"forge script --force -vvvv scripts/Deployer.s.sol:Deployer --private-key $PRIVATE_KEY --fork-url {network.settings.el_node_api_url} --broadcast"
+
+    retcode = subprocess.call(cmd, shell=True, cwd=contracts_dir)
+    if retcode < 0:
+        log.error(f"Child was terminated by signal: {-retcode}")
+        exit(1)
+    else:
+        log.info(f"Child returned: {retcode}")
+except OSError as e:
+    log.error(f"Execution failed: {e}")
+    exit(1)
+
+deployments = Deployments.load()
+key = "assetTransfersActivationEpoch"
+if len(network.cl_chain_contract.getData(regex="assetTransfersActivationEpoch")) == 0:
+    enable_transfers_txn = network.cl_chain_contract.oracleAcc.invokeScript(
         dappAddress=network.cl_chain_contract.oracleAddress,
-        functionName='enableTokenTransfers',
+        functionName="enableTokenTransfers",
         params=[
-            {
-                'type': 'string',
-                'value': standard_bridge_address
-            },
-            {
-                'type': 'string',
-                'value': wwaves_address
-            },
-            {
-                'type': 'integer',
-                'value': 5
-            },
-        ]
+            {"type": "string", "value": deployments.standard_bridge},
+            {"type": "string", "value": deployments.wwaves},
+            {"type": "integer", "value": 5},
+        ],
     )
     waves.force_success(
         log,
-        r,
-        'could not enable token transfers',
-        wait=False,
+        enable_transfers_txn,
+        "Could not enable token transfers",
+        wait=True,
     )
-    txn_id = r["id"]  # type: ignore
-    log.info(f"Transaction id: {txn_id}")  # type: ignore
-    waves.wait_for(txn_id)
 
-# OLD:
-# ContractFactory.maybe_deploy(
-#     network.w3,
-#     network.el_rich_accounts[0],
-#     os.getcwd() + "/setup/el/StandardBridge.json",
-# )
-#
-#
-# log.info("Deploying the test ERC20 contract")
-# ContractFactory.maybe_deploy(
-#     network.w3,
-#     network.el_rich_accounts[1],
-#     os.getcwd() + "/setup/el/TERC20.json",
-# )
-
-key = "elStandardBridgeAddress"
-standard_bridge = network.bridges.standard_bridge
-curr_standard_bridge_address = network.cl_chain_contract.getData(key)
-expected_standard_bridge_address = standard_bridge.contract_address.lower()
-if curr_standard_bridge_address != expected_standard_bridge_address:
-    log.info(
-        f"Set bridge address in ChainContract to {expected_standard_bridge_address}, current: {curr_standard_bridge_address}"
-    )
-    update_txn = network.cl_chain_contract.storeData(
-        key, "string", expected_standard_bridge_address
-    )
-    waves.force_success(log, update_txn, f"Can not change ChainContract.{key}")
-
-log.info(f"StandardBridge address: {standard_bridge.contract_address}")
+log.info(f"StandardBridge address: {network.bridges.standard_bridge.contract_address}")
 log.info(f"ERC20 token address: {network.el_test_erc20.contract_address}")
 log.info(f"Test CL asset id: {network.cl_test_asset.assetId}")
 
 attempts = 10
 while attempts > 0:
-    ratio = standard_bridge.token_ratio(
+    ratio = network.bridges.standard_bridge.token_ratio(
         Web3.to_checksum_address(network.el_test_erc20.contract_address)
     )
     if ratio > 0:

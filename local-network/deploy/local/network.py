@@ -12,6 +12,7 @@ from units_network.erc20 import Erc20
 from units_network.networks import Network, NetworkSettings
 from web3 import Account, Web3
 
+from local.Deployments import Deployments
 from local.common import compute_contract_address, in_docker
 
 
@@ -57,7 +58,7 @@ class ExtendedNetwork(Network):
 
     @cached_property
     def cl_test_asset(self) -> Asset:
-        test_asset_name = "Test TTK token"
+        test_asset_name = "TestToken"
 
         asset = self.cl_chain_contract.findRegisteredAsset(test_asset_name)
         if asset:
@@ -132,9 +133,7 @@ class ExtendedNetwork(Network):
 
     @cached_property
     def el_test_erc20(self) -> Erc20:
-        return self.get_erc20(
-            compute_contract_address(self.el_rich_accounts[1].address, 0)
-        )
+        return self.get_erc20(Deployments.load().terc20)  # TODO: fix
 
 
 local_net = NetworkSettings(
