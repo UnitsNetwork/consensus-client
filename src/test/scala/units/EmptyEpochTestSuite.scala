@@ -50,7 +50,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       d.appendMicroBlock(
         TxHelpers.invoke(
           d.chainContractAddress,
-          Some("rewardEmptyEpochReporters"),
+          Some("claimEmptyEpochReportRewards"),
           payments = Seq(),
           invoker = miner2.account
         )
@@ -105,7 +105,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       d.appendMicroBlock(
         TxHelpers.invoke(
           d.chainContractAddress,
-          Some("rewardEmptyEpochReporters"),
+          Some("claimEmptyEpochReportRewards"),
           payments = Seq(),
           invoker = miner2.account
         )
@@ -175,7 +175,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       d.appendMicroBlock(
         TxHelpers.invoke(
           d.chainContractAddress,
-          Some("rewardEmptyEpochReporters"),
+          Some("claimEmptyEpochReportRewards"),
           payments = Seq(),
           invoker = miner2.account
         )
@@ -233,7 +233,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       d.appendMicroBlock(
         TxHelpers.invoke(
           d.chainContractAddress,
-          Some("rewardEmptyEpochReporters"),
+          Some("claimEmptyEpochReportRewards"),
           payments = Seq(),
           invoker = miner2.account
         )
@@ -283,7 +283,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       d.appendMicroBlock(
         TxHelpers.invoke(
           d.chainContractAddress,
-          Some("rewardEmptyEpochReporters"),
+          Some("claimEmptyEpochReportRewards"),
           payments = Seq(),
           invoker = miner2.account
         )
@@ -339,7 +339,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       d.appendMicroBlock(
         TxHelpers.invoke(
           d.chainContractAddress,
-          Some("rewardEmptyEpochReporters"),
+          Some("claimEmptyEpochReportRewards"),
           payments = Seq(),
           invoker = miner2.account
         )

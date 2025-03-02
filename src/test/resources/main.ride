@@ -746,7 +746,7 @@ func reportEmptyEpoch() = {
 }
 
 @Callable(i)
-func rewardEmptyEpochReporters() = {
+func claimEmptyEpochReportRewards() = {
   let tokenIdStr = getStringValue(tokenIdKey)
   let tokenId    = tokenIdStr.fromBase58String()
   let rewardAmount = 50000000
