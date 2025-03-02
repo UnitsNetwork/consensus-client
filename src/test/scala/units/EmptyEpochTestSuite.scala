@@ -221,10 +221,10 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(miner1.account, ecBlock1))
 
       // Assertion: an epoch is not marked empty anymore
-      // d.accountsApi.data(d.chainContractAddress, epochReportedEmptyKey) shouldBe None // TODO: uncomment
+      d.accountsApi.data(d.chainContractAddress, epochReportedEmptyKey) shouldBe None
 
       // Assertion: miner has their skipped epoch count reset
-      // d.accountsApi.data(d.chainContractAddress, minerSkippedEpochCountKey) shouldBe None // TODO: uncomment
+      d.accountsApi.data(d.chainContractAddress, minerSkippedEpochCountKey) shouldBe None
 
       // Start miner2
       d.advanceNewBlocks(miner2.address)
@@ -240,7 +240,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       )
 
       // Assertion: a reporter is not rewarded
-      // d.portfolio(miner2.address) shouldBe Seq.empty // TODO: uncomment
+      d.portfolio(miner2.address) shouldBe Seq.empty
     }
   }
 

@@ -355,32 +355,11 @@ func getUpdateFinalizedBlockAction(caller: Address, newBlockHashHex: String, pre
   )
 }
 
-@Callable(i)
-func rewardEmptyEpochReporters() = {
-  let tokenIdStr = getStringValue(tokenIdKey)
-  let tokenId    = tokenIdStr.fromBase58String()
-  let rewardAmount = 50000000
-  let currentHeightPadded = pad(height)
-
-  func step(acc: (Int, List[DeleteEntry|Reissue|ScriptTransfer]), next: String) = {
-    let (offset, actions) = acc
-    let epochNumber = height - offset
-    match getString(epochReportedEmptyKey(epochNumber)) {
-      case u: Unit => (offset + 1, actions)
-      case reporterAddress =>
-      (offset + 1,
-        [
-          DeleteEntry(epochReportedEmptyKey(epochNumber)),
-          Reissue(tokenId, rewardAmount, true),
-          ScriptTransfer(Address(reporterAddress.fromBase58String()), rewardAmount, tokenId)
-        ] ++ actions
-      )
-    }
-  }
-
-  let (_offset,rewardActions) = FOLD<100>(offsets_100, (1, []), step)
-  DeleteEntry(minerSkippedEpochCountKey(computedGenerator)) :: DeleteEntry(epochReportedEmptyKey(height)) :: rewardActions
-}
+let markEpochNonEmpty = 
+  [
+    DeleteEntry(minerSkippedEpochCountKey(computedGenerator)),
+    DeleteEntry(epochReportedEmptyKey(height))
+  ]
 
 @Callable(i)
 func extendMainChain(
@@ -413,7 +392,7 @@ func extendMainChain(
     IntegerEntry(minerChainIdKey(i.originCaller), mainChainId),
     IntegerEntry(chainLastHeightKey(mainChainId, i.originCaller), newChainHeight),
     thisEpochMeta
-  ] ++ updateFinalizedBlock
+  ] ++ updateFinalizedBlock ++ markEpochNonEmpty
 }
 
 @Callable(i)
@@ -454,7 +433,7 @@ func startAltChain(
     IntegerEntry(chainLastHeightKey(mainChainId, i.originCaller), newChainHeight),
     StringEntry(supportersKey(newChainId), i.originCaller.toString()),
     IntegerEntry(lastChainIdKey, newChainId)
-  ]
+  ] ++ markEpochNonEmpty
 }
 
 @Callable(i)
@@ -511,7 +490,7 @@ func extendAltChain(
     thisEpochMeta,
     IntegerEntry(minerChainIdKey(i.originCaller), chainId),
     IntegerEntry(chainLastHeightKey(chainId, i.originCaller), newChainHeight)
-  ] ++ updateMainChainData ++ addSupporter(chainId, i.originCaller) ++ updateMainChainLastMinedBlock
+  ] ++ updateMainChainData ++ addSupporter(chainId, i.originCaller) ++ updateMainChainLastMinedBlock  ++ markEpochNonEmpty
 }
 
 @Callable(i)
@@ -764,4 +743,31 @@ func reportEmptyEpoch() = {
     IntegerEntry(minerSkippedEpochCountKey(computedGenerator), skippedEpochCount + 1),
     StringEntry(epochReportedEmptyKey(height), i.originCaller.toString())
   ]
+}
+
+@Callable(i)
+func rewardEmptyEpochReporters() = {
+  let tokenIdStr = getStringValue(tokenIdKey)
+  let tokenId    = tokenIdStr.fromBase58String()
+  let rewardAmount = 50000000
+  let currentHeightPadded = pad(height)
+
+  func step(acc: (Int, List[DeleteEntry|Reissue|ScriptTransfer]), next: String) = {
+    let (offset, actions) = acc
+    let epochNumber = height - offset
+    match getString(epochReportedEmptyKey(epochNumber)) {
+      case u: Unit => (offset + 1, actions)
+      case reporterAddress =>
+      (offset + 1,
+        [
+          DeleteEntry(epochReportedEmptyKey(epochNumber)),
+          Reissue(tokenId, rewardAmount, true),
+          ScriptTransfer(Address(reporterAddress.fromBase58String()), rewardAmount, tokenId)
+        ] ++ actions
+      )
+    }
+  }
+
+  let (_offset,rewardActions) = FOLD<100>(offsets_100, (1, []), step)
+  DeleteEntry(minerSkippedEpochCountKey(computedGenerator)) :: DeleteEntry(epochReportedEmptyKey(height)) :: rewardActions
 }
