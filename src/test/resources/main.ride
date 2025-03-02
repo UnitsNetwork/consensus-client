@@ -772,21 +772,26 @@ func claimEmptyEpochReportRewards(epochs: List[Int]) = {
   let tokenId    = getStringValue(tokenIdKey).fromBase58String()
   let rewardAmount = 50_000_000
 
-  func step(actions: List[DeleteEntry|Reissue|ScriptTransfer], epochNumber: Int) = {
+  func step(acc: (Int, List[DeleteEntry]), epochNumber: Int) = {
     match epochReportedEmpty(epochNumber) {
-      case u: Unit => actions
+      case u: Unit => acc
       case t => {
+        let (rewardCount, actions) = acc
         let (idleMiner, reporterAddress, rewardClaimed) = t
         if reporterAddress == i.originCaller && rewardClaimed == false
-        then
-          saveEpochReportedEmptyAction(epochNumber, idleMiner, reporterAddress, true)
-            :: Reissue(tokenId, rewardAmount, true)
-            :: ScriptTransfer(reporterAddress, rewardAmount, tokenId)
-            :: actions
-        else actions
+        then (rewardCount + 1, saveEpochReportedEmptyAction(epochNumber, idleMiner, reporterAddress, true) :: actions)
+        else acc
       }
     }
   }
+  let (rewardCount, deleteActions) = FOLD<100>(epochs, (0, []), step)
 
-  FOLD<100>(epochs, [], step)
+  if rewardCount > 0
+  then {
+    let totalRewardAmount = rewardCount * rewardAmount
+    Reissue(tokenId, totalRewardAmount, true)
+      :: ScriptTransfer(i.originCaller, totalRewardAmount, tokenId)
+      :: deleteActions
+  }
+  else []
 }
