@@ -47,15 +47,17 @@ func pad(i: Int) = {
 
 func blockE2CTransfersKey(blockHashHex: String)       = "elToClTransfers_0x" + blockHashHex
 func epochMetaKey(epoch: Int)                         = "epoch_" + pad(epoch) # {minerAddress},{prevEpoch},{lastBlockHash}
+func epochReportedEmptyKey(epoch: Int)                = "epoch_" + pad(epoch) + "_ReportedEmpty" # {idleMiner},{reporterAddress},{rewardClaimed}
 func chainFirstBlockIdKey(chainId: Int)               = "chain" + chainId.toString() + "FirstBlock"
 func chainMetaKey(chainId: Int)                       = "chain_" + pad(chainId) # {height},{lastBlockHash}
 func chainLastHeightKey(chainId: Int, miner: Address) = "chain_" + pad(chainId) + "_" + miner.toString()
 func chainForkedHeightKey(chainId: Int)               = "chain_" + pad(chainId) + "ForkedHeight" # Next to the common block
 
-func supportersKey(chainId: Int)              = "chain" + chainId.toString() + "Supporters"
-func minerRewardAddressKey(minerAddr: String) = "miner_" + minerAddr + "_RewardAddress"
-func minerPkKey(rewardAddress: String)        = "miner_0x" + rewardAddress + "_PK"
-func minerChainIdKey(miner: Address)          = "miner_" + miner.toString() + "_ChainId"
+func supportersKey(chainId: Int)                  = "chain" + chainId.toString() + "Supporters"
+func minerRewardAddressKey(minerAddr: String)     = "miner_" + minerAddr + "_RewardAddress"
+func minerPkKey(rewardAddress: String)            = "miner_0x" + rewardAddress + "_PK"
+func minerChainIdKey(miner: Address)              = "miner_" + miner.toString() + "_ChainId"
+func minerSkippedEpochCountKey(minerAddr: String) = "miner_" + minerAddr + "_SkippedEpochCount"
 
 let nativeTransfersCount = this.getInteger(nativeTransfersCountKey).valueOrElse(0)
 func nativeTransferKey(index: Int) = "nativeTransfer_" + index.toString()
@@ -353,6 +355,34 @@ func getUpdateFinalizedBlockAction(caller: Address, newBlockHashHex: String, pre
   )
 }
 
+
+func epochReportedEmpty(epoch: Int) = match getString(epochReportedEmptyKey(epoch)) {
+  case s: String =>
+    let fragments = s.split(SEP)
+    let rewardClaimed = match fragments[2] {
+      case "true" => true
+      case "false" => false
+      case str => throw("invalid rewardClaimed value")
+    }
+    (fragments[0], fragments[1].addressFromStringValue(), rewardClaimed)
+  case _ => unit
+}
+
+func saveEpochReportedEmptyAction(epoch: Int, idleMiner: String, reporter: Address, rewardClaimed: Boolean) = {
+  let rewardClaimedString = if rewardClaimed then "true" else "false"
+  StringEntry(epochReportedEmptyKey(epoch), idleMiner + SEP + reporter.toString() + SEP + rewardClaimedString)
+}
+
+let markEpochNonEmpty = match getString(epochReportedEmptyKey(height)) {
+  case u: Unit => []
+  case _ =>
+    let minerSkippedEpochCount = getIntegerValue(minerSkippedEpochCountKey(computedGenerator))
+    let decrementMinerSkippedEpochCountAction = if minerSkippedEpochCount == 1 
+      then DeleteEntry(minerSkippedEpochCountKey(computedGenerator))
+      else IntegerEntry(minerSkippedEpochCountKey(computedGenerator), minerSkippedEpochCount - 1)
+    [DeleteEntry(epochReportedEmptyKey(height)), decrementMinerSkippedEpochCountAction]
+}
+
 @Callable(i)
 func extendMainChain(
   blockHashHex: String,
@@ -377,13 +407,14 @@ func extendMainChain(
   let updateFinalizedBlock = getUpdateFinalizedBlockAction(i.originCaller, blockHashHex, mainChainEpoch)
 
   let newChainHeight = mainChainHeight + 1
+
   [
     mkBlockMetaEntry(blockHashHex, newChainHeight, mainChainLastBlock, mainChainId, e2cTransfersRootHashHex, lastC2ETransferIndex),
     mkChainMetaEntry(mainChainId, newChainHeight, blockHashHex),
     IntegerEntry(minerChainIdKey(i.originCaller), mainChainId),
     IntegerEntry(chainLastHeightKey(mainChainId, i.originCaller), newChainHeight),
     thisEpochMeta
-  ] ++ updateFinalizedBlock
+  ] ++ updateFinalizedBlock ++ markEpochNonEmpty
 }
 
 @Callable(i)
@@ -424,7 +455,7 @@ func startAltChain(
     IntegerEntry(chainLastHeightKey(mainChainId, i.originCaller), newChainHeight),
     StringEntry(supportersKey(newChainId), i.originCaller.toString()),
     IntegerEntry(lastChainIdKey, newChainId)
-  ]
+  ] ++ markEpochNonEmpty
 }
 
 @Callable(i)
@@ -481,7 +512,7 @@ func extendAltChain(
     thisEpochMeta,
     IntegerEntry(minerChainIdKey(i.originCaller), chainId),
     IntegerEntry(chainLastHeightKey(chainId, i.originCaller), newChainHeight)
-  ] ++ updateMainChainData ++ addSupporter(chainId, i.originCaller) ++ updateMainChainLastMinedBlock
+  ] ++ updateMainChainData ++ addSupporter(chainId, i.originCaller) ++ updateMainChainLastMinedBlock  ++ markEpochNonEmpty
 }
 
 @Callable(i)
@@ -717,4 +748,50 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: Stri
       StringEntry(elBridgeAddressKey, "0x0000000000000000000000000000000000006a7e")
     ] ++ daoEntries
   }
+}
+
+@Callable(i)
+func reportEmptyEpoch() = {
+  strict checkEpochEmpty = match epochMeta(height) {
+    case u: Unit => unit
+    case _ => throw("Current epoch is non-empty.")
+  }
+  strict checkEpochNotReported = match epochReportedEmpty(height) {
+    case u: Unit => unit
+    case _ => throw("Current epoch is already reported to be empty.")
+  }
+  let skippedEpochCount = getInteger(minerSkippedEpochCountKey(computedGenerator)).valueOrElse(0)
+  [
+    IntegerEntry(minerSkippedEpochCountKey(computedGenerator), skippedEpochCount + 1),
+    saveEpochReportedEmptyAction(height, computedGenerator, i.originCaller, false)
+  ]
+}
+
+@Callable(i)
+func claimEmptyEpochReportRewards(epochs: List[Int]) = {
+  let tokenId    = getStringValue(tokenIdKey).fromBase58String()
+  let rewardAmount = 50_000_000
+
+  func step(acc: (Int, List[DeleteEntry]), epochNumber: Int) = {
+    match epochReportedEmpty(epochNumber) {
+      case u: Unit => acc
+      case t => {
+        let (rewardCount, actions) = acc
+        let (idleMiner, reporterAddress, rewardClaimed) = t
+        if reporterAddress == i.originCaller && rewardClaimed == false
+        then (rewardCount + 1, saveEpochReportedEmptyAction(epochNumber, idleMiner, reporterAddress, true) :: actions)
+        else acc
+      }
+    }
+  }
+  let (rewardCount, deleteActions) = FOLD<100>(epochs, (0, []), step)
+
+  if rewardCount > 0
+  then {
+    let totalRewardAmount = rewardCount * rewardAmount
+    Reissue(tokenId, totalRewardAmount, true)
+      :: ScriptTransfer(i.originCaller, totalRewardAmount, tokenId)
+      :: deleteActions
+  }
+  else []
 }
