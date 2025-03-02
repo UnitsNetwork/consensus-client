@@ -355,7 +355,8 @@ func getUpdateFinalizedBlockAction(caller: Address, newBlockHashHex: String, pre
   )
 }
 
-let rewardEmptyEpochReporters = {
+@Callable(i)
+func rewardEmptyEpochReporters() = {
   let tokenIdStr = getStringValue(tokenIdKey)
   let tokenId    = tokenIdStr.fromBase58String()
   let rewardAmount = 50000000
@@ -367,7 +368,7 @@ let rewardEmptyEpochReporters = {
     match getString(epochReportedEmptyKey(epochNumber)) {
       case u: Unit => (offset + 1, actions)
       case reporterAddress =>
-      (offset + 1, 
+      (offset + 1,
         [
           DeleteEntry(epochReportedEmptyKey(epochNumber)),
           Reissue(tokenId, rewardAmount, true),
@@ -412,9 +413,7 @@ func extendMainChain(
     IntegerEntry(minerChainIdKey(i.originCaller), mainChainId),
     IntegerEntry(chainLastHeightKey(mainChainId, i.originCaller), newChainHeight),
     thisEpochMeta
-  ] 
-  ++ updateFinalizedBlock
-  ++ rewardEmptyEpochReporters
+  ] ++ updateFinalizedBlock
 }
 
 @Callable(i)
@@ -455,7 +454,7 @@ func startAltChain(
     IntegerEntry(chainLastHeightKey(mainChainId, i.originCaller), newChainHeight),
     StringEntry(supportersKey(newChainId), i.originCaller.toString()),
     IntegerEntry(lastChainIdKey, newChainId)
-  ] ++ rewardEmptyEpochReporters
+  ]
 }
 
 @Callable(i)
@@ -512,7 +511,7 @@ func extendAltChain(
     thisEpochMeta,
     IntegerEntry(minerChainIdKey(i.originCaller), chainId),
     IntegerEntry(chainLastHeightKey(chainId, i.originCaller), newChainHeight)
-  ] ++ updateMainChainData ++ addSupporter(chainId, i.originCaller) ++ updateMainChainLastMinedBlock ++ rewardEmptyEpochReporters
+  ] ++ updateMainChainData ++ addSupporter(chainId, i.originCaller) ++ updateMainChainLastMinedBlock
 }
 
 @Callable(i)
@@ -542,7 +541,7 @@ func appendBlock(
     IntegerEntry(chainLastHeightKey(chainId, i.originCaller), newChainHeight),
     mkChainMetaEntry(chainId, newChainHeight, blockHashHex),
     StringEntry(epochMetaKey(height), thisEpochMiner.value().toString() + SEP + thisEpochRef.toString() + SEP + blockHashHex)
-  ] ++ rewardEmptyEpochReporters
+  ]
 }
 
 @Callable(i)
