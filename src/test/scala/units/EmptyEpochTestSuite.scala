@@ -4,6 +4,8 @@ import com.wavesplatform.db.WithState.AddrWithBalance
 import com.wavesplatform.state.{IntegerDataEntry, StringDataEntry}
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.TxHelpers
+import com.wavesplatform.lang.v1.compiler.Terms.{ARR, CONST_LONG}
+import com.wavesplatform.common.utils.EitherExt2.explicitGet
 
 class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
   private val idleMiner = ElMinerSettings(TxHelpers.signer(1))
@@ -51,6 +53,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         TxHelpers.invoke(
           d.chainContractAddress,
           Some("claimEmptyEpochReportRewards"),
+          List(ARR(Vector(CONST_LONG(reportedEpochNumber)), limited = true).explicitGet()),
           payments = Seq(),
           invoker = reporter1.account
         )
@@ -106,6 +109,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         TxHelpers.invoke(
           d.chainContractAddress,
           Some("claimEmptyEpochReportRewards"),
+          List(ARR(Vector(CONST_LONG(3L), CONST_LONG(4L)), limited = true).explicitGet()),
           payments = Seq(),
           invoker = reporter1.account
         )
@@ -176,6 +180,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         TxHelpers.invoke(
           d.chainContractAddress,
           Some("claimEmptyEpochReportRewards"),
+          List(ARR(Vector(CONST_LONG(4L)), limited = true).explicitGet()),
           payments = Seq(),
           invoker = reporter1.account
         )
@@ -234,6 +239,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         TxHelpers.invoke(
           d.chainContractAddress,
           Some("claimEmptyEpochReportRewards"),
+          List(ARR(Vector(CONST_LONG(reportedEpochNumber)), limited = true).explicitGet()),
           payments = Seq(),
           invoker = reporter1.account
         )
@@ -268,7 +274,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       }
 
       // Assertion: an epoch is not marked empty
-      val reportedEpochNumber = 3
+      val reportedEpochNumber   = 3
       val epochReportedEmptyKey = f"epoch_$reportedEpochNumber%08d_ReportedEmpty"
       d.accountsApi.data(d.chainContractAddress, epochReportedEmptyKey) shouldBe None
 
@@ -284,6 +290,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         TxHelpers.invoke(
           d.chainContractAddress,
           Some("claimEmptyEpochReportRewards"),
+          List(ARR(Vector(CONST_LONG(reportedEpochNumber)), limited = true).explicitGet()),
           payments = Seq(),
           invoker = reporter1.account
         )
@@ -293,7 +300,6 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       d.portfolio(reporter1.address) shouldBe Seq.empty
     }
   }
-
 
   "2 Empty epochs confirmed, reporter rewarded twice" in {
     val settings = defaultSettings
@@ -340,6 +346,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         TxHelpers.invoke(
           d.chainContractAddress,
           Some("claimEmptyEpochReportRewards"),
+          List(ARR(Vector(CONST_LONG(3L), CONST_LONG(4L)), limited = true).explicitGet()),
           payments = Seq(),
           invoker = reporter1.account
         )

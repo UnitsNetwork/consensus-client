@@ -746,28 +746,27 @@ func reportEmptyEpoch() = {
 }
 
 @Callable(i)
-func claimEmptyEpochReportRewards() = {
+func claimEmptyEpochReportRewards(epochs: List[Int]) = {
   let tokenIdStr = getStringValue(tokenIdKey)
   let tokenId    = tokenIdStr.fromBase58String()
   let rewardAmount = 50000000
   let currentHeightPadded = pad(height)
 
-  func step(acc: (Int, List[DeleteEntry|Reissue|ScriptTransfer]), next: String) = {
-    let (offset, actions) = acc
-    let epochNumber = height - offset
+  func step(actions: List[DeleteEntry|Reissue|ScriptTransfer], epochNumber: Int) = {
     match getString(epochReportedEmptyKey(epochNumber)) {
-      case u: Unit => (offset + 1, actions)
+      case u: Unit => actions
       case reporterAddress =>
-      (offset + 1,
+      if reporterAddress == i.originCaller.toString()
+      then
         [
           DeleteEntry(epochReportedEmptyKey(epochNumber)),
           Reissue(tokenId, rewardAmount, true),
           ScriptTransfer(Address(reporterAddress.fromBase58String()), rewardAmount, tokenId)
         ] ++ actions
-      )
+      else actions
     }
   }
 
-  let (_offset,rewardActions) = FOLD<100>(offsets_100, (1, []), step)
+  let rewardActions = FOLD<100>(epochs, [], step)
   DeleteEntry(minerSkippedEpochCountKey(computedGenerator)) :: DeleteEntry(epochReportedEmptyKey(height)) :: rewardActions
 }
