@@ -111,23 +111,6 @@ func epochMeta(epoch: Int) = match getString(epochMetaKey(epoch)) {
   case _ => unit
 }
 
-func epochReportedEmpty(epoch: Int) = match getString(epochReportedEmptyKey(epoch)) {
-  case s: String =>
-    let fragments = s.split(SEP)
-    let rewardClaimed = match fragments[2] {
-      case "true" => true
-      case "false" => false
-      case _ => throw("invalid rewardClaimed value")
-    }
-    (fragments[0], fragments[1].addressFromStringValue(), rewardClaimed)
-  case _ => unit
-}
-
-func saveEpochReportedEmptyAction(epoch: Int, idleMiner: String, reporter: Address, rewardClaimed: Boolean) = {
-  let rewardClaimedString = if rewardClaimed then "true" else "false"
-  StringEntry(epochReportedEmptyKey(epoch), idleMiner + SEP + reporter.toString() + SEP + rewardClaimedString)
-}
-
 let (thisEpochMiner, thisEpochRef) = match epochMeta(height) {
   case m: (Address, Int, String) => m
   case _ => (unit, 0)
@@ -372,11 +355,33 @@ func getUpdateFinalizedBlockAction(caller: Address, newBlockHashHex: String, pre
   )
 }
 
-let markEpochNonEmpty =
-  [
-    DeleteEntry(minerSkippedEpochCountKey(computedGenerator)),
-    DeleteEntry(epochReportedEmptyKey(height))
-  ]
+
+func epochReportedEmpty(epoch: Int) = match getString(epochReportedEmptyKey(epoch)) {
+  case s: String =>
+    let fragments = s.split(SEP)
+    let rewardClaimed = match fragments[2] {
+      case "true" => true
+      case "false" => false
+      case str => throw("invalid rewardClaimed value")
+    }
+    (fragments[0], fragments[1].addressFromStringValue(), rewardClaimed)
+  case _ => unit
+}
+
+func saveEpochReportedEmptyAction(epoch: Int, idleMiner: String, reporter: Address, rewardClaimed: Boolean) = {
+  let rewardClaimedString = if rewardClaimed then "true" else "false"
+  StringEntry(epochReportedEmptyKey(epoch), idleMiner + SEP + reporter.toString() + SEP + rewardClaimedString)
+}
+
+let markEpochNonEmpty = match getString(epochReportedEmptyKey(height)) {
+  case u: Unit => []
+  case _ =>
+    let minerSkippedEpochCount = getIntegerValue(minerSkippedEpochCountKey(computedGenerator))
+    let decrementMinerSkippedEpochCountAction = if minerSkippedEpochCount == 1 
+      then DeleteEntry(minerSkippedEpochCountKey(computedGenerator))
+      else IntegerEntry(minerSkippedEpochCountKey(computedGenerator), minerSkippedEpochCount - 1)
+    [DeleteEntry(epochReportedEmptyKey(height)), decrementMinerSkippedEpochCountAction]
+}
 
 @Callable(i)
 func extendMainChain(
