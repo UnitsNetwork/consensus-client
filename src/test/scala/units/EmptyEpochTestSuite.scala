@@ -26,7 +26,6 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         TxHelpers.invoke(
           d.chainContractAddress,
           Some("reportEmptyEpoch"),
-          payments = Seq(),
           invoker = reporter1.account
         )
       )
@@ -48,13 +47,25 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       // Start reporter1
       d.advanceNewBlocks(reporter1.address)
 
-      // Claim reporter reward
+      // Claim reporter reward with wrong epoch number
+      d.appendMicroBlock(
+        TxHelpers.invoke(
+          d.chainContractAddress,
+          Some("claimEmptyEpochReportRewards"),
+          List(ARR(Vector(CONST_LONG(42L)), limited = true).explicitGet()),
+          invoker = reporter1.account
+        )
+      )
+
+      // Assertion: a reporter reward is NOT paid
+      d.portfolio(reporter1.address) shouldBe Seq.empty
+
+      // Claim reporter reward with right epoch number
       d.appendMicroBlock(
         TxHelpers.invoke(
           d.chainContractAddress,
           Some("claimEmptyEpochReportRewards"),
           List(ARR(Vector(CONST_LONG(reportedEpochNumber)), limited = true).explicitGet()),
-          payments = Seq(),
           invoker = reporter1.account
         )
       )
@@ -84,7 +95,6 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         TxHelpers.invoke(
           d.chainContractAddress,
           Some("reportEmptyEpoch"),
-          payments = Seq(),
           invoker = reporter1.account
         )
       )
@@ -97,7 +107,6 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         TxHelpers.invoke(
           d.chainContractAddress,
           Some("reportEmptyEpoch"),
-          payments = Seq(),
           invoker = reporter1.account
         )
       )
@@ -119,7 +128,6 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("claimEmptyEpochReportRewards"),
           List(ARR(Vector(CONST_LONG(3L), CONST_LONG(4L)), limited = true).explicitGet()),
-          payments = Seq(),
           invoker = reporter1.account
         )
       )
@@ -144,7 +152,6 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         TxHelpers.invoke(
           d.chainContractAddress,
           Some("reportEmptyEpoch"),
-          payments = Seq(),
           invoker = reporter1.account
         )
       )
@@ -154,7 +161,6 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         TxHelpers.invoke(
           d.chainContractAddress,
           Some("reportEmptyEpoch"),
-          payments = Seq(),
           invoker = reporter1.account
         )
       )
@@ -167,7 +173,6 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         TxHelpers.invoke(
           d.chainContractAddress,
           Some("reportEmptyEpoch"),
-          payments = Seq(),
           invoker = reporter2.account
         )
       )
@@ -189,7 +194,6 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("claimEmptyEpochReportRewards"),
           List(ARR(Vector(CONST_LONG(4L)), limited = true).explicitGet()),
-          payments = Seq(),
           invoker = reporter1.account
         )
       )
@@ -213,7 +217,6 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         TxHelpers.invoke(
           d.chainContractAddress,
           Some("reportEmptyEpoch"),
-          payments = Seq(),
           invoker = reporter1.account
         )
       )
@@ -223,7 +226,6 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("claimEmptyEpochReportRewards"),
           List(ARR(Vector(CONST_LONG(4L)), limited = true).explicitGet()),
-          payments = Seq(),
           invoker = reporter2.account
         )
       )
@@ -237,7 +239,6 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("claimEmptyEpochReportRewards"),
           List(ARR(Vector(CONST_LONG(4L)), limited = true).explicitGet()),
-          payments = Seq(),
           invoker = reporter1.account
         )
       )
@@ -258,7 +259,6 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         TxHelpers.invoke(
           d.chainContractAddress,
           Some("reportEmptyEpoch"),
-          payments = Seq(),
           invoker = reporter1.account
         )
       )
@@ -293,7 +293,6 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("claimEmptyEpochReportRewards"),
           List(ARR(Vector(CONST_LONG(reportedEpochNumber)), limited = true).explicitGet()),
-          payments = Seq(),
           invoker = reporter1.account
         )
       )
@@ -318,7 +317,6 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         TxHelpers.invoke(
           d.chainContractAddress,
           Some("reportEmptyEpoch"),
-          payments = Seq(),
           invoker = reporter1.account
         )
       )
@@ -344,7 +342,6 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("claimEmptyEpochReportRewards"),
           List(ARR(Vector(CONST_LONG(reportedEpochNumber)), limited = true).explicitGet()),
-          payments = Seq(),
           invoker = reporter1.account
         )
       )
@@ -365,7 +362,6 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         TxHelpers.invoke(
           d.chainContractAddress,
           Some("reportEmptyEpoch"),
-          payments = Seq(),
           invoker = reporter1.account
         )
       )
@@ -378,7 +374,6 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         TxHelpers.invoke(
           d.chainContractAddress,
           Some("reportEmptyEpoch"),
-          payments = Seq(),
           invoker = reporter1.account
         )
       )
@@ -404,7 +399,6 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("claimEmptyEpochReportRewards"),
           List(ARR(Vector(CONST_LONG(3L), CONST_LONG(4L)), limited = true).explicitGet()),
-          payments = Seq(),
           invoker = reporter1.account
         )
       )
