@@ -7,8 +7,8 @@ import com.wavesplatform.transaction.TxHelpers
 
 class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
   private val idleMiner = ElMinerSettings(TxHelpers.signer(1))
-  private val reporter1 = ElMinerSettings(TxHelpers.signer(3))
-  private val reporter2 = ElMinerSettings(TxHelpers.signer(4))
+  private val reporter1 = ElMinerSettings(TxHelpers.signer(2))
+  private val reporter2 = ElMinerSettings(TxHelpers.signer(3))
 
   override protected val defaultSettings: TestSettings =
     super.defaultSettings.copy(initialMiners = List(idleMiner, reporter1)).withEnabledElMining
