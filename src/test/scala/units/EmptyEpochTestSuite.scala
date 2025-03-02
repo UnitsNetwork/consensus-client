@@ -6,18 +6,18 @@ import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.TxHelpers
 
 class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
-  private val miner1 = ElMinerSettings(TxHelpers.signer(1))
-  private val miner2 = ElMinerSettings(TxHelpers.signer(2))
-  private val miner3 = ElMinerSettings(TxHelpers.signer(3))
+  private val idleMiner = ElMinerSettings(TxHelpers.signer(1))
+  private val reporter1 = ElMinerSettings(TxHelpers.signer(3))
+  private val reporter2 = ElMinerSettings(TxHelpers.signer(4))
 
   override protected val defaultSettings: TestSettings =
-    super.defaultSettings.copy(initialMiners = List(miner1, miner2)).withEnabledElMining
+    super.defaultSettings.copy(initialMiners = List(idleMiner, reporter1)).withEnabledElMining
 
   "Empty epoch confirmed, reporter rewarded" in {
     val settings = defaultSettings
     withExtensionDomain(settings) { d =>
-      // Start miner1
-      d.advanceNewBlocks(miner1.address)
+      // Start idleMiner
+      d.advanceNewBlocks(idleMiner.address)
 
       // Report empty epoch
       d.appendMicroBlock(
@@ -25,7 +25,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("reportEmptyEpoch"),
           payments = Seq(),
-          invoker = miner2.account
+          invoker = reporter1.account
         )
       )
 
@@ -33,18 +33,18 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       val reportedEpochNumber   = 3
       val epochReportedEmptyKey = f"epoch_$reportedEpochNumber%08d_ReportedEmpty"
       d.accountsApi.data(d.chainContractAddress, epochReportedEmptyKey) shouldBe
-        Some(StringDataEntry(epochReportedEmptyKey, s"${miner2.address}"))
+        Some(StringDataEntry(epochReportedEmptyKey, s"${reporter1.address}"))
 
       // Assertion: skipped epoch count for miner is in state
-      val minerSkippedEpochCountKey = s"miner_${miner1.address}_SkippedEpochCount"
+      val minerSkippedEpochCountKey = s"miner_${idleMiner.address}_SkippedEpochCount"
       d.accountsApi.data(d.chainContractAddress, minerSkippedEpochCountKey) shouldBe
         Some(IntegerDataEntry(minerSkippedEpochCountKey, 1L))
 
       // Assertion: a reporter reward is not paid yet
-      d.portfolio(miner2.address) shouldBe Seq.empty
+      d.portfolio(reporter1.address) shouldBe Seq.empty
 
-      // Start miner2
-      d.advanceNewBlocks(miner2.address)
+      // Start reporter1
+      d.advanceNewBlocks(reporter1.address)
 
       // Claim reporter reward
       d.appendMicroBlock(
@@ -52,7 +52,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("claimEmptyEpochReportRewards"),
           payments = Seq(),
-          invoker = miner2.account
+          invoker = reporter1.account
         )
       )
 
@@ -64,7 +64,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         Some(IntegerDataEntry(minerSkippedEpochCountKey, 1L))
 
       // Assertion: a reporter reward is paid
-      d.portfolio(miner2.address) shouldBe
+      d.portfolio(reporter1.address) shouldBe
         Seq((d.token, 50_000_000L))
     }
   }
@@ -72,8 +72,8 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
   "Empty epoch confirmed 2 times, reporter rewarded 2 times, skipped epoch count is 2" in {
     val settings = defaultSettings
     withExtensionDomain(settings) { d =>
-      // Start miner1
-      d.advanceNewBlocks(miner1.address)
+      // Start idleMiner
+      d.advanceNewBlocks(idleMiner.address)
 
       // Report empty epoch
       d.appendMicroBlock(
@@ -81,12 +81,12 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("reportEmptyEpoch"),
           payments = Seq(),
-          invoker = miner2.account
+          invoker = reporter1.account
         )
       )
 
-      // Start miner1
-      d.advanceNewBlocks(miner1.address)
+      // Start idleMiner
+      d.advanceNewBlocks(idleMiner.address)
 
       // Report empty epoch
       d.appendMicroBlock(
@@ -94,12 +94,12 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("reportEmptyEpoch"),
           payments = Seq(),
-          invoker = miner2.account
+          invoker = reporter1.account
         )
       )
 
-      // Start miner2
-      d.advanceNewBlocks(miner2.address)
+      // Start reporter1
+      d.advanceNewBlocks(reporter1.address)
 
       // Claim reporter reward
       d.appendMicroBlock(
@@ -107,25 +107,25 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("claimEmptyEpochReportRewards"),
           payments = Seq(),
-          invoker = miner2.account
+          invoker = reporter1.account
         )
       )
 
       // Assertion: skipped epoch count remains in the state
-      val minerSkippedEpochCountKey = s"miner_${miner1.address}_SkippedEpochCount"
+      val minerSkippedEpochCountKey = s"miner_${idleMiner.address}_SkippedEpochCount"
       d.accountsApi.data(d.chainContractAddress, minerSkippedEpochCountKey) shouldBe
         Some(IntegerDataEntry(minerSkippedEpochCountKey, 2L))
 
       // Assertion: a reporter reward is paid
-      d.portfolio(miner2.address) shouldBe Seq((d.token, 100_000_000L))
+      d.portfolio(reporter1.address) shouldBe Seq((d.token, 100_000_000L))
     }
   }
 
   "Empty epoch can be reported only once" in {
-    val settings = defaultSettings.copy(initialMiners = List(miner1, miner2, miner3)).withEnabledElMining
+    val settings = defaultSettings.copy(initialMiners = List(idleMiner, reporter1, reporter2)).withEnabledElMining
     withExtensionDomain(settings) { d =>
-      // Start miner1
-      d.advanceNewBlocks(miner1.address)
+      // Start idleMiner
+      d.advanceNewBlocks(idleMiner.address)
 
       // Report empty epoch, 1st time
       d.appendMicroBlock(
@@ -133,7 +133,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("reportEmptyEpoch"),
           payments = Seq(),
-          invoker = miner2.account
+          invoker = reporter1.account
         )
       )
 
@@ -143,7 +143,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("reportEmptyEpoch"),
           payments = Seq(),
-          invoker = miner2.account
+          invoker = reporter1.account
         )
       )
       reportResult2 should matchPattern {
@@ -156,7 +156,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("reportEmptyEpoch"),
           payments = Seq(),
-          invoker = miner3.account
+          invoker = reporter2.account
         )
       )
       reportResult3 should matchPattern {
@@ -164,12 +164,12 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       }
 
       // Assertion: miner skipped epoch count increased only once
-      val minerSkippedEpochCountKey = s"miner_${miner1.address}_SkippedEpochCount"
+      val minerSkippedEpochCountKey = s"miner_${idleMiner.address}_SkippedEpochCount"
       d.accountsApi.data(d.chainContractAddress, minerSkippedEpochCountKey) shouldBe
         Some(IntegerDataEntry(minerSkippedEpochCountKey, 1L))
 
-      // Start miner2
-      d.advanceNewBlocks(miner2.address)
+      // Start reporter1
+      d.advanceNewBlocks(reporter1.address)
 
       // Claim reporter reward
       d.appendMicroBlock(
@@ -177,23 +177,23 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("claimEmptyEpochReportRewards"),
           payments = Seq(),
-          invoker = miner2.account
+          invoker = reporter1.account
         )
       )
 
       // Assertion: first reporter is rewarded only once
-      d.portfolio(miner2.address) shouldBe Seq((d.token, 50_000_000L))
+      d.portfolio(reporter1.address) shouldBe Seq((d.token, 50_000_000L))
 
       // Assertion: second reporter is not rewarded at all
-      d.portfolio(miner3.address) shouldBe Seq.empty
+      d.portfolio(reporter2.address) shouldBe Seq.empty
     }
   }
 
   "Empty epoch changed to non-empty after reporting" in {
     val settings = defaultSettings
     withExtensionDomain(settings) { d =>
-      // Start miner1
-      d.advanceNewBlocks(miner1.address)
+      // Start idleMiner
+      d.advanceNewBlocks(idleMiner.address)
 
       // Report empty epoch
       d.appendMicroBlock(
@@ -201,7 +201,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("reportEmptyEpoch"),
           payments = Seq(),
-          invoker = miner2.account
+          invoker = reporter1.account
         )
       )
 
@@ -209,16 +209,16 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       val reportedEpochNumber   = 3
       val epochReportedEmptyKey = f"epoch_$reportedEpochNumber%08d_ReportedEmpty"
       d.accountsApi.data(d.chainContractAddress, epochReportedEmptyKey) shouldBe
-        Some(StringDataEntry(epochReportedEmptyKey, s"${miner2.address}"))
+        Some(StringDataEntry(epochReportedEmptyKey, s"${reporter1.address}"))
 
       // Assertion: skipped epoch count for miner is in state
-      val minerSkippedEpochCountKey = s"miner_${miner1.address}_SkippedEpochCount"
+      val minerSkippedEpochCountKey = s"miner_${idleMiner.address}_SkippedEpochCount"
       d.accountsApi.data(d.chainContractAddress, minerSkippedEpochCountKey) shouldBe
         Some(IntegerDataEntry(minerSkippedEpochCountKey, 1L))
 
       // Append a block
-      val ecBlock1 = d.createEcBlockBuilder("0", miner1).build()
-      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(miner1.account, ecBlock1))
+      val ecBlock1 = d.createEcBlockBuilder("0", idleMiner).build()
+      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(idleMiner.account, ecBlock1))
 
       // Assertion: an epoch is not marked empty anymore
       d.accountsApi.data(d.chainContractAddress, epochReportedEmptyKey) shouldBe None
@@ -226,8 +226,8 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       // Assertion: miner has their skipped epoch count reset
       d.accountsApi.data(d.chainContractAddress, minerSkippedEpochCountKey) shouldBe None
 
-      // Start miner2
-      d.advanceNewBlocks(miner2.address)
+      // Start reporter1
+      d.advanceNewBlocks(reporter1.address)
 
       // Claim reporter reward
       d.appendMicroBlock(
@@ -235,24 +235,24 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("claimEmptyEpochReportRewards"),
           payments = Seq(),
-          invoker = miner2.account
+          invoker = reporter1.account
         )
       )
 
       // Assertion: a reporter is not rewarded
-      d.portfolio(miner2.address) shouldBe Seq.empty
+      d.portfolio(reporter1.address) shouldBe Seq.empty
     }
   }
 
   "Non-empty epoch reported, report rejected" in {
     val settings = defaultSettings
     withExtensionDomain(settings) { d =>
-      // Start miner1
-      d.advanceNewBlocks(miner1.address)
+      // Start idleMiner
+      d.advanceNewBlocks(idleMiner.address)
 
       // Append a block
-      val ecBlock1 = d.createEcBlockBuilder("0", miner1).build()
-      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(miner1.account, ecBlock1))
+      val ecBlock1 = d.createEcBlockBuilder("0", idleMiner).build()
+      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(idleMiner.account, ecBlock1))
 
       // Report empty epoch
       val reportResult = d.appendMicroBlockE(
@@ -260,7 +260,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("reportEmptyEpoch"),
           payments = Seq(),
-          invoker = miner2.account
+          invoker = reporter1.account
         )
       )
       reportResult should matchPattern {
@@ -273,11 +273,11 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       d.accountsApi.data(d.chainContractAddress, epochReportedEmptyKey) shouldBe None
 
       // Assertion: skipped epoch count is not set
-      val minerSkippedEpochKey = s"miner_${miner1.address}_SkippedEpochCount"
+      val minerSkippedEpochKey = s"miner_${idleMiner.address}_SkippedEpochCount"
       d.accountsApi.data(d.chainContractAddress, minerSkippedEpochKey) shouldBe None
 
-      // Start miner2
-      d.advanceNewBlocks(miner2.address)
+      // Start reporter1
+      d.advanceNewBlocks(reporter1.address)
 
       // Claim reporter reward
       d.appendMicroBlock(
@@ -285,12 +285,12 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("claimEmptyEpochReportRewards"),
           payments = Seq(),
-          invoker = miner2.account
+          invoker = reporter1.account
         )
       )
 
       // Assertion: a reporter is not rewarded
-      d.portfolio(miner2.address) shouldBe Seq.empty
+      d.portfolio(reporter1.address) shouldBe Seq.empty
     }
   }
 
@@ -298,8 +298,8 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
   "2 Empty epochs confirmed, reporter rewarded twice" in {
     val settings = defaultSettings
     withExtensionDomain(settings) { d =>
-      // Start miner1
-      d.advanceNewBlocks(miner1.address)
+      // Start idleMiner
+      d.advanceNewBlocks(idleMiner.address)
 
       // Report empty epoch
       d.appendMicroBlock(
@@ -307,12 +307,12 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("reportEmptyEpoch"),
           payments = Seq(),
-          invoker = miner2.account
+          invoker = reporter1.account
         )
       )
 
-      // Start miner1
-      d.advanceNewBlocks(miner1.address)
+      // Start idleMiner again
+      d.advanceNewBlocks(idleMiner.address)
 
       // Report empty epoch
       d.appendMicroBlock(
@@ -320,20 +320,20 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("reportEmptyEpoch"),
           payments = Seq(),
-          invoker = miner2.account
+          invoker = reporter1.account
         )
       )
 
       // Assertion: skipped epoch count for miner is in state
-      val minerSkippedEpochCountKey = s"miner_${miner1.address}_SkippedEpochCount"
+      val minerSkippedEpochCountKey = s"miner_${idleMiner.address}_SkippedEpochCount"
       d.accountsApi.data(d.chainContractAddress, minerSkippedEpochCountKey) shouldBe
         Some(IntegerDataEntry(minerSkippedEpochCountKey, 2L))
 
       // Assertion: a reporter reward is not paid yet
-      d.portfolio(miner2.address) shouldBe Seq.empty
+      d.portfolio(reporter1.address) shouldBe Seq.empty
 
-      // Start miner2
-      d.advanceNewBlocks(miner2.address)
+      // Start reporter1
+      d.advanceNewBlocks(reporter1.address)
 
       // Claim reporter reward
       d.appendMicroBlock(
@@ -341,7 +341,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           d.chainContractAddress,
           Some("claimEmptyEpochReportRewards"),
           payments = Seq(),
-          invoker = miner2.account
+          invoker = reporter1.account
         )
       )
 
@@ -350,7 +350,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         Some(IntegerDataEntry(minerSkippedEpochCountKey, 2L))
 
       // Assertion: a reporter reward is paid
-      d.portfolio(miner2.address) shouldBe
+      d.portfolio(reporter1.address) shouldBe
         Seq((d.token, 100_000_000L))
     }
   }
