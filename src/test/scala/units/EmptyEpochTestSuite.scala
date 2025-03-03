@@ -221,6 +221,10 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         )
       )
 
+      // Start reporter1
+      d.advanceNewBlocks(reporter1.address)
+
+      // Claim reporter reward from irrelevant account
       d.appendMicroBlock(
         TxHelpers.invoke(
           d.chainContractAddress,
@@ -248,7 +252,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
     }
   }
 
-  "Empty epoch changed to non-empty after reporting" in {
+  "Empty epoch changed to non-empty after reporting, a reporter is not rewarded" in {
     val settings = defaultSettings
     withExtensionDomain(settings) { d =>
       // Start idleMiner
@@ -409,6 +413,52 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
 
       // Assertion: a reporter reward is paid
       d.portfolio(reporter1.address) shouldBe Seq((d.token, 100_000_000L))
+    }
+  }
+
+  "Reporter can not have their reward until an epoch is completed" in {
+    val settings = defaultSettings
+    withExtensionDomain(settings) { d =>
+      // Start idleMiner
+      d.advanceNewBlocks(idleMiner.address)
+
+      // Report empty epoch
+      d.appendMicroBlock(
+        TxHelpers.invoke(
+          d.chainContractAddress,
+          Some("reportEmptyEpoch"),
+          invoker = reporter1.account
+        )
+      )
+
+      // Claim reporter reward
+      d.appendMicroBlock(
+        TxHelpers.invoke(
+          d.chainContractAddress,
+          Some("claimEmptyEpochReportRewards"),
+          List(ARR(Vector(CONST_LONG(3L)), limited = true).explicitGet()),
+          invoker = reporter1.account
+        )
+      )
+
+      // Assertion: a reporter is not rewarded, because the epoch is not completed
+      d.portfolio(reporter1.address) shouldBe Seq.empty
+
+      // Start reporter1
+      d.advanceNewBlocks(reporter1.address)
+
+      // Claim reporter reward for the same epoch
+      d.appendMicroBlock(
+        TxHelpers.invoke(
+          d.chainContractAddress,
+          Some("claimEmptyEpochReportRewards"),
+          List(ARR(Vector(CONST_LONG(3L)), limited = true).explicitGet()),
+          invoker = reporter1.account
+        )
+      )
+
+      // Assertion: a reporter is rewarded
+      d.portfolio(reporter1.address) shouldBe Seq((d.token, 50_000_000L))
     }
   }
 }

@@ -773,7 +773,9 @@ func claimEmptyEpochReportRewards(epochs: List[Int]) = {
   let rewardAmount = 50_000_000
 
   func step(acc: (Int, List[StringEntry]), epochNumber: Int) = {
-    match epochReportedEmpty(epochNumber) {
+    if epochNumber == height
+    then acc
+    else match epochReportedEmpty(epochNumber) {
       case u: Unit => acc
       case t => {
         let (rewardCount, actions) = acc
