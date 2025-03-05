@@ -12,6 +12,8 @@ let ROOT_HASH_SIZE       = 32
 let WITHDRAW_PROOFS_SIZE = 10
 let ETH_ADDRESS_STR_SIZE = 40
 let MAX_CL_TO_EL_TRANSFERS = 16
+let MAX_SKIPPED_EPOCH_COUNT = 50 # TODO: figure out
+let EMPTY_EPOCH_REPORT_REWARD = 50_000_000
 
 # 1024 symbols
 let zeroesStr = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
@@ -355,7 +357,6 @@ func getUpdateFinalizedBlockAction(caller: Address, newBlockHashHex: String, pre
   )
 }
 
-
 func epochReportedEmpty(epoch: Int) = match getString(epochReportedEmptyKey(epoch)) {
   case s: String =>
     let fragments = s.split(SEP)
@@ -381,6 +382,19 @@ let markEpochNonEmpty = match getString(epochReportedEmptyKey(height)) {
       then DeleteEntry(minerSkippedEpochCountKey(computedGenerator))
       else IntegerEntry(minerSkippedEpochCountKey(computedGenerator), minerSkippedEpochCount - 1)
     [DeleteEntry(epochReportedEmptyKey(height)), decrementMinerSkippedEpochCountAction]
+}
+
+func evictIdleCurrentMiner() = {
+  let idleMiner = computedGenerator
+
+  func skipIdleMiner(acc: List[String], miner: String) = if (miner == idleMiner) then acc else acc :+ miner
+  let remainingMiners = FOLD<50>(allMiners, [], skipIdleMiner)
+
+  [
+    StringEntry(allMinersKey, remainingMiners.makeString_2C(SEP)),
+    # Note: minerRewardAddressKey and minerPkKey are not removed or updated here, same as in `leave`
+    DeleteEntry(minerSkippedEpochCountKey(computedGenerator))
+  ]
 }
 
 @Callable(i)
@@ -761,7 +775,16 @@ func reportEmptyEpoch() = {
     case _ => throw("Current epoch is already reported to be empty.")
   }
   let skippedEpochCount = getInteger(minerSkippedEpochCountKey(computedGenerator)).valueOrElse(0)
-  [
+  if skippedEpochCount >= MAX_SKIPPED_EPOCH_COUNT
+  then {
+    let tokenId = getStringValue(tokenIdKey).fromBase58String()
+
+    saveEpochReportedEmptyAction(height, computedGenerator, i.originCaller, true)
+      :: Reissue(tokenId, EMPTY_EPOCH_REPORT_REWARD, true)
+      :: ScriptTransfer(i.originCaller, EMPTY_EPOCH_REPORT_REWARD, tokenId)
+      :: evictIdleCurrentMiner()
+  }
+  else [
     IntegerEntry(minerSkippedEpochCountKey(computedGenerator), skippedEpochCount + 1),
     saveEpochReportedEmptyAction(height, computedGenerator, i.originCaller, false)
   ]
@@ -769,8 +792,7 @@ func reportEmptyEpoch() = {
 
 @Callable(i)
 func claimEmptyEpochReportRewards(epochs: List[Int]) = {
-  let tokenId    = getStringValue(tokenIdKey).fromBase58String()
-  let rewardAmount = 50_000_000
+  let tokenId = getStringValue(tokenIdKey).fromBase58String()
 
   func step(acc: (Int, List[StringEntry]), epochNumber: Int) = {
     if epochNumber == height
@@ -786,14 +808,14 @@ func claimEmptyEpochReportRewards(epochs: List[Int]) = {
       }
     }
   }
-  let (rewardCount, deleteActions) = FOLD<100>(epochs, (0, []), step)
+  let (rewardCount, updateActions) = FOLD<100>(epochs, (0, []), step)
 
   if rewardCount > 0
   then {
-    let totalRewardAmount = rewardCount * rewardAmount
+    let totalRewardAmount = rewardCount * EMPTY_EPOCH_REPORT_REWARD
     Reissue(tokenId, totalRewardAmount, true)
       :: ScriptTransfer(i.originCaller, totalRewardAmount, tokenId)
-      :: deleteActions
+      :: updateActions
   }
   else []
 }
