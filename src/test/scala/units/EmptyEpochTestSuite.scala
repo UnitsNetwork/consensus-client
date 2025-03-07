@@ -557,6 +557,10 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           )
         })
 
+      // Assertion: skipped epoch count for evicted miner is reset
+      val minerSkippedEpochCountKey = s"miner_${idleMiner.address}_SkippedEpochCount"
+      d.accountsApi.data(d.chainContractAddress, minerSkippedEpochCountKey) shouldBe None
+
       // Assertion: an evicted miner can no longer call extendMainChain, and another miner is expected to mine immediately
       val ecBlock1 = d.createEcBlockBuilder("0", idleMiner).build()
       d.appendMicroBlockE(d.ChainContract.extendMainChain(idleMiner.account, ecBlock1)) should matchPattern {
@@ -564,13 +568,9 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
             if err.toString.contains(s"${idleMiner.address} is not allowed to mine in ${d.blockchain.height} epoch. Expected ${reporter1.address}") =>
       }
 
-      // Assertion: Another miner actually can mine immediately // TODO: enable
-      // val ecBlock2 = d.createEcBlockBuilder("0", reporter1).build()
-      // d.appendMicroBlock(d.ChainContract.extendMainChain(reporter1.account, ecBlock2))
-
-      // Assertion: skipped epoch count for evicted miner is reset
-      val minerSkippedEpochCountKey = s"miner_${idleMiner.address}_SkippedEpochCount"
-      d.accountsApi.data(d.chainContractAddress, minerSkippedEpochCountKey) shouldBe None
+      // Assertion: Another miner actually can mine immediately
+      val ecBlock2 = d.createEcBlockBuilder("0", reporter1).build()
+      d.appendMicroBlock(d.ChainContract.extendMainChain(reporter1.account, ecBlock2))
 
       // Claim reporter reward
       val maxEpochsPerClaim = 100

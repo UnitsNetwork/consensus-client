@@ -368,14 +368,19 @@ func epochReportedEmpty(epoch: Int) = match getString(epochReportedEmptyKey(epoc
   case _ => unit
 }
 
-let markEpochNonEmpty = match getString(epochReportedEmptyKey(height)) {
+let markEpochNonEmpty = match epochReportedEmpty(height) {
   case u: Unit => []
+  case s: String => []
   case _ =>
-    let minerSkippedEpochCount = getIntegerValue(minerSkippedEpochCountKey(computedGenerator))
-    let decrementMinerSkippedEpochCountAction = if minerSkippedEpochCount == 1 
-      then DeleteEntry(minerSkippedEpochCountKey(computedGenerator))
-      else IntegerEntry(minerSkippedEpochCountKey(computedGenerator), minerSkippedEpochCount - 1)
-    [DeleteEntry(epochReportedEmptyKey(height)), decrementMinerSkippedEpochCountAction]
+    let minerSkippedEpochCountOption = getInteger(minerSkippedEpochCountKey(computedGenerator))
+    match minerSkippedEpochCountOption {
+      case u: Unit => [] # Note: this case is possible when an idle miner has already been evicted, and another miner mines the current epoch.
+      case minerSkippedEpochCount =>
+        let decrementMinerSkippedEpochCountAction = if minerSkippedEpochCount == 1
+          then DeleteEntry(minerSkippedEpochCountKey(computedGenerator))
+          else IntegerEntry(minerSkippedEpochCountKey(computedGenerator), minerSkippedEpochCount - 1)
+        [DeleteEntry(epochReportedEmptyKey(height)), decrementMinerSkippedEpochCountAction]
+    }
 }
 
 func evictIdleCurrentMiner() = {
