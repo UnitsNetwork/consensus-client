@@ -12,7 +12,7 @@ let ROOT_HASH_SIZE       = 32
 let WITHDRAW_PROOFS_SIZE = 10
 let ETH_ADDRESS_STR_SIZE = 40
 let MAX_CL_TO_EL_TRANSFERS = 16
-let MAX_SKIPPED_EPOCH_COUNT = 50 # TODO: figure out
+let MAX_SKIPPED_EPOCH_COUNT = 200
 let EMPTY_EPOCH_REPORT_REWARD = 50_000_000
 
 # 1024 symbols
@@ -774,18 +774,15 @@ func reportEmptyEpoch() = {
     case u: Unit => unit
     case _ => throw("Current epoch is already reported to be empty.")
   }
-  let skippedEpochCount = getInteger(minerSkippedEpochCountKey(computedGenerator)).valueOrElse(0)
+  let prevSkippedEpochCount = getInteger(minerSkippedEpochCountKey(computedGenerator)).valueOrElse(0)
+  let skippedEpochCount = prevSkippedEpochCount + 1
   if skippedEpochCount >= MAX_SKIPPED_EPOCH_COUNT
   then {
     let tokenId = getStringValue(tokenIdKey).fromBase58String()
-
-    saveEpochReportedEmptyAction(height, computedGenerator, i.originCaller, true)
-      :: Reissue(tokenId, EMPTY_EPOCH_REPORT_REWARD, true)
-      :: ScriptTransfer(i.originCaller, EMPTY_EPOCH_REPORT_REWARD, tokenId)
-      :: evictIdleCurrentMiner()
+    saveEpochReportedEmptyAction(height, computedGenerator, i.originCaller, false) :: evictIdleCurrentMiner()
   }
   else [
-    IntegerEntry(minerSkippedEpochCountKey(computedGenerator), skippedEpochCount + 1),
+    IntegerEntry(minerSkippedEpochCountKey(computedGenerator), skippedEpochCount),
     saveEpochReportedEmptyAction(height, computedGenerator, i.originCaller, false)
   ]
 }
@@ -793,6 +790,8 @@ func reportEmptyEpoch() = {
 @Callable(i)
 func claimEmptyEpochReportRewards(epochs: List[Int]) = {
   let tokenId = getStringValue(tokenIdKey).fromBase58String()
+
+  strict lengthCheck = if size(epochs) > 100 then throw("Claimed epochs count exceeds 100.") else unit
 
   func step(acc: (Int, List[StringEntry]), epochNumber: Int) = {
     if epochNumber == height
