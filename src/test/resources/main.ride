@@ -49,7 +49,7 @@ func pad(i: Int) = {
 
 func blockE2CTransfersKey(blockHashHex: String)       = "elToClTransfers_0x" + blockHashHex
 func epochMetaKey(epoch: Int)                         = "epoch_" + pad(epoch) # {minerAddress},{prevEpoch},{lastBlockHash}
-func epochReportedEmptyKey(epoch: Int)                = "epoch_" + pad(epoch) + "_ReportedEmpty" # {idleMiner},{reporterAddress},{rewardClaimed}
+func epochReportedEmptyKey(epoch: Int)                = "empty_" + pad(epoch) # {idleMiner},{reporterAddress},{rewardClaimed} for non-claimed, {idleMiner} for claimed
 func chainFirstBlockIdKey(chainId: Int)               = "chain" + chainId.toString() + "FirstBlock"
 func chainMetaKey(chainId: Int)                       = "chain_" + pad(chainId) # {height},{lastBlockHash}
 func chainLastHeightKey(chainId: Int, miner: Address) = "chain_" + pad(chainId) + "_" + miner.toString()
@@ -360,18 +360,12 @@ func getUpdateFinalizedBlockAction(caller: Address, newBlockHashHex: String, pre
 func epochReportedEmpty(epoch: Int) = match getString(epochReportedEmptyKey(epoch)) {
   case s: String =>
     let fragments = s.split(SEP)
-    let rewardClaimed = match fragments[2] {
-      case "true" => true
-      case "false" => false
-      case str => throw("invalid rewardClaimed value")
+    match size(fragments) {
+      case 1 => fragments[0]
+      case 2 => (fragments[0], fragments[1].addressFromStringValue())
+      case _ => throw("Invalid empty epoch record")
     }
-    (fragments[0], fragments[1].addressFromStringValue(), rewardClaimed)
   case _ => unit
-}
-
-func saveEpochReportedEmptyAction(epoch: Int, idleMiner: String, reporter: Address, rewardClaimed: Boolean) = {
-  let rewardClaimedString = if rewardClaimed then "true" else "false"
-  StringEntry(epochReportedEmptyKey(epoch), idleMiner + SEP + reporter.toString() + SEP + rewardClaimedString)
 }
 
 let markEpochNonEmpty = match getString(epochReportedEmptyKey(height)) {
@@ -768,41 +762,38 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: Stri
 func reportEmptyEpoch() = {
   strict checkEpochEmpty = match epochMeta(height) {
     case u: Unit => unit
-    case _ => throw("Current epoch is non-empty.")
+    case _ => throw("Current epoch is non-empty")
   }
   strict checkEpochNotReported = match epochReportedEmpty(height) {
     case u: Unit => unit
-    case _ => throw("Current epoch is already reported to be empty.")
+    case _ => throw("Current epoch is already reported to be empty")
   }
   let prevSkippedEpochCount = getInteger(minerSkippedEpochCountKey(computedGenerator)).valueOrElse(0)
   let skippedEpochCount = prevSkippedEpochCount + 1
-  if skippedEpochCount >= MAX_SKIPPED_EPOCH_COUNT
-  then {
-    let tokenId = getStringValue(tokenIdKey).fromBase58String()
-    saveEpochReportedEmptyAction(height, computedGenerator, i.originCaller, false) :: evictIdleCurrentMiner()
-  }
-  else [
-    IntegerEntry(minerSkippedEpochCountKey(computedGenerator), skippedEpochCount),
-    saveEpochReportedEmptyAction(height, computedGenerator, i.originCaller, false)
-  ]
+
+  StringEntry(epochReportedEmptyKey(height), computedGenerator + SEP + i.originCaller.toString())
+   :: (if skippedEpochCount >= MAX_SKIPPED_EPOCH_COUNT
+      then evictIdleCurrentMiner()
+      else [IntegerEntry(minerSkippedEpochCountKey(computedGenerator), skippedEpochCount)])
 }
 
 @Callable(i)
 func claimEmptyEpochReportRewards(epochs: List[Int]) = {
-  let tokenId = getStringValue(tokenIdKey).fromBase58String()
+  strict lengthCheck = if size(epochs) > 100 then throw("Claimed epochs count exceeds 100") else unit
 
-  strict lengthCheck = if size(epochs) > 100 then throw("Claimed epochs count exceeds 100.") else unit
+  let tokenId = getStringValue(tokenIdKey).fromBase58String()
 
   func step(acc: (Int, List[StringEntry]), epochNumber: Int) = {
     if epochNumber == height
     then acc
     else match epochReportedEmpty(epochNumber) {
       case u: Unit => acc
+      case s: String => acc
       case t => {
         let (rewardCount, actions) = acc
-        let (idleMiner, reporterAddress, rewardClaimed) = t
-        if reporterAddress == i.originCaller && rewardClaimed == false
-        then (rewardCount + 1, saveEpochReportedEmptyAction(epochNumber, idleMiner, reporterAddress, true) :: actions)
+        let (idleMiner, reporterAddress) = t
+        if reporterAddress == i.originCaller
+        then (rewardCount + 1, StringEntry(epochReportedEmptyKey(epochNumber), idleMiner) :: actions)
         else acc
       }
     }
