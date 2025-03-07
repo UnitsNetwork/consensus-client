@@ -16,8 +16,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
     super.defaultSettings.copy(initialMiners = List(idleMiner, reporter1)).withEnabledElMining
 
   "Empty epoch confirmed, reporter rewarded" in {
-    val settings = defaultSettings
-    withExtensionDomain(settings) { d =>
+    withExtensionDomain(defaultSettings) { d =>
       // Start idleMiner
       d.advanceNewBlocks(idleMiner.address)
 
@@ -85,8 +84,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
   }
 
   "Empty epoch confirmed 2 times, reporter rewarded 2 times, skipped epoch count is 2" in {
-    val settings = defaultSettings
-    withExtensionDomain(settings) { d =>
+    withExtensionDomain(defaultSettings) { d =>
       // Start idleMiner
       d.advanceNewBlocks(idleMiner.address)
 
@@ -142,7 +140,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
   }
 
   "Empty epoch can be reported only once" in {
-    val settings = defaultSettings.copy(initialMiners = List(idleMiner, reporter1, reporter2)).withEnabledElMining
+    val settings = defaultSettings.copy(initialMiners = List(idleMiner, reporter1, reporter2))
     withExtensionDomain(settings) { d =>
       // Start idleMiner
       d.advanceNewBlocks(idleMiner.address)
@@ -206,8 +204,8 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
     }
   }
 
-  "A reward is only paid when claimed by the reporter" in {
-    val settings = defaultSettings.copy(initialMiners = List(idleMiner, reporter1, reporter2)).withEnabledElMining
+  "A reward is only paid when claimed by the reporter, once for epoch" in {
+    val settings = defaultSettings.copy(initialMiners = List(idleMiner, reporter1, reporter2))
     withExtensionDomain(settings) { d =>
       // Start idleMiner
       d.advanceNewBlocks(idleMiner.address)
@@ -247,14 +245,87 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         )
       )
 
+      // Claim reporter reward again (should not be rewarded twice)
+      d.appendMicroBlock(
+        TxHelpers.invoke(
+          d.chainContractAddress,
+          Some("claimEmptyEpochReportRewards"),
+          List(ARR(Vector(CONST_LONG(4L)), limited = true).explicitGet()),
+          invoker = reporter1.account
+        )
+      )
+
+      // Assertion: reporter is rewarded
+      d.portfolio(reporter1.address) shouldBe Seq((d.token, 50_000_000L))
+    }
+  }
+
+  "Claim with list of more than 100 epochs is rejected" in {
+    withExtensionDomain(defaultSettings) { d =>
+      // Build a list of 100 epochs
+      val epochList1 = Range.inclusive(1, 100).map(i => CONST_LONG(i.toLong))
+
+      // Assertion: claim is successful
+      d.appendMicroBlock(
+        TxHelpers.invoke(
+          d.chainContractAddress,
+          Some("claimEmptyEpochReportRewards"),
+          List(ARR(epochList1, limited = true).explicitGet()),
+          invoker = reporter1.account
+        )
+      )
+      // Build a list of 101 epoch
+      val epochList2 = Range.inclusive(1, 101).map(i => CONST_LONG(i.toLong))
+
+      // Assertion: claim failed
+      d.appendMicroBlockE(
+        TxHelpers.invoke(
+          d.chainContractAddress,
+          Some("claimEmptyEpochReportRewards"),
+          List(ARR(epochList2, limited = true).explicitGet()),
+          invoker = reporter1.account
+        )
+      ) should matchPattern {
+        case Left(err) if err.toString.contains("Claimed epochs count exceeds 100.") =>
+      }
+    }
+  }
+
+  "The last epoch in a list of 100 is claimed successfully" in {
+    withExtensionDomain(defaultSettings) { d =>
+      // Start idleMiner
+      d.advanceNewBlocks(idleMiner.address)
+
+      // Report empty epoch
+      d.appendMicroBlock(
+        TxHelpers.invoke(
+          d.chainContractAddress,
+          Some("reportEmptyEpoch"),
+          invoker = reporter1.account
+        )
+      )
+
+      // Start reporter1
+      d.advanceNewBlocks(reporter1.address)
+
+      // Build a list of 100 epochs, with the last one being the reported one
+      val epochList = Range.inclusive(1001, 1099).map(i => CONST_LONG(i.toLong)) ++ Seq(CONST_LONG(3L))
+      d.appendMicroBlock(
+        TxHelpers.invoke(
+          d.chainContractAddress,
+          Some("claimEmptyEpochReportRewards"),
+          List(ARR(epochList, limited = true).explicitGet()),
+          invoker = reporter1.account
+        )
+      )
+
       // Assertion: reporter is rewarded
       d.portfolio(reporter1.address) shouldBe Seq((d.token, 50_000_000L))
     }
   }
 
   "Empty epoch changed to non-empty after reporting, a reporter is not rewarded" in {
-    val settings = defaultSettings
-    withExtensionDomain(settings) { d =>
+    withExtensionDomain(defaultSettings) { d =>
       // Start idleMiner
       d.advanceNewBlocks(idleMiner.address)
 
@@ -307,8 +378,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
   }
 
   "Non-empty epoch reported, report rejected" in {
-    val settings = defaultSettings
-    withExtensionDomain(settings) { d =>
+    withExtensionDomain(defaultSettings) { d =>
       // Start idleMiner
       d.advanceNewBlocks(idleMiner.address)
 
@@ -356,8 +426,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
   }
 
   "Miner started mining after 2 blocks, but skipped epoch count is preserved for the future measures" in {
-    val settings = defaultSettings
-    withExtensionDomain(settings) { d =>
+    withExtensionDomain(defaultSettings) { d =>
       // Start idleMiner
       d.advanceNewBlocks(idleMiner.address)
 
@@ -417,8 +486,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
   }
 
   "Reporter can not have their reward until an epoch is completed" in {
-    val settings = defaultSettings
-    withExtensionDomain(settings) { d =>
+    withExtensionDomain(defaultSettings) { d =>
       // Start idleMiner
       d.advanceNewBlocks(idleMiner.address)
 
@@ -459,6 +527,61 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
 
       // Assertion: a reporter is rewarded
       d.portfolio(reporter1.address) shouldBe Seq((d.token, 50_000_000L))
+    }
+  }
+
+  "Idle miner is immediately evicted on reaching MAX_SKIPPED_EPOCH_COUNT" in {
+    withExtensionDomain(defaultSettings) { d =>
+      val maxSkippedEpochCount = 200
+      Range
+        .inclusive(1, maxSkippedEpochCount)
+        .foreach(_ => {
+          // Start idleMiner
+          d.advanceNewBlocks(idleMiner.address)
+
+          // Report empty epoch
+          d.appendMicroBlock(
+            TxHelpers.invoke(
+              d.chainContractAddress,
+              Some("reportEmptyEpoch"),
+              invoker = reporter1.account
+            )
+          )
+        })
+
+      // Assertion: an evicted miner can no longer call extendMainChain, and another miner is expected to mine immediately
+      val ecBlock1 = d.createEcBlockBuilder("0", idleMiner).build()
+      d.appendMicroBlockE(d.ChainContract.extendMainChain(idleMiner.account, ecBlock1)) should matchPattern {
+        case Left(err)
+            if err.toString.contains(s"${idleMiner.address} is not allowed to mine in ${d.blockchain.height} epoch. Expected ${reporter1.address}") =>
+      }
+
+      // Assertion: Another miner actually can mine immediately // TODO: enable
+      // val ecBlock2 = d.createEcBlockBuilder("0", reporter1).build()
+      // d.appendMicroBlock(d.ChainContract.extendMainChain(reporter1.account, ecBlock2))
+
+      // Assertion: skipped epoch count for evicted miner is reset
+      val minerSkippedEpochCountKey = s"miner_${idleMiner.address}_SkippedEpochCount"
+      d.accountsApi.data(d.chainContractAddress, minerSkippedEpochCountKey) shouldBe None
+
+      // Claim reporter reward
+      val maxEpochsPerClaim = 97 // TODO: 100, as in chain contract + test for claiming exactly 100
+      val emptyEpochList    = Range.inclusive(1, d.blockchain.height).map(i => CONST_LONG(i.toLong)).grouped(maxEpochsPerClaim)
+      emptyEpochList.foreach { epochsSublist =>
+        // Start new epoch
+        d.advanceNewBlocks(reporter1.address)
+        d.appendMicroBlock(
+          TxHelpers.invoke(
+            d.chainContractAddress,
+            Some("claimEmptyEpochReportRewards"),
+            List(ARR(epochsSublist, limited = true).explicitGet()),
+            invoker = reporter1.account
+          )
+        )
+      }
+
+      // Assertion: a reporter is rewarded for all skipped epochs, including the last one
+      d.portfolio(reporter1.address) shouldBe Seq((d.token, 50_000_000L * maxSkippedEpochCount))
     }
   }
 }
