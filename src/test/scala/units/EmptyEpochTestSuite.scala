@@ -539,7 +539,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
     }
   }
 
-  "Idle miner is immediately evicted on reaching MAX_SKIPPED_EPOCH_COUNT" in {
+  "Idle miner is immediately evicted on reaching MAX_SKIPPED_EPOCH_COUNT and another miner can continue mining" in {
     withExtensionDomain(defaultSettings) { d =>
       val maxSkippedEpochCount = 200
       var reportedEpochs       = List.empty[Int]
@@ -579,7 +579,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       d.appendMicroBlock(d.ChainContract.extendMainChain(reporter1.account, ecBlock2))
 
       // Claim reporter reward
-      val emptyEpochChunks  = Range.inclusive(1, d.blockchain.height).map(i => CONST_LONG(i.toLong)).grouped(maxEpochsPerClaim)
+      val emptyEpochChunks = Range.inclusive(1, d.blockchain.height).map(i => CONST_LONG(i.toLong)).grouped(maxEpochsPerClaim)
       emptyEpochChunks.foreach { emptyEpochList =>
         // Start new epoch
         d.advanceNewBlocks(reporter1.address)
@@ -595,6 +595,98 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
 
       // Assertion: a reporter is rewarded for all skipped epochs, including the last one
       d.portfolio(reporter1.address) shouldBe Seq((d.token, maxSkippedEpochCount * emptyEpochReportReward))
+    }
+  }
+
+  "Even when 2 idle miners are ready to be evicted in one epoch, an epoch still can be reported only once" in {
+    val idleMiner2 = ElMinerSettings(TxHelpers.signer(2))
+    val reporter1  = ElMinerSettings(TxHelpers.signer(5))
+    val settings   = defaultSettings.copy(initialMiners = List(idleMiner, idleMiner2, reporter1))
+    withExtensionDomain(settings) { d =>
+      val maxSkippedEpochCount = 200
+      var reportedEpochs1      = List.empty[Int]
+      var reportedEpochs2      = List.empty[Int]
+
+      Range
+        .inclusive(1, maxSkippedEpochCount - 1)
+        .foreach(_ => {
+          // Start new epoch for idleMiner
+          d.advanceNewBlocks(idleMiner.address)
+
+          // Remember reported epochs
+          reportedEpochs1 = d.blockchain.height :: reportedEpochs1
+
+          // Report empty epoch
+          d.appendMicroBlock(
+            TxHelpers.invoke(
+              d.chainContractAddress,
+              Some("reportEmptyEpoch"),
+              invoker = reporter1.account
+            )
+          )
+
+          // Start new epoch for idleMiner2
+          d.advanceNewBlocks(idleMiner2.address)
+
+          // Remember reported epochs
+          reportedEpochs2 = d.blockchain.height :: reportedEpochs2
+
+          // Report empty epoch
+          d.appendMicroBlock(
+            TxHelpers.invoke(
+              d.chainContractAddress,
+              Some("reportEmptyEpoch"),
+              invoker = reporter1.account
+            )
+          )
+
+        })
+
+      // Start new epoch for idleMiner
+      d.advanceNewBlocks(idleMiner.address)
+
+      // Remember reported epochs
+      reportedEpochs1 = d.blockchain.height :: reportedEpochs1
+
+      // Report empty epoch for idleMiner
+      d.appendMicroBlock(
+        TxHelpers.invoke(
+          d.chainContractAddress,
+          Some("reportEmptyEpoch"),
+          invoker = reporter1.account
+        )
+      )
+
+      // Assertion: skipped epoch count for evicted miner is reset
+      val minerSkippedEpochCountKey = s"miner_${idleMiner.address}_SkippedEpochCount"
+      d.accountsApi.data(d.chainContractAddress, minerSkippedEpochCountKey) shouldBe None
+
+      // Assertion: an evicted miner can no longer call extendMainChain, and idleMiner2 is expected to mine immediately
+      val ecBlock1 = d.createEcBlockBuilder("0", idleMiner).build()
+      d.appendMicroBlockE(d.ChainContract.extendMainChain(idleMiner.account, ecBlock1)) should matchPattern {
+        case Left(err)
+            if err.toString.contains(
+              s"${idleMiner.address} is not allowed to mine in ${d.blockchain.height} epoch. Expected ${idleMiner2.address}"
+            ) =>
+      }
+
+      // Assertion: idleMiner2 is ready to be evicted too (1 report from being evicted)
+      val minerSkippedEpochCountKey2 = s"miner_${idleMiner2.address}_SkippedEpochCount"
+      d.accountsApi.data(d.chainContractAddress, minerSkippedEpochCountKey2) shouldBe
+        Some(IntegerDataEntry(minerSkippedEpochCountKey2, maxSkippedEpochCount - 1))
+
+      // Report empty epoch for idleMiner2
+      val reportRes = d.appendMicroBlockE(
+        TxHelpers.invoke(
+          d.chainContractAddress,
+          Some("reportEmptyEpoch"),
+          invoker = reporter1.account
+        )
+      )
+      // Even when 2 idle miners are ready to be evicted in one epoch, an epoch still can be reported only once
+      reportRes should matchPattern {
+        case Left(err) if err.toString.contains("Current epoch is already reported to be empty") =>
+      }
     }
   }
 }
