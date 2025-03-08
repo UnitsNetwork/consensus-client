@@ -12,6 +12,12 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
   private val reporter1 = ElMinerSettings(TxHelpers.signer(2))
   private val reporter2 = ElMinerSettings(TxHelpers.signer(3))
 
+  val emptyEpochReportReward = 50_000_000L
+
+  // It's important to match the value in the contract.
+  // This way the test proves that it's possible to claim rewards for this many epochs and not hit any of limits.
+  val maxEpochsPerClaim = 100
+
   override protected val defaultSettings: TestSettings =
     super.defaultSettings.copy(initialMiners = List(idleMiner, reporter1)).withEnabledElMining
 
@@ -79,7 +85,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
 
       // Assertion: a reporter reward is paid
       d.portfolio(reporter1.address) shouldBe
-        Seq((d.token, 50_000_000L))
+        Seq((d.token, emptyEpochReportReward))
     }
   }
 
@@ -135,7 +141,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         Some(IntegerDataEntry(minerSkippedEpochCountKey, 2L))
 
       // Assertion: a reporter reward is paid
-      d.portfolio(reporter1.address) shouldBe Seq((d.token, 100_000_000L))
+      d.portfolio(reporter1.address) shouldBe Seq((d.token, 2 * emptyEpochReportReward))
     }
   }
 
@@ -197,7 +203,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       )
 
       // Assertion: first reporter is rewarded only once
-      d.portfolio(reporter1.address) shouldBe Seq((d.token, 50_000_000L))
+      d.portfolio(reporter1.address) shouldBe Seq((d.token, emptyEpochReportReward))
 
       // Assertion: second reporter is not rewarded at all
       d.portfolio(reporter2.address) shouldBe Seq.empty
@@ -246,7 +252,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       )
 
       // Assertion: reporter is rewarded
-      d.portfolio(reporter1.address) shouldBe Seq((d.token, 50_000_000L))
+      d.portfolio(reporter1.address) shouldBe Seq((d.token, emptyEpochReportReward))
 
       // Claim reporter reward again (should not be rewarded twice)
       d.appendMicroBlock(
@@ -259,7 +265,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       )
 
       // Assertion: reporter is rewarded only once, balance not changed
-      d.portfolio(reporter1.address) shouldBe Seq((d.token, 50_000_000L))
+      d.portfolio(reporter1.address) shouldBe Seq((d.token, emptyEpochReportReward))
     }
   }
 
@@ -323,7 +329,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       )
 
       // Assertion: reporter is rewarded
-      d.portfolio(reporter1.address) shouldBe Seq((d.token, 50_000_000L))
+      d.portfolio(reporter1.address) shouldBe Seq((d.token, emptyEpochReportReward))
     }
   }
 
@@ -484,7 +490,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         Some(IntegerDataEntry(minerSkippedEpochCountKey, 2L))
 
       // Assertion: a reporter reward is paid
-      d.portfolio(reporter1.address) shouldBe Seq((d.token, 100_000_000L))
+      d.portfolio(reporter1.address) shouldBe Seq((d.token, 2 * emptyEpochReportReward))
     }
   }
 
@@ -529,7 +535,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       )
 
       // Assertion: a reporter is rewarded
-      d.portfolio(reporter1.address) shouldBe Seq((d.token, 50_000_000L))
+      d.portfolio(reporter1.address) shouldBe Seq((d.token, emptyEpochReportReward))
     }
   }
 
@@ -573,7 +579,6 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       d.appendMicroBlock(d.ChainContract.extendMainChain(reporter1.account, ecBlock2))
 
       // Claim reporter reward
-      val maxEpochsPerClaim = 100
       val emptyEpochChunks  = Range.inclusive(1, d.blockchain.height).map(i => CONST_LONG(i.toLong)).grouped(maxEpochsPerClaim)
       emptyEpochChunks.foreach { emptyEpochList =>
         // Start new epoch
@@ -589,7 +594,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       }
 
       // Assertion: a reporter is rewarded for all skipped epochs, including the last one
-      d.portfolio(reporter1.address) shouldBe Seq((d.token, 50_000_000L * maxSkippedEpochCount))
+      d.portfolio(reporter1.address) shouldBe Seq((d.token, maxSkippedEpochCount * emptyEpochReportReward))
     }
   }
 }
