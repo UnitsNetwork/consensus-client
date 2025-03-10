@@ -8,7 +8,7 @@ import play.api.libs.json.{JsValue, Json, Writes}
 import units.BlockHash
 import units.el.DepositedTransaction
 import units.el.DepositedTransaction.given
-import units.eth.EthAddress
+import units.eth.{EthAddress, EthereumConstants}
 import units.util.HexBytesConverter
 
 import java.math.BigInteger
@@ -22,11 +22,12 @@ case class BlockOverrides(
 )
 given Writes[BlockOverrides]:
   override def writes(o: BlockOverrides): JsValue = Json.obj(
-    "number"        -> HexBytesConverter.toHex(o.number),
-    "time"          -> HexBytesConverter.toHex(o.time),
-    "baseFeePerGas" -> HexBytesConverter.toHex(o.baseFeePerGas),
-    "feeRecipient"  -> o.feeRecipient,
-    "withdrawals"   -> o.withdrawals
+    "number"                -> HexBytesConverter.toHex(o.number),
+    "time"                  -> HexBytesConverter.toHex(o.time),
+    "baseFeePerGas"         -> HexBytesConverter.toHex(o.baseFeePerGas),
+    "feeRecipient"          -> o.feeRecipient,
+    "withdrawals"           -> o.withdrawals,
+    "parentBeaconBlockRoot" -> EthereumConstants.EmptyRootHashHex
   )
 
 case class BlockStateCall(blockOverrides: BlockOverrides, calls: Seq[DepositedTransaction])

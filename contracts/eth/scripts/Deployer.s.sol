@@ -1,19 +1,18 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.10;
 
-import {Proxy, ProxyAdmin} from "../src/Proxy.sol";
+import {stdJson} from "forge-std/StdJson.sol";
 import {Script, console} from "forge-std/Script.sol";
+import {Proxy, ProxyAdmin} from "../src/Proxy.sol";
 import {StandardBridge} from "../src/StandardBridge.sol";
 import {WWaves} from "../src/WWaves.sol";
-import { stdJson } from "forge-std/StdJson.sol";
+import {TERC20} from "../utils/TERC20.sol";
 
 contract Deployer is Script {
     StandardBridge public standardBridge;
     Proxy public bridgeProxy;
-    Proxy public wavesProxy;
     ProxyAdmin public bridgeProxyAdmin;
-    ProxyAdmin public wavesProxyAdmin;
-//    TERC20 public terc20;
+    TERC20 public terc20;
     WWaves public wwaves;
 
     /// @notice The namespace for the deployment. Can be set with the env var DEPLOYMENT_CONTEXT.
@@ -39,7 +38,7 @@ contract Deployer is Script {
         deployPath = string.concat(root, "/broadcast/", deployScript, ".s.sol/", vm.toString(chainId), "/", deployFile);
 
         deploymentsDir = string.concat(root, "/target/deployments/", vm.toString(chainId));
-        try vm.createDir(deploymentsDir, true) { } catch (bytes memory) { }
+        try vm.createDir(deploymentsDir, true) {} catch (bytes memory) {}
 
         string memory chainIdPath = string.concat(deploymentsDir, "/.chainId");
         try vm.readFile(chainIdPath) returns (string memory localChainId) {
@@ -55,7 +54,7 @@ contract Deployer is Script {
         console.log("Connected to network with chainid %s", chainId);
 
         tempDeploymentsPath = string.concat(deploymentsDir, "/.deploy");
-        try vm.readFile(tempDeploymentsPath) returns (string memory) { }
+        try vm.readFile(tempDeploymentsPath) returns (string memory) {}
         catch {
             vm.writeJson("{}", tempDeploymentsPath);
         }
@@ -69,11 +68,8 @@ contract Deployer is Script {
         bridgeProxyAdmin = new ProxyAdmin(0x4a421c218841eAe89Ef88Cf4f8Cd2A650123E758);
         bridgeProxy = new Proxy(address(standardBridge), address(bridgeProxyAdmin), "");
 
-        wavesProxyAdmin = new ProxyAdmin(0x4a421c218841eAe89Ef88Cf4f8Cd2A650123E758);
         wwaves = new WWaves(address(bridgeProxy));
-        wavesProxy = new Proxy(address(wwaves), address(wavesProxyAdmin), "");
-
-//        terc20 = new TERC20();
+        terc20 = new TERC20();
 
         vm.stopBroadcast();
 
@@ -84,6 +80,6 @@ contract Deployer is Script {
 
     /// @notice Adds a deployment to the temp deployments file
     function _writeTemp(string memory _name, address _deployed) internal {
-        vm.writeJson({ json: stdJson.serialize("", _name, _deployed), path: tempDeploymentsPath });
+        vm.writeJson({json: stdJson.serialize("", _name, _deployed), path: tempDeploymentsPath});
     }
 }

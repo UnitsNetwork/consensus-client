@@ -32,7 +32,7 @@ object ForkchoiceUpdatedRequest {
               "prevRandao"            -> attr.prevRandao,
               "suggestedFeeRecipient" -> attr.suggestedFeeRecipient,
               "withdrawals"           -> attr.withdrawals,
-              "parentBeaconBlockRoot" -> EthereumConstants.EmptyBlockHashHex,
+              "parentBeaconBlockRoot" -> EthereumConstants.EmptyRootHashHex,
               "transactions"          -> attr.transactions
             )
           )

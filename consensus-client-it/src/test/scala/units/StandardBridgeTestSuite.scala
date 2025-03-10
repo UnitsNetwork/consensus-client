@@ -99,7 +99,7 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
     "Checking balances in EL->CL->EL transfers" in {
       step("Issue ERC20 token")
       val txManager      = new RawTransactionManager(ec1.web3j, elSender, EcContainer.ChainId, 10, 2000)
-      val terc20         = TERC20.load("0x9b8397f1b0fecd3a1a40cdd5e8221fa461898517", ec1.web3j, txManager, new DefaultGasProvider)
+      val terc20         = TERC20.load(TErc20Address.hex, ec1.web3j, txManager, new DefaultGasProvider)
       val terc20Decimals = terc20.call_decimals().send().intValueExact()
 
       log.info(s"Address: $TErc20Address")
