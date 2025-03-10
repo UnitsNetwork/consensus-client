@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.10;
 
-import {ProxyAdmin} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
-import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {Proxy, ProxyAdmin} from "../src/Proxy.sol";
 import {Script, console} from "forge-std/Script.sol";
 import {StandardBridge} from "../src/StandardBridge.sol";
-import {TERC20} from "../utils/TERC20.sol";
-import {WWaves} from "../utils/WWaves.sol";
+import {WWaves} from "../src/WWaves.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 
 contract Deployer is Script {
     StandardBridge public standardBridge;
-    TransparentUpgradeableProxy public bridgeProxy;
-    ProxyAdmin public proxyAdmin;
-    TERC20 public terc20;
+    Proxy public bridgeProxy;
+    Proxy public wavesProxy;
+    ProxyAdmin public bridgeProxyAdmin;
+    ProxyAdmin public wavesProxyAdmin;
+//    TERC20 public terc20;
     WWaves public wwaves;
 
     /// @notice The namespace for the deployment. Can be set with the env var DEPLOYMENT_CONTEXT.
@@ -66,11 +66,14 @@ contract Deployer is Script {
         vm.startBroadcast();
 
         standardBridge = new StandardBridge();
-        proxyAdmin = new ProxyAdmin(0xFE3B557E8Fb62b89F4916B721be55cEb828dBd73);
-        bridgeProxy = new TransparentUpgradeableProxy(address(standardBridge), address(proxyAdmin), "");
+        bridgeProxyAdmin = new ProxyAdmin(0x4a421c218841eAe89Ef88Cf4f8Cd2A650123E758);
+        bridgeProxy = new Proxy(address(standardBridge), address(bridgeProxyAdmin), "");
 
-        terc20 = new TERC20();
+        wavesProxyAdmin = new ProxyAdmin(0x4a421c218841eAe89Ef88Cf4f8Cd2A650123E758);
         wwaves = new WWaves(address(bridgeProxy));
+        wavesProxy = new Proxy(address(wwaves), address(wavesProxyAdmin), "");
+
+//        terc20 = new TERC20();
 
         vm.stopBroadcast();
 
