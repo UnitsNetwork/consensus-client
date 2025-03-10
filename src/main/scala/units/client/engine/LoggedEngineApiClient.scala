@@ -14,10 +14,10 @@ import scala.util.chaining.scalaUtilChainingOps
 class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient {
   protected val log: LoggerFacade = LoggerFacade(LoggerFactory.getLogger(underlying.getClass))
 
-  override def forkChoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int): JobResult[PayloadStatus] =
-    wrap(requestId, s"forkChoiceUpdated($blockHash, f=$finalizedBlockHash)", underlying.forkChoiceUpdated(blockHash, finalizedBlockHash, _))
+  override def forkchoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int): JobResult[PayloadStatus] =
+    wrap(requestId, s"forkchoiceUpdated($blockHash, f=$finalizedBlockHash)", underlying.forkchoiceUpdated(blockHash, finalizedBlockHash, _))
 
-  override def forkChoiceUpdatedWithPayloadId(
+  override def forkchoiceUpdatedWithPayload(
       lastBlockHash: BlockHash,
       finalizedBlockHash: BlockHash,
       unixEpochSeconds: Long,
@@ -28,9 +28,9 @@ class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient
       requestId: Int
   ): JobResult[PayloadId] = wrap(
     requestId,
-    s"forkChoiceUpdatedWithPayloadId(l=$lastBlockHash, f=$finalizedBlockHash, ts=$unixEpochSeconds, m=$suggestedFeeRecipient, " +
+    s"forkchoiceUpdatedWithPayloadId(l=$lastBlockHash, f=$finalizedBlockHash, ts=$unixEpochSeconds, m=$suggestedFeeRecipient, " +
       s"r=$prevRandao, w={${withdrawals.mkString(", ")}}, t={${transactions.mkString(", ")}})",
-    underlying.forkChoiceUpdatedWithPayloadId(
+    underlying.forkchoiceUpdatedWithPayload(
       lastBlockHash,
       finalizedBlockHash,
       unixEpochSeconds,
@@ -45,8 +45,8 @@ class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient
   override def getPayload(payloadId: PayloadId, requestId: Int): JobResult[JsObject] =
     wrap(requestId, s"getPayload($payloadId)", underlying.getPayload(payloadId, _), filteredJson)
 
-  override def applyNewPayload(payload: JsObject, requestId: Int): JobResult[Option[BlockHash]] =
-    wrap(requestId, s"applyNewPayload(${filteredJson(payload)})", underlying.applyNewPayload(payload, _), _.fold("None")(_.toString))
+  override def newPayload(payload: JsObject, requestId: Int): JobResult[Option[BlockHash]] =
+    wrap(requestId, s"newPayload(${filteredJson(payload)})", underlying.newPayload(payload, _), _.fold("None")(_.toString))
 
   override def getPayloadBodyByHash(hash: BlockHash, requestId: Int): JobResult[Option[JsObject]] =
     wrap(requestId, s"getPayloadBodyByHash($hash)", underlying.getPayloadBodyByHash(hash, _), _.fold("None")(filteredJson))
@@ -56,6 +56,9 @@ class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient
 
   override def getBlockByHash(hash: BlockHash, requestId: Int): JobResult[Option[EcBlock]] =
     wrap(requestId, s"getBlockByHash($hash)", underlying.getBlockByHash(hash, _), _.fold("None")(_.toString))
+
+  override def simulate(blockStateCalls: Seq[BlockStateCall], hash: BlockHash, requestId: Int): JobResult[Seq[JsObject]] =
+    wrap(requestId, s"simulate($blockStateCalls,$hash)", underlying.simulate(blockStateCalls, hash, _))
 
   override def getBlockByHashJson(hash: BlockHash, requestId: Int): JobResult[Option[JsObject]] =
     wrap(requestId, s"getBlockByHashJson($hash)", underlying.getBlockByHashJson(hash, _), _.fold("None")(filteredJson))
@@ -97,5 +100,5 @@ class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient
 
 object LoggedEngineApiClient {
   private val excludedJsonFields =
-    Set("transactions", "logsBloom", "stateRoot", "gasLimit", "gasUsed", "baseFeePerGas", "excessBlobGas")
+    Set.empty[String] //("transactions", "logsBloom", "stateRoot", "gasLimit", "gasUsed", "baseFeePerGas", "excessBlobGas")
 }

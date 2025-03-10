@@ -171,12 +171,16 @@ trait ChainContractClient {
     } else None
   }
 
-  def calculateEpochMiner(header: BlockHeader, hitSource: ByteStr, epochNumber: Int, blockchain: Blockchain): Either[String, Address] =
-    getAllActualMiners
-      .flatMap(miner => calculateMinerDelay(hitSource.arr, header.baseTarget, miner, blockchain))
-      .minByOption(_._2)
-      .map(_._1)
-      .toRight(s"No miner for epoch $epochNumber")
+  def calculateEpochMiner(epochNumber: Int, blockchain: Blockchain): Either[String, Address] =
+    for {
+      header <- blockchain.blockHeader(epochNumber).toRight(s"No header at height $epochNumber")
+      hitSource <- blockchain.hitSource(epochNumber).toRight(s"No VRF value at height $epochNumber")
+      miner <- getAllActualMiners
+        .flatMap(miner => calculateMinerDelay(hitSource.arr, header.header.baseTarget, miner, blockchain))
+        .minByOption(_._2)
+        .map(_._1)
+        .toRight(s"No miner for epoch $epochNumber")
+    } yield miner
 
   private def getBlockHash(key: String): Option[BlockHash] =
     extractData(key).collect {
@@ -294,6 +298,31 @@ trait ChainContractClient {
       .map(getRegisteredAsset)
       .map(getRegisteredAssetData)
       .toList
+
+  def getPrevEpochLastBlockHash(thisEpoch: Int): Either[String, Option[BlockHash]] = {
+    @tailrec
+    def loop(curEpochNumber: Int): Either[String, Option[BlockHash]] = {
+      if (curEpochNumber <= 0) {
+        Left(s"Couldn't find previous epoch meta for epoch #$thisEpoch")
+      } else {
+        this.getEpochMeta(curEpochNumber) match {
+          case Some(epochMeta) => Right(Some(epochMeta.lastBlockHash))
+          case _ => loop(curEpochNumber - 1)
+        }
+      }
+    }
+
+    this.getEpochMeta(thisEpoch) match {
+      case Some(epochMeta) if epochMeta.prevEpoch == 0 =>
+        Right(None)
+      case Some(epochMeta) =>
+        this
+          .getEpochMeta(epochMeta.prevEpoch)
+          .toRight(s"Epoch #${epochMeta.prevEpoch} meta not found at contract")
+          .map(em => Some(em.lastBlockHash))
+      case _ => loop(thisEpoch - 1)
+    }
+  }
 
   private def getRegisteredAsset(registryIndex: Int): WAsset =
     getStringData(s"assetRegistryIndex_$registryIndex") match {

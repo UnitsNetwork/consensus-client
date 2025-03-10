@@ -283,6 +283,8 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
     step("Prepare: wait for first block in EC")
     while (ec1.web3j.ethBlockNumber().send().getBlockNumber.compareTo(BigInteger.ONE) < 0) Thread.sleep(5000)
 
+    waves1.api.waitForHeight(waves1.api.height() + 1)
+    
     step("Prepare: deploy contracts on EL")
     val contractsDir = new File(sys.props("cc.it.contracts.dir"))
     Process(

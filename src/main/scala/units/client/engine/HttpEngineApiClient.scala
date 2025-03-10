@@ -8,17 +8,18 @@ import units.client.JsonRpcClient
 import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.HttpEngineApiClient.*
 import units.client.engine.model.*
-import units.client.engine.model.ForkChoiceUpdatedRequest.ForkChoiceAttributes
+import units.client.engine.model.ForkchoiceUpdatedRequest.ForkChoiceAttributes
 import units.client.engine.model.PayloadStatus.{Syncing, Valid}
 import units.eth.EthAddress
 import units.{BlockHash, ClientError, JobResult}
+import units.client.engine.model.given 
 
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 
 class HttpEngineApiClient(val config: JsonRpcClient.Config, val backend: SttpBackend[Identity, ?]) extends EngineApiClient with JsonRpcClient {
-  def forkChoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int): JobResult[PayloadStatus] = {
-    sendEngineRequest[ForkChoiceUpdatedRequest, ForkChoiceUpdatedResponse](
-      ForkChoiceUpdatedRequest(blockHash, finalizedBlockHash, None, requestId),
+  def forkchoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int): JobResult[PayloadStatus] = {
+    sendEngineRequest[ForkchoiceUpdatedRequest, ForkChoiceUpdatedResponse](
+      ForkchoiceUpdatedRequest(blockHash, finalizedBlockHash, None, requestId),
       BlockExecutionTimeout,
       requestId
     )
@@ -30,7 +31,7 @@ class HttpEngineApiClient(val config: JsonRpcClient.Config, val backend: SttpBac
       }
   }
 
-  def forkChoiceUpdatedWithPayloadId(
+  def forkchoiceUpdatedWithPayload(
       lastBlockHash: BlockHash,
       finalizedBlockHash: BlockHash,
       unixEpochSeconds: Long,
@@ -40,8 +41,8 @@ class HttpEngineApiClient(val config: JsonRpcClient.Config, val backend: SttpBac
       transactions: Vector[String],
       requestId: Int
   ): JobResult[PayloadId] = {
-    sendEngineRequest[ForkChoiceUpdatedRequest, ForkChoiceUpdatedResponse](
-      ForkChoiceUpdatedRequest(
+    sendEngineRequest[ForkchoiceUpdatedRequest, ForkChoiceUpdatedResponse](
+      ForkchoiceUpdatedRequest(
         lastBlockHash,
         finalizedBlockHash,
         Some(ForkChoiceAttributes(unixEpochSeconds, suggestedFeeRecipient, prevRandao, withdrawals, transactions)),
@@ -67,7 +68,7 @@ class HttpEngineApiClient(val config: JsonRpcClient.Config, val backend: SttpBac
     )
   }
 
-  def applyNewPayload(payload: JsObject, requestId: Int): JobResult[Option[BlockHash]] = {
+  def newPayload(payload: JsObject, requestId: Int): JobResult[Option[BlockHash]] = {
     sendEngineRequest[NewPayloadRequest, PayloadState](NewPayloadRequest(payload, requestId), BlockExecutionTimeout, requestId).flatMap {
       case PayloadState(_, _, Some(validationError))     => Left(ClientError(s"Payload validation error: $validationError"))
       case PayloadState(Valid, Some(latestValidHash), _) => Right(Some(latestValidHash))
@@ -106,6 +107,11 @@ class HttpEngineApiClient(val config: JsonRpcClient.Config, val backend: SttpBac
 
   def blockExists(hash: BlockHash, requestId: Int): JobResult[Boolean] =
     getBlockByHash(hash, requestId).map(_.isDefined)
+
+  override def simulate(blockStateCalls: Seq[BlockStateCall], hash: BlockHash, requestId: Int): JobResult[Seq[JsObject]] =
+    sendRequest[SimulateRequest, Seq[JsObject]](SimulateRequest(blockStateCalls, hash, requestId), NonBlockExecutionTimeout, requestId)
+      .flatMap(_.toRight("Simulated block was empty"))
+      .leftMap(err => ClientError(s"Error simulating block: $err"))
 
   private def getBlockByNumberJson(number: String, requestId: Int): JobResult[Option[JsObject]] = {
     sendRequest[GetBlockByNumberRequest, JsObject](GetBlockByNumberRequest(number, requestId), NonBlockExecutionTimeout, requestId)

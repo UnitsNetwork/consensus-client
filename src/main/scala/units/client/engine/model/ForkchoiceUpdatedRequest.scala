@@ -2,14 +2,14 @@ package units.client.engine.model
 
 import play.api.libs.json.*
 import units.BlockHash
-import units.client.engine.model.ForkChoiceUpdatedRequest.ForkChoiceAttributes
+import units.client.engine.model.ForkchoiceUpdatedRequest.ForkChoiceAttributes
 import units.eth.{EthAddress, EthereumConstants}
 import units.util.HexBytesConverter.*
 
 // https://github.com/ethereum/execution-apis/blob/main/src/engine/cancun.md#engine_forkchoiceupdatedv3
-case class ForkChoiceUpdatedRequest(lastBlockHash: BlockHash, finalizedBlockHash: BlockHash, attrs: Option[ForkChoiceAttributes], id: Int)
+case class ForkchoiceUpdatedRequest(lastBlockHash: BlockHash, finalizedBlockHash: BlockHash, attrs: Option[ForkChoiceAttributes], id: Int)
 
-object ForkChoiceUpdatedRequest {
+object ForkchoiceUpdatedRequest {
   // TODO Type of transactions (signed transactions hex)
   case class ForkChoiceAttributes(
       unixEpochSeconds: Long,
@@ -19,7 +19,7 @@ object ForkChoiceUpdatedRequest {
       transactions: Vector[String]
   )
 
-  implicit val writes: Writes[ForkChoiceUpdatedRequest] = (o: ForkChoiceUpdatedRequest) => {
+  implicit val writes: Writes[ForkchoiceUpdatedRequest] = (o: ForkchoiceUpdatedRequest) => {
     Json.obj(
       "jsonrpc" -> "2.0",
       "method"  -> "engine_forkchoiceUpdatedV3",
@@ -32,7 +32,7 @@ object ForkChoiceUpdatedRequest {
               "prevRandao"            -> attr.prevRandao,
               "suggestedFeeRecipient" -> attr.suggestedFeeRecipient,
               "withdrawals"           -> attr.withdrawals,
-              "parentBeaconBlockRoot" -> EthereumConstants.EmptyRootHashHex,
+              "parentBeaconBlockRoot" -> EthereumConstants.EmptyBlockHashHex,
               "transactions"          -> attr.transactions
             )
           )

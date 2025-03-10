@@ -13,7 +13,7 @@ object NewPayloadRequest {
       "params" -> Json.arr(
         o.payload - "parentBeaconBlockRoot", // Otherwise we get: Unrecognized field "parentBeaconBlockRoot"
         Json.arr(),
-        EthereumConstants.EmptyRootHashHex
+        EthereumConstants.EmptyBlockHashHex
       ),
       "id" -> o.id
     )
