@@ -228,6 +228,8 @@ trait ChainContractClient {
   def getTransfersForPayload(fromIndex: Long, maxNative: Long): Vector[ContractTransfer] = {
     val maxIndex = getTransfersCount - 1
 
+    println(s"\tTRANSFERS: from=$fromIndex, max=$maxIndex")
+
     @tailrec def loop(currIndex: Long, foundNative: Long, acc: Vector[ContractTransfer]): Vector[ContractTransfer] =
       if (currIndex > maxIndex || foundNative >= maxNative) acc
       else

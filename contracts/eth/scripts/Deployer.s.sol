@@ -7,13 +7,14 @@ import {Proxy, ProxyAdmin} from "../src/Proxy.sol";
 import {StandardBridge} from "../src/StandardBridge.sol";
 import {WWaves} from "../src/WWaves.sol";
 import {TERC20} from "../utils/TERC20.sol";
+import {UnitsMintableERC20} from "../src/UnitsMintableERC20.sol";
 
 contract Deployer is Script {
     StandardBridge public standardBridge;
     Proxy public bridgeProxy;
     ProxyAdmin public bridgeProxyAdmin;
     TERC20 public terc20;
-    WWaves public wwaves;
+    UnitsMintableERC20 public wwaves;
 
     /// @notice The namespace for the deployment. Can be set with the env var DEPLOYMENT_CONTEXT.
     string internal deploymentContext;
@@ -65,17 +66,16 @@ contract Deployer is Script {
         vm.startBroadcast();
 
         standardBridge = new StandardBridge();
-        bridgeProxyAdmin = new ProxyAdmin(0x4a421c218841eAe89Ef88Cf4f8Cd2A650123E758);
-        bridgeProxy = new Proxy(address(standardBridge), address(bridgeProxyAdmin), "");
+        bridgeProxy = new Proxy(address(standardBridge), address(0x4a421c218841eAe89Ef88Cf4f8Cd2A650123E758), "");
 
-        wwaves = new WWaves(address(bridgeProxy));
-        terc20 = new TERC20();
+        wwaves = new UnitsMintableERC20(address(bridgeProxy), "WAVES", "WAVES", 8);
+//        terc20 = new TERC20();
 
         vm.stopBroadcast();
 
         _writeTemp("standard_bridge", address(bridgeProxy));
         _writeTemp("wwaves", address(wwaves));
-        _writeTemp("terc20", address(terc20));
+//        _writeTemp("terc20", address(terc20));
     }
 
     /// @notice Adds a deployment to the temp deployments file
