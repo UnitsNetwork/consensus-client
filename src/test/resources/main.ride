@@ -22,7 +22,7 @@ let allMinersKey            = "allMiners"
 let mainChainIdKey          = "mainChainId"
 let lastChainIdKey          = "lastChainId"
 let firstValidAltChainIdKey = "firstValidAltChainId"
-let minerRewardKey          = "minerReward" # In Gwei. Changing the value is unexpected and isn't held by code
+let minerRewardKey          = "minerReward" # In Gwei. Changing the value is unexpected and isn't supported by code
 let blockMetaK              = "block_0x"
 let finalizedBlockKey       = "finalizedBlock"
 let tokenIdKey              = "tokenId"
@@ -157,13 +157,6 @@ func mkBlockMetaEntry(
   BinaryEntry(blockMetaK + blockHashHex, blockMetaBytes)
 }
 
-func lastHeightBy(miner: Address, chainId: Int) = match getInteger(chainLastHeightKey(chainId, miner)) {
-  case h: Int => h
-  case _ =>
-    let blockHash = getStringValue("chain" + chainId.toString() + "LastMinedBy" + miner.toString())
-    blockMeta(blockHash)._1
-}
-
 let (computedGenerator, computedTotalBalance) = {
   let hitSource = match lastBlock.vrf {
     case vrf: ByteVector => vrf
@@ -259,16 +252,19 @@ func chainIsInactive(chainId: Int) = {
 
 func minerChainId(miner: Address) = getInteger(minerChainIdKey(miner)).valueOrElse(getInteger("chainIdOf" + miner.toString()))
 
-func ensureExpectedOrInactiveChain(generator: Address, expectedChainId: Int, checkHeightBlock: String | Unit) = {
-  let heightIsCorrect = match checkHeightBlock {
-    case blockHash: String =>
-      let lastMinedBlockHeight = lastHeightBy(generator, mainChainId)
-      lastMinedBlockHeight < blockMeta(blockHash)._1 + 1
-    case _ => true
-  }
+func ensureExpectedOrInactiveChain(generator: Address, expectedChainId: Int, chainStart: String) = {
+  let lastBlockInMainChainIsBeforeThisChainStart =
+      match getInteger(chainLastHeightKey(mainChainId, generator)) {
+        case prevHeightInMainChain: Int => prevHeightInMainChain < blockMeta(chainStart)._1 + 1
+        case _ => true
+      }
+
   match minerChainId(generator) {
     case currentId: Int =>
-      if (currentId == expectedChainId || (chainIsInactive(currentId) && heightIsCorrect))
+      # the miner is already on expectedChainID OR
+      # the chain the miner was on is inactive OR
+      # the miner was on main chain BEFORE this chain had started
+      if (currentId == expectedChainId || chainIsInactive(currentId) || lastBlockInMainChainIsBeforeThisChainStart)
       then
         unit
       else
@@ -361,9 +357,9 @@ func extendMainChain(
   e2cTransfersRootHashHex: String,
   lastC2ETransferIndex: Int
 ) = {
+  # miner can always return to main chain, even if they've been on an alt chain
   strict checkBlockHash = validateBlockHash(blockHashHex)
   strict checkEpoch     = ensureCorrectEpoch(vrf)
-  strict checkChain     = ensureExpectedOrInactiveChain(i.originCaller, mainChainId, unit)
   strict checkReference = isReferenceCorrect(referenceHex, mainChainLastBlock)
   strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._6, lastC2ETransferIndex, true)
 
