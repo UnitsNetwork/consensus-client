@@ -11,10 +11,10 @@ import units.util.HexBytesConverter
 object EmptyL2Block {
   private val InternalBlockTimestampDiff = 1 // seconds
 
-  def mkSimulateCall(parent: EcBlock, feeRecipient: EthAddress, time: Long, withdrawals: Seq[Withdrawal], depositedTransactions: Seq[DepositedTransaction]): Seq[BlockStateCall] =
+  def mkSimulateCall(parent: EcBlock, feeRecipient: EthAddress, time: Long, prevRandao: String, withdrawals: Seq[Withdrawal], depositedTransactions: Seq[DepositedTransaction]): Seq[BlockStateCall] =
     Seq(
       BlockStateCall(
-        BlockOverrides(parent.height + 1, calculateGasFee(parent.gasLimit, parent.baseFeePerGas, parent.gasUsed), feeRecipient, time, withdrawals),
+        BlockOverrides(parent.height + 1, calculateGasFee(parent.gasLimit, parent.baseFeePerGas, parent.gasUsed), feeRecipient, time, prevRandao, withdrawals),
         depositedTransactions
       )
     )

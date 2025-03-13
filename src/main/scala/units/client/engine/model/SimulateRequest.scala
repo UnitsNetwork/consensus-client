@@ -18,6 +18,7 @@ case class BlockOverrides(
     baseFeePerGas: Uint256,
     feeRecipient: EthAddress,
     time: Long,
+    prevRandao: String,
     withdrawals: Seq[Withdrawal]
 )
 given Writes[BlockOverrides]:
@@ -27,7 +28,8 @@ given Writes[BlockOverrides]:
     "baseFeePerGas"         -> HexBytesConverter.toHex(o.baseFeePerGas),
     "feeRecipient"          -> o.feeRecipient,
     "withdrawals"           -> o.withdrawals,
-    "parentBeaconBlockRoot" -> EthereumConstants.EmptyRootHashHex
+    "parentBeaconBlockRoot" -> EthereumConstants.EmptyRootHashHex,
+    "prevRandao"            -> o.prevRandao
   )
 
 case class BlockStateCall(blockOverrides: BlockOverrides, calls: Seq[DepositedTransaction])
