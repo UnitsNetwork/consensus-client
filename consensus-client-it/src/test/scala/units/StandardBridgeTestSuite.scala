@@ -12,7 +12,7 @@ import org.web3j.tx.RawTransactionManager
 import org.web3j.tx.gas.DefaultGasProvider
 import org.web3j.utils.Convert
 import play.api.libs.json.Json
-import units.bridge.{TERC20, WWaves}
+import units.bridge.{TERC20, UnitsMintableERC20}
 import units.docker.EcContainer
 import units.el.{BridgeMerkleTree, E2CTopics, EvmEncoding}
 import units.eth.EthAddress
@@ -67,10 +67,10 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
   }
 
   "Positive" - {
-    def sendApproveErc20(erc20Contract: TERC20 | WWaves, ethAmount: BigInt): TransactionReceipt = {
+    def sendApproveErc20(erc20Contract: TERC20 | UnitsMintableERC20, ethAmount: BigInt): TransactionReceipt = {
       val txnResult = erc20Contract match {
         case contract: TERC20 => contract.send_approve(StandardBridgeAddress.toString, ethAmount.bigInteger).send()
-        case contract: WWaves => contract.send_approve(StandardBridgeAddress.toString, ethAmount.bigInteger).send()
+        case contract: UnitsMintableERC20 => contract.send_approve(StandardBridgeAddress.toString, ethAmount.bigInteger).send()
       }
 
       eventually {
@@ -182,7 +182,7 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
     "Check Waves transfer CL->EL->CL" in {
       withClue("4. Transfer Waves C>E>C") {
         val txManager = new RawTransactionManager(ec1.web3j, elRichAccount1, EcContainer.ChainId, 20, 2000)
-        val wwaves    = WWaves.load(WWavesContractAddress.hex, ec1.web3j, txManager, new DefaultGasProvider)
+        val wwaves    = UnitsMintableERC20.load(WWavesContractAddress.hex, ec1.web3j, txManager, new DefaultGasProvider)
 
         val transferUserAmount = 55
         // Same for EL and CL, because has same decimals
@@ -288,15 +288,10 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
     step("Prepare: deploy contracts on EL")
     val contractsDir = new File(sys.props("cc.it.contracts.dir"))
     Process(
-      s"forge script -vvvv scripts/Deployer.s.sol:Deployer --private-key $elRichAccount1PrivateKey --fork-url http://localhost:${ec1.rpcPort} --broadcast",
+      s"forge script -vvvvv scripts/IT.s.sol:IT --private-key $elRichAccount1PrivateKey --fork-url http://localhost:${ec1.rpcPort} --broadcast",
       contractsDir,
       "CHAIN_ID" -> EcContainer.ChainId.toString
     ).!(ProcessLogger(out => log.info(out), err => log.error(err)))
-
-    val contractAddresses = Using(new FileInputStream(new File(s"$contractsDir/target/deployments/${EcContainer.ChainId}/.deploy"))) { fis =>
-      Json.parse(fis)
-    }.get.as[Map[String, String]]
-    log.debug(s"Contract addresses: ${contractAddresses.mkString(", ")}")
 
     step("Enable token transfers")
     val activationEpoch = waves1.api.height() + 1

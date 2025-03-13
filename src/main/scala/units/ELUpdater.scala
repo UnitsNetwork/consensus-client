@@ -274,9 +274,6 @@ class ELUpdater(
       maxNative = MaxC2ENativeTransfers - rewardWithdrawal.size
     )
 
-    logger.debug(s"TRANSFERS: chainContract=${chainContractOptions.elStandardBridgeAddress.fold("NONE")(_.hex)}, from=$startC2ETransferIndex, max=${MaxC2ENativeTransfers - rewardWithdrawal.size}, " +
-      s"transfers=$transfers")
-
     val (nativeTransfers, assetTransfers) = transfers.partitionMap {
       case x: ContractTransfer.Native => x.asLeft
       case x: ContractTransfer.Asset  => x.asRight
