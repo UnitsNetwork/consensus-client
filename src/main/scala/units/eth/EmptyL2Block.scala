@@ -26,7 +26,7 @@ object EmptyL2Block {
         parentHash = parent.hash,
         parentStateRoot = parent.stateRoot,
         parentGasLimit = parent.gasLimit,
-        newBlockTimestamp = parent.timestamp + InternalBlockTimestampDiff,
+        newBlockTimestamp = (parent.timestamp + InternalBlockTimestampDiff).max(System.currentTimeMillis() / 1000),
         newBlockNumber = parent.height + 1,
         baseFee = calculateGasFee(
           parentGasLimit = parent.gasLimit,

@@ -235,7 +235,10 @@ class ELUpdater(
         for {
           rollbackBlock <- mkRollbackBlock(targetHash)
           _ = logger.info(s"Rolling back to $targetHash via ${rollbackBlock.hash}")
-          _           <- confirmBlock(rollbackBlock.hash, target.parentHash)
+          _ <- confirmBlock(rollbackBlock.hash, target.parentHash)
+          _ = Thread.sleep(500) // geth concurrency issues??
+          synthBlock <- engineApiClient.getLastExecutionBlock()
+          _ = logger.info(s"Last block: ${synthBlock.hash}, expecting ${rollbackBlock.hash}")
           _           <- confirmBlock(targetHash, finalizedBlock.hash)
           lastEcBlock <- engineApiClient.getLastExecutionBlock()
           _ <- Either.cond(
