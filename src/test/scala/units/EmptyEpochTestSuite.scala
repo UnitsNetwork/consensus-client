@@ -434,7 +434,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
     }
   }
 
-  "Miner started mining after 2 blocks, but skipped epoch count is preserved for the future measures" in {
+  "Miner started mining after 2 epochs, but skipped epoch count is preserved for the future measures" in {
     withExtensionDomain(defaultSettings) { d =>
       // Start idleMiner
       d.advanceNewBlocks(idleMiner.address)
