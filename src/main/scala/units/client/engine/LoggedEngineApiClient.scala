@@ -97,5 +97,5 @@ class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient
 
 object LoggedEngineApiClient {
   private val excludedJsonFields =
-    Set("transactions", "logsBloom", "stateRoot", "gasLimit", "gasUsed", "baseFeePerGas", "excessBlobGas")
+    Set.empty[String]//"transactions", "logsBloom", "stateRoot", "gasLimit", "gasUsed", "baseFeePerGas", "excessBlobGas")
 }

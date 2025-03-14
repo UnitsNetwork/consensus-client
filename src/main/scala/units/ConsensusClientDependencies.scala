@@ -9,6 +9,7 @@ import monix.execution.Scheduler
 import monix.execution.schedulers.SchedulerService
 import org.slf4j.LoggerFactory
 import sttp.client3.HttpClientSyncBackend
+import sttp.client3.logging.slf4j.Slf4jLoggingBackend
 import units.client.JwtAuthenticationBackend
 import units.client.engine.{HttpEngineApiClient, LoggedEngineApiClient}
 import units.network.{BlocksObserverImpl, HistoryReplier, MessageObserver, NetworkServer}

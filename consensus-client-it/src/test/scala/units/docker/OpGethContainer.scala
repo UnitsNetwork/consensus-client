@@ -24,6 +24,8 @@ class OpGethContainer(network: NetworkImpl, number: Int, ip: String)(implicit ht
     .withExposedPorts(RpcPort, EnginePort)
     .withEnv("NODE_NUMBER", number.toString)
     .withEnv("GETH_NETWORKID", "1337")
+    .withEnv("GETH_LOG_FORMAT", "logfmt")
+    .withEnv("GETH_BOOTNODES", "")
     .withFileSystemBind(s"$ConfigsDir/ec-common", "/etc/secrets", BindMode.READ_ONLY)
     .withFileSystemBind(s"$ConfigsDir/op-geth/run-op-geth.sh", "/tmp/run.sh", BindMode.READ_ONLY)
     .withFileSystemBind(s"$logFile", "/root/logs/op-geth.log", BindMode.READ_WRITE)
@@ -40,7 +42,7 @@ else
   echo geth already initialized
 fi
 exec geth --networkid=1337 \\
---syncmode=full --nat=extip:${ip} --http --http.addr=0.0.0.0 --http.vhosts=* --http.api=eth,web3,txpool,net,debug,engine --http.corsdomain=* --ws --ws.addr=0.0.0.0 --ws.api=eth,web3,txpool,net,debug --ws.rpcprefix=/ --ws.origins='*' --authrpc.addr=0.0.0.0 --authrpc.vhosts='*' --authrpc.jwtsecret=/etc/secrets/jwtsecret.hex --nodekey=/etc/secrets/p2p-key-${number.toString}.hex --log.file=/root/logs/op-geth.log --verbosity=5 --log.format=terminal --log.rotate --log.compress"""
+--syncmode=full --nat=extip:${ip} --http --http.addr=0.0.0.0 --http.vhosts=* --http.api=eth,web3,txpool,net,debug,engine --http.corsdomain=* --ws --ws.addr=0.0.0.0 --ws.api=eth,web3,txpool,net,debug --ws.rpcprefix=/ --ws.origins='*' --authrpc.addr=0.0.0.0 --authrpc.vhosts='*' --authrpc.jwtsecret=/etc/secrets/jwtsecret.hex --nodekey=/etc/secrets/p2p-key-${number.toString}.hex --log.file=/root/logs/op-geth.log --verbosity=5 --log.rotate --log.compress"""
         )
         .withStopTimeout(5)
     }
