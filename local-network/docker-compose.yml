@@ -11,6 +11,7 @@ services:
     environment:
       NODE_NUMBER: 1
       GETH_NETWORKID: 1337
+      EXTRA_ARGS: --log.file=/root/logs/op-geth.log --verbosity=5 --log.format=terminal
     ports:
       - "127.0.0.1:18551:8551" # Engine port - doesn't have all APIs
       - "127.0.0.1:18545:8545" # RPC port, for Metamask e.g.
@@ -184,7 +185,6 @@ services:
       service: deploy
     environment:
       MAIN: deploy.py
-      PRIVATE_KEY: 8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63
     volumes:
       - ./logs/deploy:/var/log/deploy
     depends_on:

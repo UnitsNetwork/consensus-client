@@ -27,7 +27,7 @@ services:
         --authrpc.addr=0.0.0.0 \
         --authrpc.vhosts=* \
         --authrpc.jwtsecret=/etc/secrets/jwtsecret \
-        --nodekey=/etc/secrets/p2p-key
+        --nodekey=/etc/secrets/p2p-key $$EXTRA_ARGS
     logging:
       driver: local
       options:

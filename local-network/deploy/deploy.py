@@ -8,13 +8,14 @@ from units_network import units, waves
 from units_network.common_utils import configure_cli_logger
 from web3 import Web3
 
-from local.Deployments import Deployments
 from local.network import get_local
 from local.node import Node
 
 log = configure_cli_logger(__file__)
 network = get_local()
-
+contracts_dir = os.getenv("CONTRACTS_DIR") or os.path.join(
+    os.getcwd(), "..", "..", "contracts"
+)
 
 node = Node()
 min_peers = len(network.cl_miners) - 1
@@ -38,7 +39,9 @@ script_info = network.cl_chain_contract.oracleAcc.scriptInfo()
 if script_info["script"] is None:
     log.info("Set chain contract script")
 
-    with open("setup/waves/main.ride", "r", encoding="utf-8") as file:
+    with open(
+        os.path.join(contracts_dir, "waves", "src", "main.ride"), "r", encoding="utf-8"
+    ) as file:
         source = file.read()
     r = network.cl_chain_contract.setScript(source)
     waves.force_success(log, r, "Can not set the chain contract script")
@@ -127,15 +130,15 @@ while True:
     sleep(3)
 
 log.info("Deploying the StandardBridge contract")
-contracts_dir = os.getenv("CONTRACTS_DIR") or os.path.join(
-    os.getcwd(), "..", "..", "contracts", "eth"
-)
 
 # TODO: check if deployment is required
 try:
-    cmd = f"forge script --force -vvvv scripts/Deployer.s.sol:Deployer --private-key $PRIVATE_KEY --fork-url {network.settings.el_node_api_url} --broadcast"
+    cmd = (
+        f"forge script --force -vvvv scripts/Deployer.s.sol:Deployer --private-key {network.el_deployer_private_key} "
+        + f"--fork-url {network.settings.el_node_api_url} --broadcast"
+    )
 
-    retcode = subprocess.call(cmd, shell=True, cwd=contracts_dir)
+    retcode = subprocess.call(cmd, shell=True, cwd=os.path.join(contracts_dir, "eth"))
     if retcode < 0:
         log.error(f"Child was terminated by signal: {-retcode}")
         exit(1)
@@ -145,15 +148,14 @@ except OSError as e:
     log.error(f"Execution failed: {e}")
     exit(1)
 
-deployments = Deployments.load()
 key = "assetTransfersActivationEpoch"
 if len(network.cl_chain_contract.getData(regex="assetTransfersActivationEpoch")) == 0:
     enable_transfers_txn = network.cl_chain_contract.oracleAcc.invokeScript(
         dappAddress=network.cl_chain_contract.oracleAddress,
         functionName="enableTokenTransfers",
         params=[
-            {"type": "string", "value": deployments.standard_bridge},
-            {"type": "string", "value": deployments.wwaves},
+            {"type": "string", "value": network.el_standard_bridge_address},
+            {"type": "string", "value": network.el_wwaves_address},
             {"type": "integer", "value": 5},
         ],
     )
@@ -166,17 +168,23 @@ if len(network.cl_chain_contract.getData(regex="assetTransfersActivationEpoch"))
 
 log.info(f"StandardBridge address: {network.bridges.standard_bridge.contract_address}")
 log.info(f"ERC20 token address: {network.el_test_erc20.contract_address}")
-log.info(f"Test CL asset id: {network.cl_test_asset.assetId}")
+log.info(
+    f"Test CL asset id: {network.cl_test_asset.assetId}"
+)  # Issues and registers asset under the hood
 
 attempts = 10
 while attempts > 0:
     ratio = network.bridges.standard_bridge.token_ratio(
-        Web3.to_checksum_address(network.el_test_erc20.contract_address)
+        network.el_test_erc20.contract_address
     )
     if ratio > 0:
         log.info(f"Token registered, ratio: {ratio}")
         break
     sleep(3)
     attempts -= 1
+
+if attempts <= 0:
+    log.error("Can't register test ERC20")
+    exit(1)
 
 log.info("Done")
