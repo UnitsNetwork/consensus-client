@@ -79,7 +79,7 @@ class ELUpdater(
         case WaitingForSyncHead(target, _) if block.hash == target.hash =>
           val syncStarted = for {
             _         <- engineApiClient.applyNewPayload(block.payload)
-            fcuStatus <- confirmBlock(target, target)
+            fcuStatus <- confirmBlock(target.hash, target.hash)
           } yield fcuStatus
 
           syncStarted match {
@@ -120,35 +120,10 @@ class ELUpdater(
     for {
       header                 <- blockchain.blockHeader(epochNumber).toRight(s"No header at epoch $epochNumber")
       hitSource              <- blockchain.hitSource(epochNumber).toRight(s"No hit source at epoch $epochNumber")
-      miner                  <- chainContractClient.calculateEpochMiner(header.header, hitSource, epochNumber, blockchain)
+      miner                  <- chainContractClient.calculateEpochMiner(epochNumber, blockchain)
       rewardAddress          <- chainContractClient.getElRewardAddress(miner).toRight(s"No reward address for $miner")
-      prevEpochLastBlockHash <- getPrevEpochLastBlockHash(epochNumber)
+      prevEpochLastBlockHash <- chainContractClient.getPrevEpochLastBlockHash(epochNumber)
     } yield EpochInfo(epochNumber, miner, rewardAddress, hitSource, prevEpochLastBlockHash)
-  }
-
-  private def getPrevEpochLastBlockHash(startEpochNumber: Int): Either[String, Option[BlockHash]] = {
-    @tailrec
-    def loop(curEpochNumber: Int): Either[String, Option[BlockHash]] = {
-      if (curEpochNumber <= 0) {
-        Left(s"Couldn't find previous epoch meta for epoch #$startEpochNumber")
-      } else {
-        chainContractClient.getEpochMeta(curEpochNumber) match {
-          case Some(epochMeta) => Right(Some(epochMeta.lastBlockHash))
-          case _               => loop(curEpochNumber - 1)
-        }
-      }
-    }
-
-    chainContractClient.getEpochMeta(startEpochNumber) match {
-      case Some(epochMeta) if epochMeta.prevEpoch == 0 =>
-        Right(None)
-      case Some(epochMeta) =>
-        chainContractClient
-          .getEpochMeta(epochMeta.prevEpoch)
-          .toRight(s"Epoch #${epochMeta.prevEpoch} meta not found at contract")
-          .map(em => Some(em.lastBlockHash))
-      case _ => loop(startEpochNumber - 1)
-    }
   }
 
   private def callContract(fc: FUNCTION_CALL, blockData: EcBlock, invoker: KeyPair): JobResult[Unit] = {
@@ -250,23 +225,29 @@ class ELUpdater(
     }
   }
 
-  private def rollbackTo(prevState: Working[ChainStatus], target: L2BlockLike, finalizedBlock: ContractBlock): JobResult[Working[ChainStatus]] = {
-    val targetHash = target.hash
-    logger.info(s"Starting rollback to $targetHash")
-    for {
-      rollbackBlock <- mkRollbackBlock(targetHash)
-      _                   = logger.info(s"Intermediate rollback block: ${rollbackBlock.hash}")
-      fixedFinalizedBlock = if (finalizedBlock.height > rollbackBlock.parentBlock.height) rollbackBlock.parentBlock else finalizedBlock
-      _           <- confirmBlock(rollbackBlock.hash, fixedFinalizedBlock.hash)
-      _           <- confirmBlock(target, fixedFinalizedBlock)
-      lastEcBlock <- engineApiClient.getLastExecutionBlock()
-      _ <- Either.cond(
-        targetHash == lastEcBlock.hash,
-        (),
-        ClientError(s"Rollback to $targetHash error: last execution block ${lastEcBlock.hash} is not equal to target block hash")
-      )
-    } yield {
-      logger.info(s"Rollback to $targetHash finished successfully")
+  private def rollbackTo(prevState: Working[ChainStatus], target: L2BlockLike, finalizedBlock: ContractBlock): JobResult[Working[ChainStatus]] =
+    (engineApiClient.getLastExecutionBlock() match {
+      case r @ Right(ecBlock) if ecBlock.hash == target.hash =>
+        logger.trace(s"No need to rollback, last EC block is ${target.hash}")
+        r
+      case _ =>
+        val targetHash = target.hash
+        for {
+          rollbackBlock <- mkRollbackBlock(targetHash)
+          _ = logger.info(s"Rolling back to $targetHash via ${rollbackBlock.hash}")
+          _          <- confirmBlock(rollbackBlock.hash, target.parentHash)
+          synthBlock <- engineApiClient.getLastExecutionBlock()
+          _ = logger.info(s"Last block: ${synthBlock.hash}, expecting ${rollbackBlock.hash}")
+          _           <- confirmBlock(targetHash, finalizedBlock.hash)
+          lastEcBlock <- engineApiClient.getLastExecutionBlock()
+          _ <- Either.cond(
+            targetHash == lastEcBlock.hash,
+            (),
+            ClientError(s"Rollback to $targetHash error: last execution block ${lastEcBlock.hash} is not equal to target block hash")
+          )
+          _ = logger.info(s"Rollback to $targetHash finished successfully")
+        } yield lastEcBlock
+    }).map { lastEcBlock =>
       val updatedLastValidatedBlock = if (lastEcBlock.height < prevState.fullValidationStatus.lastValidatedBlock.height) {
         chainContractClient.getBlock(lastEcBlock.hash).getOrElse(finalizedBlock)
       } else {
@@ -280,7 +261,6 @@ class ELUpdater(
       setState("10", newState)
       newState
     }
-  }.left.map(e => ClientError(s"Error during rollback: ${e.message}"))
 
   private def startBuildingPayload(
       epochInfo: EpochInfo,
@@ -1151,7 +1131,7 @@ class ELUpdater(
       returnToMainChainInfo: Option[ReturnToMainChainInfo]
   ): Unit = {
     val finalizedBlock = prevState.finalizedBlock
-    confirmBlock(block, finalizedBlock)
+    confirmBlock(block.hash, finalizedBlock.hash)
       .fold[Unit](
         err => logger.error(s"Can't confirm block ${block.hash} of chain ${nodeChainInfo.id}: ${err.message}"),
         _ => {
@@ -1209,7 +1189,7 @@ class ELUpdater(
           requestBlock(contractBlock) match {
             case BlockRequestResult.BlockExists(ecBlock) =>
               logger.debug(s"Block ${contractBlock.hash} exists at EC chain, trying to confirm")
-              confirmBlock(ecBlock, finalizedBlock) match {
+              confirmBlock(ecBlock.hash, finalizedBlock.hash) match {
                 case Right(_) =>
                   val newState = prevState.copy(
                     lastEcBlock = ecBlock,
@@ -1239,11 +1219,11 @@ class ELUpdater(
       case None => engineApiClient.getBlockByHash(rollbackTargetBlockId)
       case x    => Right(x)
     }
-    targetBlock      <- Either.fromOption(targetBlockOpt, ClientError(s"Can't find block $rollbackTargetBlockId neither on a contract, nor in EC"))
-    parentBlock      <- engineApiClient.getBlockByHash(targetBlock.parentHash)
-    parentBlock      <- Either.fromOption(parentBlock, ClientError(s"Can't find parent block $rollbackTargetBlockId in execution client"))
+    targetBlock <- Either.fromOption(targetBlockOpt, ClientError(s"Can't find block $rollbackTargetBlockId neither on a contract, nor in EC"))
+    parentBlock <- engineApiClient.getBlockByHash(targetBlock.parentHash)
+    parentBlock <- Either.fromOption(parentBlock, ClientError(s"Can't find parent block $rollbackTargetBlockId in execution client"))
     rollbackBlockOpt <- engineApiClient.applyNewPayload(EmptyL2Block.mkExecutionPayload(parentBlock))
-    rollbackBlock    <- Either.fromOption(rollbackBlockOpt, ClientError("Rollback block hash is not defined as latest valid hash"))
+    rollbackBlock <- Either.fromOption(rollbackBlockOpt, ClientError("Rollback block hash is not defined as latest valid hash"))
   } yield RollbackBlock(rollbackBlock, parentBlock)
 
   private def toWithdrawals(transfers: Vector[ContractTransfer.Native], firstElBlockWithdrawalIndex: Long): Vector[Withdrawal] =
@@ -1281,7 +1261,8 @@ class ELUpdater(
         chainContractClient.getRegisteredAssets(startAssetRegistryIndex to contractBlock.lastAssetRegistryIndex)
       }
 
-    val relatedElRawLogs = ecBlockLogs.filter(x => elStandardBridgeAddress.contains(x.address) && x.topics.contains(StandardBridge.RegistryUpdated.Topic))
+    val relatedElRawLogs =
+      ecBlockLogs.filter(x => elStandardBridgeAddress.contains(x.address) && x.topics.contains(StandardBridge.RegistryUpdated.Topic))
     for {
       _ <- relatedElRawLogs match {
         case Nil =>
@@ -1679,11 +1660,6 @@ class ELUpdater(
         s"$errorPrefix: got amount: ${elTransferEvent.amount}, expected ${expectedTransfer.amount}"
       )
     } yield ()
-  }
-
-  private def confirmBlock(block: L2BlockLike, finalizedBlock: L2BlockLike): JobResult[PayloadStatus] = {
-    val finalizedBlockHash = if (finalizedBlock.height > block.height) block.hash else finalizedBlock.hash
-    engineApiClient.forkChoiceUpdated(block.hash, finalizedBlockHash)
   }
 
   private def confirmBlock(hash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus] =
