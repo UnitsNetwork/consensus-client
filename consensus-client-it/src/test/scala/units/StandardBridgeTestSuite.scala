@@ -16,8 +16,9 @@ import units.bridge.{TERC20, WWaves}
 import units.docker.EcContainer
 import units.el.{BridgeMerkleTree, E2CTopics, EvmEncoding}
 import units.eth.EthAddress
+import units.test.TestEnvironment
 
-import java.io.{File, FileInputStream}
+import java.io.FileInputStream
 import java.math.BigInteger
 import scala.jdk.OptionConverters.RichOptional
 import scala.sys.process.*
@@ -98,7 +99,7 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
 
     "Checking balances in EL->CL->EL transfers" in {
       step("Issue ERC20 token")
-      val txManager      = new RawTransactionManager(ec1.web3j, elSender, EcContainer.ChainId, 10, 2000)
+      val txManager      = mkTransactionManager(elSender)
       val terc20         = TERC20.load("0x9b8397f1b0fecd3a1a40cdd5e8221fa461898517", ec1.web3j, txManager, new DefaultGasProvider)
       val terc20Decimals = terc20.call_decimals().send().intValueExact()
 
@@ -181,7 +182,7 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
 
     "Check Waves transfer CL->EL->CL" in {
       withClue("4. Transfer Waves C>E>C") {
-        val txManager = new RawTransactionManager(ec1.web3j, elRichAccount1, EcContainer.ChainId, 20, 2000)
+        val txManager = mkTransactionManager(elRichAccount1)
         val wwaves    = WWaves.load(WWavesContractAddress.hex, ec1.web3j, txManager, new DefaultGasProvider)
 
         val transferUserAmount = 55
@@ -280,20 +281,14 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
     step("Prepare: move assets and enable the asset in the registry")
     waves1.api.broadcast(TxHelpers.transfer(clAssetOwner, chainContractAddress, enoughClAmount, issueAsset))
 
-    step("Prepare: wait for first block in EC")
-    while (ec1.web3j.ethBlockNumber().send().getBlockNumber.compareTo(BigInteger.ONE) < 0) Thread.sleep(5000)
-
     step("Prepare: deploy contracts on EL")
-    val contractsDir = new File(sys.props("cc.it.contracts.dir"))
     Process(
       s"forge script -vvvv scripts/Deployer.s.sol:Deployer --private-key $elRichAccount1PrivateKey --fork-url http://localhost:${ec1.rpcPort} --broadcast",
-      contractsDir,
+      TestEnvironment.ContractsDir,
       "CHAIN_ID" -> EcContainer.ChainId.toString
     ).!(ProcessLogger(out => log.info(out), err => log.error(err)))
 
-    val contractAddresses = Using(new FileInputStream(new File(s"$contractsDir/target/deployments/${EcContainer.ChainId}/.deploy"))) { fis =>
-      Json.parse(fis)
-    }.get.as[Map[String, String]]
+    val contractAddresses = Using(new FileInputStream(TestEnvironment.ContractAddressesFile))(Json.parse).get.as[Map[String, String]]
     log.debug(s"Contract addresses: ${contractAddresses.mkString(", ")}")
 
     step("Enable token transfers")
@@ -317,4 +312,6 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
         standardBridge.isRegistered(erc20Address) shouldBe true
       }
     }
+
+  private def mkTransactionManager(sender: Credentials) = new RawTransactionManager(ec1.web3j, sender, EcContainer.ChainId, 20, 2000)
 }
