@@ -35,7 +35,6 @@ libraryDependencies ++= {
     "com.wavesplatform"              % "node"          % node % Provided,
     "com.softwaremill.sttp.client3" %% "core"          % sttpVersion,
     "com.softwaremill.sttp.client3" %% "play-json"     % sttpVersion,
-    "com.softwaremill.sttp.client3" %% "slf4j-backend" % sttpVersion,
     "com.github.jwt-scala"          %% "jwt-play-json" % "10.0.1",
     "org.web3j"                      % "core"          % "4.9.8"
   )

@@ -29,10 +29,17 @@
     "shanghaiTime": 0,
     "terminalTotalDifficulty": 0,
     "terminalTotalDifficultyPassed": true,
-    "bedrockBlock": 0,
-    "optimism": {
-      "eip1559Elasticity": 2,
-      "eip1559Denominator": 8
+    "blobSchedule": {
+      "cancun": {
+        "target": 3,
+        "max": 6,
+        "baseFeeUpdateFraction": 3338477
+      },
+      "prague": {
+        "target": 6,
+        "max": 9,
+        "baseFeeUpdateFraction": 5007716
+      }
     }
   },
   "difficulty": "0x0",

@@ -21,12 +21,12 @@ object EmptyL2Block {
   private val InternalBlockTimestampDiff = 1 // seconds
 
   def mkExecutionPayload(parent: EcBlock, feeRecipient: EthAddress = EthAddress.empty): JsObject =
-    mkExecutionPayload(
+    mkExecutionPayloadJson(
       Params(
         parentHash = parent.hash,
         parentStateRoot = parent.stateRoot,
         parentGasLimit = parent.gasLimit,
-        newBlockTimestamp = (parent.timestamp + InternalBlockTimestampDiff).max(System.currentTimeMillis() / 1000),
+        newBlockTimestamp = parent.timestamp + InternalBlockTimestampDiff,
         newBlockNumber = parent.height + 1,
         baseFee = calculateGasFee(
           parentGasLimit = parent.gasLimit,
@@ -37,7 +37,7 @@ object EmptyL2Block {
       )
     )
 
-  def mkExecutionPayload(params: Params): JsObject = Json.obj(
+  private def mkExecutionPayloadJson(params: Params): JsObject = Json.obj(
     "parentHash"    -> params.parentHash,
     "feeRecipient"  -> params.feeRecipient,
     "stateRoot"     -> params.parentStateRoot,

@@ -235,8 +235,7 @@ class ELUpdater(
         for {
           rollbackBlock <- mkRollbackBlock(targetHash)
           _ = logger.info(s"Rolling back to $targetHash via ${rollbackBlock.hash}")
-          _ <- confirmBlock(rollbackBlock.hash, target.parentHash)
-          _ = Thread.sleep(500) // geth concurrency issues??
+          _          <- confirmBlock(rollbackBlock.hash, target.parentHash)
           synthBlock <- engineApiClient.getLastExecutionBlock()
           _ = logger.info(s"Last block: ${synthBlock.hash}, expecting ${rollbackBlock.hash}")
           _           <- confirmBlock(targetHash, finalizedBlock.hash)
@@ -1220,11 +1219,11 @@ class ELUpdater(
       case None => engineApiClient.getBlockByHash(rollbackTargetBlockId)
       case x    => Right(x)
     }
-    targetBlock      <- Either.fromOption(targetBlockOpt, ClientError(s"Can't find block $rollbackTargetBlockId neither on a contract, nor in EC"))
-    parentBlock      <- engineApiClient.getBlockByHash(targetBlock.parentHash)
-    parentBlock      <- Either.fromOption(parentBlock, ClientError(s"Can't find parent block $rollbackTargetBlockId in execution client"))
+    targetBlock <- Either.fromOption(targetBlockOpt, ClientError(s"Can't find block $rollbackTargetBlockId neither on a contract, nor in EC"))
+    parentBlock <- engineApiClient.getBlockByHash(targetBlock.parentHash)
+    parentBlock <- Either.fromOption(parentBlock, ClientError(s"Can't find parent block $rollbackTargetBlockId in execution client"))
     rollbackBlockOpt <- engineApiClient.applyNewPayload(EmptyL2Block.mkExecutionPayload(parentBlock))
-    rollbackBlock    <- Either.fromOption(rollbackBlockOpt, ClientError("Rollback block hash is not defined as latest valid hash"))
+    rollbackBlock <- Either.fromOption(rollbackBlockOpt, ClientError("Rollback block hash is not defined as latest valid hash"))
   } yield RollbackBlock(rollbackBlock, parentBlock)
 
   private def toWithdrawals(transfers: Vector[ContractTransfer.Native], firstElBlockWithdrawalIndex: Long): Vector[Withdrawal] =
