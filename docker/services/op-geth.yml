@@ -6,6 +6,7 @@ services:
     entrypoint: /bin/sh -c
     environment:
       GETH_BOOTNODES: ""
+      GETH_CONFIG: /etc/config.toml
     command:
       - |
         if [ ! -d /root/.ethereum/geth/chaindata ] ; then
