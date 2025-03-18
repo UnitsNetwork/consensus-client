@@ -6,6 +6,7 @@ import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.lang.v1.compiler.Terms.{ARR, CONST_LONG}
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
+import units.ELUpdater.ClChangedProcessingDelay
 
 class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
   private val idleMiner = ElMinerSettings(TxHelpers.signer(1))
@@ -562,6 +563,9 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
             )
           )
         })
+
+      // Wait for handleConsensusLayerChanged to be executed in order for reporter1 to start mining
+      d.advanceElu(ClChangedProcessingDelay)
 
       // Assertion: skipped epoch count for evicted miner is reset
       val minerSkippedEpochCountKey = s"miner_${idleMiner.address}_SkippedEpochCount"
