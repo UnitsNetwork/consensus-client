@@ -28,13 +28,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       d.advanceNewBlocks(idleMiner.address)
 
       // Report empty epoch
-      d.appendMicroBlock(
-        TxHelpers.invoke(
-          d.chainContractAddress,
-          Some("reportEmptyEpoch"),
-          invoker = reporter1.account
-        )
-      )
+      d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
 
       // Assertion: epoch is reported empty in state
       val reportedEpochNumber   = 3
@@ -96,25 +90,13 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       d.advanceNewBlocks(idleMiner.address)
 
       // Report empty epoch
-      d.appendMicroBlock(
-        TxHelpers.invoke(
-          d.chainContractAddress,
-          Some("reportEmptyEpoch"),
-          invoker = reporter1.account
-        )
-      )
+      d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
 
       // Start idleMiner
       d.advanceNewBlocks(idleMiner.address)
 
       // Report empty epoch
-      d.appendMicroBlock(
-        TxHelpers.invoke(
-          d.chainContractAddress,
-          Some("reportEmptyEpoch"),
-          invoker = reporter1.account
-        )
-      )
+      d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
 
       // Assertion: skipped epoch count for miner is in state
       val minerSkippedEpochCountKey = s"miner_${idleMiner.address}_SkippedEpochCount"
@@ -153,33 +135,17 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       d.advanceNewBlocks(idleMiner.address)
 
       // Report empty epoch, 1st time
-      d.appendMicroBlock(
-        TxHelpers.invoke(
-          d.chainContractAddress,
-          Some("reportEmptyEpoch"),
-          invoker = reporter1.account
-        )
-      )
+      d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
 
       // Report empty epoch, 2nd time
-      val reportResult2 = d.appendMicroBlockE(
-        TxHelpers.invoke(
-          d.chainContractAddress,
-          Some("reportEmptyEpoch"),
-          invoker = reporter1.account
-        )
-      )
+      val reportResult2 = d.appendMicroBlockE( d.ChainContract.reportEmptyEpoch(reporter1.account) )
       reportResult2 should matchPattern {
         case Left(err) if err.toString.contains("Current epoch is already reported to be empty") =>
       }
 
       // Report empty epoch, 3rd time
       val reportResult3 = d.appendMicroBlockE(
-        TxHelpers.invoke(
-          d.chainContractAddress,
-          Some("reportEmptyEpoch"),
-          invoker = reporter2.account
-        )
+        d.ChainContract.reportEmptyEpoch(reporter2.account)
       )
       reportResult3 should matchPattern {
         case Left(err) if err.toString.contains("Current epoch is already reported to be empty") =>
@@ -218,13 +184,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       d.advanceNewBlocks(idleMiner.address)
 
       // Report empty epoch
-      d.appendMicroBlock(
-        TxHelpers.invoke(
-          d.chainContractAddress,
-          Some("reportEmptyEpoch"),
-          invoker = reporter1.account
-        )
-      )
+      d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
 
       // Start reporter1
       d.advanceNewBlocks(reporter1.address)
@@ -307,13 +267,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       d.advanceNewBlocks(idleMiner.address)
 
       // Report empty epoch
-      d.appendMicroBlock(
-        TxHelpers.invoke(
-          d.chainContractAddress,
-          Some("reportEmptyEpoch"),
-          invoker = reporter1.account
-        )
-      )
+      d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
 
       // Start reporter1
       d.advanceNewBlocks(reporter1.address)
@@ -340,13 +294,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       d.advanceNewBlocks(idleMiner.address)
 
       // Report empty epoch
-      d.appendMicroBlock(
-        TxHelpers.invoke(
-          d.chainContractAddress,
-          Some("reportEmptyEpoch"),
-          invoker = reporter1.account
-        )
-      )
+      d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
 
       // Assertion: epoch is reported empty in state
       val reportedEpochNumber   = 3
@@ -397,13 +345,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(idleMiner.account, ecBlock1))
 
       // Report empty epoch
-      val reportResult = d.appendMicroBlockE(
-        TxHelpers.invoke(
-          d.chainContractAddress,
-          Some("reportEmptyEpoch"),
-          invoker = reporter1.account
-        )
-      )
+      val reportResult = d.appendMicroBlockE( d.ChainContract.reportEmptyEpoch(reporter1.account) )
       reportResult should matchPattern {
         case Left(err) if err.toString.contains("Current epoch is non-empty") =>
       }
@@ -441,25 +383,13 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       d.advanceNewBlocks(idleMiner.address)
 
       // Report empty epoch
-      d.appendMicroBlock(
-        TxHelpers.invoke(
-          d.chainContractAddress,
-          Some("reportEmptyEpoch"),
-          invoker = reporter1.account
-        )
-      )
+      d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
 
       // Start idleMiner again
       d.advanceNewBlocks(idleMiner.address)
 
       // Report empty epoch
-      d.appendMicroBlock(
-        TxHelpers.invoke(
-          d.chainContractAddress,
-          Some("reportEmptyEpoch"),
-          invoker = reporter1.account
-        )
-      )
+      d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
 
       // Start idleMiner again
       d.advanceNewBlocks(idleMiner.address)
@@ -501,13 +431,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       d.advanceNewBlocks(idleMiner.address)
 
       // Report empty epoch
-      d.appendMicroBlock(
-        TxHelpers.invoke(
-          d.chainContractAddress,
-          Some("reportEmptyEpoch"),
-          invoker = reporter1.account
-        )
-      )
+      d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
 
       // Claim reporter reward
       d.appendMicroBlock(
@@ -555,13 +479,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           reportedEpochs = d.blockchain.height :: reportedEpochs
 
           // Report empty epoch
-          d.appendMicroBlock(
-            TxHelpers.invoke(
-              d.chainContractAddress,
-              Some("reportEmptyEpoch"),
-              invoker = reporter1.account
-            )
-          )
+          d.appendMicroBlock( d.ChainContract.reportEmptyEpoch(reporter1.account) )
         })
 
       // Wait for handleConsensusLayerChanged to be executed in order for reporter1 to start mining
@@ -621,13 +539,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           reportedEpochs1 = d.blockchain.height :: reportedEpochs1
 
           // Report empty epoch
-          d.appendMicroBlock(
-            TxHelpers.invoke(
-              d.chainContractAddress,
-              Some("reportEmptyEpoch"),
-              invoker = reporter1.account
-            )
-          )
+          d.appendMicroBlock( d.ChainContract.reportEmptyEpoch(reporter1.account) )
 
           // Start new epoch for idleMiner2
           d.advanceNewBlocks(idleMiner2.address)
@@ -636,14 +548,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           reportedEpochs2 = d.blockchain.height :: reportedEpochs2
 
           // Report empty epoch
-          d.appendMicroBlock(
-            TxHelpers.invoke(
-              d.chainContractAddress,
-              Some("reportEmptyEpoch"),
-              invoker = reporter1.account
-            )
-          )
-
+          d.appendMicroBlock( d.ChainContract.reportEmptyEpoch(reporter1.account) )
         })
 
       // Start new epoch for idleMiner
@@ -653,13 +558,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       reportedEpochs1 = d.blockchain.height :: reportedEpochs1
 
       // Report empty epoch for idleMiner
-      d.appendMicroBlock(
-        TxHelpers.invoke(
-          d.chainContractAddress,
-          Some("reportEmptyEpoch"),
-          invoker = reporter1.account
-        )
-      )
+      d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
 
       // Assertion: skipped epoch count for evicted miner is reset
       val minerSkippedEpochCountKey = s"miner_${idleMiner.address}_SkippedEpochCount"
@@ -680,13 +579,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         Some(IntegerDataEntry(minerSkippedEpochCountKey2, maxSkippedEpochCount - 1))
 
       // Report empty epoch for idleMiner2
-      val reportRes = d.appendMicroBlockE(
-        TxHelpers.invoke(
-          d.chainContractAddress,
-          Some("reportEmptyEpoch"),
-          invoker = reporter1.account
-        )
-      )
+      val reportRes = d.appendMicroBlockE( d.ChainContract.reportEmptyEpoch(reporter1.account) )
       // Even when 2 idle miners are ready to be evicted in one epoch, an epoch still can be reported only once
       reportRes should matchPattern {
         case Left(err) if err.toString.contains("Current epoch is already reported to be empty") =>
