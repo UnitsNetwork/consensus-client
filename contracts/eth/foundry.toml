@@ -11,3 +11,4 @@ remappings = [
 fs_permissions = [
     { access='read-write', path='./target/deployments/' }
 ]
+solc_version = "0.8.26"

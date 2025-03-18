@@ -1,9 +1,11 @@
 services:
   op-geth:
     container_name: op-geth
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:v1.101500.0
+    image: ghcr.io/unitsnetwork/op-geth:v1.101503.1-simulate-fixes
     stop_grace_period: 5m
     entrypoint: /bin/sh -c
+    environment:
+      GETH_BOOTNODES: ""
     command:
       - |
         if [ ! -d /root/.ethereum/geth/chaindata ] ; then
