@@ -11,7 +11,7 @@ import com.wavesplatform.wallet.Wallet
 import org.web3j.abi.TypeReference
 import org.web3j.abi.datatypes.Event
 import org.web3j.abi.datatypes.generated.Bytes20
-import units.ELUpdater.State.ChainStatus.{Mining, WaitForNewChain}
+import units.ELUpdater.State.ChainStatus.{Mining, WaitForNewChain, FollowingChain}
 import units.client.contract.HasConsensusLayerDappTxHelpers.DefaultFees
 import units.eth.EthAddress
 import units.util.HexBytesConverter
@@ -268,6 +268,9 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
       )
       d.advanceConsensusLayerChanged()
 
+      // d.waitForCS[Mining]("State is expected") { _ => }
+      d.waitForCS[FollowingChain]("State is expected") { _ => }
+
       def tryWithdraw(): Either[Throwable, BlockId] =
         d.appendMicroBlockE(d.ChainContract.withdraw(transferReceiver, ecBlock2, transferProofs, 0, transfer.amount))
       withClue("Can't withdraw from a fork:") {
@@ -285,6 +288,8 @@ class E2CTransfersTestSuite extends BaseIntegrationTestSuite {
 
       d.appendMicroBlockAndVerify(d.ChainContract.extendAltChain(reliable.account, ecBlock3, chainId = 1))
       d.advanceConsensusLayerChanged()
+
+      // d.waitForCS[Mining]("State is expected") { _ => }
 
       withClue("Can withdraw from the new main chain:") {
         tryWithdraw() should beRight
