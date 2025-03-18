@@ -19,7 +19,7 @@ services:
         --http \
         --http.addr=0.0.0.0 \
         --http.vhosts=* \
-        --http.api=eth,web3,txpool,net,debug,engine \
+        --http.api=eth,web3,txpool,net,debug,admin,engine \
         --http.corsdomain=* \
         --ws \
         --ws.addr=0.0.0.0 \
