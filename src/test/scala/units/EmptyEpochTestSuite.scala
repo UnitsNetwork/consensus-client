@@ -379,7 +379,7 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
         })
 
       // Wait for handleConsensusLayerChanged to be executed in order for reporter1 to start mining
-      d.advanceElu(ClChangedProcessingDelay)
+      d.advanceConsensusLayerChanged()
 
       // Assertion: skipped epoch count for evicted miner is reset
       val minerSkippedEpochCountKey = s"miner_${idleMiner.address}_SkippedEpochCount"
