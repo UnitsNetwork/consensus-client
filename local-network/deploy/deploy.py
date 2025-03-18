@@ -4,6 +4,7 @@ import subprocess
 from decimal import Decimal
 from time import sleep
 
+from pywaves import pw
 from units_network import units, waves
 from units_network.common_utils import configure_cli_logger
 from web3 import Web3
@@ -150,13 +151,14 @@ except OSError as e:
 
 key = "assetTransfersActivationEpoch"
 if len(network.cl_chain_contract.getData(regex="assetTransfersActivationEpoch")) == 0:
+    activation_height = pw.height() + 2
     enable_transfers_txn = network.cl_chain_contract.oracleAcc.invokeScript(
         dappAddress=network.cl_chain_contract.oracleAddress,
         functionName="enableTokenTransfers",
         params=[
             {"type": "string", "value": network.el_standard_bridge_address},
             {"type": "string", "value": network.el_wwaves_address},
-            {"type": "integer", "value": 5},
+            {"type": "integer", "value": activation_height},
         ],
     )
     waves.force_success(
@@ -165,12 +167,14 @@ if len(network.cl_chain_contract.getData(regex="assetTransfersActivationEpoch"))
         "Could not enable token transfers",
         wait=True,
     )
+    log.info("Wait activation")
+    while pw.height() < activation_height:
+        sleep(3)
 
 log.info(f"StandardBridge address: {network.bridges.standard_bridge.contract_address}")
 log.info(f"ERC20 token address: {network.el_test_erc20.contract_address}")
-log.info(
-    f"Test CL asset id: {network.cl_test_asset.assetId}"
-)  # Issues and registers asset under the hood
+# Issues and registers asset under the hood
+log.info(f"Test CL asset id: {network.cl_test_asset.assetId}")
 
 attempts = 10
 while attempts > 0:
