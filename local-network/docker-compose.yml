@@ -19,7 +19,7 @@ services:
       - ./logs/ec-1:/root/logs
       - ./configs/ec-common/p2p-key-1.hex:/etc/secrets/p2p-key:ro
       - ./configs/ec-common/jwtsecret.hex:/etc/secrets/jwtsecret:ro
-      - ./configs/ec-common/peers.toml:/etc/config.toml:ro
+      - ./configs/ec-common/config.toml:/etc/config.toml:ro
       - ./configs/ec-common/genesis.json:/tmp/genesis.json:ro
 
   # TODO: Until fixed an issue with rollback
@@ -40,7 +40,7 @@ services:
   #     - ./logs/ec-2:/root/logs
   #     - ./configs/ec-common/p2p-key-2.hex:/etc/secrets/p2p-key:ro
   #     - ./configs/ec-common/jwtsecret.hex:/etc/secrets/jwtsecret:ro
-  #     - ./configs/ec-common/peers.toml:/etc/config.toml:ro
+  #     - ./configs/ec-common/config.toml:/etc/config.toml:ro
   #     - ./configs/ec-common/genesis.json:/tmp/genesis.json:ro
 
   # Make sure, you have enough RAM to run additional nodes
@@ -61,7 +61,7 @@ services:
   #     - ./logs/ec-3:/root/logs
   #     - ./configs/ec-common/p2p-key-3.hex:/etc/secrets/p2p-key:ro
   #     - ./configs/ec-common/jwtsecret.hex:/etc/secrets/jwtsecret:ro
-  #     - ./configs/ec-common/peers.toml:/etc/config.toml:ro
+  #     - ./configs/ec-common/config.toml:/etc/config.toml:ro
   #     - ./configs/ec-common/genesis.json:/tmp/genesis.json:ro
 
   # ec-4:
@@ -81,7 +81,7 @@ services:
   #     - ./logs/ec-4:/root/logs
   #     - ./configs/ec-common/p2p-key-4.hex:/etc/secrets/p2p-key:ro
   #     - ./configs/ec-common/jwtsecret.hex:/etc/secrets/jwtsecret:ro
-  #     - ./configs/ec-common/peers.toml:/etc/config.toml:ro
+  #     - ./configs/ec-common/config.toml:/etc/config.toml:ro
   #     - ./configs/ec-common/genesis.json:/tmp/genesis.json:ro
 
   waves-node-1:

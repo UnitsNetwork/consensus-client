@@ -1,3 +1,6 @@
+[Node]
+HTTPModules = ["admin"]
+
 [Node.P2P]
 BootstrapNodes = [
     "enode://b2ce9caff5e7472eafaf006904e2cb39cdd79801cda1328c510118cafdb0e9574526af6d05a89dae07a376606227c54c724cab1e88edf43190b7544976b275b8@ec-1:30303",
