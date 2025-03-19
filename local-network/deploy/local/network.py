@@ -12,8 +12,7 @@ from units_network.erc20 import Erc20
 from units_network.networks import Network, NetworkSettings
 from web3 import Account, Web3
 
-from local.Deployments import Deployments
-from local.common import compute_contract_address, in_docker
+from local.common import in_docker
 
 
 def get_waves_api_url(n: int) -> str:
@@ -132,8 +131,25 @@ class ExtendedNetwork(Network):
         ]
 
     @cached_property
+    def el_deployer_private_key(self) -> str:
+        return "8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63"
+
+    @cached_property
+    def el_standard_bridge_address(self) -> ChecksumAddress:
+        return Web3.to_checksum_address("0x9a3DBCa554e9f6b9257aAa24010DA8377C57c17e")
+
+    @cached_property
+    def el_wwaves_address(self) -> ChecksumAddress:
+        return Web3.to_checksum_address("0x2E1f232a9439C3D459FcEca0BeEf13acc8259Dd8")
+
+    @cached_property
+    def el_test_erc20_address(self) -> ChecksumAddress:
+        return Web3.to_checksum_address("0x9B8397f1B0FEcD3a1a40CdD5E8221Fa461898517")
+
+    @cached_property
     def el_test_erc20(self) -> Erc20:
-        return self.get_erc20(Deployments.load().terc20)  # TODO: fix
+        return self.get_erc20(self.el_test_erc20_address)
+
 
 
 local_net = NetworkSettings(

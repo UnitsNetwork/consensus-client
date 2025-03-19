@@ -24,6 +24,7 @@ class OpGethContainer(network: NetworkImpl, number: Int, ip: String)(implicit ht
     .withExposedPorts(RpcPort, EnginePort)
     .withEnv("NODE_NUMBER", number.toString)
     .withEnv("GETH_NETWORKID", "1337")
+    .withEnv("GETH_BOOTNODES", "")
     .withFileSystemBind(s"$ConfigsDir/ec-common", "/etc/secrets", BindMode.READ_ONLY)
     .withFileSystemBind(s"$ConfigsDir/op-geth/run-op-geth.sh", "/tmp/run.sh", BindMode.READ_ONLY)
     .withFileSystemBind(s"$logFile", "/root/logs/op-geth.log", BindMode.READ_WRITE)

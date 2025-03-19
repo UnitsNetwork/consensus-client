@@ -11,6 +11,8 @@ services:
     environment:
       NODE_NUMBER: 1
       GETH_NETWORKID: 1337
+      # config.toml doesn't have options for this, see https://github.com/ethereum/go-ethereum/issues/21492
+      EXTRA_ARGS: --log.file=/root/logs/op-geth.log --verbosity=5 --log.format=terminal
     ports:
       - "127.0.0.1:18551:8551" # Engine port - doesn't have all APIs
       - "127.0.0.1:18545:8545" # RPC port, for Metamask e.g.
@@ -32,6 +34,7 @@ services:
   #   environment:
   #     NODE_NUMBER: 2
   #     GETH_NETWORKID: 1337
+  #     EXTRA_ARGS: --log.file=/root/logs/op-geth.log --verbosity=5 --log.format=terminal
   #   ports:
   #     - "127.0.0.1:28551:8551" # Engine port - doesn't have all APIs
   #     - "127.0.0.1:28545:8545" # RPC port, for Metamask e.g.
@@ -41,6 +44,7 @@ services:
   #     - ./configs/ec-common/p2p-key-2.hex:/etc/secrets/p2p-key:ro
   #     - ./configs/ec-common/jwtsecret.hex:/etc/secrets/jwtsecret:ro
   #     - ./configs/ec-common/peers.toml:/etc/config.toml:ro
+  #     - ./configs/ec-common/genesis.json:/tmp/genesis.json:ro
 
   # Make sure, you have enough RAM to run additional nodes
   # ec-3:
@@ -52,6 +56,7 @@ services:
   #   environment:
   #     NODE_NUMBER: 3
   #     GETH_NETWORKID: 1337
+  #     EXTRA_ARGS: --log.file=/root/logs/op-geth.log --verbosity=5 --log.format=terminal
   #   ports:
   #     - "127.0.0.1:38551:8551" # Engine port - doesn't have all APIs
   #     - "127.0.0.1:38545:8545" # RPC port, for Metamask e.g.
@@ -61,6 +66,7 @@ services:
   #     - ./configs/ec-common/p2p-key-3.hex:/etc/secrets/p2p-key:ro
   #     - ./configs/ec-common/jwtsecret.hex:/etc/secrets/jwtsecret:ro
   #     - ./configs/ec-common/peers.toml:/etc/config.toml:ro
+  #     - ./configs/ec-common/genesis.json:/tmp/genesis.json:ro
 
   # ec-4:
   #   container_name: ec-4
@@ -71,6 +77,7 @@ services:
   #   environment:
   #     NODE_NUMBER: 4
   #     GETH_NETWORKID: 1337
+  #     EXTRA_ARGS: --log.file=/root/logs/op-geth.log --verbosity=5 --log.format=terminal
   #   ports:
   #     - "127.0.0.1:48551:8551" # Engine port - doesn't have all APIs
   #     - "127.0.0.1:48545:8545" # RPC port, for Metamask e.g.
@@ -80,6 +87,7 @@ services:
   #     - ./configs/ec-common/p2p-key-4.hex:/etc/secrets/p2p-key:ro
   #     - ./configs/ec-common/jwtsecret.hex:/etc/secrets/jwtsecret:ro
   #     - ./configs/ec-common/peers.toml:/etc/config.toml:ro
+  #     - ./configs/ec-common/genesis.json:/tmp/genesis.json:ro
 
   waves-node-1:
     container_name: waves-node-1
@@ -105,9 +113,6 @@ services:
   # waves-node-2:
   #   container_name: waves-node-2
   #   hostname: waves-node-2
-  #   extends:
-  #     file: ./configs/wavesnode/wavesnode.yml
-  #     service: wavesnode
   #   image: ${WAVES_NODE_IMAGE_2:-${WAVES_NODE_IMAGE:-consensus-client:local}}
   #   ports:
   #     - "127.0.0.1:26869:6869"
@@ -116,6 +121,8 @@ services:
   #     WAVES_WALLET_SEED: HnyGuCEnV1B # devnet-2, addr: 3FSrRN8X7cDsLyYTScS8Yf8KSwZgJBwf1jU
   #   volumes:
   #     - ./logs/waves-node-2:/var/log/waves
+  #     - ./configs/ec-common/jwtsecret.hex:/etc/secrets/jwtsecret:ro
+  #     - ./configs/wavesnode:/etc/waves:ro
   #   depends_on:
   #     ec-2:
   #       condition: service_healthy
@@ -125,9 +132,6 @@ services:
   # waves-node-3:
   #   container_name: waves-node-3
   #   hostname: waves-node-3
-  #   extends:
-  #     file: ./configs/wavesnode/wavesnode.yml
-  #     service: wavesnode
   #   image: ${WAVES_NODE_IMAGE_3:-${WAVES_NODE_IMAGE:-consensus-client:local}}
   #   ports:
   #     - "127.0.0.1:36869:6869"
@@ -137,6 +141,8 @@ services:
   #     JAVA_OPTS: -Dwaves.miner.enable=no
   #   volumes:
   #     - ./logs/waves-node-3:/var/log/waves
+  #     - ./configs/ec-common/jwtsecret.hex:/etc/secrets/jwtsecret:ro
+  #     - ./configs/wavesnode:/etc/waves:ro
   #   depends_on:
   #     ec-3:
   #       condition: service_healthy
@@ -146,9 +152,6 @@ services:
   # waves-node-4:
   #   container_name: waves-node-4
   #   hostname: waves-node-4
-  #   extends:
-  #     file: ./configs/wavesnode/wavesnode.yml
-  #     service: wavesnode
   #   image: ${WAVES_NODE_IMAGE_4:-${WAVES_NODE_IMAGE:-consensus-client:local}}
   #   ports:
   #     - "127.0.0.1:46869:6869"
@@ -158,6 +161,8 @@ services:
   #     JAVA_OPTS: -Dwaves.miner.enable=no
   #   volumes:
   #     - ./logs/waves-node-4:/var/log/waves
+  #     - ./configs/ec-common/jwtsecret.hex:/etc/secrets/jwtsecret:ro
+  #     - ./configs/wavesnode:/etc/waves:ro
   #   depends_on:
   #     ec-3:
   #       condition: service_healthy
@@ -184,7 +189,6 @@ services:
       service: deploy
     environment:
       MAIN: deploy.py
-      PRIVATE_KEY: 8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63
     volumes:
       - ./logs/deploy:/var/log/deploy
     depends_on:

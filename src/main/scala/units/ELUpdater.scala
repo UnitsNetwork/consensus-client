@@ -4,7 +4,6 @@ import cats.syntax.either.*
 import cats.syntax.traverse.*
 import com.typesafe.scalalogging.StrictLogging
 import com.wavesplatform.account.{Address, KeyPair, PKKeyPair}
-import com.wavesplatform.common.merkle.Digest
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.crypto
 import com.wavesplatform.lang.ValidationError
@@ -40,7 +39,6 @@ import units.network.BlocksObserverImpl.BlockWithChannel
 import units.util.{BlockToPayloadMapper, HexBytesConverter}
 import units.util.HexBytesConverter.toHexNoPrefix
 
-import java.math.BigDecimal
 import scala.annotation.tailrec
 import scala.concurrent.duration.*
 import scala.util.*
@@ -215,7 +213,11 @@ class ELUpdater(
                 m.keyPair
               )
             } yield ecBlock).fold(
-              err => logger.error(s"Failed to forge block at epoch ${epochInfo.number}: ${err.message}"),
+              { err =>
+                val message = s"Failed to forge block at epoch ${epochInfo.number}: ${err.message}"
+                if (err.message.contains("not allowed to forge blocks in this epoch")) logger.debug(message) // Expected in the end of epoch
+                else logger.error(message)
+              },
               newEcBlock => scheduler.execute { () => tryToForgeNextBlock(epochInfo.number, newEcBlock, chainContractOptions) }
             )
         }

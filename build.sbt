@@ -1,6 +1,6 @@
 import com.github.sbt.git.SbtGit.GitKeys.gitCurrentBranch
 
-enablePlugins(UniversalDeployPlugin, GitVersioning, sbtdocker.DockerPlugin)
+enablePlugins(UniversalDeployPlugin, GitVersioning, sbtdocker.DockerPlugin, VersionObject)
 
 git.useGitDescribe       := true
 git.baseVersion          := "1.0.0"

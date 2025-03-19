@@ -11,4 +11,4 @@ services:
       LOGGING_DIR: /var/log/deploy 
     volumes:
       - .:/usr/src/app
-      - ../../contracts/eth:/tmp/contracts
+      - ../../contracts:/tmp/contracts
