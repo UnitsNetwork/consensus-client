@@ -263,7 +263,6 @@ let (computedGenerator, computedTotalBalance) = {
 let (mclbIgnored1, mainChainEpoch) = blockMeta(mainChainLastBlock)
 
 func calculateFinalizedBlockHashAndEpoch(curMiner: Address, curPrevEpoch: Int, curLastBlockHash: String) = {
-
   let halfBalance = computedTotalBalance / 2
 
   func step(prev: (Int, String|Unit, Int, List[Address]), next: String) = {
@@ -805,6 +804,8 @@ func transfer(destElAddressHex: String) = {
     #   else throw("Transfers denied for queue size of " + queueSize.toString() + ". Wait until current transfers processed")
     Burn(nativeTokenId, t.amount) :: mkNativeTransferEntries(normalizedDestElAddressHex, t.amount)
   } else {
+    strict activated = requireAssetTransfersActivated()
+
     let (assetIdBase58OrWaves, preActions) = match t.assetId {
       case assetId: ByteVector =>
         let asset      = assetInfo(assetId).valueOrErrorMessage("Unexpected error: unknown asset")
@@ -906,6 +907,7 @@ func withdrawAsset(blockHashHex: String, merkleProof: List[ByteVector], transfer
 
 @Callable(i)
 func registerAssets(assetIds: List[String], erc20Addresses: List[String], elDecimals: List[Int]) = {
+  strict activated   = requireAssetTransfersActivated()
   strict validCaller = i.originCaller == this || throw("Only owner of chain contract can do this")
 
   let assetIdsSize  = assetIds.size()
@@ -937,6 +939,7 @@ func registerAssets(assetIds: List[String], erc20Addresses: List[String], elDeci
 
 @Callable(i)
 func issueAndRegister(erc20AddressHex: String, elDecimals: Int, name: String, description: String, clDecimals: Int) = {
+  strict activated     = requireAssetTransfersActivated()
   strict validCaller   = i.originCaller == this || throw("Only owner of chain contract can do this")
   strict validDecimals = elDecimals <= 8 && elDecimals == clDecimals || elDecimals > clDecimals || throw("Invalid decimals, EL=" + elDecimals.toString() + ", CL=" + clDecimals.toString())
 
@@ -963,9 +966,9 @@ func enableTokenTransfers(standardBridgeAddress: String, wavesERC20AddressHex: S
   if (standardBridgeWasNotConfigured)
     then
       mkAssetRegistryEntries(assetRegistrySize, "WAVES", normalizeEthAddress(wavesERC20AddressHex), 0) ++ [
-        StringEntry(elStandardBridgeAddressKey, "0x" + normalizeEthAddress(standardBridgeAddress)),
+        IntegerEntry(assetRegistrySizeKey, assetRegistrySize + 1),
         IntegerEntry(assetTransfersActivationEpochKey, activationEpoch),
-        IntegerEntry(assetRegistrySizeKey, assetRegistrySize + 1)
+        StringEntry(elStandardBridgeAddressKey, "0x" + normalizeEthAddress(standardBridgeAddress))
       ]
     else []
 }
