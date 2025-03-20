@@ -225,7 +225,7 @@ class ELUpdater(
               ecBlock = newBlock.toEcBlock
               ecBlockLogs <- engineApiClient.getLogs(
                 hash = ecBlock.hash,
-                addresses = chainContractOptions.bridgeAddresses,
+                addresses = chainContractOptions.bridgeAddresses(epochInfo.number),
                 topics = Nil
               )
               transfersRootHash <- BridgeMerkleTree.getE2CTransfersRootHash(ecBlockLogs).leftMap(ClientError.apply)
@@ -1561,7 +1561,7 @@ class ELUpdater(
           .toRight(ClientError(s"Can't find a parent block ${contractBlock.parentHash} of block ${contractBlock.hash} on chain contract"))
         ecBlockLogs <- engineApiClient.getLogs(
           hash = ecBlock.hash,
-          addresses = prevState.options.bridgeAddresses,
+          addresses = prevState.options.bridgeAddresses(contractBlock.epoch),
           topics = Nil
         )
         _                            <- validateE2CTransfers(contractBlock, ecBlockLogs).leftMap(ClientError.apply)

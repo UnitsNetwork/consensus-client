@@ -14,7 +14,11 @@ case class ChainContractOptions(
     elStandardBridgeAddress: Option[EthAddress],
     assetTransfersActivationEpoch: Long
 ) {
-  val bridgeAddresses: List[EthAddress] = elNativeBridgeAddress :: elStandardBridgeAddress.toList
+  def bridgeAddresses(epoch: Int): List[EthAddress] = {
+    val before = List(elNativeBridgeAddress)
+    if (epoch < assetTransfersActivationEpoch) before
+    else elStandardBridgeAddress.toList ::: before
+  }
 
   def startEpochChainFunction(epoch: Int, reference: BlockHash, vrf: ByteStr, chainInfo: Option[ChainInfo]): ContractFunction =
     chainInfo match {
@@ -29,5 +33,5 @@ case class ChainContractOptions(
   def appendFunction(epoch: Int, reference: BlockHash): AppendBlock =
     AppendBlock(reference, versionOf(epoch))
 
-  private def versionOf(epoch: Int): Int = if (epoch >= assetTransfersActivationEpoch) 2 else 1
+  private def versionOf(epoch: Int): Int = if (epoch < assetTransfersActivationEpoch) 1 else 2
 }

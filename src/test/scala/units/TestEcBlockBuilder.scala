@@ -31,7 +31,7 @@ class TestEcBlockBuilder private (
 
   def setLogs(ecBlockLogs: List[GetLogsResponseEntry] = Nil): this.type = {
     testEcClients.setBlockLogs(
-      GetLogsRequest(block.hash, List(elNativeBridgeAddress, elStandardBridgeAddress), Nil, 0),
+      GetLogsRequest(block.hash, List(elStandardBridgeAddress, elNativeBridgeAddress), Nil, 0),
       ecBlockLogs
     )
     this
