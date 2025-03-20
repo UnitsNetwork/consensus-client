@@ -10,6 +10,7 @@ class C2ETransfersTestSuite extends BaseTestSuite {
   private val transferSenderAccount  = TxHelpers.secondSigner
   private val validTransferRecipient = "1111111111111111111111111111111111111111"
   private val issueAssetTxn          = TxHelpers.issue(issuer = transferSenderAccount)
+  private val issueAsset             = issueAssetTxn.asset
 
   override protected val defaultSettings: TestSettings = super.defaultSettings.copy(
     additionalBalances = List(AddrWithBalance(transferSenderAccount.toAddress))
@@ -44,21 +45,28 @@ class C2ETransfersTestSuite extends BaseTestSuite {
     transferFuncTest(validTransferRecipient, transferAmount, queueSize = initQueueSize) should produce(message)
   }
 
-  "Deny an unregistered asset" in forAll(
-    Table(
-      "invalid asset"     -> "message",
-      Asset.Waves         -> "Can't find in the registry: WAVES",
-      issueAssetTxn.asset -> s"Can't find in the registry: ${issueAssetTxn.id()}"
-    )
-  ) { case (assetId, message) =>
-    transferFuncTest(validTransferRecipient, assetId = Some(assetId)) should produce(message)
+  "Deny an unregistered asset transfers" in withExtensionDomain() { d =>
+    d.appendMicroBlock(issueAssetTxn)
+    val r = d.appendMicroBlockE(d.ChainContract.transferUnsafe(transferSenderAccount, validTransferRecipient, issueAsset, 1_000_000))
+    r should produce(s"Can't find in the registry: ${issueAssetTxn.id()}")
+  }
+
+  "Can't register before activation" in withExtensionDomain(defaultSettings.copy(enableTokenTransfersEpoch = Int.MaxValue)) { d =>
+    d.appendMicroBlock(issueAssetTxn)
+    val r = d.appendMicroBlockE(d.ChainContract.registerAsset(issueAsset, mkRandomEthAddress(), 8))
+    r should produce("Asset transfers must be activated")
+  }
+
+  "Can't transfer WAVES before activation" in withExtensionDomain(defaultSettings.copy(enableTokenTransfersEpoch = Int.MaxValue)) { d =>
+    val r = d.appendMicroBlockE(d.ChainContract.transferUnsafe(transferSenderAccount, validTransferRecipient, Asset.Waves, 1_000_000))
+    r should produce("Asset transfers must be activated")
   }
 
   "Allow a registered asset" in forAll(
     Table(
       "Asset",
       Asset.Waves,
-      issueAssetTxn.asset
+      issueAsset
     )
   ) { asset =>
     transferFuncTest(validTransferRecipient, assetId = Some(asset), register = true) should beRight
@@ -68,7 +76,7 @@ class C2ETransfersTestSuite extends BaseTestSuite {
     val issueAsset2Txn = TxHelpers.issue(issuer = transferSenderAccount)
     d.appendMicroBlock(issueAssetTxn, issueAsset2Txn)
 
-    val assets = List(issueAssetTxn.asset, issueAsset2Txn.asset)
+    val assets = List(issueAsset, issueAsset2Txn.asset)
     val registerTxn = d.ChainContract.registerAssets(
       assets = assets,
       erc20AddressHex = List.fill(2)(mkRandomEthAddress().hex),
@@ -79,7 +87,7 @@ class C2ETransfersTestSuite extends BaseTestSuite {
     d.appendMicroBlockE(registerTxn) should beRight
 
     val registeredAssets = d.chainContractClient.getAllRegisteredAssets.map(_.asset)
-    registeredAssets shouldBe List(Asset.Waves, issueAssetTxn.asset, issueAsset2Txn.asset)
+    registeredAssets shouldBe List(Asset.Waves, issueAsset, issueAsset2Txn.asset)
   }
 
   private def transferFuncTest(
@@ -88,7 +96,7 @@ class C2ETransfersTestSuite extends BaseTestSuite {
       assetId: Option[Asset] = None,
       queueSize: Int = 0,
       register: Boolean = false
-  ): Either[Throwable, BlockId] = withExtensionDomain(defaultSettings.copy(enableTokenTransfers = register)) { d =>
+  ): Either[Throwable, BlockId] = withExtensionDomain(defaultSettings.copy(enableTokenTransfersEpoch = if (register) 0 else Int.MaxValue)) { d =>
     val amount = Long.MaxValue / 2
     d.appendMicroBlock(
       issueAssetTxn,

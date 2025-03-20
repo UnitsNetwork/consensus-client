@@ -15,7 +15,7 @@ case class TestSettings(
     additionalBalances: List[AddrWithBalance] = Nil,
     daoRewardAccount: Option[KeyPair] = None,
     daoRewardAmount: Long = 0,
-    enableTokenTransfers: Boolean = true
+    enableTokenTransfersEpoch: Int = 0
 ) {
   def finalAdditionalBalances: List[AddrWithBalance] = additionalBalances ++
     initialMiners.collect { case x if !additionalBalances.exists(_.address == x.address) => AddrWithBalance(x.address, x.wavesBalance) }

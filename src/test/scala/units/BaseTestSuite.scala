@@ -14,7 +14,7 @@ import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues}
 import units.client.engine.model.GetLogsResponseEntry
 import units.el.NativeBridge
 import units.el.NativeBridge.ElSentNativeEvent
-import units.eth.{EthAddress, EthNumber}
+import units.eth.EthNumber
 import units.test.CustomMatchers
 import units.util.HexBytesConverter
 
@@ -38,27 +38,21 @@ trait BaseTestSuite
   protected def withExtensionDomain[R](settings: TestSettings = defaultSettings)(f: ExtensionDomain => R): R =
     withExtensionDomainUninitialized(settings) { d =>
       log.debug("EL init")
-      val txs =
-        List(
-          d.ChainRegistry.approve(),
-          d.ChainContract.setScript(),
-          d.ChainContract.setup(
-            d.ecGenesisBlock,
-            ElMinerDefaultReward.amount.longValue(),
-            defaultSettings.daoRewardAccount.map(_.toAddress),
-            defaultSettings.daoRewardAmount
-          )
+      val txs = List(
+        d.ChainRegistry.approve(),
+        d.ChainContract.setScript(),
+        d.ChainContract.setup(
+          d.ecGenesisBlock,
+          ElMinerDefaultReward.amount.longValue(),
+          defaultSettings.daoRewardAccount.map(_.toAddress),
+          defaultSettings.daoRewardAmount
+        ),
+        d.ChainContract.enableTokenTransfers(
+          StandardBridgeAddress,
+          WWavesAddress,
+          activationEpoch = settings.enableTokenTransfersEpoch
         )
-          ++ settings.initialMiners.map { x => d.ChainContract.join(x.account, x.elRewardAddress) }
-          ++ Option
-            .when(settings.enableTokenTransfers) {
-              d.ChainContract.enableTokenTransfers(
-                StandardBridgeAddress,
-                EthAddress.unsafeFrom("0xb9A219631Aed55eBC3D998f17C3840B7eC39C0cc"),
-                activationEpoch = 0
-              )
-            }
-            .toList
+      ) ++ settings.initialMiners.map { x => d.ChainContract.join(x.account, x.elRewardAddress) }
 
       d.appendBlock(txs*)
       d.advanceConsensusLayerChanged()
