@@ -72,17 +72,6 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
   }
 
   "Positive" - {
-    "Dust returned" in {
-      val elAmountWithDust = elAmount + 1
-
-      def elSenderBalance = BigInt(terc20.call_balanceOf(elSenderAddress.hex).send())
-      val balanceBefore   = elSenderBalance
-      terc20E2CTransfer(elAmountWithDust, clAmount)
-      val balanceAfter = elSenderBalance
-
-      balanceAfter shouldBe balanceBefore - elAmount
-    }
-
     "Checking balances in EL->CL->EL transfers" in {
       terc20E2CTransfer(elAmount, clAmount)
 
@@ -96,8 +85,12 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
       waves1.api.broadcastAndWait(ChainContract.transfer(clRecipient, elRecipientAddress, issueAsset, returnClAmount))
       withClue("Assets received: ") {
         eventually {
-          getBalance(TErc20Address, elRecipientAddress.hex) shouldBe returnElAmount
-          getBalance(TErc20Address, StandardBridgeAddress.hex) shouldBe returnElAmount
+          withClue("elRecipient: ") {
+            getBalance(terc20, elRecipientAddress.hex) shouldBe returnElAmount
+          }
+          withClue("StandardBridge: ") {
+            getBalance(terc20, StandardBridgeAddress.hex) shouldBe returnElAmount
+          }
         }
       }
     }
@@ -115,7 +108,7 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
         waves1.api.broadcastAndWait(transferTxn)
         waves1.api.balance(chainContractAddress, Asset.Waves) shouldBe chainContractBalanceBefore + transferAmount
         eventually {
-          getBalance(WWavesAddress, elSenderAddress.hex) shouldBe BigInt(transferAmount)
+          getBalance(wwaves, elSenderAddress.hex) shouldBe BigInt(transferAmount)
           wwaves.call_totalSupply().send() shouldEqual BigInteger.valueOf(transferAmount)
         }
 
@@ -177,6 +170,17 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
           balanceAfter shouldBe (receiverBalanceBefore + returnAmount - withdrawTxn.fee.value)
         }
       }
+    }
+
+    "Dust returned" in {
+      val elAmountWithDust = elAmount + 1
+
+      def elSenderBalance = BigInt(terc20.call_balanceOf(elSenderAddress.hex).send())
+      val balanceBefore   = elSenderBalance
+      terc20E2CTransfer(elAmountWithDust, clAmount)
+      val balanceAfter = elSenderBalance
+
+      balanceAfter shouldBe balanceBefore - elAmount
     }
   }
 
@@ -240,12 +244,11 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
     }
   }
 
-  private def getBalance(erc20Address: EthAddress, account: String): BigInt = {
-    val funcCall = terc20.call_balanceOf(account).encodeFunctionCall()
-
-    val token = TERC20.load(erc20Address.hex, ec1.web3j, txnManager, gasProvider)
-    token.call_balanceOf(account).send()
-  }
+  private def getBalance(erc20Contract: TERC20 | WWaves, account: String): BigInt =
+    erc20Contract match {
+      case contract: TERC20 => contract.call_balanceOf(account).send()
+      case contract: WWaves => contract.call_balanceOf(account).send()
+    }
 
   private def sendApproveErc20(erc20Contract: TERC20 | WWaves, ethAmount: BigInt): TransactionReceipt = {
     val txnResult = erc20Contract match {
@@ -256,12 +259,6 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
     eventually {
       val r = ec1.web3j.ethGetTransactionReceipt(txnResult.getTransactionHash).send().getTransactionReceipt.toScala.value
       if (!r.isStatusOK) {
-//        val revertReason = erc20Contract match {
-//          case contract: TERC20 =>
-//            contract.call_approve(StandardBridgeAddress.toString, ethAmount.bigInteger).send()
-//          case contract: WWaves =>
-//            contract.call_approve(StandardBridgeAddress.toString, ethAmount.bigInteger).send()
-//        }
         fail(s"Expected successful send_approve, got: tx=${EvmEncoding.decodeRevertReason(r.getRevertReason)}")
       }
       r
