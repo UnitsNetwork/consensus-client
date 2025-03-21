@@ -287,13 +287,6 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
     step("Prepare: issue CL asset")
     waves1.api.broadcastAndWait(issueAssetTxn)
 
-    step("Register asset")
-    val txn = ChainContract.registerAsset(issueAsset, TErc20Address, TErc20Decimals)
-    waves1.api.broadcastAndWait(txn)
-    eventually {
-      standardBridge.isRegistered(TErc20Address) shouldBe true
-    }
-
     step("Prepare: move assets for testing purposes")
     waves1.api.broadcast(TxHelpers.transfer(clAssetOwner, chainContractAddress, enoughClAmount, issueAsset))
 
@@ -307,5 +300,12 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
       )
     )
     waves1.api.waitForHeight(activationEpoch)
+
+    step("Register asset")
+    val txn = ChainContract.registerAsset(issueAsset, TErc20Address, TErc20Decimals)
+    waves1.api.broadcastAndWait(txn)
+    eventually {
+      standardBridge.isRegistered(TErc20Address) shouldBe true
+    }
   }
 }
