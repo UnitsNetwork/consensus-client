@@ -11,18 +11,15 @@ import org.web3j.protocol.core.methods.response.TransactionReceipt
 import org.web3j.tx.RawTransactionManager
 import org.web3j.tx.gas.DefaultGasProvider
 import org.web3j.utils.Convert
-import play.api.libs.json.Json
 import units.bridge.{TERC20, WWaves}
 import units.docker.EcContainer
 import units.el.{BridgeMerkleTree, E2CTopics, EvmEncoding}
 import units.eth.EthAddress
 import units.test.TestEnvironment
 
-import java.io.FileInputStream
 import java.math.BigInteger
 import scala.jdk.OptionConverters.RichOptional
 import scala.sys.process.*
-import scala.util.Using
 
 class StandardBridgeTestSuite extends BaseDockerTestSuite {
   private val clAssetOwner    = clRichAccount2
@@ -49,14 +46,14 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
   private lazy val wwaves     = WWaves.load(WWavesAddress.hex, ec1.web3j, txnManager, gasProvider)
   private lazy val terc20     = TERC20.load(TErc20Address.hex, ec1.web3j, elSender, gasProvider)
 
-  // TODO: Because we have to get a token from dictionary before amount checks. Fix with unit tests for contract
-  "Negative" ignore {
+  "Negative" - {
     def test(amount: BigInt, expectedError: String): Unit = {
       val e = standardBridge.getRevertReasonForBridgeErc20(elSender, TErc20Address, clRecipient.toAddress, amount)
       e should include(expectedError)
     }
 
-    "Amount should be between 10 and MAX_AMOUNT_IN_WEI Gwei" in {
+    // TODO: Because we have to get a token from dictionary before amount checks. Fix with unit tests for contract
+    "Amount should be between 10 and MAX_AMOUNT_IN_WEI Gwei" ignore {
       withClue("1. Less than 10 Gwei: ") {
         test(1, "Sent value 1 must be greater or equal to 10000000000")
       }
@@ -67,8 +64,6 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
         test(biggerAmount, s"Sent value $biggerAmount must be less or equal to $maxAmountInWei")
       }
     }
-
-    "Can't transfer without registration" in test(elAmount, "Token is not registered")
   }
 
   "Positive" - {
@@ -187,8 +182,6 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
   private def terc20E2CTransfer(elSendAmount: BigInt, clWithdrawAmount: Long): Unit = {
     val terc20 = TERC20.load(TErc20Address.hex, ec1.web3j, txnManager, new DefaultGasProvider)
 
-    registerAsset(issueAsset, TErc20Address, TErc20Decimals)
-
     step("Send allowance")
     sendApproveErc20(terc20, elSendAmount.bigInteger)
 
@@ -281,24 +274,8 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
     }
   }
 
-  private def registerAsset(asset: IssuedAsset, erc20Address: EthAddress, elDecimals: Int): Unit =
-    if (!standardBridge.isRegistered(erc20Address)) {
-      step(s"Register asset: CL=$asset, EL=$erc20Address, elDecimals=$elDecimals")
-      val txn = ChainContract.registerAsset(asset, erc20Address, elDecimals)
-      waves1.api.broadcastAndWait(txn)
-      eventually {
-        standardBridge.isRegistered(erc20Address) shouldBe true
-      }
-    }
-
   override def beforeAll(): Unit = {
     super.beforeAll()
-
-    step("Prepare: issue CL asset")
-    waves1.api.broadcastAndWait(issueAssetTxn)
-
-    step("Prepare: move assets and enable the asset in the registry")
-    waves1.api.broadcast(TxHelpers.transfer(clAssetOwner, chainContractAddress, enoughClAmount, issueAsset))
 
     step("Prepare: deploy contracts on EL")
     Process(
@@ -307,8 +284,18 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
       "CHAIN_ID" -> EcContainer.ChainId.toString
     ).!(ProcessLogger(out => log.info(out), err => log.error(err)))
 
-    val contractAddresses = Using(new FileInputStream(TestEnvironment.ContractAddressesFile))(Json.parse).get.as[Map[String, String]]
-    log.debug(s"Contract addresses: ${contractAddresses.mkString(", ")}")
+    step("Prepare: issue CL asset")
+    waves1.api.broadcastAndWait(issueAssetTxn)
+
+    step("Register asset")
+    val txn = ChainContract.registerAsset(issueAsset, TErc20Address, TErc20Decimals)
+    waves1.api.broadcastAndWait(txn)
+    eventually {
+      standardBridge.isRegistered(TErc20Address) shouldBe true
+    }
+
+    step("Prepare: move assets for testing purposes")
+    waves1.api.broadcast(TxHelpers.transfer(clAssetOwner, chainContractAddress, enoughClAmount, issueAsset))
 
     step("Enable token transfers")
     val activationEpoch = waves1.api.height() + 1

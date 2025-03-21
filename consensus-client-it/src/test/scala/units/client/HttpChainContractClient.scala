@@ -63,6 +63,15 @@ class HttpChainContractClient(api: NodeHttpApi, override val contract: Address)
     }
   }
 
+  // This is different from blockchain.height, because we wait this from a contract block 
+  def waitForEpoch(atLeast: Int, chainId: Long = DefaultMainChainId): Unit = {
+    log.debug(s"waitForEpoch($atLeast)")
+    eventually {
+      val lastBlock = getLastBlockMeta(chainId).value
+      lastBlock.epoch should be >= atLeast
+    }
+  }
+
   def waitForHeight(atLeast: Long, chainId: Long = DefaultMainChainId): Unit = {
     log.debug(s"waitForHeight($atLeast)")
     eventually {
