@@ -11,7 +11,7 @@ import {IUnitsMintableERC20} from "@units/IUnitsMintableERC20.sol";
 contract StandardBridge {
     using SafeERC20 for IERC20;
 
-    /// @notice Mapping that stores deposits for a given local token.
+    /// @notice Mapping that stores deposits for a given local token. Deletion breaks StageNet
     mapping(address => uint256) public deposits;
     mapping(address => uint256) public tokenRatios;
 
@@ -109,7 +109,7 @@ contract StandardBridge {
             IUnitsMintableERC20(_localToken).burn(_from, adjustedAmount);
         } else {
             IERC20(_localToken).safeTransferFrom(_from, address(this), adjustedAmount);
-            deposits[_localToken] += adjustedAmount;
+            // deposits[_localToken] += adjustedAmount;
         }
 
         // Emit the correct events. By default this will be ERC20BridgeInitiated, but child
@@ -136,7 +136,7 @@ contract StandardBridge {
         if (_isUnitsMintableERC20(_localToken)) {
             IUnitsMintableERC20(_localToken).mint(_to, _amount);
         } else {
-            deposits[_localToken] = deposits[_localToken] - _amount;
+            // deposits[_localToken] -= _amount;
             IERC20(_localToken).safeTransfer(_to, _amount);
         }
 
