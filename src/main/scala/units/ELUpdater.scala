@@ -659,8 +659,8 @@ class ELUpdater(
         logger.trace(s"Finalized block ${finalizedBlock.hash} is at height ${finalizedEcBlock.height}")
 
         val currentMinerList = chainContractClient.getAllActualMiners.toSet
-        val minersChanged =
-          if (previouslyKnownMiners != currentMinerList)
+        val chosenMinerGotEvicted =
+          if (previouslyKnownMiners == currentMinerList + prevState.epochInfo.miner)
             then {
               logger.info(s"Miners changed. New count: ${currentMinerList.size}")
               previouslyKnownMiners = currentMinerList
@@ -671,7 +671,7 @@ class ELUpdater(
         if (
           blockchain.height != prevState.epochInfo.number
           || !blockchain.vrf(blockchain.height).contains(prevState.epochInfo.hitSource)
-          || minersChanged
+          || chosenMinerGotEvicted
         ) {
           calculateEpochInfo match {
             case Left(error) =>
