@@ -4,9 +4,6 @@ import com.wavesplatform.db.WithState.AddrWithBalance
 import com.wavesplatform.state.{IntegerDataEntry, StringDataEntry}
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.TxHelpers
-import com.wavesplatform.lang.v1.compiler.Terms.{ARR, CONST_LONG}
-import com.wavesplatform.common.utils.EitherExt2.explicitGet
-import units.ELUpdater.ClChangedProcessingDelay
 
 class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
   private val idleMiner = ElMinerSettings(TxHelpers.signer(1))
