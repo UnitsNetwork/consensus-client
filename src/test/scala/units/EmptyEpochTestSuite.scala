@@ -363,8 +363,11 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
     val thisMiner = ElMinerSettings(Wallet.generateNewAccount(super.defaultSettings.walletSeed, 0))
     val settings  = defaultSettings.copy(initialMiners = List(thisMiner, idleMiner))
     withExtensionDomain(settings) { d =>
-      val maxSkippedEpochCount = 200
+      val maxSkippedEpochCount = 10
       var reportedEpochs       = List.empty[Int]
+
+      // Set maxSkippedEpochCount (to speed up the test)
+      d.appendBlock(TxHelpers.dataEntry(d.chainContractAccount, IntegerDataEntry("maxSkippedEpochCount", maxSkippedEpochCount)))
 
       Range
         .inclusive(1, maxSkippedEpochCount)
@@ -421,12 +424,15 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
 
   "Even when 2 idle miners are ready to be evicted in one epoch, an epoch still can be reported only once" in {
     val idleMiner2 = ElMinerSettings(TxHelpers.signer(2))
-    val reporter1  = ElMinerSettings(TxHelpers.signer(5))
+    val reporter1  = ElMinerSettings(TxHelpers.signer(3))
     val settings   = defaultSettings.copy(initialMiners = List(idleMiner, idleMiner2, reporter1))
     withExtensionDomain(settings) { d =>
-      val maxSkippedEpochCount = 200
+      val maxSkippedEpochCount = 10
       var reportedEpochs1      = List.empty[Int]
       var reportedEpochs2      = List.empty[Int]
+
+      // Set maxSkippedEpochCount (to speed up the test)
+      d.appendBlock(TxHelpers.dataEntry(d.chainContractAccount, IntegerDataEntry("maxSkippedEpochCount", maxSkippedEpochCount)))
 
       Range
         .inclusive(1, maxSkippedEpochCount - 1)
