@@ -202,7 +202,7 @@ class ELUpdater(
               ecBlock = newBlock.toEcBlock
               ecBlockLogs <- engineApiClient.getLogs(
                 hash = ecBlock.hash,
-                addresses = chainContractOptions.bridgeAddresses,
+                addresses = chainContractOptions.bridgeAddresses(epochInfo.number),
                 topics = Nil
               )
               transfersRootHash <- BridgeMerkleTree.getE2CTransfersRootHash(ecBlockLogs).leftMap(ClientError.apply)
@@ -284,22 +284,28 @@ class ELUpdater(
     val nativeTransferWithdrawals = toWithdrawals(nativeTransfers, rewardWithdrawal.lastOption.fold(startElWithdrawalIndex)(_.index + 1))
     val withdrawals               = rewardWithdrawal ++ nativeTransferWithdrawals
 
-    val startAssetRegistryIndex = lastAssetRegistryIndex + 1
-    val assetRegistrySize       = chainContractClient.getAssetRegistrySize
-    val addedAssets =
-      if (startAssetRegistryIndex == assetRegistrySize) Nil
-      else chainContractClient.getRegisteredAssets(startAssetRegistryIndex until assetRegistrySize)
+    val (addedAssets, updateAssetRegistryTransaction) =
+      if (epochInfo.number < chainContractOptions.assetTransfersActivationEpoch) (Nil, None)
+      else {
+        val startAssetRegistryIndex = lastAssetRegistryIndex + 1
+        val assetRegistrySize       = chainContractClient.getAssetRegistrySize
+        val addedAssets =
+          if (startAssetRegistryIndex == assetRegistrySize) Nil
+          else chainContractClient.getRegisteredAssets(startAssetRegistryIndex until assetRegistrySize)
 
-    val updateAssetRegistryTransaction =
-      if (addedAssets.isEmpty) None
-      else
-        chainContractOptions.elStandardBridgeAddress.map { sba =>
-          StandardBridge.mkUpdateAssetRegistryTransaction(
-            standardBridgeAddress = sba,
-            addedTokenExponents = addedAssets.map(_.exponent),
-            addedTokens = addedAssets.map(_.erc20Address)
-          )
-        }
+        val txn =
+          if (addedAssets.isEmpty) None
+          else
+            chainContractOptions.elStandardBridgeAddress.map { sba =>
+              StandardBridge.mkUpdateAssetRegistryTransaction(
+                standardBridgeAddress = sba,
+                addedTokenExponents = addedAssets.map(_.exponent),
+                addedTokens = addedAssets.map(_.erc20Address)
+              )
+            }
+
+        (addedAssets, txn)
+      }
 
     val depositedTransactions = updateAssetRegistryTransaction.toVector ++ (for {
       sba <- chainContractOptions.elStandardBridgeAddress.toVector
@@ -1276,17 +1282,22 @@ class ELUpdater(
       ecBlockLogs: List[GetLogsResponseEntry],
       contractBlock: ContractBlock,
       parentContractBlock: ContractBlock,
-      elStandardBridgeAddress: Option[EthAddress]
+      chainContractOptions: ChainContractOptions
   ): JobResult[Unit] = {
     val expectedAddedAssets =
-      if (parentContractBlock.lastAssetRegistryIndex == contractBlock.lastAssetRegistryIndex) Nil
+      if (
+        contractBlock.epoch < chainContractOptions.assetTransfersActivationEpoch ||
+        parentContractBlock.lastAssetRegistryIndex == contractBlock.lastAssetRegistryIndex
+      ) Nil
       else {
         val startAssetRegistryIndex = parentContractBlock.lastAssetRegistryIndex + 1
         chainContractClient.getRegisteredAssets(startAssetRegistryIndex to contractBlock.lastAssetRegistryIndex)
       }
 
-    val relatedElRawLogs =
-      ecBlockLogs.filter(x => elStandardBridgeAddress.contains(x.address) && x.topics.contains(StandardBridge.RegistryUpdated.Topic))
+    val relatedElRawLogs = ecBlockLogs.filter { x =>
+      chainContractOptions.elStandardBridgeAddress.contains(x.address) &&
+      x.topics.contains(StandardBridge.RegistryUpdated.Topic)
+    }
     for {
       _ <- relatedElRawLogs match {
         case Nil =>
@@ -1552,12 +1563,12 @@ class ELUpdater(
           .toRight(ClientError(s"Can't find a parent block ${contractBlock.parentHash} of block ${contractBlock.hash} on chain contract"))
         ecBlockLogs <- engineApiClient.getLogs(
           hash = ecBlock.hash,
-          addresses = prevState.options.bridgeAddresses,
+          addresses = prevState.options.bridgeAddresses(contractBlock.epoch),
           topics = Nil
         )
-        _ <- validateE2CTransfers(contractBlock, ecBlockLogs).leftMap(ClientError.apply)
-        _ <- validateAssetRegistryUpdate(ecBlock.hash, ecBlockLogs, contractBlock, parentContractBlock, prevState.options.elStandardBridgeAddress)
-        _ <- validateRandao(ecBlock, contractBlock.epoch)
+        _                            <- validateE2CTransfers(contractBlock, ecBlockLogs).leftMap(ClientError.apply)
+        _                            <- validateAssetRegistryUpdate(ecBlock.hash, ecBlockLogs, contractBlock, parentContractBlock, prevState.options)
+        _                            <- validateRandao(ecBlock, contractBlock.epoch)
         updatedLastElWithdrawalIndex <- validateC2E(contractBlock, ecBlock, ecBlockLogs, prevState.fullValidationStatus, prevState.options)
       } yield updatedLastElWithdrawalIndex
 

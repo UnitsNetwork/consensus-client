@@ -11,8 +11,6 @@ services:
     environment:
       NODE_NUMBER: 1
       GETH_NETWORKID: 1337
-      # config.toml doesn't have options for this, see https://github.com/ethereum/go-ethereum/issues/21492
-      EXTRA_ARGS: --log.file=/root/logs/op-geth.log --verbosity=5 --log.format=terminal
     ports:
       - "127.0.0.1:18551:8551" # Engine port - doesn't have all APIs
       - "127.0.0.1:18545:8545" # RPC port, for Metamask e.g.
@@ -21,7 +19,7 @@ services:
       - ./logs/ec-1:/root/logs
       - ./configs/ec-common/p2p-key-1.hex:/etc/secrets/p2p-key:ro
       - ./configs/ec-common/jwtsecret.hex:/etc/secrets/jwtsecret:ro
-      - ./configs/ec-common/peers.toml:/etc/config.toml:ro
+      - ./configs/ec-common/config.toml:/etc/config.toml:ro
       - ./configs/ec-common/genesis.json:/tmp/genesis.json:ro
 
   # TODO: Until fixed an issue with rollback
@@ -34,7 +32,6 @@ services:
   #   environment:
   #     NODE_NUMBER: 2
   #     GETH_NETWORKID: 1337
-  #     EXTRA_ARGS: --log.file=/root/logs/op-geth.log --verbosity=5 --log.format=terminal
   #   ports:
   #     - "127.0.0.1:28551:8551" # Engine port - doesn't have all APIs
   #     - "127.0.0.1:28545:8545" # RPC port, for Metamask e.g.
@@ -43,7 +40,7 @@ services:
   #     - ./logs/ec-2:/root/logs
   #     - ./configs/ec-common/p2p-key-2.hex:/etc/secrets/p2p-key:ro
   #     - ./configs/ec-common/jwtsecret.hex:/etc/secrets/jwtsecret:ro
-  #     - ./configs/ec-common/peers.toml:/etc/config.toml:ro
+  #     - ./configs/ec-common/config.toml:/etc/config.toml:ro
   #     - ./configs/ec-common/genesis.json:/tmp/genesis.json:ro
 
   # Make sure, you have enough RAM to run additional nodes
@@ -56,7 +53,6 @@ services:
   #   environment:
   #     NODE_NUMBER: 3
   #     GETH_NETWORKID: 1337
-  #     EXTRA_ARGS: --log.file=/root/logs/op-geth.log --verbosity=5 --log.format=terminal
   #   ports:
   #     - "127.0.0.1:38551:8551" # Engine port - doesn't have all APIs
   #     - "127.0.0.1:38545:8545" # RPC port, for Metamask e.g.
@@ -65,7 +61,7 @@ services:
   #     - ./logs/ec-3:/root/logs
   #     - ./configs/ec-common/p2p-key-3.hex:/etc/secrets/p2p-key:ro
   #     - ./configs/ec-common/jwtsecret.hex:/etc/secrets/jwtsecret:ro
-  #     - ./configs/ec-common/peers.toml:/etc/config.toml:ro
+  #     - ./configs/ec-common/config.toml:/etc/config.toml:ro
   #     - ./configs/ec-common/genesis.json:/tmp/genesis.json:ro
 
   # ec-4:
@@ -77,7 +73,6 @@ services:
   #   environment:
   #     NODE_NUMBER: 4
   #     GETH_NETWORKID: 1337
-  #     EXTRA_ARGS: --log.file=/root/logs/op-geth.log --verbosity=5 --log.format=terminal
   #   ports:
   #     - "127.0.0.1:48551:8551" # Engine port - doesn't have all APIs
   #     - "127.0.0.1:48545:8545" # RPC port, for Metamask e.g.
@@ -86,7 +81,7 @@ services:
   #     - ./logs/ec-4:/root/logs
   #     - ./configs/ec-common/p2p-key-4.hex:/etc/secrets/p2p-key:ro
   #     - ./configs/ec-common/jwtsecret.hex:/etc/secrets/jwtsecret:ro
-  #     - ./configs/ec-common/peers.toml:/etc/config.toml:ro
+  #     - ./configs/ec-common/config.toml:/etc/config.toml:ro
   #     - ./configs/ec-common/genesis.json:/tmp/genesis.json:ro
 
   waves-node-1:

@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.29;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
-import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IUnitsMintableERC20 } from "@units/IUnitsMintableERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IUnitsMintableERC20} from "@units/IUnitsMintableERC20.sol";
 
 contract StandardBridge {
     using SafeERC20 for IERC20;
 
-    /// @notice Mapping that stores deposits for a given local token.
-    mapping(address => uint256) public deposits;
+    /// @notice Mapping that stores deposits for a given local token. Deletion breaks StageNet
+    mapping(address => uint256) public _unusedDeposits;
     mapping(address => uint256) public tokenRatios;
 
     event ERC20BridgeInitiated(
@@ -100,18 +100,21 @@ contract StandardBridge {
         uint256 maxAmountInWei = uint256(uint64(type(int64).max)) * ratio;
         require(_amount >= minAmountInWei, string.concat("Sent value ", Strings.toString(_amount), " must be greater or equal to ", Strings.toString(minAmountInWei)));
         require(_amount <= maxAmountInWei, string.concat("Sent value ", Strings.toString(_amount), " must be less or equal to ", Strings.toString(maxAmountInWei)));
-        uint256 clAmount = _amount / ratio;
-        require(clAmount * ratio == _amount, string.concat("Sent value ", Strings.toString(_amount), " must be a multiple of ", Strings.toString(ratio)));
+
+        uint256 dust = _amount % ratio;
+        uint256 adjustedAmount = _amount - dust;
+        require(adjustedAmount > 0, "Adjusted amount is empty. Try to send more");
 
         if (_isUnitsMintableERC20(_localToken)) {
-            IUnitsMintableERC20(_localToken).burn(_from, _amount);
+            IUnitsMintableERC20(_localToken).burn(_from, adjustedAmount);
         } else {
-            IERC20(_localToken).safeTransferFrom(_from, address(this), _amount);
-            deposits[_localToken] = deposits[_localToken] + _amount;
+            IERC20(_localToken).safeTransferFrom(_from, address(this), adjustedAmount);
+            // deposits[_localToken] += adjustedAmount;
         }
 
         // Emit the correct events. By default this will be ERC20BridgeInitiated, but child
         // contracts may override this function in order to emit legacy events as well.
+        uint256 clAmount = adjustedAmount / ratio;
         _emitERC20BridgeInitiated(_localToken, _from, _to, clAmount);
     }
 
@@ -133,7 +136,7 @@ contract StandardBridge {
         if (_isUnitsMintableERC20(_localToken)) {
             IUnitsMintableERC20(_localToken).mint(_to, _amount);
         } else {
-            deposits[_localToken] = deposits[_localToken] - _amount;
+            // deposits[_localToken] -= _amount;
             IERC20(_localToken).safeTransfer(_to, _amount);
         }
 

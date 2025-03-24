@@ -138,22 +138,17 @@ func ensureCorrectTransfers(refTransferIndex: Int, transferIndex: Int, expectRew
   let maxTransfers    = if (expectReward) then MAX_CL_TO_EL_TRANSFERS - 1 else MAX_CL_TO_EL_TRANSFERS
   let actualTransfers = transferIndex - refTransferIndex
 
-  strict checkNumber = if (actualTransfers > maxTransfers)
-    then throw("Allowed only " + maxTransfers.toString() + " transfers, got " + actualTransfers.toString())
-    else true
-
-  if (transferIndex >= transfersCount)
-    then throw("Attempt to transfer #" + transferIndex.toString() + ". Available transfers: " + transfersCount.toString())
-    else true
+  strict checkNumber = actualTransfers > maxTransfers &&
+    throw("Allowed only " + maxTransfers.toString() + " transfers, got " + actualTransfers.toString())
+  transferIndex >= transfersCount &&
+    throw("Attempt to transfer #" + transferIndex.toString() + ". Available transfers: " + transfersCount.toString())
 }
 
-func amountGtEq(t: AttachedPayment, gtEq: Int, queueSize: Int) = {
-  if (t.amount >= gtEq) then true
-  else throw(
+func amountGtEq(t: AttachedPayment, gtEq: Int, queueSize: Int) =
+  t.amount >= gtEq || throw(
     "Transferring amount " + t.amount.toString() + " should be >= " + gtEq.toString() +
     " for queue size of " + queueSize.toString() + ". Transfer more or wait"
   )
-}
 
 func generatingBalance(address: Address) = {
   address.wavesBalance().generating
@@ -268,7 +263,6 @@ let (computedGenerator, computedTotalBalance) = {
 let (mclbIgnored1, mainChainEpoch) = blockMeta(mainChainLastBlock)
 
 func calculateFinalizedBlockHashAndEpoch(curMiner: Address, curPrevEpoch: Int, curLastBlockHash: String) = {
-
   let halfBalance = computedTotalBalance / 2
 
   func step(prev: (Int, String|Unit, Int, List[Address]), next: String) = {
@@ -315,19 +309,13 @@ func supportingBalance(chainId: Int) = {
   res._1
 }
 
-func isContractSetup() = {
-  getInteger(minerRewardKey).isDefined()
-}
+func isContractSetup() = getInteger(minerRewardKey).isDefined()
 
-func ensureMiningEpoch(generator: Address) = {
-  if (generator.toString() != computedGenerator) then throw(generator.bytes.toBase58String() + " is not allowed to mine in " + toString(height) + " epoch. Expected " + computedGenerator)
-  else unit
-}
+func ensureMiningEpoch(generator: Address) =
+  generator.toString() != computedGenerator && throw(generator.bytes.toBase58String() + " is not allowed to mine in " + toString(height) + " epoch. Expected " + computedGenerator)
 
-func isReferenceCorrect(reference: String, lastBlock: String) = {
-  if (reference == lastBlock) then unit
-  else throw("Expected a reference to the chain last block: 0x" + lastBlock + ". Got: 0x" + reference)
-}
+func isReferenceCorrect(reference: String, lastBlock: String) =
+  reference == lastBlock || throw("Expected a reference to the chain last block: 0x" + lastBlock + ". Got: 0x" + reference)
 
 func chainIsInactive(chainId: Int) = {
   let firstBlockId = getStringValue(chainFirstBlockIdKey(chainId))
@@ -346,10 +334,7 @@ func ensureExpectedOrInactiveChain(generator: Address, expectedChainId: Int, che
   }
   match minerChainId(generator) {
     case currentId: Int =>
-      if (currentId == expectedChainId || (chainIsInactive(currentId) && heightIsCorrect))
-      then
-        unit
-      else
+      currentId == expectedChainId || chainIsInactive(currentId) && heightIsCorrect ||
         throw("miner is mining other chain " + currentId.toString())
     case _ =>
       unit
@@ -364,7 +349,7 @@ func vrfAt(height: Int) = blockInfoByHeight(height)
 
 func ensureCorrectEpoch(expectedVRF: ByteVector) = {
   let actualVRF = vrfAt(height)
-  if (expectedVRF == actualVRF) then unit else throw("Expected VRF " + expectedVRF.toBase58String() + " does not match actual " + actualVRF.toBase58String() + heightString)
+  expectedVRF == actualVRF || throw("Expected VRF " + expectedVRF.toBase58String() + " does not match actual " + actualVRF.toBase58String() + heightString)
 }
 
 func addSupporter(chainId: Int, generator: Address) = {
@@ -737,9 +722,7 @@ func join(rewardAddressHex: String) = {
   func ensureNotOverrideOtherMinerPk(elAddressHex: String) = {
     match getBinary(minerPkKey(elAddressHex)) {
       case pk: ByteVector =>
-        if (pk == i.originCallerPublicKey) then
-          unit
-        else
+        pk == i.originCallerPublicKey ||
           throw("EL miner address " + elAddressHex + " is already linked with " + pk.toBase58String())
       case _ => unit
     }
@@ -821,6 +804,8 @@ func transfer(destElAddressHex: String) = {
     #   else throw("Transfers denied for queue size of " + queueSize.toString() + ". Wait until current transfers processed")
     Burn(nativeTokenId, t.amount) :: mkNativeTransferEntries(normalizedDestElAddressHex, t.amount)
   } else {
+    strict activated = requireAssetTransfersActivated()
+
     let (assetIdBase58OrWaves, preActions) = match t.assetId {
       case assetId: ByteVector =>
         let asset      = assetInfo(assetId).valueOrErrorMessage("Unexpected error: unknown asset")
@@ -922,6 +907,7 @@ func withdrawAsset(blockHashHex: String, merkleProof: List[ByteVector], transfer
 
 @Callable(i)
 func registerAssets(assetIds: List[String], erc20Addresses: List[String], elDecimals: List[Int]) = {
+  strict activated   = requireAssetTransfersActivated()
   strict validCaller = i.originCaller == this || throw("Only owner of chain contract can do this")
 
   let assetIdsSize  = assetIds.size()
@@ -953,6 +939,7 @@ func registerAssets(assetIds: List[String], erc20Addresses: List[String], elDeci
 
 @Callable(i)
 func issueAndRegister(erc20AddressHex: String, elDecimals: Int, name: String, description: String, clDecimals: Int) = {
+  strict activated     = requireAssetTransfersActivated()
   strict validCaller   = i.originCaller == this || throw("Only owner of chain contract can do this")
   strict validDecimals = elDecimals <= 8 && elDecimals == clDecimals || elDecimals > clDecimals || throw("Invalid decimals, EL=" + elDecimals.toString() + ", CL=" + clDecimals.toString())
 
@@ -979,9 +966,9 @@ func enableTokenTransfers(standardBridgeAddress: String, wavesERC20AddressHex: S
   if (standardBridgeWasNotConfigured)
     then
       mkAssetRegistryEntries(assetRegistrySize, "WAVES", normalizeEthAddress(wavesERC20AddressHex), 0) ++ [
-        StringEntry(elStandardBridgeAddressKey, "0x" + normalizeEthAddress(standardBridgeAddress)),
+        IntegerEntry(assetRegistrySizeKey, assetRegistrySize + 1),
         IntegerEntry(assetTransfersActivationEpochKey, activationEpoch),
-        IntegerEntry(assetRegistrySizeKey, assetRegistrySize + 1)
+        StringEntry(elStandardBridgeAddressKey, "0x" + normalizeEthAddress(standardBridgeAddress))
       ]
     else []
 }
@@ -993,7 +980,7 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: Stri
   else if (minerRewardInGwei < 0) then throw("The miner reward must be nonnegative")
   else {
     let genesisBlockHash = genesisBlockHashHex.fromBase16String()
-    strict checkGenesisBlockHashSize = if (genesisBlockHash.size() == BLOCK_HASH_SIZE) then true else throw("Wrong genesis block hash")
+    strict checkGenesisBlockHashSize = genesisBlockHash.size() == BLOCK_HASH_SIZE || throw("Wrong genesis block hash")
 
     let emptyPk                   = base58'11111111111111111111111111111111'
     let genesisMinerAddress       = addressFromPublicKey(emptyPk)
