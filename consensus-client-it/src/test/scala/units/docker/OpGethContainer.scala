@@ -18,26 +18,36 @@ import scala.io.Source
 
 class OpGethContainer(network: NetworkImpl, number: Int, ip: String)(implicit httpClientBackend: SttpBackend[Identity, Any])
     extends EcContainer(number) {
+
   protected override val container = new GenericContainer(DockerImages.OpGethExecutionClient)
     .withNetwork(network)
     .withExposedPorts(RpcPort, EnginePort)
-    .withFileSystemBind(s"$ConfigsDir/ec-common/genesis.json", "/tmp/genesis.json", BindMode.READ_ONLY)
-    .withFileSystemBind(s"$ConfigsDir/ec-common/peers-geth.toml", "/tmp/peers.toml", BindMode.READ_ONLY)
+    .withEnv("NODE_NUMBER", number.toString)
+    .withEnv("GETH_NETWORKID", "1337")
+    .withEnv("GETH_BOOTNODES", "")
+    .withFileSystemBind(s"$ConfigsDir/ec-common", "/etc/secrets", BindMode.READ_ONLY)
     .withFileSystemBind(s"$ConfigsDir/op-geth/run-op-geth.sh", "/tmp/run.sh", BindMode.READ_ONLY)
-    .withFileSystemBind(s"$ConfigsDir/ec-common/p2p-key-$number.hex", "/etc/secrets/p2p-key", BindMode.READ_ONLY)
-    .withFileSystemBind(s"$ConfigsDir/ec-common/jwt-secret-$number.hex", "/etc/secrets/jwtsecret", BindMode.READ_ONLY)
-    .withFileSystemBind(s"$logFile", "/root/logs/log", BindMode.READ_WRITE)
+    .withFileSystemBind(s"$logFile", "/root/logs/op-geth.log", BindMode.READ_WRITE)
     .withCreateContainerCmdModifier { cmd =>
       cmd
         .withName(s"${network.getName}-$hostName")
         .withHostName(hostName)
         .withIpv4Address(ip)
-        .withEntrypoint("/tmp/run.sh")
+        .withEntrypoint("/bin/sh", "-c")
+        .withCmd(
+          s"""if [ ! -d /root/.ethereum/geth/chaindata ] ; then
+  geth init /etc/secrets/genesis.json
+else
+  echo geth already initialized
+fi
+exec geth --networkid=1337 \\
+--syncmode=full --nat=extip:${ip} --http --http.addr=0.0.0.0 --http.vhosts=* --http.api=eth,web3,txpool,net,debug,engine --http.corsdomain=* --ws --ws.addr=0.0.0.0 --ws.api=eth,web3,txpool,net,debug --ws.rpcprefix=/ --ws.origins='*' --authrpc.addr=0.0.0.0 --authrpc.vhosts='*' --authrpc.jwtsecret=/etc/secrets/jwtsecret.hex --nodekey=/etc/secrets/p2p-key-${number.toString}.hex --log.file=/root/logs/op-geth.log --verbosity=5 --log.format=terminal --log.rotate --log.compress"""
+        )
         .withStopTimeout(5)
     }
 
   lazy val jwtSecretKey = {
-    val src = Source.fromFile(s"$ConfigsDir/ec-common/jwt-secret-$number.hex")
+    val src = Source.fromFile(s"$ConfigsDir/ec-common/jwtsecret.hex")
     try src.getLines().next()
     finally src.close()
   }

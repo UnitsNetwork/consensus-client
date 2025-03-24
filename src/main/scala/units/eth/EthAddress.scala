@@ -1,7 +1,7 @@
 package units.eth
 
-import units.util.HexBytesConverter
 import play.api.libs.json.*
+import units.util.HexBytesConverter
 
 class EthAddress private (val hex: String) {
   def hexNoPrefix: String = hex.drop(2)
@@ -23,11 +23,17 @@ object EthAddress {
 
   implicit val ethAddressFormat: Format[EthAddress] = implicitly[Format[String]].bimap(unsafeFrom, _.hex)
 
-  def unsafeFrom(hex: String): EthAddress = {
-    require(hex.startsWith("0x"), "Expected an address to start with 0x")
-    require(hex.length == AddressHexLengthWithPrefix, s"Expected a hex string of $AddressHexLengthWithPrefix symbols, got: ${hex.length}. Hex: $hex")
-    new EthAddress(hex.toLowerCase())
-  }
+  def from(hex: String): Either[String, EthAddress] = {
+    for {
+      _ <- Either.cond(hex.startsWith("0x"), (), "expected an address to start with 0x")
+      _ <- Either.cond(
+        hex.length == AddressHexLengthWithPrefix,
+        (),
+        s"Expected a hex string of $AddressHexLengthWithPrefix symbols, got: ${hex.length}. Hex: $hex"
+      )
+    } yield new EthAddress(hex.toLowerCase())
+  }.left.map(e => s"Can't decode address '$hex': $e")
 
+  def unsafeFrom(hex: String): EthAddress        = from(hex).left.map(new RuntimeException(_)).toTry.get
   def unsafeFrom(bytes: Array[Byte]): EthAddress = unsafeFrom(HexBytesConverter.toHex(bytes))
 }

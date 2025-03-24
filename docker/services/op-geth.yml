@@ -1,0 +1,47 @@
+services:
+  op-geth:
+    container_name: op-geth
+    image: ghcr.io/unitsnetwork/op-geth:v1.101503.1-simulate-fixes
+    stop_grace_period: 5m
+    entrypoint: /bin/sh -c
+    environment:
+      GETH_BOOTNODES: ""
+      GETH_CONFIG: /etc/config.toml
+      # config.toml doesn't have options for this, see https://github.com/ethereum/go-ethereum/issues/21492
+      GETH_LOG_FILE: /root/logs/op-geth.log
+      GETH_VERBOSITY: 4 # debug
+      GETH_LOG_FORMAT: terminal
+    command:
+      - |
+        if [ ! -d /root/.ethereum/geth/chaindata ] ; then
+          geth init /tmp/genesis.json
+        else
+          echo geth already initialized
+        fi
+        exec geth \
+        --syncmode=full \
+        --verbosity=4 \
+        --http \
+        --http.addr=0.0.0.0 \
+        --http.vhosts=* \
+        --http.api=eth,web3,txpool,net,debug,engine \
+        --http.corsdomain=* \
+        --ws \
+        --ws.addr=0.0.0.0 \
+        --ws.api=eth,web3,txpool,net,debug \
+        --ws.rpcprefix=/ \
+        --ws.origins=* \
+        --authrpc.addr=0.0.0.0 \
+        --authrpc.vhosts=* \
+        --authrpc.jwtsecret=/etc/secrets/jwtsecret \
+        --nodekey=/etc/secrets/p2p-key
+    logging:
+      driver: local
+      options:
+        max-size: 1g
+        max-file: 5
+    healthcheck:
+      test: 'wget -qO /dev/null --header "content-type: application/json" --post-data {\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}  http://127.0.0.1:8545'
+      interval: 5s
+      timeout: 1s
+      retries: 10

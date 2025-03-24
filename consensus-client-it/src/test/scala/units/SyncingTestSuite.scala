@@ -2,7 +2,6 @@ package units
 
 import com.wavesplatform.utils.EthEncoding
 import org.web3j.crypto.{RawTransaction, TransactionEncoder}
-import org.web3j.protocol.core.DefaultBlockParameter
 import org.web3j.protocol.core.methods.response.{EthSendTransaction, TransactionReceipt}
 import org.web3j.tx.gas.DefaultGasProvider
 import org.web3j.utils.Convert
@@ -29,16 +28,10 @@ class SyncingTestSuite extends BaseDockerTestSuite {
     val txn2Result = sendTxn(1)
     val txn3Result = sendTxn(2)
 
-    val txn2Receipt = waitForTxn(txn2Result)
-    val txn3Receipt = waitForTxn(txn3Result)
+    val txn2ReceiptBeforeRb = waitForTxn(txn2Result)
+    val txn3ReceiptBeforeRb = waitForTxn(txn3Result)
 
-    val blocksWithTxns = List(txn2Receipt, txn3Receipt).map(x => x.getBlockNumber -> x.getBlockHash).toMap
-    step(s"Waiting blocks ${blocksWithTxns.mkString(", ")} on contract")
-    blocksWithTxns.foreach { case (_, blockHash) =>
-      eventually {
-        chainContract.getBlock(BlockHash(blockHash)).value
-      }
-    }
+    val blocksWithTxnsBeforeRb = List(txn2ReceiptBeforeRb, txn3ReceiptBeforeRb).map(x => x.getBlockNumber -> x.getBlockHash).toMap
 
     step("Rollback CL")
     waves1.api.rollback(height1)
@@ -46,23 +39,14 @@ class SyncingTestSuite extends BaseDockerTestSuite {
     step("Wait for EL mining")
     waves1.api.waitForHeight(height1 + 2)
 
-    step(s"Waiting blocks ${blocksWithTxns.mkString(", ")} disappear")
-    blocksWithTxns.foreach { case (_, blockHash) =>
-      eventually {
-        chainContract.getBlock(BlockHash(blockHash)) shouldBe empty
-      }
-    }
-
-    blocksWithTxns.foreach { case (height, blockHash) =>
-      eventually {
-        val block = ec1.web3j.ethGetBlockByNumber(DefaultBlockParameter.valueOf(height), false).send().getBlock
-        block.getHash shouldNot be(blockHash)
-      }
-    }
-
     step("Waiting transactions 2 and 3 on EL")
-    waitForTxn(txn2Result)
-    waitForTxn(txn3Result)
+    val txn2ReceiptAfterRb = waitForTxn(txn2Result)
+    val txn3ReceiptAfterRb = waitForTxn(txn3Result)
+
+    withClue("Transactions moved: ") {
+      txn2ReceiptAfterRb.getBlockHash should not be txn2ReceiptBeforeRb.getBlockHash
+      txn3ReceiptAfterRb.getBlockHash should not be txn3ReceiptBeforeRb.getBlockHash
+    }
   }
 
   private def sendTxn(nonce: Long): EthSendTransaction = {
@@ -72,7 +56,7 @@ class SyncingTestSuite extends BaseDockerTestSuite {
       DefaultGasProvider.GAS_LIMIT,
       "0x0000000000000000000000000000000000000000",
       amount,
-      BigInteger.ZERO,
+      BigInteger.ONE,
       DefaultGasProvider.GAS_PRICE
     )
     val signedTransaction = EthEncoding.toHexString(TransactionEncoder.signMessage(rawTransaction, elSender))

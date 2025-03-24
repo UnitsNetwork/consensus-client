@@ -52,7 +52,7 @@ class ConsensusClient(context: ExtensionContext) extends StrictLogging with Exte
     allChainConfigs.map(cfg => new ConsensusClient.ChainHandler(context, new ConsensusClientDependencies(cfg))).toVector
   }
 
-  override def start(): Unit = {}
+  override def start(): Unit = logger.info(s"Consensus client version: ${Version.VersionString}")
 
   def shutdown(): Future[Unit] = Future.sequence(chainHandlers.map(h => Future(h.close()))).map(_ => ())
 

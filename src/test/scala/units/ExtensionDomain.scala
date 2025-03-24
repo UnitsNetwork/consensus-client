@@ -41,8 +41,8 @@ import pureconfig.ConfigSource
 import units.ELUpdater.*
 import units.ELUpdater.State.{ChainStatus, Working}
 import units.ExtensionDomain.*
-import units.client.contract.HasConsensusLayerDappTxHelpers
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
+import units.client.contract.{ChainContractStateClient, HasConsensusLayerDappTxHelpers}
 import units.client.engine.model.{EcBlock, TestEcBlocks}
 import units.client.{L2BlockLike, TestEcClients}
 import units.eth.{EthAddress, EthereumConstants, Gwei}
@@ -60,7 +60,8 @@ class ExtensionDomain(
     rocksDBWriter: RocksDBWriter,
     settings: WavesSettings,
     override val chainRegistryAccount: KeyPair,
-    elBridgeAddress: EthAddress,
+    nativeBridgeAddress: EthAddress,
+    standardBridgeAddress: EthAddress,
     elMinerDefaultReward: Gwei
 ) extends Domain(rdb, blockchainUpdater, rocksDBWriter, settings)
     with HasConsensusLayerDappTxHelpers
@@ -86,7 +87,8 @@ class ExtensionDomain(
     withdrawals = Vector.empty
   )
 
-  val ecClients = new TestEcClients(ecGenesisBlock, blockchain)
+  val chainContractClient = new ChainContractStateClient(chainContractAddress, blockchainUpdater)
+  val ecClients           = new TestEcClients(ecGenesisBlock, blockchain)
 
   val globalScheduler = TestScheduler(ExecutionModel.AlwaysAsyncExecution)
   val eluScheduler    = TestScheduler(ExecutionModel.AlwaysAsyncExecution)
@@ -127,8 +129,8 @@ class ExtensionDomain(
     ecClients.engineApi,
     blockObserver,
     allChannels,
-    globalScheduler,
-    eluScheduler,
+    globalScheduler.withUncaughtExceptionReporter(e => log.error("Global error", e)),
+    eluScheduler.withUncaughtExceptionReporter(e => log.error("ELUpdater error", e)),
     () => {}
   )
   triggers = triggers.appended(new BlockchainUpdateTriggers {
@@ -237,10 +239,10 @@ class ExtensionDomain(
       }
     }
 
-  lazy val token: IssuedAsset = blockchain.accountData(chainContractAddress, "tokenId") match {
+  lazy val nativeTokenId: IssuedAsset = blockchain.accountData(chainContractAddress, "tokenId") match {
     case Some(StringDataEntry(_, tokenId)) =>
-      IssuedAsset(ByteStr.decodeBase58(tokenId).getOrElse(throw new RuntimeException(s"Unexpected token id: $tokenId")))
-    case x => throw new RuntimeException(s"Unexpected token id entry: $x")
+      IssuedAsset(ByteStr.decodeBase58(tokenId).getOrElse(throw new RuntimeException(s"Unexpected tokenId: $tokenId")))
+    case x => throw new RuntimeException(s"Unexpected tokenId entry: $x")
   }
 
   def evaluatedFinalizedBlock: JsObject =
@@ -326,7 +328,7 @@ class ExtensionDomain(
   def advanceElu(x: FiniteDuration, name: String = "advanceElu"): Unit = {
     log.trace(s"$name($x)")
     testTime.advance(x)
-    eluScheduler.tick(x)
+    eluSchedulerTick(x)
   }
 
   def triggerScheduledTasks(silent: Boolean = false): Unit = {
@@ -342,8 +344,22 @@ class ExtensionDomain(
   private def advanceAllTasks(x: FiniteDuration, triggerSchedulers: Boolean = true): Unit = {
     testTime.advance(x)
     if (triggerSchedulers) {
-      globalScheduler.tick(x)
-      eluScheduler.tick(x)
+      globalSchedulerTick(x)
+      eluSchedulerTick(x)
+    }
+  }
+
+  private def globalSchedulerTick(x: FiniteDuration): Unit = {
+    globalScheduler.tick(x)
+    Option(globalScheduler.state.lastReportedError).foreach { e =>
+      log.error("Global error", e)
+    }
+  }
+
+  private def eluSchedulerTick(x: FiniteDuration): Unit = {
+    eluScheduler.tick(x)
+    Option(eluScheduler.state.lastReportedError).foreach { e =>
+      log.error("ELUpdater error", e)
     }
   }
 
@@ -369,13 +385,14 @@ class ExtensionDomain(
     createEcBlockBuilder(hashPath, miner.elRewardAddress, parent)
 
   def createEcBlockBuilder(hashPath: String, minerRewardL2Address: EthAddress, parent: EcBlock): TestEcBlockBuilder = {
-    TestEcBlockBuilder(ecClients, elBridgeAddress, elMinerDefaultReward, l2Config.blockDelay, parent = parent).updateBlock(
-      _.copy(
-        hash = TestEcBlockBuilder.createBlockHash(hashPath),
-        minerRewardL2Address = minerRewardL2Address,
-        prevRandao = ELUpdater.calculateRandao(blockchain.vrf(blockchain.height).get, parent.hash)
+    TestEcBlockBuilder(ecClients, nativeBridgeAddress, standardBridgeAddress, elMinerDefaultReward, l2Config.blockDelay, parent = parent)
+      .updateBlock(
+        _.copy(
+          hash = TestEcBlockBuilder.createBlockHash(hashPath),
+          minerRewardL2Address = minerRewardL2Address,
+          prevRandao = ELUpdater.calculateRandao(blockchain.vrf(blockchain.height).get, parent.hash)
+        )
       )
-    )
   }
 
   override def currentHitSource: BlockId =

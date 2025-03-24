@@ -6,7 +6,9 @@ services:
     restart: no # Manual start
     platform: linux/amd64 # HACK for Apple Silicon
     environment:
+      CONTRACTS_DIR: /tmp/contracts
       LOGGING_CONFIG: /usr/src/app/logging.conf
+      LOGGING_DIR: /var/log/deploy 
     volumes:
       - .:/usr/src/app
-
+      - ../../contracts:/tmp/contracts

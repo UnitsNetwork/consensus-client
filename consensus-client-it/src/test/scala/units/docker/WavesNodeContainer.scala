@@ -29,7 +29,7 @@ class WavesNodeContainer(
     ecEngineApiUrl: String,
     genesisConfigPath: Path
 )(implicit httpClientBackend: SttpBackend[Identity, Any])
-    extends BaseContainer(s"wavesnode-$number") {
+    extends BaseContainer(s"waves-node-$number") {
   private val logFile = new File(s"$DefaultLogsDir/waves-$number.log")
   GFiles.touch(logFile)
 
@@ -44,8 +44,11 @@ class WavesNodeContainer(
           "-Dwaves.miner.quorum=0",
           s"-Dunits.defaults.chain-contract=$chainContractAddress",
           s"-Dunits.defaults.execution-client-address=$ecEngineApiUrl",
+          s"-Dunits.defaults.jwt-secret-file=/etc/secrets/jwtsecret.hex",
           "-Dlogback.file.level=TRACE",
-          "-Dfile.encoding=UTF-8"
+          "-Dfile.encoding=UTF-8",
+          "-XX:+IgnoreUnrecognizedVMOptions",
+          "-XX:UseSVE=0" // https://github.com/adoptium/adoptium-support/issues/1223
         ).mkString(" "),
         "WAVES_LOG_LEVEL" -> "TRACE", // STDOUT logs
         "WAVES_HEAP_SIZE" -> "1g"

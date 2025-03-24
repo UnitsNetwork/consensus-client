@@ -4,7 +4,7 @@ import com.wavesplatform.state.StringDataEntry
 import com.wavesplatform.transaction.{DataTransaction, TxHelpers}
 import com.wavesplatform.wallet.Wallet
 
-class RegistryTestSuite extends BaseIntegrationTestSuite {
+class RegistryTestSuite extends BaseTestSuite {
   private val miner                  = ElMinerSettings(Wallet.generateNewAccount(super.defaultSettings.walletSeed, 0))
   private val irrelevantChainAddress = TxHelpers.signer(10).toAddress
 
@@ -46,7 +46,7 @@ class RegistryTestSuite extends BaseIntegrationTestSuite {
             d.ChainContract.setScript(),
             d.ChainContract.setup(
               d.ecGenesisBlock,
-              elMinerDefaultReward.amount.longValue(),
+              ElMinerDefaultReward.amount.longValue(),
               defaultSettings.daoRewardAccount.map(_.toAddress),
               defaultSettings.daoRewardAmount
             )

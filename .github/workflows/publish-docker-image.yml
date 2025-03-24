@@ -10,7 +10,7 @@ on:
      baseImage:
        description: 'Base image'
        required: true
-       default: 'wavesplatform/wavesnode:1.5.9'
+       default: 'ghcr.io/wavesplatform/waves:snapshot'
 
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}
@@ -62,3 +62,5 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - run: |
+          echo 'Base image: `${{ inputs.baseImage }}`' >> $GITHUB_STEP_SUMMARY

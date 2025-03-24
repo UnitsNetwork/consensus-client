@@ -1,0 +1,17 @@
+[profile.default]
+solc = "0.8.28"
+evm_version = "cancun"
+optimizer_runs = 200
+src = "src"
+out = "target"
+libs = ["lib"]
+remappings = [
+    '@units/=src',
+    '@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts',
+    'forge-std/=lib/forge-std/src',
+    'safe-contracts/=lib/safe-contracts/contracts'
+]
+fs_permissions = [
+    { access='read-write', path='./target/deployments/' }
+]
+solc_version = "0.8.29"

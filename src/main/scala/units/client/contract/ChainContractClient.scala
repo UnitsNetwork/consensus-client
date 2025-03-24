@@ -8,12 +8,15 @@ import com.wavesplatform.consensus.{FairPoSCalculator, PoSCalculator}
 import com.wavesplatform.lang.Global
 import com.wavesplatform.serialization.ByteBufferOps
 import com.wavesplatform.state.{BinaryDataEntry, Blockchain, DataEntry, EmptyDataEntry, IntegerDataEntry, StringDataEntry}
-import units.BlockHash
+import com.wavesplatform.transaction.Asset as WAsset
+import units.{BlockHash, EAmount, WAmount, scale}
 import units.client.contract.ChainContractClient.*
 import units.eth.{EthAddress, Gwei}
 import units.util.HexBytesConverter
 
+import java.math.{BigDecimal, BigInteger}
 import java.nio.ByteBuffer
+import scala.annotation.tailrec
 import scala.reflect.ClassTag
 
 trait ChainContractClient {
@@ -67,13 +70,15 @@ trait ChainContractClient {
           if (bb.remaining() >= ContractBlock.E2CTransfersRootHashLength) bb.getByteArray(ContractBlock.E2CTransfersRootHashLength)
           else Array.emptyByteArray
 
-        val lastC2ETransferIndex = if (bb.remaining() >= 8) bb.getLong() else -1L
+        val lastC2ETransferIndex   = bb.getLong()
+        val lastAssetRegistryIndex = if (bb.remaining() >= 8) bb.getLong() else -1L
 
         require(
           !bb.hasRemaining,
           s"Not parsed ${bb.remaining()} bytes from ${blockMeta.base64}, read data: " +
             s"chainHeight=$chainHeight, epoch=$epoch, parentHash=$parentHash, chainId=$chainId, " +
-            s"e2cTransfersRootHash=${HexBytesConverter.toHex(e2cTransfersRootHash)}, lastC2ETransferIndex=$lastC2ETransferIndex"
+            s"e2cTransfersRootHash=${HexBytesConverter.toHex(e2cTransfersRootHash)}, lastC2ETransferIndex=$lastC2ETransferIndex" +
+            s"lastAssetRegistryIndex=$lastAssetRegistryIndex"
         )
 
         val epochMeta = getEpochMeta(epoch).getOrElse(fail(s"Can't find epoch meta for epoch $epoch"))
@@ -90,7 +95,9 @@ trait ChainContractClient {
           minerRewardElAddress,
           chainId,
           e2cTransfersRootHash,
-          lastC2ETransferIndex
+          lastC2ETransferIndex,
+          if (lastAssetRegistryIndex.isValidInt) lastAssetRegistryIndex.toInt
+          else fail(s"$lastAssetRegistryIndex is not a valid int")
         )
       } catch {
         case e: Throwable => fail(s"Can't read a block $hash meta, bytes: ${blockMeta.base64}, remaining: ${bb.remaining()}", e)
@@ -164,12 +171,16 @@ trait ChainContractClient {
     } else None
   }
 
-  def calculateEpochMiner(header: BlockHeader, hitSource: ByteStr, epochNumber: Int, blockchain: Blockchain): Either[String, Address] =
-    getAllActualMiners
-      .flatMap(miner => calculateMinerDelay(hitSource.arr, header.baseTarget, miner, blockchain))
-      .minByOption(_._2)
-      .map(_._1)
-      .toRight(s"No miner for epoch $epochNumber")
+  def calculateEpochMiner(epochNumber: Int, blockchain: Blockchain): Either[String, Address] =
+    for {
+      header <- blockchain.blockHeader(epochNumber).toRight(s"No header at height $epochNumber")
+      hitSource <- blockchain.hitSource(epochNumber).toRight(s"No VRF value at height $epochNumber")
+      miner <- getAllActualMiners
+        .flatMap(miner => calculateMinerDelay(hitSource.arr, header.header.baseTarget, miner, blockchain))
+        .minByOption(_._2)
+        .map(_._1)
+        .toRight(s"No miner for epoch $epochNumber")
+    } yield miner
 
   private def getBlockHash(key: String): Option[BlockHash] =
     extractData(key).collect {
@@ -187,10 +198,15 @@ trait ChainContractClient {
     miningReward = getLongData("minerReward")
       .map(Gwei.ofRawGwei)
       .getOrElse(throw new IllegalStateException("minerReward is empty on contract")),
-    elBridgeAddress = getStringData("elBridgeAddress")
+    elNativeBridgeAddress = getStringData("elBridgeAddress")
       .map(EthAddress.unsafeFrom)
-      .getOrElse(throw new IllegalStateException("elBridgeAddress is empty on contract"))
+      .getOrElse(throw new IllegalStateException("elBridgeAddress is empty on contract")),
+    elStandardBridgeAddress = getStringData("elStandardBridgeAddress")
+      .map(EthAddress.unsafeFrom),
+    assetTransfersActivationEpoch = getAssetTransfersActivationEpoch
   )
+
+  private def getAssetTransfersActivationEpoch: Long = getLongData("assetTransfersActivationEpoch").getOrElse(Long.MaxValue)
 
   private def getChainMeta(chainId: Long): Option[(Int, BlockHash)] = {
     val key = f"chain_$chainId%08d"
@@ -209,22 +225,110 @@ trait ChainContractClient {
     }
   }
 
-  def getNativeTransfers(fromIndex: Long, maxItems: Long): Vector[ContractTransfer] =
-    (fromIndex until math.min(fromIndex + maxItems, getNativeTransfersCount)).map(requireNativeTransfer).toVector
+  def getTransfersForPayload(fromIndex: Long, maxNative: Long): Vector[ContractTransfer] = {
+    val maxIndex = getTransfersCount - 1
 
-  private def getNativeTransfersCount: Long = getLongData("nativeTransfersCount").getOrElse(0L)
+    @tailrec def loop(currIndex: Long, foundNative: Long, acc: Vector[ContractTransfer]): Vector[ContractTransfer] =
+      if (currIndex > maxIndex || foundNative >= maxNative) acc
+      else
+        requireTransfer(currIndex) match {
+          case x: ContractTransfer.Native => loop(currIndex + 1, foundNative + 1, acc :+ x)
+          case x: ContractTransfer.Asset  => loop(currIndex + 1, foundNative, acc :+ x)
+        }
 
-  private def requireNativeTransfer(atIndex: Long): ContractTransfer = {
-    val key   = s"nativeTransfer_$atIndex"
-    val raw   = getStringData(key).getOrElse(fail(s"Expected a native transfer at '$key', got nothing"))
-    val parts = raw.split(Sep)
-    if (parts.length != 2) fail(s"Expected two elements in a native transfer, got ${parts.length}: $raw")
-
-    val destElAddress = EthAddress.unsafeFrom(parts(0))
-    val amount        = parts(1).toLongOption.getOrElse(fail(s"Expected an integer amount of a native transfer, got: ${parts(1)}"))
-
-    ContractTransfer(atIndex, destElAddress, amount)
+    loop(fromIndex, 0, Vector.empty)
   }
+
+  def getTransfers(fromIndex: Long, max: Long): Vector[ContractTransfer] =
+    if (max == 0) Vector.empty
+    else (fromIndex until math.min(fromIndex + max, getTransfersCount)).map(requireTransfer).to(Vector)
+
+  private def getTransfersCount: Long = getLongData("nativeTransfersCount").getOrElse(0L)
+
+  private def requireTransfer(atIndex: Long): ContractTransfer = {
+    val key = s"nativeTransfer_$atIndex"
+    val raw = getStringData(key).getOrElse(fail(s"Expected a transfer at '$key', got nothing"))
+    raw.split(Sep) match {
+      case Array(rawDestElAddress, rawAmount) =>
+        ContractTransfer.Native(
+          idx = atIndex,
+          to = EthAddress.unsafeFrom(rawDestElAddress),
+          amount = rawAmount.toLongOption.getOrElse(fail(s"Expected an integer amount of a native transfer, got: $rawAmount"))
+        )
+
+      case Array(rawDestElAddress, rawFromAddress, rawAmount, rawAssetIndex) =>
+        val assetIndex = rawAssetIndex.toIntOption.getOrElse(fail(s"Expected an asset index in asset transfer, got: $rawAssetIndex"))
+        val asset      = getRegisteredAsset(assetIndex)
+        val assetData  = getRegisteredAssetData(asset)
+
+        ContractTransfer.Asset(
+          idx = atIndex,
+          from = EthAddress.unsafeFrom(rawFromAddress),
+          to = EthAddress.unsafeFrom(rawDestElAddress),
+          amount =
+            try WAmount(rawAmount).scale(assetData.exponent)
+            catch { case e: ArithmeticException => fail(s"Expected an integer amount of a native transfer, got: $rawAmount", e) },
+          tokenAddress = assetData.erc20Address,
+          asset
+        )
+
+      case xs => fail(s"Unexpected number of elements in a transfer key '$key', got ${xs.length}: $raw")
+    }
+  }
+
+  def getRegisteredAssetData(asset: WAsset): Registry.RegisteredAsset = {
+    val key   = s"assetRegistry_${Registry.stringifyAsset(asset)}"
+    val raw   = getStringData(key).getOrElse(fail(s"Can't find a registered asset $asset at $key"))
+    val parts = raw.split(Sep)
+    if (parts.length < 3) fail(s"Expected at least 3 elements in $key, got ${parts.length}: $raw")
+
+    val assetIndex   = parts(0).toIntOption.getOrElse(fail(s"Expected an index of asset at $key(0), got: ${parts(1)}"))
+    val erc20Address = EthAddress.unsafeFrom(parts(1))
+    val exponent     = parts(2).toIntOption.getOrElse(fail(s"Expected an exponent of asset at $key(2), got: ${parts(2)}"))
+
+    Registry.RegisteredAsset(asset, assetIndex, erc20Address, exponent)
+  }
+
+  def getAssetRegistrySize: Int = getLongData("assetRegistrySize").getOrElse(0L).toInt
+
+  def getAllRegisteredAssets: List[Registry.RegisteredAsset] = getRegisteredAssets(0 until getAssetRegistrySize)
+
+  def getRegisteredAssets(indexes: Range): List[Registry.RegisteredAsset] =
+    indexes.view
+      .map(getRegisteredAsset)
+      .map(getRegisteredAssetData)
+      .toList
+
+  def getPrevEpochLastBlockHash(thisEpoch: Int): Either[String, Option[BlockHash]] = {
+    @tailrec
+    def loop(curEpochNumber: Int): Either[String, Option[BlockHash]] = {
+      if (curEpochNumber <= 0) {
+        Left(s"Couldn't find previous epoch meta for epoch #$thisEpoch")
+      } else {
+        this.getEpochMeta(curEpochNumber) match {
+          case Some(epochMeta) => Right(Some(epochMeta.lastBlockHash))
+          case _ => loop(curEpochNumber - 1)
+        }
+      }
+    }
+
+    this.getEpochMeta(thisEpoch) match {
+      case Some(epochMeta) if epochMeta.prevEpoch == 0 =>
+        Right(None)
+      case Some(epochMeta) =>
+        this
+          .getEpochMeta(epochMeta.prevEpoch)
+          .toRight(s"Epoch #${epochMeta.prevEpoch} meta not found at contract")
+          .map(em => Some(em.lastBlockHash))
+      case _ => loop(thisEpoch - 1)
+    }
+  }
+
+  private def getRegisteredAsset(registryIndex: Int): WAsset =
+    getStringData(s"assetRegistryIndex_$registryIndex") match {
+      case None          => fail(s"Can't find a registered asset at $registryIndex")
+      case Some(assetId) => Registry.parseAsset(assetId)
+    }
 
   private def getLastBlockHash(chainId: Long): Option[BlockHash] = getChainMeta(chainId).map(_._2)
 
@@ -257,8 +361,6 @@ trait ChainContractClient {
   }
 
   private def clean(hash: BlockHash): String = hash.drop(2) // Drop "0x"
-
-  private def fail(reason: String, cause: Throwable = null): Nothing = throw new InconsistentContractData(reason, cause)
 }
 
 object ChainContractClient {
@@ -268,14 +370,31 @@ object ChainContractClient {
   private val AllMinersKey       = "allMiners"
   private val MainChainIdKey     = "mainChainId"
   private val BlockHashBytesSize = 32
-  private val Sep                = ","
-
-  val MaxC2ETransfers = 16
+  val Sep                        = ","
 
   private class InconsistentContractData(message: String, cause: Throwable = null)
       extends IllegalStateException(s"Probably, your have to upgrade your client. $message", cause)
 
   case class EpochContractMeta(miner: Address, prevEpoch: Int, lastBlockHash: BlockHash)
 
-  case class ContractTransfer(index: Long, destElAddress: EthAddress, amount: Long)
+  enum ContractTransfer(val index: Long) {
+    case Native(idx: Long, to: EthAddress, amount: Long)                                                              extends ContractTransfer(idx)
+    case Asset(idx: Long, from: EthAddress, to: EthAddress, amount: EAmount, tokenAddress: EthAddress, asset: WAsset) extends ContractTransfer(idx)
+  }
+
+  object Registry {
+    val WavesAssetName = "WAVES"
+
+    case class RegisteredAsset(asset: WAsset, index: Int, erc20Address: EthAddress, exponent: Int) {
+      override def toString: String = s"RegisteredAsset($asset, i=$index, $erc20Address, e=$exponent)"
+    }
+
+    def parseAsset(rawAssetId: String): WAsset =
+      if (rawAssetId == WavesAssetName) WAsset.Waves
+      else WAsset.IssuedAsset(ByteStr.decodeBase58(rawAssetId).getOrElse(fail(s"Can't decode an asset id: $rawAssetId")))
+
+    def stringifyAsset(asset: WAsset): String = asset.fold(WavesAssetName)(_.id.toString)
+  }
+
+  private def fail(reason: String, cause: Throwable = null): Nothing = throw new InconsistentContractData(reason, cause)
 }

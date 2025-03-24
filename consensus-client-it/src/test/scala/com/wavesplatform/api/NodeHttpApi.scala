@@ -11,6 +11,7 @@ import com.wavesplatform.api.http.`X-Api-Key`
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.state.DataEntry.Format
 import com.wavesplatform.state.{DataEntry, EmptyDataEntry, Height}
+import com.wavesplatform.transaction.Asset
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.Transaction
 import com.wavesplatform.utils.ScorexLogging
@@ -158,12 +159,15 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
         }
     }
   }
-
-  def balance(address: Address, asset: IssuedAsset)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Long = {
+  
+  def balance(address: Address, asset: Asset)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Long = {
     if (loggingOptions.logCall) log.debug(s"${loggingOptions.prefix} balance($address, $asset)")
     basicRequest
-      .get(uri"$apiUri/assets/balance/$address/$asset")
-      .response(asJson[AssetBalanceResponse])
+      .get(asset match {
+        case Asset.Waves => uri"$apiUri/addresses/balance/$address"
+        case IssuedAsset(id) => uri"$apiUri/assets/balance/$address/$id"
+      })
+      .response(asJson[BalanceResponse])
       .tag(LoggingOptionsTag, loggingOptions)
       .send(backend)
       .body match {
@@ -268,9 +272,9 @@ object NodeHttpApi {
     implicit val transactionInfoResponseFormat: OFormat[TransactionInfoResponse] = Json.format[TransactionInfoResponse]
   }
 
-  case class AssetBalanceResponse(balance: Long)
-  object AssetBalanceResponse {
-    implicit val assetBalanceResponseFormat: OFormat[AssetBalanceResponse] = Json.format[AssetBalanceResponse]
+  case class BalanceResponse(balance: Long)
+  object BalanceResponse {
+    implicit val assetBalanceResponseFormat: OFormat[BalanceResponse] = Json.format[BalanceResponse]
   }
 
   case class AssetDetailsResponse(quantity: Long)
