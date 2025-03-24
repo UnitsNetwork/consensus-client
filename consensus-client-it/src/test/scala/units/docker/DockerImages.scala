@@ -5,5 +5,5 @@ import units.test.TestEnvironment.WavesDockerImage
 
 object DockerImages {
   val WavesNode             = parse(WavesDockerImage)
-  val OpGethExecutionClient = parse("us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:v1.101500.1")
+  val OpGethExecutionClient = parse("ghcr.io/unitsnetwork/op-geth:v1.101503.1-simulate-fixes")
 }

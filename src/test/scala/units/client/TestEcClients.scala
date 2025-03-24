@@ -65,7 +65,9 @@ class TestEcClients private (
 
   val engineApi = new LoggedEngineApiClient(
     new EngineApiClient {
-      override def forkChoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int): JobResult[PayloadStatus] = {
+      override def simulate(blockStateCalls: Seq[BlockStateCall], hash: BlockHash, requestId: ChainId): JobResult[Seq[JsObject]] = ???
+
+      override def forkchoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int): JobResult[PayloadStatus] = {
         knownBlocks.get().get(blockHash) match {
           case Some(cid) =>
             currChainIdValue.set(cid)
@@ -80,7 +82,7 @@ class TestEcClients private (
         }
       }.asRight
 
-      override def forkChoiceUpdatedWithPayloadId(
+      override def forkchoiceUpdatedWithPayload(
           lastBlockHash: BlockHash,
           finalizedBlockHash: BlockHash,
           unixEpochSeconds: Long,
@@ -112,7 +114,7 @@ class TestEcClients private (
             )
         }
 
-      override def applyNewPayload(payload: JsObject, requestId: Int): JobResult[Option[BlockHash]] = {
+      override def newPayload(payload: JsObject, requestId: Int): JobResult[Option[BlockHash]] = {
         val newBlock = NetworkL2Block(payload).explicitGet().toEcBlock
         knownBlocks.get().get(newBlock.parentHash) match {
           case Some(cid) =>

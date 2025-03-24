@@ -1,4 +1,7 @@
 [profile.default]
+solc = "0.8.28"
+evm_version = "cancun"
+optimizer_runs = 200
 src = "src"
 out = "target"
 libs = ["lib"]

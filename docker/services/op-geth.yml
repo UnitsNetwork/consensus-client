@@ -42,6 +42,6 @@ services:
         max-file: 5
     healthcheck:
       test: 'wget -qO /dev/null --header "content-type: application/json" --post-data {\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}  http://127.0.0.1:8545'
-      interval: 10s
+      interval: 5s
       timeout: 1s
       retries: 10

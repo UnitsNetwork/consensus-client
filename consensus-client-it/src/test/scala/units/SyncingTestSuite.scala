@@ -56,7 +56,7 @@ class SyncingTestSuite extends BaseDockerTestSuite {
       DefaultGasProvider.GAS_LIMIT,
       "0x0000000000000000000000000000000000000000",
       amount,
-      BigInteger.ZERO,
+      BigInteger.ONE,
       DefaultGasProvider.GAS_PRICE
     )
     val signedTransaction = EthEncoding.toHexString(TransactionEncoder.signMessage(rawTransaction, elSender))

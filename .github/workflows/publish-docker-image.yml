@@ -63,4 +63,4 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - run: |
-          echo "Base image: `${{ inputs.baseImage }}`" >> $GITHUB_STEP_SUMMARY
+          echo 'Base image: `${{ inputs.baseImage }}`' >> $GITHUB_STEP_SUMMARY

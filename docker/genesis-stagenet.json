@@ -9,7 +9,7 @@
   "blobGasUsed": null,
   "coinbase": "0x0000000000000000000000000000000000000000",
   "config": {
-    "chainId": 88811,
+    "chainId": 88819,
     "arrowGlacierBlock": 0,
     "berlinBlock": 0,
     "byzantiumBlock": 0,
@@ -51,5 +51,5 @@
   "nonce": "0x0",
   "number": "0x0",
   "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-  "timestamp": "0x6720960b"
+  "timestamp": "0x6790c60a"
 }

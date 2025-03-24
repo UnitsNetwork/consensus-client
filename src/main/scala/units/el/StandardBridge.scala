@@ -211,18 +211,18 @@ object StandardBridge {
       from: EthAddress,
       to: EthAddress,
       amount: EAmount
-  ): DepositedTransaction = DepositedTransaction.create(
+                                      ): DepositedTransaction = DepositedTransaction(
     sourceHash = DepositedTransaction.mkUserDepositedSourceHash(transferIndex),
-    from = EthereumConstants.ZeroAddress.hexNoPrefix,
-    to = standardBridgeAddress.hex,
+    from = EthereumConstants.ZeroAddress,
+    to = standardBridgeAddress,
     mint = BigInteger.ZERO,
     value = BigInteger.ZERO,
     gas = FinalizeBridgeErc20Gas,
     isSystemTx = true, // Gas won't be consumed
-    data = HexBytesConverter.toBytes(finalizeBridgeErc20Call(token, from, to, amount))
+    data = finalizeBridgeErc20Call(token, from, to, amount)
   )
 
-  def finalizeBridgeErc20Call(token: EthAddress, from: EthAddress, elTo: EthAddress, amount: EAmount): String = {
+  private def finalizeBridgeErc20Call(token: EthAddress, from: EthAddress, elTo: EthAddress, amount: EAmount): String = {
     val function = new Function(
       FinalizeBridgeErc20Function,
       util.Arrays.asList[Type[?]](
@@ -241,18 +241,18 @@ object StandardBridge {
       addedTokenExponents: List[Int],
       addedTokens: List[EthAddress]
   ): DepositedTransaction =
-    DepositedTransaction.create(
+    DepositedTransaction(
       sourceHash = DepositedTransaction.mkUserDepositedSourceHash(HexBytesConverter.toBytes(addedTokens.last.hex)), // TODO
-      from = EthereumConstants.ZeroAddress.hexNoPrefix,
-      to = standardBridgeAddress.hex,
+      from = EthereumConstants.ZeroAddress,
+      to = standardBridgeAddress,
       mint = BigInteger.ZERO,
       value = BigInteger.ZERO,
       gas = UpdateAssetRegistryGas,
       isSystemTx = true, // Gas won't be consumed
-      data = HexBytesConverter.toBytes(updateAssetRegistryCall(addedTokens, addedTokenExponents))
+      data = updateAssetRegistryCall(addedTokens, addedTokenExponents)
     )
 
-  def updateAssetRegistryCall(addedTokens: List[EthAddress], addedTokenExponents: List[Int]): String = {
+  private def updateAssetRegistryCall(addedTokens: List[EthAddress], addedTokenExponents: List[Int]): String = {
     val function = new Function(
       UpdateAssetRegistryFunction,
       util.Arrays.asList[Type[?]](
