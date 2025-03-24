@@ -4,6 +4,8 @@ import com.wavesplatform.db.WithState.AddrWithBalance
 import com.wavesplatform.state.{IntegerDataEntry, StringDataEntry}
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.TxHelpers
+import com.wavesplatform.wallet.Wallet
+import units.ELUpdater.State.ChainStatus.Mining
 
 class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
   private val idleMiner = ElMinerSettings(TxHelpers.signer(1))
@@ -191,8 +193,8 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
 
       // Assertion: claim failed
       d.appendMicroBlockE(d.ChainContract.claimEmptyEpochReportRewards(reporter1.account, epochList2)) should matchPattern {
-          case Left(err) if err.toString.contains("Claimed epochs count exceeds 100") =>
-        }
+        case Left(err) if err.toString.contains("Claimed epochs count exceeds 100") =>
+      }
     }
   }
 
@@ -358,7 +360,9 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
   }
 
   "Idle miner is immediately evicted on reaching MAX_SKIPPED_EPOCH_COUNT and another miner can continue mining" in {
-    withExtensionDomain(defaultSettings) { d =>
+    val thisMiner = ElMinerSettings(Wallet.generateNewAccount(super.defaultSettings.walletSeed, 0))
+    val settings  = defaultSettings.copy(initialMiners = List(thisMiner, idleMiner))
+    withExtensionDomain(settings) { d =>
       val maxSkippedEpochCount = 200
       var reportedEpochs       = List.empty[Int]
 
@@ -372,11 +376,12 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
           reportedEpochs = d.blockchain.height :: reportedEpochs
 
           // Report empty epoch
-          d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
+          d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(thisMiner.account))
         })
 
-      // Wait for handleConsensusLayerChanged to be executed in order for reporter1 to start mining
-      d.advanceConsensusLayerChanged()
+      // Assertion: allMiners does not contain idleMiner
+      d.accountsApi.data(d.chainContractAddress, "allMiners") shouldBe
+        Some(StringDataEntry("allMiners", s"${thisMiner.address}"))
 
       // Assertion: skipped epoch count for evicted miner is reset
       val minerSkippedEpochCountKey = s"miner_${idleMiner.address}_SkippedEpochCount"
@@ -386,23 +391,31 @@ class EmptyEpochTestSuite extends BaseIntegrationTestSuite {
       val ecBlock1 = d.createEcBlockBuilder("0", idleMiner).build()
       d.appendMicroBlockE(d.ChainContract.extendMainChain(idleMiner.account, ecBlock1)) should matchPattern {
         case Left(err)
-            if err.toString.contains(s"${idleMiner.address} is not allowed to mine in ${d.blockchain.height} epoch. Expected ${reporter1.address}") =>
+            if err.toString.contains(s"${idleMiner.address} is not allowed to mine in ${d.blockchain.height} epoch. Expected ${thisMiner.address}") =>
       }
 
+      val ecBlock = d.createEcBlockBuilder("0", thisMiner).build()
+      d.ecClients.willForge(ecBlock)
+
+      // Wait for handleConsensusLayerChanged to be executed in order for thisMiner to start mining
+      d.advanceConsensusLayerChanged()
+
+      d.waitForCS[Mining]("State is expected") { _ => }
+
       // Assertion: Another miner actually can mine immediately
-      val ecBlock2 = d.createEcBlockBuilder("0", reporter1).build()
-      d.appendMicroBlock(d.ChainContract.extendMainChain(reporter1.account, ecBlock2))
+      val ecBlock2 = d.createEcBlockBuilder("0", thisMiner).build()
+      d.appendMicroBlock(d.ChainContract.extendMainChain(thisMiner.account, ecBlock2))
 
       // Claim reporter reward
       val emptyEpochChunks = Range.inclusive(1, d.blockchain.height).map(_.toLong).grouped(maxEpochsPerClaim)
       emptyEpochChunks.foreach { emptyEpochList =>
         // Start new epoch
-        d.advanceNewBlocks(reporter1.address)
-        d.appendMicroBlock(d.ChainContract.claimEmptyEpochReportRewards(reporter1.account, emptyEpochList))
+        d.advanceNewBlocks(thisMiner.address)
+        d.appendMicroBlock(d.ChainContract.claimEmptyEpochReportRewards(thisMiner.account, emptyEpochList))
       }
 
       // Assertion: a reporter is rewarded for all skipped epochs, including the last one
-      d.portfolio(reporter1.address) shouldBe Seq((d.token, maxSkippedEpochCount * emptyEpochReportReward))
+      d.portfolio(thisMiner.address) shouldBe Seq((d.token, maxSkippedEpochCount * emptyEpochReportReward))
     }
   }
 
