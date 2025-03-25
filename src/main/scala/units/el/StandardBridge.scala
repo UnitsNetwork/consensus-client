@@ -211,7 +211,7 @@ object StandardBridge {
       from: EthAddress,
       to: EthAddress,
       amount: EAmount
-                                      ): DepositedTransaction = DepositedTransaction(
+  ): DepositedTransaction = DepositedTransaction(
     sourceHash = DepositedTransaction.mkUserDepositedSourceHash(transferIndex),
     from = EthereumConstants.ZeroAddress,
     to = standardBridgeAddress,
