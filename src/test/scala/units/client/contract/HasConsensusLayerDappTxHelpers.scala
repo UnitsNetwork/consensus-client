@@ -8,7 +8,7 @@ import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.lang.v1.compiler.Terms.{CONST_LONG, CONST_STRING, EXPR}
-import com.wavesplatform.state.{BooleanDataEntry, DataEntry}
+import com.wavesplatform.state.{BooleanDataEntry, DataEntry, IntegerDataEntry, StringDataEntry}
 import com.wavesplatform.test.NumericExt
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.TxHelpers.defaultSigner
@@ -65,12 +65,22 @@ trait HasConsensusLayerDappTxHelpers {
       invoker = invoker
     )
 
-    def enableTokenTransfers(standardBridge: EthAddress, wwaves: EthAddress, activationEpoch: Int): InvokeScriptTransaction = TxHelpers.invoke(
-      chainContractAddress,
-      Some("enableTokenTransfers"),
-      Seq(CONST_STRING(standardBridge.hex.drop(2)).explicitGet(), CONST_STRING(wwaves.hex.drop(2)).explicitGet(), CONST_LONG(activationEpoch)),
-      invoker = chainContractAccount
-    )
+    def enableTokenTransfersWithWaves(standardBridge: EthAddress, wwaves: EthAddress, activationEpoch: Int): InvokeScriptTransaction =
+      TxHelpers.invoke(
+        chainContractAddress,
+        Some("enableTokenTransfers"),
+        Seq(CONST_STRING(standardBridge.hex.drop(2)).explicitGet(), CONST_STRING(wwaves.hex.drop(2)).explicitGet(), CONST_LONG(activationEpoch)),
+        invoker = chainContractAccount
+      )
+
+    def enableTokenTransfers(standardBridge: EthAddress, activationEpoch: Int): DataTransaction =
+      TxHelpers.data(
+        chainContractAccount,
+        Seq(
+          IntegerDataEntry("assetTransfersActivationEpoch", activationEpoch),
+          StringDataEntry("elStandardBridgeAddress", standardBridge.hex)
+        )
+      )
 
     def join(minerAccount: KeyPair, elRewardAddress: EthAddress): InvokeScriptTransaction = TxHelpers.invoke(
       invoker = minerAccount,

@@ -25,7 +25,7 @@ class BlockIssuesForgingTestSuite extends BaseTestSuite {
     .withEnabledElMining
 
   "We're on the main chain and" - {
-    def test(f: (ExtensionDomain, EcBlock, Int) => Unit): Unit = withExtensionDomain() { d =>
+    def test(f: (ExtensionDomain, EcBlock, EcBlock, Int) => Unit): Unit = withExtensionDomain() { d =>
       step(s"Start a new epoch of otherMiner1 ${otherMiner1.address} with ecBlock1")
       d.advanceNewBlocks(otherMiner1.address)
       val ecBlock1 = d.createEcBlockBuilder("0", otherMiner1).buildAndSetLogs()
@@ -49,10 +49,10 @@ class BlockIssuesForgingTestSuite extends BaseTestSuite {
       step(s"Start a new epoch of thisMiner ${thisMiner.address}")
       d.advanceNewBlocks(thisMiner.address)
 
-      f(d, ecBlock2, ecBlock2Epoch)
+      f(d, ecBlock1, ecBlock2, ecBlock2Epoch)
     }
 
-    "EC-block comes within timeout - then we continue forging" in test { (d, ecBlock2, ecBlock2Epoch) =>
+    "EC-block comes within timeout - then we continue forging" in test { (d, ecBlock1, ecBlock2, ecBlock2Epoch) =>
       d.advanceElu(WaitRequestedBlockTimeout - 1.millis)
       d.waitForCS[FollowingChain](s"Still waiting ecBlock2 ${ecBlock2.hash}") { s =>
         s.nextExpectedBlock.value.hash shouldBe ecBlock2.hash
@@ -69,8 +69,11 @@ class BlockIssuesForgingTestSuite extends BaseTestSuite {
       }
     }
 
-    "EC-block doesn't come - then we start an alternative chain" in test { (d, _, _) =>
-      d.waitForCS[WaitForNewChain](s"Switched to alternative chain") { _ => }
+    "EC-block doesn't come - then we start an alternative chain" in test { (d, ecBlock1, _, _) =>
+      d.ecClients.willSimulate(d.createEcBlockBuilder("0-1", thisMiner, ecBlock1).buildAndSetLogs())
+      d.waitForCS[Mining]("Switched to alternative chain") { s =>
+        s.nodeChainInfo.isLeft shouldBe true
+      }
     }
   }
 
@@ -179,7 +182,7 @@ class BlockIssuesForgingTestSuite extends BaseTestSuite {
       step(s"Start a new epoch of thisMiner ${thisMiner.address} with alternative chain ecBlock2")
       d.advanceNewBlocks(thisMiner.address)
       val ecBlock2 = d.createEcBlockBuilder("0-1", thisMiner, ecBlock1).rewardPrevMiner().buildAndSetLogs()
-      d.ecClients.willForge(ecBlock2)
+      d.ecClients.willSimulate(ecBlock2)
       d.ecClients.willForge(d.createEcBlockBuilder("0-1-i", thisMiner, ecBlock2).buildAndSetLogs())
 
       d.waitForCS[Mining]() { s =>
@@ -277,7 +280,7 @@ class BlockIssuesForgingTestSuite extends BaseTestSuite {
         }
 
         step(s"Start a new epoch of thisMiner ${thisMiner.address}")
-        d.advanceNewBlocks(thisMiner.address)
+        d.advanceNewBlocks(otherMiner1.address)
         d.waitForCS[WaitForNewChain]() { s =>
           s.chainSwitchInfo.referenceBlock.hash shouldBe ecBlock1.hash
         }

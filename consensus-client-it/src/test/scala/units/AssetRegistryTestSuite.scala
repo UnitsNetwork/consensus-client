@@ -46,7 +46,7 @@ class AssetRegistryTestSuite extends BaseDockerTestSuite {
     step("Enable token transfers")
     activationEpoch = waves1.api.height() + 1
     waves1.api.broadcast(
-      ChainContract.enableTokenTransfers(
+      ChainContract.enableTokenTransfersWithWaves(
         StandardBridgeAddress,
         WWavesAddress,
         activationEpoch = activationEpoch

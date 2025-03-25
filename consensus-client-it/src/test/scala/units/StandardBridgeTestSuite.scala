@@ -301,7 +301,7 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
     step("Enable token transfers")
     val activationEpoch = waves1.api.height() + 1
     waves1.api.broadcastAndWait(
-      ChainContract.enableTokenTransfers(
+      ChainContract.enableTokenTransfersWithWaves(
         StandardBridgeAddress,
         WWavesAddress,
         activationEpoch = activationEpoch

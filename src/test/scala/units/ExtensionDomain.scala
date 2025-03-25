@@ -88,7 +88,7 @@ class ExtensionDomain(
   )
 
   val chainContractClient = new ChainContractStateClient(chainContractAddress, blockchainUpdater)
-  val ecClients           = new TestEcClients(ecGenesisBlock, blockchain)
+  val ecClients           = new TestEcClients(standardBridgeAddress, nativeBridgeAddress, ecGenesisBlock, blockchain)
 
   val globalScheduler = TestScheduler(ExecutionModel.AlwaysAsyncExecution)
   val eluScheduler    = TestScheduler(ExecutionModel.AlwaysAsyncExecution)
