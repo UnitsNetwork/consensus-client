@@ -133,16 +133,18 @@ class ExtendedNetwork(Network):
         ]
 
     @cached_property
-    def el_deployer_private_key(self) -> str:
-        return "8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63"
+    def el_deployer(self) -> LocalAccount:
+        return Account.from_key(
+            "0x8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63"
+        )
 
     @cached_property
     def el_standard_bridge_address(self) -> ChecksumAddress:
-        return Web3.to_checksum_address("0x9a3DBCa554e9f6b9257aAa24010DA8377C57c17e")
+        return Web3.to_checksum_address("0xa50a51c09a5c451C52BB714527E1974b686D8e77")
 
     @cached_property
     def el_wwaves_address(self) -> ChecksumAddress:
-        return Web3.to_checksum_address("0x2E1f232a9439C3D459FcEca0BeEf13acc8259Dd8")
+        return Web3.to_checksum_address("0x9a3DBCa554e9f6b9257aAa24010DA8377C57c17e")
 
     @cached_property
     def el_test_erc20_address(self) -> ChecksumAddress:
@@ -151,7 +153,6 @@ class ExtendedNetwork(Network):
     @cached_property
     def el_test_erc20(self) -> Erc20:
         return self.get_erc20(self.el_test_erc20_address)
-
 
 
 local_net = NetworkSettings(
