@@ -219,15 +219,19 @@ func mkBlockMetaEntry(
   lastAssetRegistryIndex: Int
 ) = {
   let e2cTransfersRootHashBytes = e2cTransfersRootHashHex.fromBase16String()
-  let nativeRootHashBytesSize   = e2cTransfersRootHashBytes.size()
-  strict nativeRootHashIsValid  = nativeRootHashBytesSize == 0 || nativeRootHashBytesSize == ROOT_HASH_SIZE ||
-    throw("Native transfers root hash should have 0 or " + ROOT_HASH_SIZE.toString() + " bytes, got " + nativeRootHashBytesSize.toString())
+  let rootHashBytesSize         = e2cTransfersRootHashBytes.size()
+  strict e2cRootHashIsValid     = rootHashBytesSize == 0 || rootHashBytesSize == ROOT_HASH_SIZE ||
+    throw("E2C root hash should have 0 or " + ROOT_HASH_SIZE.toString() + " bytes, got " + rootHashBytesSize.toString())
 
   let epoch = height
   let blockMetaBytes = blockHeight.toBytes() + epoch.toBytes() + blockParentHex.fromBase16String() + chainId.toBytes() +
-    e2cTransfersRootHashBytes + lastC2ETransferIndex.toBytes() + lastAssetRegistryIndex.toBytes()
+    e2cTransfersRootHashBytes + lastC2ETransferIndex.toBytes()
 
-  BinaryEntry(blockMetaK + blockHashHex, blockMetaBytes)
+  let updatedBlockMetaBytes = if (assetTransfersActivated)
+    then blockMetaBytes + lastAssetRegistryIndex.toBytes()
+    else blockMetaBytes
+
+  BinaryEntry(blockMetaK + blockHashHex, updatedBlockMetaBytes)
 }
 
 func lastHeightBy(miner: Address, chainId: Int) = match getInteger(chainLastHeightKey(chainId, miner)) {
@@ -598,7 +602,7 @@ func commonWithdrawChecks(blockHashHex: String, merkleProof: List[ByteVector], t
   let finalizedBlockHeight     = blockMeta(getStringValue(finalizedBlockKey))._1
   let mainChainLastBlockHeight = blockMeta(mainChainLastBlock)._1
 
-  strict afterFinalized   = withdrawBlockHeight <= finalizedBlockHeight || throw("EL block #" + withdrawBlockHeight.toString() + " is not finalized. The current finalized is #" + finalizedBlockHeight.toString())
+  strict finalized        = withdrawBlockHeight <= finalizedBlockHeight || throw("EL block #" + withdrawBlockHeight.toString() + " is not finalized. The current finalized is #" + finalizedBlockHeight.toString())
   strict rightProofsSize  = merkleProof.size() == WITHDRAW_PROOFS_SIZE || throw("Expected " + WITHDRAW_PROOFS_SIZE.toString() + " proofs, got " + merkleProof.size().toString())
   strict nonNegativeIndex = transferIndexInBlock >= 0 || throw("Transfer index in block should be nonnegative, got " + transferIndexInBlock.toString())
   strict positiveAmount   = amount > 0 || throw("Amount should be positive, got " + amount.toString())

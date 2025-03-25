@@ -20,7 +20,8 @@ Test / sourceGenerators += Def.task {
   val contracts       = Seq("Bridge", "StandardBridge", "TERC20", "UnitsMintableERC20")
   val contractSources = baseDirectory.value / ".." / "contracts" / "eth"
   val compiledDir     = contractSources / "target"
-  s"forge build --config-path ${contractSources / "foundry.toml"} ${contractSources / "src"} ${contractSources / "utils" / "TERC20.sol"} ${contractSources / "src" / "UnitsMintableERC20.sol"}" !
+  // --silent to bypass garbage "Counting objects" git logs
+  s"forge build --silent --config-path ${contractSources / "foundry.toml"} ${contractSources / "src"} ${contractSources / "utils" / "TERC20.sol"} ${contractSources / "src" / "UnitsMintableERC20.sol"}" !
 
   contracts.foreach { contract =>
     val json    = Json.parse(new FileInputStream(compiledDir / s"$contract.sol" / s"$contract.json"))

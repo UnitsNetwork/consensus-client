@@ -28,7 +28,7 @@ class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient
       requestId: Int
   ): JobResult[PayloadId] = wrap(
     requestId,
-    s"forkchoiceUpdatedWithPayloadId(l=$lastBlockHash, f=$finalizedBlockHash, ts=$unixEpochSeconds, m=$suggestedFeeRecipient, " +
+    s"forkchoiceUpdatedWithPayload(l=$lastBlockHash, f=$finalizedBlockHash, ts=$unixEpochSeconds, m=$suggestedFeeRecipient, " +
       s"r=$prevRandao, w={${withdrawals.mkString(", ")}}, t={${transactions.mkString(", ")}})",
     underlying.forkchoiceUpdatedWithPayload(
       lastBlockHash,
