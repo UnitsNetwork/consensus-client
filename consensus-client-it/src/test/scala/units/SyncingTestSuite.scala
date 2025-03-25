@@ -40,6 +40,9 @@ class SyncingTestSuite extends BaseDockerTestSuite {
     step("Wait for EL blocks")
     while (ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact() < elWaitHeight) Thread.sleep(3000)
 
+    val txn4Result = sendTxn(3)
+    waitForTxn(txn4Result)
+
     step("Waiting transactions 2 and 3 on EL")
     val txn2ReceiptAfterRb = waitForTxn(txn2Result)
     val txn3ReceiptAfterRb = waitForTxn(txn3Result)
