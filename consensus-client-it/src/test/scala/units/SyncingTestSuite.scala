@@ -34,10 +34,11 @@ class SyncingTestSuite extends BaseDockerTestSuite {
     val blocksWithTxnsBeforeRb = List(txn2ReceiptBeforeRb, txn3ReceiptBeforeRb).map(x => x.getBlockNumber -> x.getBlockHash).toMap
 
     step("Rollback CL")
+    val elWaitHeight = ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact() + 1
     waves1.api.rollback(height1)
 
-    step("Wait for EL mining")
-    waves1.api.waitForHeight(height1 + 2)
+    step("Wait for EL blocks")
+    while (ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact() < elWaitHeight) Thread.sleep(3000)
 
     step("Waiting transactions 2 and 3 on EL")
     val txn2ReceiptAfterRb = waitForTxn(txn2Result)
