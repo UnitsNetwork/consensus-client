@@ -12,5 +12,5 @@ remappings = [
     'safe-contracts/=lib/safe-contracts/contracts'
 ]
 fs_permissions = [
-    { access='read-write', path='./target/deployments/' }
+    { access = 'read-write', path = './target/deployments/' }
 ]

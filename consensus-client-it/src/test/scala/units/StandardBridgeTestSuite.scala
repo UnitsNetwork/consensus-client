@@ -15,11 +15,9 @@ import units.bridge.{TERC20, UnitsMintableERC20}
 import units.docker.EcContainer
 import units.el.{BridgeMerkleTree, E2CTopics, EvmEncoding}
 import units.eth.EthAddress
-import units.test.TestEnvironment
 
 import java.math.BigInteger
 import scala.jdk.OptionConverters.RichOptional
-import scala.sys.process.*
 
 class StandardBridgeTestSuite extends BaseDockerTestSuite {
   private val clAssetOwner    = clRichAccount2
@@ -276,13 +274,7 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-
-    step("Prepare: deploy contracts on EL")
-    Process(
-      s"forge script -vvvvv scripts/IT.s.sol:IT --private-key $elRichAccount1PrivateKey --fork-url http://localhost:${ec1.rpcPort} --broadcast",
-      TestEnvironment.ContractsDir,
-      "CHAIN_ID" -> EcContainer.ChainId.toString
-    ).!(ProcessLogger(out => log.info(out), err => log.error(err)))
+    deploySolidityContracts()
 
     step("Prepare: issue CL asset")
     waves1.api.broadcastAndWait(issueAssetTxn)
