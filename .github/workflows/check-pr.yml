@@ -26,6 +26,10 @@ jobs:
           java-version: '11'
           cache: 'sbt'
       - uses: foundry-rs/foundry-toolchain@v1
+      - uses: pontem-network/get-solc@e187b20b402a33b6e0383a296445cbefdeeb5ba2 # 2022-07-08
+        name: Get solc
+        with:
+          version: v0.8.29
       - uses: sbt/setup-sbt@v1
       - name: Run tests
         run: |
