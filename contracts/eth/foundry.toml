@@ -1,5 +1,5 @@
 [profile.default]
-solc = "0.8.28"
+solc = "0.8.29"
 evm_version = "cancun"
 optimizer_runs = 200
 src = "src"
@@ -14,4 +14,3 @@ remappings = [
 fs_permissions = [
     { access='read-write', path='./target/deployments/' }
 ]
-solc_version = "0.8.29"
