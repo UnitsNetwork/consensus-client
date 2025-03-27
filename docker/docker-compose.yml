@@ -16,6 +16,7 @@ services:
       - ./data/op-geth:/root/.ethereum/geth
       - ./peers-${NETWORK}.toml:/etc/config.toml
       - ./genesis-${NETWORK}.json:/tmp/genesis.json
+      - ./logs/op-geth:/root/logs
 
   waves-node:
     container_name: waves-node

@@ -4,24 +4,30 @@ import cats.syntax.either.*
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.state.Blockchain
-import com.wavesplatform.utils.ScorexLogging
+import com.wavesplatform.utils.{EthEncoding, ScorexLogging}
 import monix.execution.atomic.{Atomic, AtomicInt}
-import play.api.libs.json.JsObject
+import play.api.libs.json.{JsObject, Json}
 import units.client.TestEcClients.*
 import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.model.*
 import units.client.engine.{EngineApiClient, LoggedEngineApiClient}
 import units.collections.ListOps.*
-import units.eth.EthAddress
+import units.eth.{EthAddress, EthereumConstants}
 import units.{BlockHash, JobResult, NetworkL2Block}
 
+import scala.util.chaining.*
+
 class TestEcClients private (
+    elStandardBridgeAddress: EthAddress,
+    elNativeBridgeAddress: EthAddress,
     knownBlocks: Atomic[Map[BlockHash, ChainId]],
     chains: Atomic[Map[ChainId, List[EcBlock]]],
     currChainIdValue: AtomicInt,
     blockchain: Blockchain
 ) extends ScorexLogging {
-  def this(genesis: EcBlock, blockchain: Blockchain) = this(
+  def this(elStandardBridgeAddress: EthAddress, elNativeBridgeAddress: EthAddress, genesis: EcBlock, blockchain: Blockchain) = this(
+    elStandardBridgeAddress = elStandardBridgeAddress,
+    elNativeBridgeAddress = elNativeBridgeAddress,
     knownBlocks = Atomic(Map(genesis.hash -> 0)),
     chains = Atomic(Map(0 -> List(genesis))),
     currChainIdValue = AtomicInt(0),
@@ -29,6 +35,13 @@ class TestEcClients private (
   )
 
   private def currChainId: ChainId = currChainIdValue.get()
+
+  def lastKnownBlock(chainId: ChainId = currChainId): EcBlock =
+    chains
+      .get()
+      .getOrElse(chainId, fail(s"Can't find chain #$chainId"))
+      .headOption
+      .getOrElse(fail(s"No blocks in chain #$chainId"))
 
   def addKnown(ecBlock: EcBlock): EcBlock = {
     knownBlocks.transform(_.updated(ecBlock.hash, currChainId))
@@ -45,11 +58,13 @@ class TestEcClients private (
     }
 
   private def currChain: List[EcBlock] =
-    chains.get().getOrElse(currChainId, throw new RuntimeException(s"Unknown chain $currChainId"))
+    chains.get().getOrElse(currChainId, fail(s"Unknown chain $currChainId"))
 
-  private val forgingBlocks = Atomic(List.empty[ForgingBlock])
-  def willForge(ecBlock: EcBlock): Unit =
-    forgingBlocks.transform(ForgingBlock(ecBlock) :: _)
+  private val generatedBlocks                               = Atomic(List.empty[GeneratedBlock])
+  private def appendGeneratedBlock(b: GeneratedBlock): Unit = generatedBlocks.transform(b :: _)
+
+  def willForge(ecBlock: EcBlock): Unit    = appendGeneratedBlock(GeneratedBlock(ecBlock))
+  def willSimulate(ecBlock: EcBlock): Unit = appendGeneratedBlock(GeneratedBlock(ecBlock, simulated = true))
 
   private val logs = Atomic(Map.empty[GetLogsRequest, List[GetLogsResponseEntry]])
   def setBlockLogs(request: GetLogsRequest, response: List[GetLogsResponseEntry]): Unit = logs.transform(_.updated(request, response))
@@ -65,7 +80,62 @@ class TestEcClients private (
 
   val engineApi = new LoggedEngineApiClient(
     new EngineApiClient {
-      override def simulate(blockStateCalls: Seq[BlockStateCall], hash: BlockHash, requestId: ChainId): JobResult[Seq[JsObject]] = ???
+      private val LogChars = 7
+
+      override def simulate(blockStateCalls: Seq[BlockStateCall], hash: BlockHash, requestId: Int): JobResult[Seq[JsObject]] =
+        generatedBlocks.transformAndExtract(_.withoutFirst { b => b.simulated && b.testBlock.parentHash == hash }) match {
+          case None =>
+            val related = generatedBlocks
+              .get()
+              .collect { case b if b.simulated => s"${b.testBlock.hash.take(LogChars)}->${b.testBlock.parentHash.take(LogChars)}" }
+              .mkString(", ")
+            fail(s"Can't find the simulated block with the ${hash.take(LogChars)} parent hash among: $related. Call willSimulate")
+
+          case Some(b) =>
+            val stateCall = blockStateCalls.headOption.getOrElse(fail("Multiple blockStateCalls"))
+            require(stateCall.calls.isEmpty, s"Not implemented for nonempty calls, because of logs: ${stateCall.calls}")
+
+            val simulated = EcBlock(
+              hash = b.testBlock.hash,
+              parentHash = hash,
+              stateRoot = EthereumConstants.EmptyRootHashHex,
+              height = stateCall.blockOverrides.number,
+              timestamp = stateCall.blockOverrides.time,
+              minerRewardL2Address = stateCall.blockOverrides.feeRecipient,
+              baseFeePerGas = stateCall.blockOverrides.baseFeePerGas,
+              gasLimit = 0,
+              gasUsed = 0,
+              prevRandao = stateCall.blockOverrides.prevRandao,
+              withdrawals = stateCall.blockOverrides.withdrawals.toVector
+            )
+
+            require(simulated.height == b.testBlock.height, s"Required height ${simulated.height}, got: ${b.testBlock.height}")
+            require(
+              simulated.minerRewardL2Address == b.testBlock.minerRewardL2Address,
+              s"Required minerRewardL2Address ${simulated.minerRewardL2Address}, got: ${b.testBlock.minerRewardL2Address}"
+            )
+
+            val json = Json.obj(
+              "miner"        -> simulated.minerRewardL2Address,
+              "number"       -> EthEncoding.toHexString(simulated.height),
+              "hash"         -> simulated.hash,
+              "mixHash"      -> simulated.prevRandao,
+              "parentHash"   -> simulated.parentHash,
+              "stateRoot"    -> simulated.stateRoot,
+              "receiptsRoot" -> EthereumConstants.EmptyRootHashHex,
+              "logsBloom"    -> EthereumConstants.EmptyLogsBloomHex,
+              "gasLimit"     -> EthEncoding.toHexString(simulated.gasLimit),
+              "gasUsed"      -> EthEncoding.toHexString(simulated.gasUsed),
+              "timestamp"    -> EthEncoding.toHexString(simulated.timestamp),
+              // Empty extraData
+              "baseFeePerGas" -> EthEncoding.toHexString(simulated.baseFeePerGas.getValue)
+              // "withdrawals"   -> simulated.withdrawals
+            )
+
+            setBlockLogs(GetLogsRequest(simulated.hash, List(elStandardBridgeAddress, elNativeBridgeAddress), Nil, 0), Nil)
+
+            Seq(json).asRight
+        }
 
       override def forkchoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int): JobResult[PayloadStatus] = {
         knownBlocks.get().get(blockHash) match {
@@ -93,25 +163,24 @@ class TestEcClients private (
           requestId: Int
       ): JobResult[PayloadId] = {
         forkChoiceUpdateWithPayloadIdCalls.increment()
-        forgingBlocks
+        generatedBlocks
           .get()
-          .collectFirst { case fb if fb.testBlock.parentHash == lastBlockHash => fb } match {
+          .collectFirst { case b if !b.simulated && b.testBlock.parentHash == lastBlockHash => b } match {
+          case Some(b) => b.payloadId.asRight
           case None =>
-            throw new RuntimeException(
-              s"Can't find a suitable block among: ${forgingBlocks.get().map(_.testBlock.hash).mkString(", ")}. Call willForge"
-            )
-          case Some(fb) =>
-            fb.payloadId.asRight
+            val related = generatedBlocks.get().collect {
+              case b if !b.simulated => s"${b.testBlock.hash.take(LogChars)}->${b.testBlock.parentHash.take(LogChars)}"
+            }
+            fail(s"Can't find the block with the ${lastBlockHash.take(LogChars)} parent hash among: ${related.mkString(", ")}. Call willForge")
         }
       }
 
       override def getPayload(payloadId: PayloadId, requestId: Int): JobResult[JsObject] =
-        forgingBlocks.transformAndExtract(_.withoutFirst { fb => fb.payloadId == payloadId }) match {
-          case Some(fb) => TestEcBlocks.toPayload(fb.testBlock, fb.testBlock.prevRandao).asRight
+        generatedBlocks.transformAndExtract(_.withoutFirst { b => !b.simulated && b.payloadId == payloadId }) match {
+          case Some(b) => TestEcBlocks.toPayload(b.testBlock, b.testBlock.prevRandao).asRight
           case None =>
-            throw new RuntimeException(
-              s"Can't find payload $payloadId among: ${forgingBlocks.get().map(_.testBlock.hash).mkString(", ")}. Call willForge"
-            )
+            val related = generatedBlocks.get().collect { case b if !b.simulated => b.payloadId }
+            fail(s"Can't find a block with the $payloadId payload id among: ${related.mkString(", ")}. Call willForge")
         }
 
       override def newPayload(payload: JsObject, requestId: Int): JobResult[Option[BlockHash]] = {
@@ -181,6 +250,8 @@ class TestEcClients private (
     log.warn(s"notImplementedCase($text)")
     throw new NotImplementedCase(text)
   }
+
+  protected def fail(text: String): Nothing = throw new RuntimeException(text)
 }
 
 object TestEcClients {
@@ -189,9 +260,7 @@ object TestEcClients {
 
   private type ChainId = Int
 
-  private case class ForgingBlock(payloadId: String, testBlock: EcBlock)
-  private object ForgingBlock {
-    def apply(testBlock: EcBlock): ForgingBlock =
-      new ForgingBlock(testBlock.hash.take(16), testBlock)
+  case class GeneratedBlock(testBlock: EcBlock, simulated: Boolean = false) {
+    val payloadId: String = testBlock.hash.take(16)
   }
 }

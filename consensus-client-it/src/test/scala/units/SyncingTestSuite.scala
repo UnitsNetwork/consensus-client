@@ -1,5 +1,6 @@
 package units
 
+import com.wavesplatform.state.Height
 import com.wavesplatform.utils.EthEncoding
 import org.web3j.crypto.{RawTransaction, TransactionEncoder}
 import org.web3j.protocol.core.methods.response.{EthSendTransaction, TransactionReceipt}
@@ -31,13 +32,17 @@ class SyncingTestSuite extends BaseDockerTestSuite {
     val txn2ReceiptBeforeRb = waitForTxn(txn2Result)
     val txn3ReceiptBeforeRb = waitForTxn(txn3Result)
 
-    val blocksWithTxnsBeforeRb = List(txn2ReceiptBeforeRb, txn3ReceiptBeforeRb).map(x => x.getBlockNumber -> x.getBlockHash).toMap
+    val blocksWithTxnsBeforeRb                   = List(txn2ReceiptBeforeRb, txn3ReceiptBeforeRb).map(x => x.getBlockNumber -> x.getBlockHash).toMap
+    val (earliestBlockHeight, earliestBlockHash) = blocksWithTxnsBeforeRb.minBy(_._1)
+    chainContract.waitForHeight(earliestBlockHeight.longValueExact())
+    val contractBlock = chainContract.getBlock(BlockHash(earliestBlockHash)).getOrElse(fail(s"Can't find $earliestBlockHash on contract"))
 
     step("Rollback CL")
-    waves1.api.rollback(height1)
+    val elWaitHeight = ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact() + 1
+    waves1.api.rollback(Height(contractBlock.epoch - 1))
 
-    step("Wait for EL mining")
-    waves1.api.waitForHeight(height1 + 2)
+    step("Wait for EL blocks")
+    while (ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact() < elWaitHeight) Thread.sleep(3000)
 
     step("Waiting transactions 2 and 3 on EL")
     val txn2ReceiptAfterRb = waitForTxn(txn2Result)

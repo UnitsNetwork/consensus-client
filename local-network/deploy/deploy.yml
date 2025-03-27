@@ -3,6 +3,7 @@ services:
     build:
       context: .
       network: host
+    pull_policy: never
     restart: no # Manual start
     platform: linux/amd64 # HACK for Apple Silicon
     environment:
