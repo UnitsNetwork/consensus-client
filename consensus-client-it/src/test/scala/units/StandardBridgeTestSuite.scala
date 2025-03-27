@@ -65,7 +65,7 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
   }
 
   "Positive" - {
-    "Checking balances in EL->CL->EL transfers" in {
+    "Check Asset transfer EL->CL->EL" in {
       terc20E2CTransfer(elAmount, clAmount)
 
       step("Initiate CL->EL transfer. Broadcast ChainContract.transfer transaction")
