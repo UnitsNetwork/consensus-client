@@ -1,14 +1,14 @@
 # Launching the Units Network node
-Units Network node consists of Waves blockchain node, Consensus Client extension, and an execution client (either [besu](https://besu.hyperledger.org) or [geth](https://geth.ethereum.org)). This directory contains sample docker compose files for running the node.
+Units Network node consists of Waves blockchain node, Consensus Client extension, and an execution client (only [op-geth](https://github.com/ethereum-optimism/op-geth) is supported for now). This directory contains sample docker compose files for running the node.
 
 ## Prerequisites
 * Install [Docker Compose](https://docs.docker.com/compose/install/).
 * Generate JWT secret and execution client keys by running `./gen-keys.sh`. This script requires `openssl`.
 * Optional: get waves node [state](https://docs.waves.tech/en/waves-node/options-for-getting-actual-blockchain/state-downloading-and-applying) and place it inside the `./data/waves` directory.
 * Optional: get execution client state.
-* To run besu on Linux, you need to manually create data & log directories and set appropriate permissions:
+* To run op-geth on Linux, you need to manually create data & log directories and set appropriate permissions:
 ```
-install -d -o 1000 -g 1000 data/besu logs/besu
+install -d -o 1000 -g 1000 data/op-geth logs/op-geth
 ```
 
 ## Configuring Waves Node
@@ -21,17 +21,10 @@ install -d -o 1000 -g 1000 data/besu logs/besu
 * Specify the proper declared addresses in the environment file (`testnet.env` for testnet, etc.). Make sure these declared addresses have distinct ports, otherwise your node will be banned from the network!
 
 ## Launching
-There are two profiles in the compose file: `besu` and `geth`, each starting a respective execution client. You can choose which one to run by specifying either `--profile besu` or `--profile geth` on the command line.
 
-Running, stopping and updating with besu in testnet:
+Running, stopping and updating in testnet:
 ```
-docker compose --profile besu --env-file=testnet.env up -d
-docker compose --profile besu --env-file=testnet.env down
-docker compose --profile besu --env-file=testnet.env pull
-```
-Running, stopping and updating with geth in testnet:
-```
-docker compose --profile geth --env-file=testnet.env up -d
-docker compose --profile geth --env-file=testnet.env down
-docker compose --profile geth --env-file=testnet.env pull
+docker compose --env-file=testnet.env up -d
+docker compose --env-file=testnet.env down
+docker compose --env-file=testnet.env pull
 ```
