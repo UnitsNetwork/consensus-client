@@ -6,7 +6,8 @@ import com.wavesplatform.transaction.TxHelpers
 import units.el.ElBridgeClient
 import org.web3j.protocol.core.methods.response.TransactionReceipt
 import org.web3j.utils.Convert
-import scala.jdk.OptionConverters._
+
+import scala.jdk.OptionConverters.*
 
 class EmptyEpochMinerEvictionTestSuite extends BaseDockerTestSuite {
   private val reporter               = miner11Account
@@ -52,14 +53,23 @@ class EmptyEpochMinerEvictionTestSuite extends BaseDockerTestSuite {
     val tenGwei        = BigInt(Convert.toWei("10", Convert.Unit.GWEI).toBigIntegerExact)
     val transferResult = elBridge.sendSendNative(elRichAccount1, clRichAccount1.toAddress, tenGwei)
 
+    // To overcome a failed block confirmation in a new epoch issue
+    chainContract.waitForHeight(ec1.web3j.ethBlockNumber().send().getBlockNumber.longValueExact() + 2)
+
     // Assertion: L2 transaction is successful
-    eventually {
+    val txReceipt = eventually {
       val r = ec1.web3j.ethGetTransactionReceipt(transferResult.getTransactionHash).send().getTransactionReceipt.toScala.value
       if (!r.isStatusOK) fail(s"Expected successful sendNative, got: ${ElBridgeClient.decodeRevertReason(r.getRevertReason)}")
       r
     }
+    val contractBlock = eventually {
+      chainContract.getBlock(BlockHash(txReceipt.getBlockHash)).value
+    }
+
+    log.debug(s"contractBlock.epoch: ${contractBlock.epoch}")
+    log.debug(s"lastReportedHeight: ${lastReportedHeight}")
 
     // Assertion: reporter started mining exactly on lastReportedHeight
-    waves1.api.height() shouldBe lastReportedHeight
+    contractBlock.height shouldBe lastReportedHeight
   }
 }
