@@ -59,9 +59,10 @@ class ELUpdater(
 ) extends StrictLogging {
   import ELUpdater.*
 
-  private val handleNextUpdate    = SerialCancelable()
-  private val contractAddress     = config.chainContractAddress
-  private val chainContractClient = new ChainContractStateClient(contractAddress, blockchain)
+  private val handleNextUpdate      = SerialCancelable()
+  private val contractAddress       = config.chainContractAddress
+  private val chainContractClient   = new ChainContractStateClient(contractAddress, blockchain)
+  private var previouslyKnownMiners = chainContractClient.getAllActualMiners.toSet
 
   private[units] var state: State = Starting
 
@@ -716,7 +717,22 @@ class ELUpdater(
       case Left(error) => logger.error(s"Could not load finalized block", error)
       case Right(Some(finalizedEcBlock)) =>
         logger.trace(s"Finalized block ${finalizedBlock.hash} is at height ${finalizedEcBlock.height}")
-        if (blockchain.height != prevState.epochInfo.number || !blockchain.vrf(blockchain.height).contains(prevState.epochInfo.hitSource)) {
+
+        val currentMinerList = chainContractClient.getAllActualMiners.toSet
+        val symmetricDiff    = (previouslyKnownMiners union currentMinerList) -- (previouslyKnownMiners intersect currentMinerList)
+        val initialCurrentEpochMinerGotEvicted =
+          if (symmetricDiff == Set(prevState.epochInfo.miner))
+          then {
+            logger.info(s"Miners changed. New count: ${currentMinerList.size}")
+            previouslyKnownMiners = currentMinerList
+            true
+          } else false
+
+        if (
+          blockchain.height != prevState.epochInfo.number
+          || !blockchain.vrf(blockchain.height).contains(prevState.epochInfo.hitSource)
+          || initialCurrentEpochMinerGotEvicted
+        ) {
           calculateEpochInfo match {
             case Left(error) =>
               logger.error(s"Could not calculate epoch info at epoch start: $error")
