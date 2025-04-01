@@ -9,6 +9,7 @@ import org.web3j.protocol.core.methods.request.Transaction
 import org.web3j.protocol.core.methods.response.EthSendTransaction
 import org.web3j.protocol.exceptions.TransactionException
 import org.web3j.tx.RawTransactionManager
+import org.web3j.tx.exceptions.ContractCallException
 import org.web3j.tx.gas.DefaultGasProvider
 import units.bridge.StandardBridge
 import units.docker.EcContainer
@@ -75,10 +76,17 @@ class StandardBridgeClient(
     contract.send_bridgeERC20(token.hexNoPrefix, EthEncoding.toHexString(clTo.publicKeyHash), elAmount.bigInteger).encodeFunctionCall()
   }
 
-  def isRegistered(assetAddress: EthAddress): Boolean = {
+  def isRegistered(assetAddress: EthAddress, ignoreExceptions: Boolean = false): Boolean = {
     val txnManager = new RawTransactionManager(web3j, defaultSender, EcContainer.ChainId)
     val contract   = StandardBridge.load(standardBridgeAddress.hex, web3j, txnManager, gasProvider)
-    val ratio      = contract.call_tokenRatios(assetAddress.hexNoPrefix).send()
+
+    def call = contract.call_tokenRatios(assetAddress.hexNoPrefix).send()
+    val ratio =
+      if (ignoreExceptions)
+        try call
+        catch { case e: ContractCallException if e.getMessage.contains("Empty value (0x) returned from contract") => BigInteger.ZERO }
+      else call
+
     ratio != BigInteger.ZERO
   }
 }

@@ -15,11 +15,9 @@ import units.bridge.{TERC20, UnitsMintableERC20}
 import units.docker.EcContainer
 import units.el.{BridgeMerkleTree, E2CTopics, EvmEncoding}
 import units.eth.EthAddress
-import units.test.TestEnvironment
 
 import java.math.BigInteger
 import scala.jdk.OptionConverters.RichOptional
-import scala.sys.process.*
 
 class StandardBridgeTestSuite extends BaseDockerTestSuite {
   private val clAssetOwner    = clRichAccount2
@@ -43,7 +41,7 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
 
   private val gasProvider     = new DefaultGasProvider
   private lazy val txnManager = new RawTransactionManager(ec1.web3j, elSender, EcContainer.ChainId, 20, 2000)
-  private lazy val wwaves     = WWaves.load(WWavesAddress.hex, ec1.web3j, txnManager, gasProvider)
+  private lazy val wwaves     = UnitsMintableERC20.load(WWavesAddress.hex, ec1.web3j, txnManager, gasProvider)
   private lazy val terc20     = TERC20.load(TErc20Address.hex, ec1.web3j, elSender, gasProvider)
 
   "Negative" - {
@@ -67,7 +65,7 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
   }
 
   "Positive" - {
-    "Checking balances in EL->CL->EL transfers" in {
+    "Check Asset transfer EL->CL->EL" in {
       terc20E2CTransfer(elAmount, clAmount)
 
       step("Initiate CL->EL transfer. Broadcast ChainContract.transfer transaction")
@@ -92,9 +90,6 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
 
     "Check Waves transfer CL->EL->CL" in {
       withClue("4. Transfer Waves C>E>C") {
-        val txManager = mkTransactionManager(elRichAccount1)
-        val wwaves    = UnitsMintableERC20.load(WWavesContractAddress.hex, ec1.web3j, txManager, new DefaultGasProvider)
-
         val transferUserAmount = 55
         // Same for EL and CL, because has same decimals
         val transferAmount = UnitsConvert.toWavesAtomic(transferUserAmount, UnitsConvert.WavesDecimals)
@@ -240,16 +235,16 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
     }
   }
 
-  private def getBalance(erc20Contract: TERC20 | WWaves, account: String): BigInt =
+  private def getBalance(erc20Contract: TERC20 | UnitsMintableERC20, account: String): BigInt =
     erc20Contract match {
-      case contract: TERC20 => contract.call_balanceOf(account).send()
-      case contract: WWaves => contract.call_balanceOf(account).send()
+      case contract: TERC20             => contract.call_balanceOf(account).send()
+      case contract: UnitsMintableERC20 => contract.call_balanceOf(account).send()
     }
 
-  private def sendApproveErc20(erc20Contract: TERC20 | WWaves, ethAmount: BigInt): TransactionReceipt = {
+  private def sendApproveErc20(erc20Contract: TERC20 | UnitsMintableERC20, ethAmount: BigInt): TransactionReceipt = {
     val txnResult = erc20Contract match {
-      case contract: TERC20 => contract.send_approve(StandardBridgeAddress.toString, ethAmount.bigInteger).send()
-      case contract: WWaves => contract.send_approve(StandardBridgeAddress.toString, ethAmount.bigInteger).send()
+      case contract: TERC20             => contract.send_approve(StandardBridgeAddress.toString, ethAmount.bigInteger).send()
+      case contract: UnitsMintableERC20 => contract.send_approve(StandardBridgeAddress.toString, ethAmount.bigInteger).send()
     }
 
     eventually {
@@ -279,29 +274,18 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
 
   override def beforeAll(): Unit = {
     super.beforeAll()
+    deploySolidityContracts()
 
     step("Prepare: issue CL asset")
     waves1.api.broadcastAndWait(issueAssetTxn)
 
-    step("Prepare: move assets and enable the asset in the registry")
+    step("Prepare: move assets for testing purposes")
     waves1.api.broadcast(TxHelpers.transfer(clAssetOwner, chainContractAddress, enoughClAmount, issueAsset))
-
-    step("Prepare: wait for first block in EC")
-    while (ec1.web3j.ethBlockNumber().send().getBlockNumber.compareTo(BigInteger.ONE) < 0) Thread.sleep(5000)
-
-    waves1.api.waitForHeight(waves1.api.height() + 1)
-
-    step("Prepare: deploy contracts on EL")
-    Process(
-      s"forge script -vvvvv scripts/IT.s.sol:IT --private-key $elRichAccount1PrivateKey --fork-url http://localhost:${ec1.rpcPort} --broadcast",
-      TestEnvironment.ContractsDir,
-      "CHAIN_ID" -> EcContainer.ChainId.toString
-    ).!(ProcessLogger(out => log.info(out), err => log.error(err)))
 
     step("Enable token transfers")
     val activationEpoch = waves1.api.height() + 1
     waves1.api.broadcastAndWait(
-      ChainContract.enableTokenTransfers(
+      ChainContract.enableTokenTransfersWithWaves(
         StandardBridgeAddress,
         WWavesAddress,
         activationEpoch = activationEpoch

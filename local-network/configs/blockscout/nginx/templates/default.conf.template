@@ -7,7 +7,7 @@ server {
   listen 10001;
 
   location /socket/ {
-    proxy_pass ${BESU_WS_PROXY_PASS};
+    proxy_pass ${EC_WS_PROXY_PASS};
     proxy_http_version 1.1;
     proxy_set_header    Host $host;
     proxy_set_header    Upgrade "$http_upgrade";
@@ -16,7 +16,7 @@ server {
   }
 
   location / {
-    proxy_pass ${BESU_RPC_PROXY_PASS};
+    proxy_pass ${EC_RPC_PROXY_PASS};
     proxy_set_header Host $host;
     proxy_pass_request_headers on;
   }

@@ -18,7 +18,9 @@ import units.docker.*
 import units.docker.WavesNodeContainer.generateWavesGenesisConfig
 import units.el.{NativeBridgeClient, StandardBridgeClient}
 import units.eth.Gwei
-import units.test.{CustomMatchers, IntegrationTestEventually}
+import units.test.{CustomMatchers, IntegrationTestEventually, TestEnvironment}
+
+import scala.sys.process.{Process, ProcessLogger}
 
 trait BaseDockerTestSuite
     extends AnyFreeSpec
@@ -106,6 +108,15 @@ trait BaseDockerTestSuite
     val epoch1Number = joinMiner1Result.height + 1
     step(s"Wait for #$epoch1Number epoch")
     waves1.api.waitForHeight(epoch1Number)
+  }
+  
+  protected def deploySolidityContracts(): Unit = {
+    step("Deploy contracts on EL")
+    Process(
+      s"forge script -vvvvv scripts/IT.s.sol:IT --private-key $elRichAccount1PrivateKey --fork-url http://localhost:${ec1.rpcPort} --broadcast",
+      TestEnvironment.ContractsDir,
+      "CHAIN_ID" -> EcContainer.ChainId.toString
+    ).!(ProcessLogger(out => log.info(out), err => log.error(err)))
   }
 
   override protected def step(text: String): Unit = {

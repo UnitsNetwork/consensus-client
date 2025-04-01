@@ -32,6 +32,8 @@ class MultiplePrivateKeysTestSuite extends BaseTestSuite {
     withExtensionDomain(settings) { d =>
       step("Start new epoch for ecBlock")
       d.advanceNewBlocks(minerFromWallet.address)
+
+      d.ecClients.willForge(d.createEcBlockBuilder("0", minerFromWallet).build())
       d.advanceConsensusLayerChanged()
 
       d.ecClients.miningAttempts shouldBe 1
@@ -44,6 +46,8 @@ class MultiplePrivateKeysTestSuite extends BaseTestSuite {
     withExtensionDomain(settings) { d =>
       step("Start new epoch for ecBlock")
       d.advanceNewBlocks(minerFromWallet.address)
+
+      d.ecClients.willForge(d.createEcBlockBuilder("0", minerFromWallet).build())
       d.advanceConsensusLayerChanged()
 
       d.ecClients.miningAttempts shouldBe 1
@@ -56,6 +60,8 @@ class MultiplePrivateKeysTestSuite extends BaseTestSuite {
     withExtensionDomain(settings) { d =>
       step("Start new epoch for ecBlock")
       d.advanceNewBlocks(miner1.address)
+
+      d.ecClients.willForge(d.createEcBlockBuilder("0", miner1).build())
       d.advanceConsensusLayerChanged()
 
       d.ecClients.miningAttempts shouldBe 1
@@ -68,6 +74,8 @@ class MultiplePrivateKeysTestSuite extends BaseTestSuite {
     withExtensionDomain(settings) { d =>
       step("Start new epoch for ecBlock")
       d.advanceNewBlocks(miner1.address)
+
+      d.ecClients.willForge(d.createEcBlockBuilder("0", miner1).build())
       d.advanceConsensusLayerChanged()
 
       d.advanceNewBlocks(miner2.address)

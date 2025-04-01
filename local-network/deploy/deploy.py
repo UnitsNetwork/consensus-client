@@ -7,7 +7,6 @@ from time import sleep
 from pywaves import pw
 from units_network import units, waves
 from units_network.common_utils import configure_cli_logger
-from web3 import Web3
 
 from local.network import get_local
 from local.node import Node
@@ -130,16 +129,24 @@ while True:
     log.info("Wait for at least one block on EL")
     sleep(3)
 
-log.info("Deploying the StandardBridge contract")
+log.info("Deploying Solidity contracts")
 
 # TODO: check if deployment is required
 try:
+    # Use IT.s.sol for now, because we need a test token. If update to other script, make sure you changed keys in network.py
     cmd = (
-        f"forge script --force -vvvv scripts/Deployer.s.sol:Deployer --private-key {network.el_deployer_private_key} "
+        f"forge script --force -vvvv {contracts_dir}/eth/scripts/IT.s.sol:IT --private-key {network.el_deployer.key.hex()} "
         + f"--fork-url {network.settings.el_node_api_url} --broadcast"
     )
 
-    retcode = subprocess.call(cmd, shell=True, cwd=os.path.join(contracts_dir, "eth"))
+    env = os.environ.copy()
+    # env["BRIDGE_PROXY_ADMIN"] = network.el_deployer.address
+    retcode = subprocess.call(
+        cmd,
+        shell=True,
+        cwd=os.path.join(contracts_dir, "eth"),
+        env=env,
+    )
     if retcode < 0:
         log.error(f"Child was terminated by signal: {-retcode}")
         exit(1)

@@ -47,11 +47,17 @@ trait BaseTestSuite
           defaultSettings.daoRewardAccount.map(_.toAddress),
           defaultSettings.daoRewardAmount
         ),
-        d.ChainContract.enableTokenTransfers(
-          StandardBridgeAddress,
-          WWavesAddress,
-          activationEpoch = settings.enableTokenTransfersEpoch
-        )
+        if (settings.registerWwavesToken)
+          d.ChainContract.enableTokenTransfersWithWaves( 
+            StandardBridgeAddress,
+            WWavesAddress,
+            activationEpoch = settings.enableTokenTransfersEpoch
+          )
+        else
+          d.ChainContract.enableTokenTransfers(
+            StandardBridgeAddress,
+            activationEpoch = settings.enableTokenTransfersEpoch
+          )
       ) ++ settings.initialMiners.map { x => d.ChainContract.join(x.account, x.elRewardAddress) }
 
       d.appendBlock(txs*)

@@ -13,7 +13,8 @@ class C2ETransfersTestSuite extends BaseTestSuite {
   private val issueAsset             = issueAssetTxn.asset
 
   override protected val defaultSettings: TestSettings = super.defaultSettings.copy(
-    additionalBalances = List(AddrWithBalance(transferSenderAccount.toAddress))
+    additionalBalances = List(AddrWithBalance(transferSenderAccount.toAddress)),
+    registerWwavesToken = true
   )
 
   "Pass a valid address with a valid payment" in {

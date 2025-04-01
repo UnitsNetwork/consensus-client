@@ -1,10 +1,12 @@
 package units.client.contract
 
 import com.wavesplatform.transaction.{Asset, TxHelpers}
-import units.BaseTestSuite
 import units.eth.EthAddress
+import units.{BaseTestSuite, TestSettings}
 
 class ChainContractImpureTestSuite extends BaseTestSuite {
+  override protected val defaultSettings: TestSettings = super.defaultSettings.copy(registerWwavesToken = true)
+
   "registerAsset" - {
     "Unknown asset" in withExtensionDomain() { d =>
       val issueTxn    = TxHelpers.issue(d.chainRegistryAccount, 1, 8)
