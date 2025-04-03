@@ -596,28 +596,33 @@ func appendBlock_base(
   ]
 }
 
-func commonWithdrawChecks(blockHashHex: String, merkleProof: List[ByteVector], transferIndexInBlock: Int, amount: Int) = {
-  let withdrawBlockMeta        = blockMeta(blockHashHex)
-  let withdrawBlockHeight      = withdrawBlockMeta._1
-  let finalizedBlockHeight     = blockMeta(getStringValue(finalizedBlockKey))._1
-  let mainChainLastBlockHeight = blockMeta(mainChainLastBlock)._1
+func isFinalized(blockHashHex: String) = {
+  let reqBlockMeta         = blockMeta(blockHashHex)
+  let reqBlockHeight       = reqBlockMeta._1
+  let finalizedBlockHeight = blockMeta(getStringValue(finalizedBlockKey))._1
 
-  strict finalized        = withdrawBlockHeight <= finalizedBlockHeight || throw("EL block #" + withdrawBlockHeight.toString() + " is not finalized. The current finalized is #" + finalizedBlockHeight.toString())
+  strict finalizedByHeight = reqBlockHeight <= finalizedBlockHeight || throw("EL block #" + reqBlockHeight.toString() + " is not finalized. The current finalized is #" + finalizedBlockHeight.toString())
+
+  let reqBlockChainId = reqBlockMeta._4
+  let isMainChain     = reqBlockChainId == mainChainId
+
+  # A chain was forked after the specified block
+  let relatesToMainChain = match getInteger(chainForkedHeightKey(reqBlockChainId)) {
+    case forkedHeight: Int => reqBlockHeight < forkedHeight
+    case _ => throw(blockHashHex + " is on an alternative chain #" + reqBlockChainId.toString() + " that was not approved by majority. Wait for some blocks")
+  }
+
+  if (isMainChain || relatesToMainChain)
+    then reqBlockMeta
+    else throw("Expected " + blockHashHex + " to be either on the main chain or relate to it")
+}
+
+func commonWithdrawChecks(withdrawBlockHashHex: String, merkleProof: List[ByteVector], transferIndexInBlock: Int, amount: Int) = {
   strict rightProofsSize  = merkleProof.size() == WITHDRAW_PROOFS_SIZE || throw("Expected " + WITHDRAW_PROOFS_SIZE.toString() + " proofs, got " + merkleProof.size().toString())
   strict nonNegativeIndex = transferIndexInBlock >= 0 || throw("Transfer index in block should be nonnegative, got " + transferIndexInBlock.toString())
   strict positiveAmount   = amount > 0 || throw("Amount should be positive, got " + amount.toString())
 
-  let withdrawBlockChainId = withdrawBlockMeta._4
-  let isMainChain          = withdrawBlockChainId == mainChainId
-
-  # A chain forked after a block with withdrawal
-  let relatesToMainChain   = match getInteger(chainForkedHeightKey(withdrawBlockChainId)) {
-    case forkedHeight: Int => withdrawBlockHeight < forkedHeight
-    case _ => throw(blockHashHex + " is on an alternative chain #" + withdrawBlockChainId.toString() + " that was not approved by majority. Wait for some blocks")
-  }
-
-  strict isOnMainChain = isMainChain || relatesToMainChain || throw("Expected " + blockHashHex + " to be either on the main chain or relate to it")
-  withdrawBlockMeta
+  isFinalized(withdrawBlockHashHex)
 }
 
 @Callable(i)
