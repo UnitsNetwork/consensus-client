@@ -720,11 +720,11 @@ class ELUpdater(
 
         val currentMinerList = chainContractClient.getAllActualMiners.toSet
         val symmetricDiff    = (previouslyKnownMiners union currentMinerList) -- (previouslyKnownMiners intersect currentMinerList)
+        previouslyKnownMiners = currentMinerList
         val initialCurrentEpochMinerGotEvicted =
           if (symmetricDiff == Set(prevState.epochInfo.miner))
           then {
             logger.info(s"Miners changed. New count: ${currentMinerList.size}")
-            previouslyKnownMiners = currentMinerList
             true
           } else false
 
