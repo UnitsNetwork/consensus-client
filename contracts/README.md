@@ -13,8 +13,8 @@ All examples are written for TestNet.
 
 # Glossary
 
-- CL - Consensus Layer, Waves
-- EL - Execution Layer, Ethereum
+- CL - Consensus Layer, Waves;
+- EL - Execution Layer, Ethereum.
 
 # How to bridge your token
 
@@ -97,23 +97,25 @@ Note **/api** in the end of the `--verifier-url`.
 Please refer to the official [forge-create](https://book.getfoundry.sh/reference/forge/forge-create) documentation for more information.
 
 You will see something like:
-> [⠊] Compiling...
-> [⠒] Compiling 8 files with Solc 0.8.29
-> [⠢] Solc 0.8.29 finished in 74.47ms
-> Compiler run successful!
-> Deployer: <redacted>
-> Deployed to: <redacted>
-> Transaction hash: <redacted
-> Starting contract verification...
-> Waiting for blockscout to detect contract deployment...
-> Start verifying contract `<redacted>` deployed on 88817
-> Compiler version: 0.8.29
-> Constructor args: <redacted>
->
-> Submitting verification ...
-> Submitted contract for verification:
-> Response: `OK`
-> ...
+```
+[⠊] Compiling...
+[⠒] Compiling 8 files with Solc 0.8.29
+[⠢] Solc 0.8.29 finished in 74.47ms
+Compiler run successful!
+Deployer: <redacted>
+Deployed to: <redacted>
+Transaction hash: <redacted
+Starting contract verification...
+Waiting for blockscout to detect contract deployment...
+Start verifying contract `<redacted>` deployed on 88817
+Compiler version: 0.8.29
+Constructor args: <redacted>
+
+Submitting verification ...
+Submitted contract for verification:
+Response: `OK`
+...
+```
 
 It can take some time for a verification, even it failed in the log. If it is not, try to [verify](#additional-verification) it again.
 
