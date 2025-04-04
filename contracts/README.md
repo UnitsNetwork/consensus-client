@@ -81,6 +81,7 @@ We need:
 You can use [our](eth/src/UnitsMintableERC20.sol) implementation of [IUnitsMintableERC20](eth/src/IUnitsMintableERC20.sol).
 Also see [TERC20.sol](eth/src/utils/TERC20.sol) as example of pre-minted tokens, if you want to issue on EL first.
 
+Run from [eth](eth) directory:
 ```shell
 forge create --force \
   --rpc-url https://rpc-testnet.unit0.dev/ \
@@ -89,7 +90,7 @@ forge create --force \
   --verifier blockscout \
   --verifier-url https://explorer-testnet.unit0.dev/api/ \
   --private-key YOUR_PRIVATE_KEY \
-  eth/src/UnitsMintableERC20.sol:UnitsMintableERC20 \
+  src/UnitsMintableERC20.sol:UnitsMintableERC20 \
   --constructor-args 0x2EE5715961C45bd16EB5c2739397B8E871A46F9f "Test Token" "TTK" 18
 ```
 
@@ -123,11 +124,12 @@ It can take some time for a verification, even it failed in the log. If it is no
 
 Please refer to the official [forge-verify-contract](https://book.getfoundry.sh/reference/forge/forge-verify-contract) documentation for more information.
 
+Run from [eth](eth) directory:
 ```shell
 forge verify-contract \
   --rpc-url https://rpc-testnet.unit0.dev \
   <Address from "Deployed to"> \
-  eth/src/StandardBridge.sol:StandardBridge \
+  src/StandardBridge.sol:StandardBridge \
   --verifier blockscout \
   --verifier-url https://explorer-testnet.unit0.dev/api/ \
   --constructor-args 0x2EE5715961C45bd16EB5c2739397B8E871A46F9f "Test Token" "TTK" 18
