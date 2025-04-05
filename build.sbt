@@ -29,13 +29,13 @@ maintainer := "Units Network Team"
 
 libraryDependencies ++= {
   val node        = "1.5.10-SNAPSHOT"
-  val sttpVersion = "3.10.2"
+  val sttpVersion = "3.10.3"
   Seq(
     "com.wavesplatform"              % "node-testkit"  % node % Test,
     "com.wavesplatform"              % "node"          % node % Provided,
     "com.softwaremill.sttp.client3" %% "core"          % sttpVersion,
     "com.softwaremill.sttp.client3" %% "play-json"     % sttpVersion,
-    "com.github.jwt-scala"          %% "jwt-play-json" % "10.0.1",
+    "com.github.jwt-scala"          %% "jwt-play-json" % "10.0.4",
     "org.web3j"                      % "core"          % "4.9.8"
   )
 }
