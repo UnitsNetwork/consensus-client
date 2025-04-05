@@ -26,8 +26,6 @@ jobs:
           java-version: '11'
           cache: 'sbt'
       - uses: foundry-rs/foundry-toolchain@v1
-      - name: Ensure solc directory exists
-        run: mkdir -p /home/runner/.solc
       - name: Cache solc
         id: cache-solc
         uses: actions/cache@v4
@@ -37,11 +35,9 @@ jobs:
           restore-keys: solc-
       - name: Get solc
         if: ${{ steps.cache-solc.outputs.cache-hit != 'true' }}
-        uses: pontem-network/get-solc@e187b20b402a33b6e0383a296445cbefdeeb5ba2 # 2022-07-08
-        with:
-          version: v0.8.29
-      - name: Make solc available
         run: |
+          mkdir -p /home/runner/.solc/v0.8.29
+          wget https://binaries.soliditylang.org/linux-amd64/solc-linux-amd64-v0.8.29+commit.ab55807c -O /home/runner/.solc/v0.8.29/solc-static-linux
           echo "/home/runner/.solc" >> $GITHUB_PATH
           ln -sf /home/runner/.solc/v0.8.29/solc-static-linux /home/runner/.solc/solc
           which solc || echo "Solc not found in PATH"
