@@ -51,7 +51,7 @@ trait HasConsensusLayerDappTxHelpers {
         elMinerReward: Long,
         daoAddress: Option[Address],
         daoReward: Long,
-        invoker: KeyPair = defaultSigner
+        invoker: KeyPair = chainContractAccount
     ): InvokeScriptTransaction = TxHelpers.invoke(
       dApp = chainContractAddress,
       func = "setup".some,

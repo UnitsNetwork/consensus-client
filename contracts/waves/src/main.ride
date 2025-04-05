@@ -983,7 +983,7 @@ func enableTokenTransfers(standardBridgeAddress: String, wavesERC20AddressHex: S
 @Callable(i)
 func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: String, daoReward: Int) = {
   if (isContractSetup()) then throw("The contract has been already set up")
-  else if (i.originCaller != this) throw("Only owner of chain contract can do this")
+  else if (i.originCaller != this) then throw("Only owner of chain contract can do this")
   else if (minerRewardInGwei < 0) then throw("The miner reward must be nonnegative")
   else {
     let genesisBlockHash = genesisBlockHashHex.fromBase16String()
