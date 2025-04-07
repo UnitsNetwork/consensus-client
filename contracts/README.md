@@ -65,13 +65,15 @@ We need:
     - Name: `Test Token`;
     - Symbol: `TTK`;
     - Decimals: `18`.
+- Standard bridge address is same for all networks: `0x2EE5715961C45bd16EB5c2739397B8E871A46F9f`;
 - Depending on network:
+    - MainNet:
+        - RPC url: https://rpc.unit0.dev/
+        - Explorer url: https://explorer.unit0.dev/
     - TestNet:
-        - Standard bridge address: `0x2EE5715961C45bd16EB5c2739397B8E871A46F9f`;
         - RPC url: https://rpc-testnet.unit0.dev/
         - Explorer url: https://explorer-testnet.unit0.dev/
     - StageNet
-        - Standard bridge address: `0x2EE5715961C45bd16EB5c2739397B8E871A46F9f`;
         - RPC url: https://rpc-stagenet.unit0.dev/
         - Explorer url: https://explorer-stagenet.unit0.dev/
 - And your private key for L2 account that will deploy the contract.
@@ -129,7 +131,7 @@ Run from [eth](eth) directory:
 forge verify-contract \
   --rpc-url https://rpc-testnet.unit0.dev \
   <Address from "Deployed to"> \
-  src/StandardBridge.sol:StandardBridge \
+  src/UnitsMintableERC20.sol:UnitsMintableERC20 \
   --verifier blockscout \
   --verifier-url https://explorer-testnet.unit0.dev/api/ \
   --constructor-args 0x2EE5715961C45bd16EB5c2739397B8E871A46F9f "Test Token" "TTK" 18
