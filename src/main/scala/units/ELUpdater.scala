@@ -59,10 +59,9 @@ class ELUpdater(
 ) extends StrictLogging {
   import ELUpdater.*
 
-  private val handleNextUpdate      = SerialCancelable()
-  private val contractAddress       = config.chainContractAddress
-  private val chainContractClient   = new ChainContractStateClient(contractAddress, blockchain)
-  private var previouslyKnownMiners = chainContractClient.getAllActualMiners.toSet
+  private val handleNextUpdate    = SerialCancelable()
+  private val contractAddress     = config.chainContractAddress
+  private val chainContractClient = new ChainContractStateClient(contractAddress, blockchain)
 
   private[units] var state: State = Starting
 
@@ -323,14 +322,15 @@ class ELUpdater(
     val prevRandao = calculateRandao(epochInfo.hitSource, parentBlock.hash)
 
     if (willSimulateBlock) {
-      mkSimulatedBlock(parentBlock.hash, epochInfo.rewardAddress, nextBlockUnixTs, prevRandao, withdrawals, depositedTransactions).map { simulatedPayload =>
-        MiningData(
-          payload = simulatedPayload ++ Json.obj("transactions" -> depositedTransactions.map(_.toHex)),
-          nextBlockUnixTs = nextBlockUnixTs,
-          lastC2ETransferIndex = transfers.lastOption.fold(lastC2ETransferIndex)(_.index),
-          lastElWithdrawalIndex = lastElWithdrawalIndex + withdrawals.size,
-          lastAssetRegistryIndex = addedAssets.lastOption.fold(lastAssetRegistryIndex)(_.index)
-        )
+      mkSimulatedBlock(parentBlock.hash, epochInfo.rewardAddress, nextBlockUnixTs, prevRandao, withdrawals, depositedTransactions).map {
+        simulatedPayload =>
+          MiningData(
+            payload = simulatedPayload ++ Json.obj("transactions" -> depositedTransactions.map(_.toHex)),
+            nextBlockUnixTs = nextBlockUnixTs,
+            lastC2ETransferIndex = transfers.lastOption.fold(lastC2ETransferIndex)(_.index),
+            lastElWithdrawalIndex = lastElWithdrawalIndex + withdrawals.size,
+            lastAssetRegistryIndex = addedAssets.lastOption.fold(lastAssetRegistryIndex)(_.index)
+          )
       }
     } else {
       forkchoiceUpdatedWithPayload(
@@ -718,20 +718,16 @@ class ELUpdater(
       case Right(Some(finalizedEcBlock)) =>
         logger.trace(s"Finalized block ${finalizedBlock.hash} is at height ${finalizedEcBlock.height}")
 
-        val currentMinerList = chainContractClient.getAllActualMiners.toSet
-        val symmetricDiff    = (previouslyKnownMiners union currentMinerList) -- (previouslyKnownMiners intersect currentMinerList)
-        previouslyKnownMiners = currentMinerList
-        val initialCurrentEpochMinerGotEvicted =
-          if (symmetricDiff == Set(prevState.epochInfo.miner))
-          then {
-            logger.info(s"Miners changed. New count: ${currentMinerList.size}")
-            true
-          } else false
+        // Note: `nobodyStartedMining` will be true on every empty epoch.
+        // We benefit from it in cases when idle miner was evicted, a list of miners has changed,
+        // and we would like it to start mining right away.
+        // We use this condition instead of keeping track of a list of miners.
+        val nobodyStartedMining = chainContractClient.getEpochMeta(blockchain.height).isEmpty
 
         if (
           blockchain.height != prevState.epochInfo.number
           || !blockchain.vrf(blockchain.height).contains(prevState.epochInfo.hitSource)
-          || initialCurrentEpochMinerGotEvicted
+          || nobodyStartedMining
         ) {
           calculateEpochInfo match {
             case Left(error) =>
