@@ -361,7 +361,8 @@ class EmptyEpochTestSuite extends BaseTestSuite {
     val thisMiner = ElMinerSettings(Wallet.generateNewAccount(super.defaultSettings.walletSeed, 0))
     val settings  = defaultSettings.copy(initialMiners = List(thisMiner, idleMiner))
     withExtensionDomain(settings) { d =>
-      val maxSkippedEpochCount = 10
+      // This test checks that claiming by 100 epochs at once works fine
+      val maxSkippedEpochCount = 200
       var reportedEpochs       = List.empty[Int]
 
       // Set maxSkippedEpochCount (to speed up the test)
@@ -409,6 +410,7 @@ class EmptyEpochTestSuite extends BaseTestSuite {
       }
 
       // Assertion: a reporter is rewarded for all skipped epochs, including the last one
+      // Also, this assertion checks that claiming by 100 epochs at once works fine
       d.portfolio(thisMiner.address) shouldBe Seq((d.nativeTokenId, maxSkippedEpochCount * emptyEpochReportReward))
     }
   }
