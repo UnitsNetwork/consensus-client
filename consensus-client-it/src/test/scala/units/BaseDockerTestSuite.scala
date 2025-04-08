@@ -34,7 +34,8 @@ trait BaseDockerTestSuite
     with IntegrationTestEventually
     with Accounts
     with TestDefaults
-    with HasConsensusLayerDappTxHelpers {
+    with HasConsensusLayerDappTxHelpers
+    with Web3JHelpers {
   BaseDockerTestSuite.init()
 
   override val currentHitSource: ByteStr = ByteStr.empty
@@ -109,7 +110,7 @@ trait BaseDockerTestSuite
     step(s"Wait for #$epoch1Number epoch")
     waves1.api.waitForHeight(epoch1Number)
   }
-  
+
   protected def deploySolidityContracts(): Unit = {
     step("Deploy contracts on EL")
     Process(

@@ -5,23 +5,18 @@ import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import com.wavesplatform.transaction.{Asset, TxHelpers}
-import org.web3j.crypto.{Credentials, RawTransaction}
+import monix.execution.atomic.AtomicInt
 import org.web3j.protocol.core.DefaultBlockParameterName
-import org.web3j.protocol.core.methods.request.Transaction
 import org.web3j.protocol.core.methods.response.{EthSendTransaction, TransactionReceipt}
-import org.web3j.protocol.exceptions.TransactionException
 import org.web3j.tx.RawTransactionManager
 import org.web3j.tx.gas.DefaultGasProvider
 import org.web3j.utils.Convert
-import units.bridge.ERC20
 import units.client.contract.HasConsensusLayerDappTxHelpers.DefaultFees
 import units.docker.EcContainer
-import units.el.{BridgeMerkleTree, E2CTopics, EvmEncoding}
+import units.el.{BridgeMerkleTree, E2CTopics, Erc20Client}
 import units.eth.EthAddress
 
-import java.math.BigInteger
 import scala.jdk.OptionConverters.RichOptional
-import scala.util.chaining.*
 
 class MultipleTransfersTestSuite extends BaseDockerTestSuite {
   private val clAssetOwner    = clRichAccount2
@@ -39,12 +34,13 @@ class MultipleTransfersTestSuite extends BaseDockerTestSuite {
 
   private val gasProvider     = new DefaultGasProvider
   private lazy val txnManager = new RawTransactionManager(ec1.web3j, elSender, EcContainer.ChainId, 20, 2000)
-  private lazy val wwaves     = ERC20.load(WWavesAddress.hex, ec1.web3j, txnManager, gasProvider)
-  private lazy val terc20     = ERC20.load(TErc20Address.hex, ec1.web3j, elSender, gasProvider)
+  private lazy val wwaves     = new Erc20Client(ec1.web3j, WWavesAddress, txnManager, gasProvider)
+  private lazy val terc20     = new Erc20Client(ec1.web3j, TErc20Address, txnManager, gasProvider)
 
   "Checking balances in E2C2E transfers" in {
-    val initNonce =
-      ec1.web3j.ethGetTransactionCount(elSenderAddress.hex, DefaultBlockParameterName.PENDING).send().getTransactionCount.intValueExact()
+    val currNonce =
+      AtomicInt(ec1.web3j.ethGetTransactionCount(elSenderAddress.hex, DefaultBlockParameterName.PENDING).send().getTransactionCount.intValueExact())
+    def nextNonce: Int = currNonce.getAndIncrement()
 
     val nativeE2CAmount = UnitsConvert.toAtomic(userAmount, NativeTokenElDecimals)
     val issuedE2CAmount = UnitsConvert.toAtomic(userAmount, TErc20Decimals)
@@ -52,14 +48,14 @@ class MultipleTransfersTestSuite extends BaseDockerTestSuite {
 
     step("Send allowances")
     List(
-      sendApproveErc20(terc20, issuedE2CAmount, initNonce),
-      sendApproveErc20(wwaves, wavesE2CAmount, initNonce + 1)
+      terc20.sendApprove(StandardBridgeAddress, issuedE2CAmount, nextNonce),
+      wwaves.sendApprove(StandardBridgeAddress, wavesE2CAmount, nextNonce)
     ).foreach(waitFor)
 
     step("Initiate E2C transfers")
-    val e2cNativeTxn = nativeBridge.sendSendNative(elSender, clRecipient.toAddress, nativeE2CAmount, Some(initNonce + 2))
-    val e2cIssuedTxn = standardBridge.sendBridgeErc20(elSender, TErc20Address, clRecipient.toAddress, issuedE2CAmount, Some(initNonce + 3))
-    val e2cWavesTxn  = standardBridge.sendBridgeErc20(elSender, WWavesAddress, clRecipient.toAddress, wavesE2CAmount, Some(initNonce + 4))
+    val e2cNativeTxn = nativeBridge.sendSendNative(elSender, clRecipient.toAddress, nativeE2CAmount, Some(nextNonce))
+    val e2cIssuedTxn = standardBridge.sendBridgeErc20(elSender, TErc20Address, clRecipient.toAddress, issuedE2CAmount, Some(nextNonce))
+    val e2cWavesTxn  = standardBridge.sendBridgeErc20(elSender, WWavesAddress, clRecipient.toAddress, wavesE2CAmount, Some(nextNonce))
 
     chainContract.waitForHeight(ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact() + 2) // Bypass rollbacks
 
@@ -86,7 +82,7 @@ class MultipleTransfersTestSuite extends BaseDockerTestSuite {
       .filter(_.topics.intersect(E2CTopics).nonEmpty)
 
     withClue("We have logs for all transactions: ") {
-      e2cLogsInBlock.size shouldBe 3
+      e2cLogsInBlock.size shouldBe e2cReceipts.size
     }
 
     step(s"Wait block $e2cBlockHash with transfers on contract")
@@ -174,68 +170,13 @@ class MultipleTransfersTestSuite extends BaseDockerTestSuite {
         }
 
         withClue("Issued asset: ") {
-          getBalance(terc20, c2eRecipientAddress.hex) shouldBe issuedE2CAmount
+          terc20.getBalance(c2eRecipientAddress) shouldBe issuedE2CAmount
         }
 
         withClue("WAVES: ") {
-          getBalance(wwaves, c2eRecipientAddress.hex) shouldBe wavesE2CAmount
+          wwaves.getBalance(c2eRecipientAddress) shouldBe wavesE2CAmount
         }
       }
-    }
-  }
-
-  private def getBalance(erc20Contract: ERC20, account: String): BigInt = erc20Contract.call_balanceOf(account).send()
-
-  private def sendApproveErc20(erc20Contract: ERC20, elAmount: BigInt, nonce: Int): EthSendTransaction = {
-    val spender  = StandardBridgeAddress.toString
-    val to       = erc20Contract.getContractAddress
-    val funcCall = erc20Contract.send_approve(spender, elAmount.bigInteger).encodeFunctionCall()
-    val rawTxn = RawTransaction.createTransaction(
-      EcContainer.ChainId,
-      BigInteger.valueOf(nonce),
-      gasProvider.getGasLimit,
-      to,
-      BigInteger.ZERO,
-      funcCall,
-      BigInteger.ONE,
-      gasProvider.getGasPrice
-    )
-
-    log.debug(s"Send ${elSender.getAddress} approval for StandardBridge, nonce: $nonce")
-    val r = txnManager.signAndSend(rawTxn)
-    if (r.hasError) throw new TransactionException(s"Can't send approve: ${r.getError}, ${r.getError.getMessage}")
-    r
-  }
-
-  private def waitFor(txn: EthSendTransaction): TransactionReceipt = eventually {
-    ec1.web3j.ethGetTransactionReceipt(txn.getTransactionHash).send().getTransactionReceipt.toScala.value.tap { r =>
-      if (!r.isStatusOK) {
-        fail(s"Expected successful send_approve, got: tx=${EvmEncoding.decodeRevertReason(r.getRevertReason)}")
-      }
-    }
-  }
-
-  private def waitForTransfer(sender: Credentials, erc20Address: EthAddress, ethAmount: BigInt, txn: EthSendTransaction): TransactionReceipt =
-    eventually {
-      val r = ec1.web3j.ethGetTransactionReceipt(txn.getTransactionHash).send().getTransactionReceipt.toScala.value
-      if (!r.isStatusOK) {
-        val revertReason = standardBridge.getRevertReasonForBridgeErc20(sender, erc20Address, clRecipient.toAddress, ethAmount)
-        fail(s"Expected successful sendBridgeErc20, got: tx=${EvmEncoding.decodeRevertReason(r.getRevertReason)}, revertReason=$revertReason")
-      }
-      r
-    }
-
-  private def sendBridgeErc20(sender: Credentials, erc20Address: EthAddress, ethAmount: BigInt): TransactionReceipt = {
-    val txnResult = standardBridge.sendBridgeErc20(sender, erc20Address, clRecipient.toAddress, ethAmount)
-    // To overcome a failed block confirmation in a new epoch issue
-
-    eventually {
-      val r = ec1.web3j.ethGetTransactionReceipt(txnResult.getTransactionHash).send().getTransactionReceipt.toScala.value
-      if (!r.isStatusOK) {
-        val revertReason = standardBridge.getRevertReasonForBridgeErc20(sender, erc20Address, clRecipient.toAddress, ethAmount)
-        fail(s"Expected successful sendBridgeErc20, got: tx=${EvmEncoding.decodeRevertReason(r.getRevertReason)}, revertReason=$revertReason")
-      }
-      r
     }
   }
 
