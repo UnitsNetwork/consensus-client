@@ -92,7 +92,7 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
       withClue("4. Transfer Waves C>E>C") {
         val transferUserAmount = 55
         // Same for EL and CL, because has same decimals
-        val transferAmount = UnitsConvert.toWavesAtomic(transferUserAmount, UnitsConvert.WavesDecimals)
+        val transferAmount = UnitsConvert.toWavesAtomic(transferUserAmount, WavesDecimals)
 
         val chainContractBalanceBefore = waves1.api.balance(chainContractAddress, Asset.Waves)
 

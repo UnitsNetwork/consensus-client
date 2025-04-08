@@ -14,19 +14,23 @@ import units.bridge.Bridge
 import units.docker.EcContainer
 import units.eth.{EthAddress, EthereumConstants}
 
+import java.math.BigInteger
+
 class NativeBridgeClient(web3j: Web3j, address: EthAddress, gasProvider: DefaultGasProvider = new DefaultGasProvider) extends ScorexLogging {
   def sendSendNative(
       sender: Credentials,
       recipient: Address,
-      amountInEther: BigInt
+      amountInEther: BigInt,
+      nonce: Option[Int] = None
   ): EthSendTransaction = {
     val senderAddress = sender.getAddress
     val txnManager    = new RawTransactionManager(web3j, sender, EcContainer.ChainId)
     val funcCall      = getSendNativeFunctionCall(sender, recipient, amountInEther)
 
-    val nonce = web3j.ethGetTransactionCount(senderAddress, DefaultBlockParameterName.PENDING).send().getTransactionCount
+    val exactNonce =
+      nonce.fold(web3j.ethGetTransactionCount(senderAddress, DefaultBlockParameterName.PENDING).send().getTransactionCount)(BigInteger.valueOf(_))
     val rawTxn = RawTransaction.createTransaction(
-      nonce,
+      exactNonce,
       gasProvider.getGasPrice,
       gasProvider.getGasLimit,
       address.hex,
@@ -34,7 +38,7 @@ class NativeBridgeClient(web3j: Web3j, address: EthAddress, gasProvider: Default
       funcCall
     )
 
-    log.debug(s"Send sendNative($senderAddress->$recipient: $amountInEther Wei), nonce: $nonce")
+    log.debug(s"Send sendNative($senderAddress->$recipient: $amountInEther Wei), nonce: $exactNonce")
     val r = txnManager.signAndSend(rawTxn)
     if (r.hasError) throw new TransactionException(s"Can't call sendNative: ${r.getError}, ${r.getError.getMessage}")
     r
