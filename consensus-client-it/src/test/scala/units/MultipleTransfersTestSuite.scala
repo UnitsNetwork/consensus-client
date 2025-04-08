@@ -13,7 +13,7 @@ import org.web3j.protocol.exceptions.TransactionException
 import org.web3j.tx.RawTransactionManager
 import org.web3j.tx.gas.DefaultGasProvider
 import org.web3j.utils.Convert
-import units.bridge.{TERC20, UnitsMintableERC20}
+import units.bridge.ERC20
 import units.client.contract.HasConsensusLayerDappTxHelpers.DefaultFees
 import units.docker.EcContainer
 import units.el.{BridgeMerkleTree, E2CTopics, EvmEncoding}
@@ -39,8 +39,8 @@ class MultipleTransfersTestSuite extends BaseDockerTestSuite {
 
   private val gasProvider     = new DefaultGasProvider
   private lazy val txnManager = new RawTransactionManager(ec1.web3j, elSender, EcContainer.ChainId, 20, 2000)
-  private lazy val wwaves     = UnitsMintableERC20.load(WWavesAddress.hex, ec1.web3j, txnManager, gasProvider)
-  private lazy val terc20     = TERC20.load(TErc20Address.hex, ec1.web3j, elSender, gasProvider)
+  private lazy val wwaves     = ERC20.load(WWavesAddress.hex, ec1.web3j, txnManager, gasProvider)
+  private lazy val terc20     = ERC20.load(TErc20Address.hex, ec1.web3j, elSender, gasProvider)
 
   "Checking balances in E2C2E transfers" in {
     val initNonce =
@@ -184,26 +184,14 @@ class MultipleTransfersTestSuite extends BaseDockerTestSuite {
     }
   }
 
-  private def getBalance(erc20Contract: TERC20 | UnitsMintableERC20, account: String): BigInt =
-    erc20Contract match {
-      case contract: TERC20             => contract.call_balanceOf(account).send()
-      case contract: UnitsMintableERC20 => contract.call_balanceOf(account).send()
-    }
+  private def getBalance(erc20Contract: ERC20, account: String): BigInt = erc20Contract.call_balanceOf(account).send()
 
-  private def sendApproveErc20(erc20Contract: TERC20 | UnitsMintableERC20, elAmount: BigInt, nonce: Int): EthSendTransaction = {
-    val spender = StandardBridgeAddress.toString
-
-    val (to, funcCall) = erc20Contract match {
-      case contract: TERC20 =>
-        log.debug(s"Balance: ${contract.call_balanceOf(elSender.getAddress).send().longValue()}")
-        (contract.getContractAddress, contract.send_approve(spender, elAmount.bigInteger).encodeFunctionCall())
-      case contract: UnitsMintableERC20 =>
-        log.debug(s"Balance: ${contract.call_balanceOf(elSender.getAddress).send().longValue()}")
-        (contract.getContractAddress, contract.send_approve(spender, elAmount.bigInteger).encodeFunctionCall())
-    }
-
+  private def sendApproveErc20(erc20Contract: ERC20, elAmount: BigInt, nonce: Int): EthSendTransaction = {
+    val spender  = StandardBridgeAddress.toString
+    val to       = erc20Contract.getContractAddress
+    val funcCall = erc20Contract.send_approve(spender, elAmount.bigInteger).encodeFunctionCall()
     val rawTxn = RawTransaction.createTransaction(
-      1337L, // TODO
+      EcContainer.ChainId,
       BigInteger.valueOf(nonce),
       gasProvider.getGasLimit,
       to,
@@ -283,7 +271,7 @@ class MultipleTransfersTestSuite extends BaseDockerTestSuite {
     val txn = ChainContract.registerAsset(issueAsset, TErc20Address, TErc20Decimals) // TODO: Issue and register
     waves1.api.broadcastAndWait(txn)
     eventually {
-      standardBridge.isRegistered(TErc20Address) shouldBe true
+      standardBridge.isRegistered(TErc20Address, ignoreExceptions = true) shouldBe true
     }
   }
 }

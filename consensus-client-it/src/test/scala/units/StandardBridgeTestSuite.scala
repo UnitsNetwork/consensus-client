@@ -11,7 +11,7 @@ import org.web3j.protocol.core.methods.response.TransactionReceipt
 import org.web3j.tx.RawTransactionManager
 import org.web3j.tx.gas.DefaultGasProvider
 import org.web3j.utils.Convert
-import units.bridge.{TERC20, UnitsMintableERC20}
+import units.bridge.ERC20
 import units.docker.EcContainer
 import units.el.{BridgeMerkleTree, E2CTopics, EvmEncoding}
 import units.eth.EthAddress
@@ -41,8 +41,8 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
 
   private val gasProvider     = new DefaultGasProvider
   private lazy val txnManager = new RawTransactionManager(ec1.web3j, elSender, EcContainer.ChainId, 20, 2000)
-  private lazy val wwaves     = UnitsMintableERC20.load(WWavesAddress.hex, ec1.web3j, txnManager, gasProvider)
-  private lazy val terc20     = TERC20.load(TErc20Address.hex, ec1.web3j, elSender, gasProvider)
+  private lazy val wwaves     = ERC20.load(WWavesAddress.hex, ec1.web3j, txnManager, gasProvider)
+  private lazy val terc20     = ERC20.load(TErc20Address.hex, ec1.web3j, elSender, gasProvider)
 
   "Negative" - {
     def test(amount: BigInt, expectedError: String): Unit = {
@@ -183,7 +183,7 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
   }
 
   private def terc20E2CTransfer(elSendAmount: BigInt, clWithdrawAmount: Long): Unit = {
-    val terc20 = TERC20.load(TErc20Address.hex, ec1.web3j, txnManager, new DefaultGasProvider)
+    val terc20 = ERC20.load(TErc20Address.hex, ec1.web3j, txnManager, new DefaultGasProvider)
 
     step("Send allowance")
     sendApproveErc20(terc20, elSendAmount.bigInteger)
@@ -240,18 +240,10 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
     }
   }
 
-  private def getBalance(erc20Contract: TERC20 | UnitsMintableERC20, account: String): BigInt =
-    erc20Contract match {
-      case contract: TERC20             => contract.call_balanceOf(account).send()
-      case contract: UnitsMintableERC20 => contract.call_balanceOf(account).send()
-    }
+  private def getBalance(erc20Contract: ERC20, account: String): BigInt = erc20Contract.call_balanceOf(account).send()
 
-  private def sendApproveErc20(erc20Contract: TERC20 | UnitsMintableERC20, ethAmount: BigInt): TransactionReceipt = {
-    val txnResult = erc20Contract match {
-      case contract: TERC20             => contract.send_approve(StandardBridgeAddress.toString, ethAmount.bigInteger).send()
-      case contract: UnitsMintableERC20 => contract.send_approve(StandardBridgeAddress.toString, ethAmount.bigInteger).send()
-    }
-
+  private def sendApproveErc20(erc20Contract: ERC20, ethAmount: BigInt): TransactionReceipt = {
+    val txnResult = erc20Contract.send_approve(StandardBridgeAddress.toString, ethAmount.bigInteger).send()
     eventually {
       val r = ec1.web3j.ethGetTransactionReceipt(txnResult.getTransactionHash).send().getTransactionReceipt.toScala.value
       if (!r.isStatusOK) {
