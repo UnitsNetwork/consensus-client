@@ -56,8 +56,7 @@ class MultipleTransfersTestSuite extends BaseDockerTestSuite {
     val e2cIssuedTxn = standardBridge.sendBridgeErc20(elSender, TErc20Address, clRecipient.toAddress, issuedE2CAmount, Some(nextNonce))
     val e2cWavesTxn  = standardBridge.sendBridgeErc20(elSender, WWavesAddress, clRecipient.toAddress, wavesE2CAmount, Some(nextNonce))
 
-    chainContract.waitForHeight(ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact() + 2) // Bypass rollbacks
-
+    chainContract.waitForEpoch(waves1.api.height() + 1) // Bypass rollbacks
     val e2cReceipts = List(e2cIssuedTxn, e2cIssuedTxn, e2cWavesTxn).map { txn =>
       eventually {
         val hash = txn.getTransactionHash
