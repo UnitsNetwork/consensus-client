@@ -96,13 +96,18 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
 
         val chainContractBalanceBefore = waves1.api.balance(chainContractAddress, Asset.Waves)
 
+        def wwavesTotalSupply: BigInt            = BigInt(wwaves.call_totalSupply().send())
         def transferTxn: InvokeScriptTransaction = ChainContract.transfer(clRichAccount1, elSenderAddress, Asset.Waves, transferAmount)
+
+        val elSenderBalanceBefore   = getBalance(wwaves, elSenderAddress.hex)
+        val wwavesTotalSupplyBefore = wwavesTotalSupply
 
         waves1.api.broadcastAndWait(transferTxn)
         waves1.api.balance(chainContractAddress, Asset.Waves) shouldBe chainContractBalanceBefore + transferAmount
+
         eventually {
-          getBalance(wwaves, elSenderAddress.hex) shouldBe BigInt(transferAmount)
-          wwaves.call_totalSupply().send() shouldEqual BigInteger.valueOf(transferAmount)
+          getBalance(wwaves, elSenderAddress.hex) shouldBe elSenderBalanceBefore + transferAmount
+          wwavesTotalSupply shouldEqual wwavesTotalSupplyBefore + transferAmount
         }
 
         val returnAmount = 32_00000000L
@@ -297,7 +302,8 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
     val txn = ChainContract.registerAsset(issueAsset, TErc20Address, TErc20Decimals)
     waves1.api.broadcastAndWait(txn)
     eventually {
-      standardBridge.isRegistered(TErc20Address) shouldBe true
+      // Because of possible rollbacks
+      standardBridge.isRegistered(TErc20Address, ignoreExceptions = true) shouldBe true
     }
   }
 }
