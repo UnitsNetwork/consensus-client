@@ -2,9 +2,9 @@ package units
 
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
+import com.wavesplatform.transaction.Asset
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
-import com.wavesplatform.transaction.{Asset, TxHelpers}
 import monix.execution.atomic.AtomicInt
 import org.web3j.protocol.core.DefaultBlockParameterName
 import org.web3j.protocol.core.methods.response.{EthSendTransaction, TransactionReceipt}
@@ -25,8 +25,7 @@ class MultipleTransfersTestSuite extends BaseDockerTestSuite {
   private val elSenderAddress = elRichAddress1
 
   private val issueAssetDecimals = 8.toByte
-  private val issueAssetTxn      = TxHelpers.issue(clAssetOwner, decimals = issueAssetDecimals)
-  private val issueAsset         = IssuedAsset(issueAssetTxn.id())
+  private lazy val issueAsset    = chainContract.getRegisteredAsset(1) // 0 is WAVES
 
   private val userAmount = BigDecimal("1")
 
@@ -188,15 +187,6 @@ class MultipleTransfersTestSuite extends BaseDockerTestSuite {
     super.beforeAll()
     deploySolidityContracts()
 
-    step("Prepare: issue CL asset")
-    waves1.api.broadcastAndWait(issueAssetTxn)
-
-    // TODO: Use issueAndRegister instead
-    step("Prepare: move assets for testing purposes")
-    waves1.api.broadcast(
-      TxHelpers.transfer(clAssetOwner, chainContractAddress, UnitsConvert.toWavesAtomic(userAmount, issueAssetDecimals), issueAsset)
-    )
-
     step("Enable token transfers")
     val activationEpoch = waves1.api.height() + 1
     waves1.api.broadcastAndWait(
@@ -209,8 +199,7 @@ class MultipleTransfersTestSuite extends BaseDockerTestSuite {
     waves1.api.waitForHeight(activationEpoch)
 
     step("Register asset")
-    val txn = ChainContract.registerAsset(issueAsset, TErc20Address, TErc20Decimals) // TODO: Issue and register
-    waves1.api.broadcastAndWait(txn)
+    waves1.api.broadcastAndWait(ChainContract.issueAndRegister(TErc20Address, TErc20Decimals, "TERC20", "Test ERC20 token", issueAssetDecimals))
     eventually {
       standardBridge.isRegistered(TErc20Address, ignoreExceptions = true) shouldBe true
     }

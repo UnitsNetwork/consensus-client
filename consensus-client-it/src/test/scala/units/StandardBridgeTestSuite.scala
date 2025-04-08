@@ -2,9 +2,9 @@ package units
 
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
-import com.wavesplatform.transaction.Asset.{IssuedAsset, Waves}
+import com.wavesplatform.transaction.Asset
+import com.wavesplatform.transaction.Asset.Waves
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
-import com.wavesplatform.transaction.{Asset, TxHelpers}
 import com.wavesplatform.utils.EthEncoding
 import org.web3j.crypto.Credentials
 import org.web3j.protocol.core.methods.response.TransactionReceipt
@@ -24,13 +24,12 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
   private val elSender        = elRichAccount1
   private val elSenderAddress = elRichAddress1
 
-  private val issueAssetTxn   = TxHelpers.issue(clAssetOwner, decimals = 8)
-  private val issueAsset      = IssuedAsset(issueAssetTxn.id())
-  private val elAssetDecimals = 18
+  private val issueAssetDecimals = 8.toByte
+  private lazy val issueAsset    = chainContract.getRegisteredAsset(1) // 0 is WAVES
 
   private val userAmount = 1
-  private val clAmount   = UnitsConvert.toWavesAtomic(userAmount, issueAssetTxn.decimals.value)
-  private val elAmount   = UnitsConvert.toAtomic(userAmount, elAssetDecimals)
+  private val clAmount   = UnitsConvert.toWavesAtomic(userAmount, issueAssetDecimals)
+  private val elAmount   = UnitsConvert.toAtomic(userAmount, TErc20Decimals)
 
   private val testTransfers  = 2
   private val enoughClAmount = clAmount * testTransfers
@@ -71,7 +70,7 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
       val elRecipientAddress = EthAddress.unsafeFrom("0xAAAA00000000000000000000000000000000AAAA")
 
       val returnUserAmount = BigDecimal(userAmount) / 2
-      val returnClAmount   = UnitsConvert.toWavesAtomic(returnUserAmount, issueAssetTxn.decimals.value)
+      val returnClAmount   = UnitsConvert.toWavesAtomic(returnUserAmount, issueAssetDecimals)
       val returnElAmount   = UnitsConvert.toAtomic(returnUserAmount, TErc20Decimals)
 
       waves1.api.broadcastAndWait(ChainContract.transfer(clRecipient, elRecipientAddress, issueAsset, returnClAmount))
@@ -263,12 +262,6 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
     super.beforeAll()
     deploySolidityContracts()
 
-    step("Prepare: issue CL asset")
-    waves1.api.broadcastAndWait(issueAssetTxn)
-
-    step("Prepare: move assets for testing purposes")
-    waves1.api.broadcast(TxHelpers.transfer(clAssetOwner, chainContractAddress, enoughClAmount, issueAsset))
-
     step("Enable token transfers")
     val activationEpoch = waves1.api.height() + 1
     waves1.api.broadcastAndWait(
@@ -281,8 +274,7 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
     waves1.api.waitForHeight(activationEpoch)
 
     step("Register asset")
-    val txn = ChainContract.registerAsset(issueAsset, TErc20Address, TErc20Decimals)
-    waves1.api.broadcastAndWait(txn)
+    waves1.api.broadcastAndWait(ChainContract.issueAndRegister(TErc20Address, TErc20Decimals, "TERC20", "Test ERC20 token", issueAssetDecimals))
     eventually {
       // Because of possible rollbacks
       standardBridge.isRegistered(TErc20Address, ignoreExceptions = true) shouldBe true
