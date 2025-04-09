@@ -23,21 +23,21 @@ class StandardBridgeClient(
     defaultSender: Credentials,
     gasProvider: DefaultGasProvider = new DefaultGasProvider
 ) extends ScorexLogging {
-  def sendBridgeErc20(
-      sender: Credentials,
-      token: EthAddress,
-      clTo: Address,
-      elAmount: BigInt,
-      nonce: Option[Int] = None
-  ): EthSendTransaction = {
+  def sendBridgeErc20(sender: Credentials, token: EthAddress, clTo: Address, elAmount: BigInt): EthSendTransaction = sendBridgeErc20(
+    sender,
+    token,
+    clTo,
+    elAmount,
+    web3j.ethGetTransactionCount(sender.getAddress, DefaultBlockParameterName.PENDING).send().getTransactionCount.intValueExact()
+  )
+
+  def sendBridgeErc20(sender: Credentials, token: EthAddress, clTo: Address, elAmount: BigInt, nonce: Int): EthSendTransaction = {
     val senderAddress = sender.getAddress
     val txnManager    = new RawTransactionManager(web3j, sender, EcContainer.ChainId)
     val funcCall      = getBridgeErc20FunctionCall(sender, token, clTo, elAmount)
-    val exactNonce =
-      nonce.fold(web3j.ethGetTransactionCount(senderAddress, DefaultBlockParameterName.PENDING).send().getTransactionCount)(BigInteger.valueOf(_))
 
     val rawTxn = RawTransaction.createTransaction(
-      exactNonce,
+      BigInteger.valueOf(nonce),
       gasProvider.getGasPrice,
       gasProvider.getGasLimit,
       standardBridgeAddress.hex,
@@ -45,7 +45,7 @@ class StandardBridgeClient(
       funcCall
     )
 
-    log.debug(s"Send bridgeERC20($senderAddress->$clTo: $elAmount of $token), nonce: $exactNonce")
+    log.debug(s"Send bridgeERC20($senderAddress->$clTo: $elAmount of $token), nonce: $nonce")
     val r = txnManager.signAndSend(rawTxn)
     if (r.hasError) throw new TransactionException(s"Can't send bridgeERC20: ${r.getError}, ${r.getError.getMessage}")
     r
