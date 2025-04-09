@@ -12,7 +12,6 @@ services:
 
   stats-db:
     container_name: stats-db
-    hostname: stats-db
     image: postgres:15
 #    user: 2000:2000
     shm_size: 128m
@@ -33,7 +32,6 @@ services:
 
   stats:
     container_name: stats
-    hostname: stats
     image: ghcr.io/blockscout/stats:${STATS_DOCKER_TAG:-latest}
     platform: linux/amd64
     restart: always

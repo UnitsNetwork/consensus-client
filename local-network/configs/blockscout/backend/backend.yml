@@ -1,7 +1,6 @@
 services:
   backend:
     container_name: bs-backend
-    hostname: bs-backend
     image: blockscout/blockscout:${BLOCKSCOUT_DOCKER_TAG:-latest}
     restart: always
     stop_grace_period: 20s
