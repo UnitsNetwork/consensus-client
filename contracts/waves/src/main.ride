@@ -1030,3 +1030,16 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: Stri
     ] ++ daoEntries
   }
 }
+
+@Verifier(tx)
+func verify () = {
+  let broadcastHeight = this.getString(daoAddressKey).valueOrErrorMessage("DAO is not set up")
+    .addressFromStringValue().getString("config").valueOrErrorMessage("No config defined")
+    .addressFromStringValue().getString("contract_voting_result").valueOrErrorMessage("No voting results defined")
+    .addressFromStringValue().getInteger("proposal_allow_broadcast_" + tx.sender.toString() + "_" + tx.id.toBase58String()).valueOrElse(INT_MAX)
+
+  sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey) || match tx {
+    case i: InvokeScriptTransaction => (i.function == "registerAssets" || i.function == "issueAndRegister") && height >= broadcastHeight
+    case other => false
+  }
+}
