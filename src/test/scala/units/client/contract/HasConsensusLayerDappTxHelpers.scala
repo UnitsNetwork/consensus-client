@@ -8,7 +8,7 @@ import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.lang.v1.compiler.Terms.{CONST_LONG, CONST_STRING, EXPR}
-import com.wavesplatform.state.{BooleanDataEntry, DataEntry, IntegerDataEntry, StringDataEntry}
+import com.wavesplatform.state.{BooleanDataEntry, DataEntry, EmptyDataEntry, IntegerDataEntry, StringDataEntry}
 import com.wavesplatform.test.NumericExt
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.TxHelpers.defaultSigner
@@ -45,6 +45,9 @@ trait HasConsensusLayerDappTxHelpers {
 
   object ChainContract {
     def setScript(): SetScriptTransaction = TxHelpers.setScript(chainContractAccount, CompiledChainContract.script, fee = setScriptFee, version = 2)
+
+    def stop(): DataTransaction     = TxHelpers.data(chainContractAccount, Seq(BooleanDataEntry("stopped", true)))
+    def continue(): DataTransaction = TxHelpers.dataV2(chainContractAccount, Seq(EmptyDataEntry("stopped")))
 
     def setup(
         genesisBlock: L2BlockLike,
