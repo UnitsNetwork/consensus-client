@@ -797,22 +797,21 @@ func join(rewardAddressHex: String) = {
   if (!isContractSetup()) then throw("The contract has not yet set up")
   else if (i.originCaller.wavesBalance().generating < MIN_BALANCE) then
     throw("Insufficient generating balance: " + i.originCaller.wavesBalance().generating.toString() + ". Required: " + MIN_BALANCE.toString())
-  else if (allMiners.size() >= 50) then throw("Too many miners")
   else {
-    func step(prev: (Boolean, String), miner: String) = {
-      let (exists, prevWellMiners) = prev
+    func step(prev: (Boolean, Int, String), miner: String) = {
+      let (exists, prevWellMinersNumber, prevWellMiners) = prev
       if (miner == i.originCaller.toString())
-        then (true, sepStringAppend(prevWellMiners, miner))
+        then (true, prevWellMinersNumber + 1, sepStringAppend(prevWellMiners, miner))
         else {
           let isWell = Address(miner.fromBase58String()).wavesBalance().generating >= MIN_BALANCE
-          let updatedWellMiners = if (isWell)
-            then sepStringAppend(prevWellMiners, miner)
-            else prevWellMiners
-          (exists, updatedWellMiners)
+          if (isWell)
+            then (exists, prevWellMinersNumber + 1, sepStringAppend(prevWellMiners, miner))
+            else (exists, prevWellMinersNumber, prevWellMiners)
         }
     }
 
-    let (alreadyExists, wellMiners) = FOLD<50>(allMiners, (false, ""), step)
+    let (alreadyExists, wellMinersNumber, wellMiners) = FOLD<50>(allMiners, (false, 0, ""), step)
+    strict tooManyMinersCheck = allMiners.size() > 50 && throw("Too many miners")
     if (alreadyExists)
       then [StringEntry(allMinersKey, wellMiners)]
       else {

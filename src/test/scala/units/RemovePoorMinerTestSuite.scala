@@ -6,31 +6,64 @@ import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.wallet.Wallet
 
 class RemovePoorMinerTestSuite extends BaseTestSuite {
+  private val MaxMiners = 50
+
   private val thisMiner = ElMinerSettings(Wallet.generateNewAccount(super.defaultSettings.walletSeed, 0))
-  private val miner1    = ElMinerSettings(TxHelpers.signer(0))
-  private val miner2    = ElMinerSettings(TxHelpers.signer(1))
+  private val poorMiner = ElMinerSettings(TxHelpers.signer(100))
+  private val newMiner  = ElMinerSettings(TxHelpers.signer(101))
 
   override protected val defaultSettings: TestSettings = super.defaultSettings
     .copy(
-      initialMiners = List(thisMiner, miner1),
-      additionalBalances = List(AddrWithBalance(miner2.address))
+      initialMiners = List(thisMiner, poorMiner),
+      additionalBalances = List(AddrWithBalance(newMiner.address))
     )
     .withEnabledElMining
 
-  "Remove poor miner test" in withExtensionDomain() { d =>
-    withClue("In the list of miners before: ") {
-      d.chainContractClient.getAllActualMiners should contain(miner1.address)
+  "Remove poor miner test" - {
+    "< 50 active miners before cleanup" in withExtensionDomain() { d =>
+      withClue("List of miners before: ") {
+        val miners = d.chainContractClient.getAllActualMiners
+        miners should contain(poorMiner.address)
+        miners shouldNot contain(newMiner.address)
+      }
+
+      step("Poor miner transfers all funds")
+      val fee            = TestValues.fee
+      val transferAmount = d.balance(poorMiner.address) - fee
+      val transferTxn    = TxHelpers.transfer(poorMiner.account, newMiner.address, transferAmount, fee = fee)
+      val joinTxn        = d.ChainContract.join(newMiner.account, newMiner.elRewardAddress)
+      d.appendBlock(transferTxn, joinTxn)
+
+      withClue("List of miners after: ") {
+        val miners = d.chainContractClient.getAllActualMiners
+        miners shouldNot contain(poorMiner.address)
+        miners should contain(newMiner.address)
+      }
     }
 
-    step("Miner1 transfers all funds")
-    val fee            = TestValues.fee
-    val transferAmount = d.balance(miner1.address) - fee
-    val transferTxn    = TxHelpers.transfer(miner1.account, miner2.address, transferAmount, fee = fee)
-    val joinTxn        = d.ChainContract.join(miner2.account, miner2.elRewardAddress)
-    d.appendBlock(transferTxn, joinTxn)
+    "50 active miners before cleanup" in {
+      val initialMiners = thisMiner :: poorMiner :: (1 to MaxMiners - 2).map(i => ElMinerSettings(TxHelpers.signer(i))).toList
+      val settings      = defaultSettings.copy(initialMiners = initialMiners)
+      withExtensionDomain(settings) { d =>
+        withClue("List of miners before: ") {
+          val miners = d.chainContractClient.getAllActualMiners
+          miners should contain(poorMiner.address)
+          miners shouldNot contain(newMiner.address)
+        }
 
-    withClue("In the list of miners before: ") {
-      d.chainContractClient.getAllActualMiners shouldNot contain(miner1.address)
+        step("Poor miner transfers all funds")
+        val fee            = TestValues.fee
+        val transferAmount = d.balance(poorMiner.address) - fee
+        val transferTxn    = TxHelpers.transfer(poorMiner.account, newMiner.address, transferAmount, fee = fee)
+        val joinTxn        = d.ChainContract.join(newMiner.account, newMiner.elRewardAddress)
+        d.appendBlock(transferTxn, joinTxn)
+
+        withClue("List of miners after: ") {
+          val miners = d.chainContractClient.getAllActualMiners
+          miners shouldNot contain(poorMiner.address)
+          miners should contain(newMiner.address)
+        }
+      }
     }
   }
 }
