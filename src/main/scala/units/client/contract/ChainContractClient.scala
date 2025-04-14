@@ -45,8 +45,14 @@ trait ChainContractClient {
 
   def getAllActualMiners: Seq[Address] =
     getStringData(AllMinersKey).toSeq
+      .filter(_.nonEmpty)
       .flatMap(_.split(Sep))
-      .flatMap(Address.fromString(_).toOption)
+      .map { x =>
+        Address.fromString(x) match {
+          case Left(e)  => fail(s"Can't parse $x as Address: $e")
+          case Right(x) => x
+        }
+      }
 
   def getElRewardAddress(miner: Address): Option[EthAddress] = getElRewardAddress(ByteStr(miner.bytes))
   private def getElRewardAddress(minerAddress: ByteStr): Option[EthAddress] =

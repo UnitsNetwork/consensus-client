@@ -149,6 +149,8 @@ func ensureCorrectTransfers(refTransferIndex: Int, transferIndex: Int, expectRew
     throw("Attempt to transfer #" + transferIndex.toString() + ". Available transfers: " + transfersCount.toString())
 }
 
+func sepStringAppend(s: String, item: String) = if (s.size() == 0) then item else s + SEP + item
+
 func amountGtEq(t: AttachedPayment, gtEq: Int, queueSize: Int) =
   t.amount >= gtEq || throw(
     "Transferring amount " + t.amount.toString() + " should be >= " + gtEq.toString() +
@@ -365,8 +367,8 @@ func addSupporter(chainId: Int, generator: Address) = {
   let supportersStr = getStringValue(supportersKey(chainId))
   let supporters    = supportersStr.split_4C(SEP)
   if (supporters.containsElement(generator.toString()))
-  then []
-  else [StringEntry(supportersKey(chainId), supportersStr + SEP + generator.toString())]
+    then []
+    else [StringEntry(supportersKey(chainId), supportersStr + SEP + generator.toString())]
 }
 
 func setOrFail(flags: String, index: Int) =
@@ -792,39 +794,44 @@ func join(rewardAddressHex: String) = {
 
   let normalizedRewardAddress = normalizeEthAddress(rewardAddressHex)
 
-  if (!isContractSetup()) then
-    throw("The contract has not yet set up")
+  if (!isContractSetup()) then throw("The contract has not yet set up")
   else if (i.originCaller.wavesBalance().generating < MIN_BALANCE) then
     throw("Insufficient generating balance: " + i.originCaller.wavesBalance().generating.toString() + ". Required: " + MIN_BALANCE.toString())
-  else if (allMiners.size() >= 50) then throw("too many miners")
+  else if (allMiners.size() >= 50) then throw("Too many miners")
   else {
-    func checkExistence(exists: Boolean, miner: String) = exists || miner == i.originCaller.toString()
-    let alreadyExists = FOLD<50>(allMiners, false, checkExistence)
-    if (alreadyExists)
-    then []
-    else {
-      let newMiner = i.originCaller.toString()
-      strict check = ensureNotOverrideOtherMinerPk(normalizedRewardAddress)
-
-      let newMiners =
-        if (allMiners.size() == 0)
-        then
-          newMiner
-        else
-          allMinersStr + SEP + newMiner
-
-      # If a miner changed the reward address, we need to delete the previous mapping
-      let deletePrevRewardAddressPk = match getString(minerRewardAddressKey(newMiner)) {
-        case prevAddress: String =>
-          if (prevAddress == normalizedRewardAddress) then [] else [DeleteEntry(minerPkKey(prevAddress))]
-        case _ => []
-      }
-      [
-        StringEntry(allMinersKey, newMiners),
-        StringEntry(minerRewardAddressKey(newMiner), "0x" + normalizedRewardAddress),
-        BinaryEntry(minerPkKey(normalizedRewardAddress), i.originCallerPublicKey)
-      ] ++ deletePrevRewardAddressPk
+    func step(prev: (Boolean, String), miner: String) = {
+      let (exists, prevWellMiners) = prev
+      if (miner == i.originCaller.toString())
+        then (true, sepStringAppend(prevWellMiners, miner))
+        else {
+          let isWell = Address(miner.fromBase58String()).wavesBalance().generating >= MIN_BALANCE
+          let updatedWellMiners = if (isWell)
+            then sepStringAppend(prevWellMiners, miner)
+            else prevWellMiners
+          (exists, updatedWellMiners)
+        }
     }
+
+    let (alreadyExists, wellMiners) = FOLD<50>(allMiners, (false, ""), step)
+    if (alreadyExists)
+      then [StringEntry(allMinersKey, wellMiners)]
+      else {
+        let newMiner = i.originCaller.toString()
+        strict check = ensureNotOverrideOtherMinerPk(normalizedRewardAddress)
+
+        # If a miner changed the reward address, we need to delete the previous mapping
+        let deletePrevRewardAddressPk = match getString(minerRewardAddressKey(newMiner)) {
+          case prevAddress: String =>
+            if (prevAddress == normalizedRewardAddress) then [] else [DeleteEntry(minerPkKey(prevAddress))]
+          case _ => []
+        }
+
+        [
+          StringEntry(allMinersKey, sepStringAppend(wellMiners, newMiner)),
+          StringEntry(minerRewardAddressKey(newMiner), "0x" + normalizedRewardAddress),
+          BinaryEntry(minerPkKey(normalizedRewardAddress), i.originCallerPublicKey)
+        ] ++ deletePrevRewardAddressPk
+      }
   }
 }
 
