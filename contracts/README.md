@@ -134,7 +134,7 @@ forge verify-contract \
   src/UnitsMintableERC20.sol:UnitsMintableERC20 \
   --verifier blockscout \
   --verifier-url https://explorer-testnet.unit0.dev/api/ \
-  --constructor-args 0x2EE5715961C45bd16EB5c2739397B8E871A46F9f "Test Token" "TTK" 18
+  --constructor-args $(cast abi-encode "constructor(address,string,string,uint8)" 0x2EE5715961C45bd16EB5c2739397B8E871A46F9f "Test Token" "TTK" 18) 
 ```
 
 # How check a block finalization
