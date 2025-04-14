@@ -35,6 +35,9 @@ let transfersCountKey          = "nativeTransfersCount"
 let daoAddressKey              = "daoAddress"
 let daoRewardKey               = "daoReward"
 
+let emergencyStopKey = "stopped"
+func requireNotStopped() = getBoolean(emergencyStopKey).valueOrElse(false) && throw("Asset transfers must not be activated")
+
 let assetRegistryK       = "assetRegistry_"         # Asset Id -> Settings (index, erc20AddressHex with 0x, ratioExponent)
 let assetRegistryELK     = "assetRegistryAssetE_0x" # ERC20 address -> Index
 let assetRegistryIndexK  = "assetRegistryIndex_"    # Index (starts from 0) -> Asset Id
@@ -440,6 +443,7 @@ func extendMainChain_base(
   lastC2ETransferIndex: Int,
   lastAssetRegistryIndex: Int
 ) = {
+  strict notStopped     = requireNotStopped()
   strict checkBlockHash = validateBlockHash(blockHashHex)
   strict checkEpoch     = ensureCorrectEpoch(vrf)
   strict checkChain     = ensureExpectedOrInactiveChain(originCaller, mainChainId, unit)
@@ -474,6 +478,7 @@ func startAltChain_base(
   lastC2ETransferIndex: Int,
   lastAssetRegistryIndex: Int
 ) = {
+  strict notStopped     = requireNotStopped()
   strict checkBlockHash = validateBlockHash(blockHashHex)
   strict checkEpoch     = ensureCorrectEpoch(vrf)
   let (refChainHeight, refEpoch, refIgnored1, refIgnored2, refIgnored3, refTransferIndex) = blockMeta(referenceHex)
@@ -521,7 +526,7 @@ func extendAltChain_base(
   # 2. if this fork's total supporting balance is >= 1/2 of the total balance, make this the new main chain.
   # 2.1. update new max rollback height.
   # 2.2. cancel all other active forks (!)
-
+  strict notStopped       = requireNotStopped()
   strict checkBlockHash   = validateBlockHash(blockHashHex)
   strict checkEpoch       = ensureCorrectEpoch(vrf)
   let chainFirstBlockMeta = blockMeta(getStringValue(chainFirstBlockIdKey(chainId)))
@@ -573,6 +578,7 @@ func appendBlock_base(
   lastC2ETransferIndex: Int,
   lastAssetRegistryIndex: Int
 ) = {
+  strict notStopped  = requireNotStopped()
   strict checkCaller = if (thisEpochMiner == originCaller)
     then true
     else match thisEpochMiner {
@@ -1043,3 +1049,6 @@ func verify () = {
     case other => false
   }
 }
+
+@Callable(i)
+func stop() = [BooleanEntry(emergencyStopKey, true)]
