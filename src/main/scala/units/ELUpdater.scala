@@ -36,8 +36,8 @@ import units.client.engine.model.Withdrawal.WithdrawalIndex
 import units.el.*
 import units.eth.{EmptyL2Block, EthAddress, EthNumber, EthereumConstants}
 import units.network.BlocksObserverImpl.BlockWithChannel
-import units.util.{BlockToPayloadMapper, HexBytesConverter}
 import units.util.HexBytesConverter.toHexNoPrefix
+import units.util.{BlockToPayloadMapper, HexBytesConverter}
 
 import scala.annotation.tailrec
 import scala.concurrent.duration.*
@@ -535,22 +535,26 @@ class ELUpdater(
   private def handleConsensusLayerChanged(): Unit = {
     def stopMining(): Unit = setState("26", Starting)
 
-    isChainEnabled match {
-      case Left(e) =>
-        logger.warn(s"$contractAddress chain is disabled: $e")
-        stopMining()
+    if (chainContractClient.isStopped) {
+      logger.warn(s"$contractAddress chain is stopped")
+      stopMining()
+    } else
+      isChainEnabled match {
+        case Left(e) =>
+          logger.warn(s"$contractAddress chain is disabled: $e")
+          stopMining()
 
-      case Right(false) =>
-        logger.warn(s"$contractAddress chain is disabled")
-        stopMining()
+        case Right(false) =>
+          logger.warn(s"$contractAddress chain is disabled")
+          stopMining()
 
-      case Right(true) =>
-        state match {
-          case Starting                => updateStartingState()
-          case w: Working[ChainStatus] => updateWorkingState(w)
-          case other                   => logger.debug(s"Unprocessed state: $other")
-        }
-    }
+        case Right(true) =>
+          state match {
+            case Starting                => updateStartingState()
+            case w: Working[ChainStatus] => updateWorkingState(w)
+            case other                   => logger.debug(s"Unprocessed state: $other")
+          }
+      }
   }
 
   private def isChainEnabled: Either[String, Boolean] = registryAddress.fold(true.asRight[String]) { registryAddress =>
@@ -717,6 +721,7 @@ class ELUpdater(
       case Left(error) => logger.error(s"Could not load finalized block", error)
       case Right(Some(finalizedEcBlock)) =>
         logger.trace(s"Finalized block ${finalizedBlock.hash} is at height ${finalizedEcBlock.height}")
+
 
         // Note: `nobodyStartedMining` will be true on every empty epoch.
         // We benefit from it in cases when idle miner was evicted, a list of miners has changed,
