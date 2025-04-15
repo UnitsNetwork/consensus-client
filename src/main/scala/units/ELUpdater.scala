@@ -167,6 +167,7 @@ class ELUpdater(
       referenceHash: BlockHash,
       timestamp: Long,
       contractFunction: ContractFunction,
+      finalizedBlock: L2BlockLike,
       chainContractOptions: ChainContractOptions
   ): Unit = {
     def getWaitingTime: Option[FiniteDuration] = {
@@ -183,7 +184,7 @@ class ELUpdater(
         getWaitingTime match {
           case Some(waitingTime) =>
             scheduler.scheduleOnce(waitingTime)(
-              prepareAndApplyPayload(payloadOrId, referenceHash, timestamp, contractFunction, chainContractOptions)
+              prepareAndApplyPayload(payloadOrId, referenceHash, timestamp, contractFunction, finalizedBlock, chainContractOptions)
             )
           case _ =>
             (for {
@@ -195,6 +196,8 @@ class ELUpdater(
               latestValidHash    <- Either.fromOption(latestValidHashOpt, ClientError("Latest valid hash not defined"))
               _ = logger.info(s"Applied payload, block hash is $latestValidHash, timestamp = $timestamp")
               newBlock <- NetworkL2Block.signed(payload, m.keyPair.privateKey)
+              // Make sure, it will be in the canonical chain
+              _ <- confirmBlock(latestValidHash, newBlock.height, finalizedBlock)
               _ = logger.debug(s"Broadcasting block ${newBlock.hash}")
               _ <- Try(allChannels.broadcast(newBlock)).toEither.leftMap(err =>
                 ClientError(s"Failed to broadcast block ${newBlock.hash}: ${err.toString}")
@@ -424,6 +427,7 @@ class ELUpdater(
               parentBlock.hash,
               miningData.nextBlockUnixTs,
               newState.options.startEpochChainFunction(epochInfo.number, parentBlock.hash, epochInfo.hitSource, nodeChainInfo.toOption),
+              prevState.finalizedBlock,
               newState.options
             )
           )
@@ -481,6 +485,7 @@ class ELUpdater(
                 parentBlock.hash,
                 miningData.nextBlockUnixTs,
                 chainContractOptions.appendFunction(epochInfo.number, parentBlock.hash),
+                finalizedBlock,
                 chainContractOptions
               )
             )
@@ -1709,13 +1714,13 @@ class ELUpdater(
     } yield ()
   }
 
-  private def confirmBlock(block: L2BlockLike, finalizedBlock: L2BlockLike): JobResult[PayloadStatus] = {
-    val finalizedBlockHash = if (finalizedBlock.height > block.height) block.hash else finalizedBlock.hash
-    engineApiClient.forkchoiceUpdated(block.hash, finalizedBlockHash)
-  }
+  private def confirmBlock(block: L2BlockLike, finalizedBlock: L2BlockLike): JobResult[PayloadStatus] =
+    confirmBlock(block.hash, block.height, finalizedBlock)
 
-  private def confirmBlock(hash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus] =
-    engineApiClient.forkchoiceUpdated(hash, finalizedBlockHash)
+  private def confirmBlock(blockHash: BlockHash, blockHeight: Long, finalizedBlock: L2BlockLike): JobResult[PayloadStatus] = {
+    val adjustedFinalizedHash = if (finalizedBlock.height > blockHeight) blockHash else finalizedBlock.hash
+    engineApiClient.forkchoiceUpdated(blockHash, adjustedFinalizedHash)
+  }
 
   private def forkchoiceUpdatedWithPayload(
       lastBlock: EcBlock,
