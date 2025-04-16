@@ -23,19 +23,21 @@ class StandardBridgeClient(
     defaultSender: Credentials,
     gasProvider: DefaultGasProvider = new DefaultGasProvider
 ) extends ScorexLogging {
-  def sendBridgeErc20(
-      sender: Credentials,
-      token: EthAddress,
-      clTo: Address,
-      elAmount: BigInt
-  ): EthSendTransaction = {
+  def sendBridgeErc20(sender: Credentials, token: EthAddress, clTo: Address, elAmount: BigInt): EthSendTransaction = sendBridgeErc20(
+    sender,
+    token,
+    clTo,
+    elAmount,
+    web3j.ethGetTransactionCount(sender.getAddress, DefaultBlockParameterName.PENDING).send().getTransactionCount.intValueExact()
+  )
+
+  def sendBridgeErc20(sender: Credentials, token: EthAddress, clTo: Address, elAmount: BigInt, nonce: Int): EthSendTransaction = {
     val senderAddress = sender.getAddress
     val txnManager    = new RawTransactionManager(web3j, sender, EcContainer.ChainId)
     val funcCall      = getBridgeErc20FunctionCall(sender, token, clTo, elAmount)
-    val nonce         = web3j.ethGetTransactionCount(senderAddress, DefaultBlockParameterName.PENDING).send().getTransactionCount
 
     val rawTxn = RawTransaction.createTransaction(
-      nonce,
+      BigInteger.valueOf(nonce),
       gasProvider.getGasPrice,
       gasProvider.getGasLimit,
       standardBridgeAddress.hex,

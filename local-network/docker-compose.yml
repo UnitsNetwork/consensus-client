@@ -4,7 +4,6 @@ include:
 services:
   ec-1:
     container_name: ec-1
-    hostname: ec-1
     extends:
       file: ../docker/services/op-geth.yml
       service: op-geth
@@ -22,10 +21,8 @@ services:
       - ./configs/ec-common/config.toml:/etc/config.toml:ro
       - ./configs/ec-common/genesis.json:/tmp/genesis.json:ro
 
-  # TODO: Until fixed an issue with rollback
   # ec-2:
   #   container_name: ec-2
-  #   hostname: ec-2
   #   extends:
   #     file: ../docker/services/op-geth.yml
   #     service: op-geth
@@ -46,7 +43,6 @@ services:
   # Make sure, you have enough RAM to run additional nodes
   # ec-3:
   #   container_name: ec-3
-  #   hostname: ec-3
   #   extends:
   #     file: ../docker/services/op-geth.yml
   #     service: op-geth
@@ -66,7 +62,6 @@ services:
 
   # ec-4:
   #   container_name: ec-4
-  #   hostname: ec-4
   #   extends:
   #     file: ../docker/services/op-geth.yml
   #     service: op-geth
@@ -86,7 +81,6 @@ services:
 
   waves-node-1:
     container_name: waves-node-1
-    hostname: waves-node-1
     image: ${WAVES_NODE_IMAGE_1:-${WAVES_NODE_IMAGE:-consensus-client:local}}
     ports:
       - "127.0.0.1:16869:6869"
@@ -104,10 +98,8 @@ services:
       update-genesis:
         condition: service_completed_successfully
 
-  # TODO: Until fixed an issue with rollback
   # waves-node-2:
   #   container_name: waves-node-2
-  #   hostname: waves-node-2
   #   image: ${WAVES_NODE_IMAGE_2:-${WAVES_NODE_IMAGE:-consensus-client:local}}
   #   ports:
   #     - "127.0.0.1:26869:6869"
@@ -126,7 +118,6 @@ services:
 
   # waves-node-3:
   #   container_name: waves-node-3
-  #   hostname: waves-node-3
   #   image: ${WAVES_NODE_IMAGE_3:-${WAVES_NODE_IMAGE:-consensus-client:local}}
   #   ports:
   #     - "127.0.0.1:36869:6869"
@@ -146,7 +137,6 @@ services:
 
   # waves-node-4:
   #   container_name: waves-node-4
-  #   hostname: waves-node-4
   #   image: ${WAVES_NODE_IMAGE_4:-${WAVES_NODE_IMAGE:-consensus-client:local}}
   #   ports:
   #     - "127.0.0.1:46869:6869"
@@ -178,7 +168,6 @@ services:
 
   deploy:
     container_name: deploy
-    hostname: deploy
     extends:
       file: ./deploy/deploy.yml
       service: deploy
@@ -194,7 +183,6 @@ services:
 
   tests:
     container_name: tests
-    hostname: tests
     extends:
       file: ./deploy/deploy.yml
       service: deploy

@@ -48,8 +48,7 @@ class C2ENativeBridgeTestSuite extends BaseDockerTestSuite {
       val expectedBalanceAfter = balanceBefore + elAmount
       eventually {
         val balanceAfter = getBalance
-        UnitsConvert.toUser(balanceAfter, UnitsConvert.NativeTokenElDecimals) shouldBe
-          UnitsConvert.toUser(expectedBalanceAfter, UnitsConvert.NativeTokenElDecimals)
+        UnitsConvert.toUser(balanceAfter, NativeTokenElDecimals) shouldBe UnitsConvert.toUser(expectedBalanceAfter, NativeTokenElDecimals)
       }
     }
   }

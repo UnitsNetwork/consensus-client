@@ -14,19 +14,23 @@ import units.bridge.Bridge
 import units.docker.EcContainer
 import units.eth.{EthAddress, EthereumConstants}
 
+import java.math.BigInteger
+
 class NativeBridgeClient(web3j: Web3j, address: EthAddress, gasProvider: DefaultGasProvider = new DefaultGasProvider) extends ScorexLogging {
-  def sendSendNative(
-      sender: Credentials,
-      recipient: Address,
-      amountInEther: BigInt
-  ): EthSendTransaction = {
+  def sendSendNative(sender: Credentials, recipient: Address, amountInEther: BigInt, nonce: Option[Int] = None): EthSendTransaction = sendSendNative(
+    sender,
+    recipient,
+    amountInEther,
+    web3j.ethGetTransactionCount(sender.getAddress, DefaultBlockParameterName.PENDING).send().getTransactionCount.intValueExact()
+  )
+
+  def sendSendNative(sender: Credentials, recipient: Address, amountInEther: BigInt, nonce: Int): EthSendTransaction = {
     val senderAddress = sender.getAddress
     val txnManager    = new RawTransactionManager(web3j, sender, EcContainer.ChainId)
     val funcCall      = getSendNativeFunctionCall(sender, recipient, amountInEther)
 
-    val nonce = web3j.ethGetTransactionCount(senderAddress, DefaultBlockParameterName.PENDING).send().getTransactionCount
     val rawTxn = RawTransaction.createTransaction(
-      nonce,
+      BigInteger.valueOf(nonce),
       gasProvider.getGasPrice,
       gasProvider.getGasLimit,
       address.hex,

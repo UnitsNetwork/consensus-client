@@ -10,7 +10,7 @@ import com.wavesplatform.test.{BaseSuite, NumericExt}
 import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.utils.ScorexLogging
 import org.scalatest.freespec.AnyFreeSpec
-import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues}
+import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues, TryValues}
 import units.client.engine.model.GetLogsResponseEntry
 import units.el.NativeBridge
 import units.el.NativeBridge.ElSentNativeEvent
@@ -30,6 +30,7 @@ trait BaseTestSuite
     with BeforeAndAfterAll
     with EitherValues
     with OptionValues
+    with TryValues
     with CustomMatchers {
   protected val chainRegistryAccount: KeyPair = KeyPair("chain-registry".getBytes(StandardCharsets.UTF_8))
 
@@ -48,7 +49,7 @@ trait BaseTestSuite
           defaultSettings.daoRewardAmount
         ),
         if (settings.registerWwavesToken)
-          d.ChainContract.enableTokenTransfersWithWaves( 
+          d.ChainContract.enableTokenTransfersWithWaves(
             StandardBridgeAddress,
             WWavesAddress,
             activationEpoch = settings.enableTokenTransfersEpoch
