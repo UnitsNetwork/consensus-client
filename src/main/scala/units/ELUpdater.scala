@@ -392,8 +392,10 @@ class ELUpdater(
               if (parentBlock.height - 1 <= EthereumConstants.GenesisBlockHeight) Right(-1L)
               else getLastWithdrawalIndex(parentBlock.parentHash)
           }
-          nextBlockUnixTs = (parentBlock.timestamp + config.blockDelay.toSeconds).max(time.correctedTime() / 1000 + config.blockDelay.toSeconds)
-          _               = prevState.lastContractBlock
+          nextBlockUnixTs = // We don't collect transactions for simulated payload, thus we don't need to wait blockDelay
+            if (prevState.rollbackFaked) time.correctedTime() / 1000
+            else (parentBlock.timestamp + config.blockDelay.toSeconds).max(time.correctedTime() / 1000 + config.blockDelay.toSeconds)
+          _ = prevState.lastContractBlock
           miningData <- startBuildingPayload(
             epochInfo,
             parentBlock,
@@ -421,7 +423,10 @@ class ELUpdater(
           )
 
           setState("12", newState)
-          scheduler.scheduleOnce((miningData.nextBlockUnixTs - time.correctedTime() / 1000).min(1).seconds)(
+          val waitTime =
+            if (prevState.rollbackFaked) 0.seconds
+            else (miningData.nextBlockUnixTs - time.correctedTime() / 1000).min(1).seconds
+          scheduler.scheduleOnce(waitTime)(
             prepareAndApplyPayload(
               miningData.payload,
               parentBlock.hash,
