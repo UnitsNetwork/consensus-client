@@ -3,13 +3,13 @@ import com.github.sbt.git.SbtGit.GitKeys.gitCurrentBranch
 enablePlugins(UniversalDeployPlugin, GitVersioning, sbtdocker.DockerPlugin, VersionObject)
 
 git.useGitDescribe       := true
-git.baseVersion          := "1.0.0"
+git.baseVersion          := "1.1.0"
 git.uncommittedSignifier := Some("DIRTY")
 
 inScope(Global)(
   Seq(
     onChangedBuildSource := ReloadOnSourceChanges,
-    scalaVersion         := "3.6.3",
+    scalaVersion         := "3.6.4",
     organization         := "network.units",
     organizationName     := "Units Network",
     resolvers ++= Resolver.sonatypeOssRepos("releases") ++ Resolver.sonatypeOssRepos("snapshots") ++ Seq(Resolver.mavenLocal),
@@ -28,7 +28,7 @@ name       := "consensus-client"
 maintainer := "Units Network Team"
 
 libraryDependencies ++= {
-  val node        = "1.5.10-SNAPSHOT"
+  val node        = "1.5.10"
   val sttpVersion = "3.10.3"
   Seq(
     "com.wavesplatform"              % "node-testkit"  % node % Test,
