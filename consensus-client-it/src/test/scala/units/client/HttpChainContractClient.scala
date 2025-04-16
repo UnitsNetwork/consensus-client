@@ -6,6 +6,7 @@ import com.wavesplatform.api.LoggingBackend.LoggingOptions
 import com.wavesplatform.api.NodeHttpApi
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.state.DataEntry
+import com.wavesplatform.transaction.Asset
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.utils.ScorexLogging
 import org.scalatest.OptionValues

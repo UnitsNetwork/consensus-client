@@ -2,21 +2,20 @@ package units
 
 import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
-import com.wavesplatform.transaction.Asset.{IssuedAsset, Waves}
+import com.wavesplatform.transaction.Asset
+import com.wavesplatform.transaction.Asset.Waves
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
-import com.wavesplatform.transaction.{Asset, TxHelpers}
 import com.wavesplatform.utils.EthEncoding
 import org.web3j.crypto.Credentials
 import org.web3j.protocol.core.methods.response.TransactionReceipt
 import org.web3j.tx.RawTransactionManager
 import org.web3j.tx.gas.DefaultGasProvider
 import org.web3j.utils.Convert
-import units.bridge.{TERC20, UnitsMintableERC20}
+import units.bridge.ERC20
 import units.docker.EcContainer
-import units.el.{BridgeMerkleTree, E2CTopics, EvmEncoding}
+import units.el.{BridgeMerkleTree, E2CTopics, Erc20Client, EvmEncoding}
 import units.eth.EthAddress
 
-import java.math.BigInteger
 import scala.jdk.OptionConverters.RichOptional
 
 class StandardBridgeTestSuite extends BaseDockerTestSuite {
@@ -25,13 +24,12 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
   private val elSender        = elRichAccount1
   private val elSenderAddress = elRichAddress1
 
-  private val issueAssetTxn   = TxHelpers.issue(clAssetOwner, decimals = 8)
-  private val issueAsset      = IssuedAsset(issueAssetTxn.id())
-  private val elAssetDecimals = 18
+  private val issueAssetDecimals = 8.toByte
+  private lazy val issueAsset    = chainContract.getRegisteredAsset(1) // 0 is WAVES
 
   private val userAmount = 1
-  private val clAmount   = UnitsConvert.toWavesAtomic(userAmount, issueAssetTxn.decimals.value)
-  private val elAmount   = UnitsConvert.toAtomic(userAmount, elAssetDecimals)
+  private val clAmount   = UnitsConvert.toWavesAtomic(userAmount, issueAssetDecimals)
+  private val elAmount   = UnitsConvert.toAtomic(userAmount, TErc20Decimals)
 
   private val testTransfers  = 2
   private val enoughClAmount = clAmount * testTransfers
@@ -41,8 +39,8 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
 
   private val gasProvider     = new DefaultGasProvider
   private lazy val txnManager = new RawTransactionManager(ec1.web3j, elSender, EcContainer.ChainId, 20, 2000)
-  private lazy val wwaves     = UnitsMintableERC20.load(WWavesAddress.hex, ec1.web3j, txnManager, gasProvider)
-  private lazy val terc20     = TERC20.load(TErc20Address.hex, ec1.web3j, elSender, gasProvider)
+  private lazy val wwaves     = new Erc20Client(ec1.web3j, WWavesAddress, txnManager, gasProvider)
+  private lazy val terc20     = new Erc20Client(ec1.web3j, TErc20Address, txnManager, gasProvider)
 
   "Negative" - {
     def test(amount: BigInt, expectedError: String): Unit = {
@@ -72,17 +70,17 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
       val elRecipientAddress = EthAddress.unsafeFrom("0xAAAA00000000000000000000000000000000AAAA")
 
       val returnUserAmount = BigDecimal(userAmount) / 2
-      val returnClAmount   = UnitsConvert.toWavesAtomic(returnUserAmount, issueAssetTxn.decimals.value)
+      val returnClAmount   = UnitsConvert.toWavesAtomic(returnUserAmount, issueAssetDecimals)
       val returnElAmount   = UnitsConvert.toAtomic(returnUserAmount, TErc20Decimals)
 
       waves1.api.broadcastAndWait(ChainContract.transfer(clRecipient, elRecipientAddress, issueAsset, returnClAmount))
       withClue("Assets received: ") {
         eventually {
           withClue("elRecipient: ") {
-            getBalance(terc20, elRecipientAddress.hex) shouldBe returnElAmount
+            terc20.getBalance(elRecipientAddress) shouldBe returnElAmount
           }
           withClue("StandardBridge: ") {
-            getBalance(terc20, StandardBridgeAddress.hex) shouldBe returnElAmount
+            terc20.getBalance(StandardBridgeAddress) shouldBe returnElAmount
           }
         }
       }
@@ -92,23 +90,27 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
       withClue("4. Transfer Waves C>E>C") {
         val transferUserAmount = 55
         // Same for EL and CL, because has same decimals
-        val transferAmount = UnitsConvert.toWavesAtomic(transferUserAmount, UnitsConvert.WavesDecimals)
+        val transferAmount = UnitsConvert.toWavesAtomic(transferUserAmount, WavesDecimals)
 
         val chainContractBalanceBefore = waves1.api.balance(chainContractAddress, Asset.Waves)
 
         def transferTxn: InvokeScriptTransaction = ChainContract.transfer(clRichAccount1, elSenderAddress, Asset.Waves, transferAmount)
 
+        val elSenderBalanceBefore   = wwaves.getBalance(elSenderAddress)
+        val wwavesTotalSupplyBefore = wwaves.totalSupply
+
         waves1.api.broadcastAndWait(transferTxn)
         waves1.api.balance(chainContractAddress, Asset.Waves) shouldBe chainContractBalanceBefore + transferAmount
+
         eventually {
-          getBalance(wwaves, elSenderAddress.hex) shouldBe BigInt(transferAmount)
-          wwaves.call_totalSupply().send() shouldEqual BigInteger.valueOf(transferAmount)
+          wwaves.getBalance(elSenderAddress) shouldBe elSenderBalanceBefore + transferAmount
+          wwaves.totalSupply shouldEqual wwavesTotalSupplyBefore + transferAmount
         }
 
         val returnAmount = 32_00000000L
 
         step("Send allowance")
-        sendApproveErc20(wwaves, returnAmount)
+        waitFor(wwaves.sendApprove(StandardBridgeAddress, returnAmount))
 
         step("Broadcast StandardBridge.sendBridgeErc20 transaction")
         val sendTxnReceipt = sendBridgeErc20(elSender, WWavesAddress, returnAmount)
@@ -168,17 +170,16 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
     "Dust returned" in {
       val elAmountWithDust = elAmount + 1
 
-      def elSenderBalance = BigInt(terc20.call_balanceOf(elSenderAddress.hex).send())
-      val balanceBefore   = elSenderBalance
+      val balanceBefore = terc20.getBalance(elSenderAddress)
       terc20E2CTransfer(elAmountWithDust, clAmount)
-      val balanceAfter = elSenderBalance
+      val balanceAfter = terc20.getBalance(elSenderAddress)
 
       balanceAfter shouldBe balanceBefore - elAmount
     }
   }
 
   private def terc20E2CTransfer(elSendAmount: BigInt, clWithdrawAmount: Long): Unit = {
-    val terc20 = TERC20.load(TErc20Address.hex, ec1.web3j, txnManager, new DefaultGasProvider)
+    val terc20 = ERC20.load(TErc20Address.hex, ec1.web3j, txnManager, new DefaultGasProvider)
 
     step("Send allowance")
     sendApproveErc20(terc20, elSendAmount.bigInteger)
@@ -235,18 +236,10 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
     }
   }
 
-  private def getBalance(erc20Contract: TERC20 | UnitsMintableERC20, account: String): BigInt =
-    erc20Contract match {
-      case contract: TERC20             => contract.call_balanceOf(account).send()
-      case contract: UnitsMintableERC20 => contract.call_balanceOf(account).send()
-    }
+  private def getBalance(erc20Contract: ERC20, account: String): BigInt = erc20Contract.call_balanceOf(account).send()
 
-  private def sendApproveErc20(erc20Contract: TERC20 | UnitsMintableERC20, ethAmount: BigInt): TransactionReceipt = {
-    val txnResult = erc20Contract match {
-      case contract: TERC20             => contract.send_approve(StandardBridgeAddress.toString, ethAmount.bigInteger).send()
-      case contract: UnitsMintableERC20 => contract.send_approve(StandardBridgeAddress.toString, ethAmount.bigInteger).send()
-    }
-
+  private def sendApproveErc20(erc20Contract: ERC20, ethAmount: BigInt): TransactionReceipt = {
+    val txnResult = erc20Contract.send_approve(StandardBridgeAddress.toString, ethAmount.bigInteger).send()
     eventually {
       val r = ec1.web3j.ethGetTransactionReceipt(txnResult.getTransactionHash).send().getTransactionReceipt.toScala.value
       if (!r.isStatusOK) {
@@ -262,25 +255,12 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
     // To overcome a failed block confirmation in a new epoch issue
     chainContract.waitForHeight(ec1.web3j.ethBlockNumber().send().getBlockNumber.longValueExact() + 2)
 
-    eventually {
-      val r = ec1.web3j.ethGetTransactionReceipt(txnResult.getTransactionHash).send().getTransactionReceipt.toScala.value
-      if (!r.isStatusOK) {
-        val revertReason = standardBridge.getRevertReasonForBridgeErc20(sender, erc20Address, clRecipient.toAddress, ethAmount)
-        fail(s"Expected successful sendBridgeErc20, got: tx=${EvmEncoding.decodeRevertReason(r.getRevertReason)}, revertReason=$revertReason")
-      }
-      r
-    }
+    waitFor(txnResult)
   }
 
   override def beforeAll(): Unit = {
     super.beforeAll()
     deploySolidityContracts()
-
-    step("Prepare: issue CL asset")
-    waves1.api.broadcastAndWait(issueAssetTxn)
-
-    step("Prepare: move assets for testing purposes")
-    waves1.api.broadcast(TxHelpers.transfer(clAssetOwner, chainContractAddress, enoughClAmount, issueAsset))
 
     step("Enable token transfers")
     val activationEpoch = waves1.api.height() + 1
@@ -294,10 +274,10 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
     waves1.api.waitForHeight(activationEpoch)
 
     step("Register asset")
-    val txn = ChainContract.registerAsset(issueAsset, TErc20Address, TErc20Decimals)
-    waves1.api.broadcastAndWait(txn)
+    waves1.api.broadcastAndWait(ChainContract.issueAndRegister(TErc20Address, TErc20Decimals, "TERC20", "Test ERC20 token", issueAssetDecimals))
     eventually {
-      standardBridge.isRegistered(TErc20Address) shouldBe true
+      // Because of possible rollbacks
+      standardBridge.isRegistered(TErc20Address, ignoreExceptions = true) shouldBe true
     }
   }
 }

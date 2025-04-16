@@ -324,7 +324,7 @@ trait ChainContractClient {
     }
   }
 
-  private def getRegisteredAsset(registryIndex: Int): WAsset =
+  def getRegisteredAsset(registryIndex: Int): WAsset =
     getStringData(s"assetRegistryIndex_$registryIndex") match {
       case None          => fail(s"Can't find a registered asset at $registryIndex")
       case Some(assetId) => Registry.parseAsset(assetId)

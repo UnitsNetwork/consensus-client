@@ -23,8 +23,11 @@ class AssetRegistryTestSuite extends BaseDockerTestSuite {
   "WAVES is registered after activation" in {
     waves1.api.waitForHeight(activationEpoch)
     chainContract.waitForEpoch(activationEpoch)
+
     standardBridge.isRegistered(TErc20Address) shouldBe false
-    standardBridge.isRegistered(WWavesAddress) shouldBe true
+    eventually {
+      standardBridge.isRegistered(WWavesAddress) shouldBe true
+    }
   }
 
   override def beforeAll(): Unit = {

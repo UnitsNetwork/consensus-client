@@ -4,11 +4,7 @@ import org.web3j.utils.Convert
 import units.eth.Gwei
 
 object UnitsConvert {
-  val NativeTokenElDecimals = 18
-  val NativeTokenClDecimals = 8
-  val WavesDecimals         = 8
-
-  def toUnitsInWaves(userAmount: BigDecimal): Long               = toWavesAtomic(userAmount, NativeTokenClDecimals)
+  def toUnitsInWaves(userAmount: BigDecimal): Long               = toWavesAtomic(userAmount, TestDefaults.NativeTokenClDecimals)
   def toWavesAtomic(userAmount: BigDecimal, decimals: Int): Long = toAtomic(userAmount, decimals).bigInteger.longValueExact()
 
   def toWei(userAmount: BigDecimal): BigInt = Convert.toWei(userAmount.bigDecimal, Convert.Unit.ETHER).toBigIntegerExact
