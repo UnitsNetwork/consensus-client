@@ -385,7 +385,7 @@ object HasConsensusLayerDappTxHelpers {
       val extendAltChainFee               = 0.1.waves
       val transferFee                     = 0.1.waves
       val withdrawFee                     = 0.1.waves
-      val issueAndRegisterFee             = 1.005.waves
+      val issueAndRegisterFee             = 1.009.waves
       val reportEmptyEpochFee             = 0.1.waves
       val claimEmptyEpochReportRewardsFee = 0.1.waves
     }
