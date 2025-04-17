@@ -322,14 +322,15 @@ class ELUpdater(
     val prevRandao = calculateRandao(epochInfo.hitSource, parentBlock.hash)
 
     if (willSimulateBlock) {
-      mkSimulatedBlock(parentBlock.hash, epochInfo.rewardAddress, nextBlockUnixTs, prevRandao, withdrawals, depositedTransactions).map { simulatedPayload =>
-        MiningData(
-          payload = simulatedPayload ++ Json.obj("transactions" -> depositedTransactions.map(_.toHex)),
-          nextBlockUnixTs = nextBlockUnixTs,
-          lastC2ETransferIndex = transfers.lastOption.fold(lastC2ETransferIndex)(_.index),
-          lastElWithdrawalIndex = lastElWithdrawalIndex + withdrawals.size,
-          lastAssetRegistryIndex = addedAssets.lastOption.fold(lastAssetRegistryIndex)(_.index)
-        )
+      mkSimulatedBlock(parentBlock.hash, epochInfo.rewardAddress, nextBlockUnixTs, prevRandao, withdrawals, depositedTransactions).map {
+        simulatedPayload =>
+          MiningData(
+            payload = simulatedPayload ++ Json.obj("transactions" -> depositedTransactions.map(_.toHex)),
+            nextBlockUnixTs = nextBlockUnixTs,
+            lastC2ETransferIndex = transfers.lastOption.fold(lastC2ETransferIndex)(_.index),
+            lastElWithdrawalIndex = lastElWithdrawalIndex + withdrawals.size,
+            lastAssetRegistryIndex = addedAssets.lastOption.fold(lastAssetRegistryIndex)(_.index)
+          )
       }
     } else {
       forkchoiceUpdatedWithPayload(
@@ -716,7 +717,18 @@ class ELUpdater(
       case Left(error) => logger.error(s"Could not load finalized block", error)
       case Right(Some(finalizedEcBlock)) =>
         logger.trace(s"Finalized block ${finalizedBlock.hash} is at height ${finalizedEcBlock.height}")
-        if (blockchain.height != prevState.epochInfo.number || !blockchain.vrf(blockchain.height).contains(prevState.epochInfo.hitSource)) {
+
+        // Note: `nobodyStartedMining` will be true on every empty epoch.
+        // We benefit from it in cases when idle miner was evicted, a list of miners has changed,
+        // and we would like it to start mining right away.
+        // We use this condition instead of keeping track of a list of miners.
+        val nobodyStartedMining = chainContractClient.getEpochMeta(blockchain.height).isEmpty
+
+        if (
+          blockchain.height != prevState.epochInfo.number
+          || !blockchain.vrf(blockchain.height).contains(prevState.epochInfo.hitSource)
+          || nobodyStartedMining
+        ) {
           calculateEpochInfo match {
             case Left(error) =>
               logger.error(s"Could not calculate epoch info at epoch start: $error")

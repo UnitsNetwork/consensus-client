@@ -352,6 +352,21 @@ trait HasConsensusLayerDappTxHelpers {
         ),
         fee = withdrawFee
       )
+
+    def reportEmptyEpoch(minerAccount: KeyPair): InvokeScriptTransaction = TxHelpers.invoke(
+      invoker = minerAccount,
+      dApp = chainContractAddress,
+      func = "reportEmptyEpoch".some,
+      fee = reportEmptyEpochFee
+    )
+
+    def claimEmptyEpochReportRewards(minerAccount: KeyPair, epochNumbers: Seq[Long]): InvokeScriptTransaction = TxHelpers.invoke(
+      invoker = minerAccount,
+      dApp = chainContractAddress,
+      func = "claimEmptyEpochReportRewards".some,
+      args = List(Terms.ARR(epochNumbers.map(Terms.CONST_LONG(_)).toVector, limited = true).explicitGet()),
+      fee = claimEmptyEpochReportRewardsFee
+    )
   }
 }
 
@@ -360,17 +375,19 @@ object HasConsensusLayerDappTxHelpers {
 
   object DefaultFees {
     object ChainContract {
-      val setScriptFee        = 0.05.waves
-      val setupFee            = 2.waves
-      val joinFee             = 0.1.waves
-      val leaveFee            = 0.1.waves
-      val extendMainChainFee  = 0.1.waves
-      val appendBlockFee      = 0.1.waves
-      val startAltChainFee    = 0.1.waves
-      val extendAltChainFee   = 0.1.waves
-      val transferFee         = 0.1.waves
-      val withdrawFee         = 0.1.waves
-      val issueAndRegisterFee = 1.009.waves
+      val setScriptFee                    = 0.05.waves
+      val setupFee                        = 2.waves
+      val joinFee                         = 0.1.waves
+      val leaveFee                        = 0.1.waves
+      val extendMainChainFee              = 0.1.waves
+      val appendBlockFee                  = 0.1.waves
+      val startAltChainFee                = 0.1.waves
+      val extendAltChainFee               = 0.1.waves
+      val transferFee                     = 0.1.waves
+      val withdrawFee                     = 0.1.waves
+      val issueAndRegisterFee             = 1.009.waves
+      val reportEmptyEpochFee             = 0.1.waves
+      val claimEmptyEpochReportRewardsFee = 0.1.waves
     }
   }
 }
