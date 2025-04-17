@@ -180,7 +180,7 @@ class ELUpdater(
     }
 
     state match {
-      case Working(epochInfo, _, _, _, _, m: Mining, _, _, _) if m.currentPayload == payloadOrId =>
+      case state @ Working(epochInfo, _, _, _, _, m: Mining, _, _, _) if m.currentPayload == payloadOrId =>
         getWaitingTime match {
           case Some(waitingTime) =>
             scheduler.scheduleOnce(waitingTime)(
@@ -196,13 +196,16 @@ class ELUpdater(
               latestValidHash    <- Either.fromOption(latestValidHashOpt, ClientError("Latest valid hash not defined"))
               _ = logger.info(s"Applied payload, block hash is $latestValidHash, timestamp = $timestamp")
               newBlock <- NetworkL2Block.signed(payload, m.keyPair.privateKey)
+
               // Make sure, it will be in the canonical chain
-              _ <- confirmBlock(latestValidHash, newBlock.height, finalizedBlock)
+              ecBlock = newBlock.toEcBlock
+              _ <- confirmBlock(ecBlock, finalizedBlock)
+              _ = setState("27", state.copy(lastEcBlock = ecBlock))
+
               _ = logger.debug(s"Broadcasting block ${newBlock.hash}")
               _ <- Try(allChannels.broadcast(newBlock)).toEither.leftMap(err =>
                 ClientError(s"Failed to broadcast block ${newBlock.hash}: ${err.toString}")
               )
-              ecBlock = newBlock.toEcBlock
               ecBlockLogs <- engineApiClient.getLogs(
                 hash = ecBlock.hash,
                 addresses = chainContractOptions.bridgeAddresses(epochInfo.number),
@@ -437,7 +440,7 @@ class ELUpdater(
             )
           )
         }).fold(
-          err => logger.error(s"Error starting payload build process: ${err.message}"),
+          err => logger.error(s"Error starting payload build process for first block: ${err.message}"),
           _ => ()
         )
       case _ =>
@@ -1719,12 +1722,9 @@ class ELUpdater(
     } yield ()
   }
 
-  private def confirmBlock(block: L2BlockLike, finalizedBlock: L2BlockLike): JobResult[PayloadStatus] =
-    confirmBlock(block.hash, block.height, finalizedBlock)
-
-  private def confirmBlock(blockHash: BlockHash, blockHeight: Long, finalizedBlock: L2BlockLike): JobResult[PayloadStatus] = {
-    val adjustedFinalizedHash = if (finalizedBlock.height > blockHeight) blockHash else finalizedBlock.hash
-    engineApiClient.forkchoiceUpdated(blockHash, adjustedFinalizedHash)
+  private def confirmBlock(block: L2BlockLike, finalizedBlock: L2BlockLike): JobResult[PayloadStatus] = {
+    val finalizedBlockHash = if (finalizedBlock.height > block.height) block.hash else finalizedBlock.hash
+    engineApiClient.forkchoiceUpdated(block.hash, finalizedBlockHash)
   }
 
   private def forkchoiceUpdatedWithPayload(
