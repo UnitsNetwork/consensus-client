@@ -167,6 +167,7 @@ class ELUpdater(
       referenceHash: BlockHash,
       timestamp: Long,
       contractFunction: ContractFunction,
+      finalizedBlock: L2BlockLike,
       chainContractOptions: ChainContractOptions
   ): Unit = {
     def getWaitingTime: Option[FiniteDuration] = {
@@ -179,11 +180,11 @@ class ELUpdater(
     }
 
     state match {
-      case Working(epochInfo, _, _, _, _, m: Mining, _, _, _) if m.currentPayload == payloadOrId =>
+      case state @ Working(epochInfo, _, _, _, _, m: Mining, _, _, _) if m.currentPayload == payloadOrId =>
         getWaitingTime match {
           case Some(waitingTime) =>
             scheduler.scheduleOnce(waitingTime)(
-              prepareAndApplyPayload(payloadOrId, referenceHash, timestamp, contractFunction, chainContractOptions)
+              prepareAndApplyPayload(payloadOrId, referenceHash, timestamp, contractFunction, finalizedBlock, chainContractOptions)
             )
           case _ =>
             (for {
@@ -195,11 +196,16 @@ class ELUpdater(
               latestValidHash    <- Either.fromOption(latestValidHashOpt, ClientError("Latest valid hash not defined"))
               _ = logger.info(s"Applied payload, block hash is $latestValidHash, timestamp = $timestamp")
               newBlock <- NetworkL2Block.signed(payload, m.keyPair.privateKey)
+
+              // Make sure, it will be in the canonical chain
+              ecBlock = newBlock.toEcBlock
+              _ <- confirmBlock(ecBlock, finalizedBlock)
+              _ = setState("27", state.copy(lastEcBlock = ecBlock))
+
               _ = logger.debug(s"Broadcasting block ${newBlock.hash}")
               _ <- Try(allChannels.broadcast(newBlock)).toEither.leftMap(err =>
                 ClientError(s"Failed to broadcast block ${newBlock.hash}: ${err.toString}")
               )
-              ecBlock = newBlock.toEcBlock
               ecBlockLogs <- engineApiClient.getLogs(
                 hash = ecBlock.hash,
                 addresses = chainContractOptions.bridgeAddresses(epochInfo.number),
@@ -389,8 +395,10 @@ class ELUpdater(
               if (parentBlock.height - 1 <= EthereumConstants.GenesisBlockHeight) Right(-1L)
               else getLastWithdrawalIndex(parentBlock.parentHash)
           }
-          nextBlockUnixTs = (parentBlock.timestamp + config.blockDelay.toSeconds).max(time.correctedTime() / 1000 + config.blockDelay.toSeconds)
-          _               = prevState.lastContractBlock
+          nextBlockUnixTs = // We don't collect transactions for simulated payload, thus we don't need to wait blockDelay
+            if (prevState.rollbackFaked) time.correctedTime() / 1000
+            else (parentBlock.timestamp + config.blockDelay.toSeconds).max(time.correctedTime() / 1000 + config.firstBlockMinDelay.toSeconds)
+          _ = prevState.lastContractBlock
           miningData <- startBuildingPayload(
             epochInfo,
             parentBlock,
@@ -418,17 +426,21 @@ class ELUpdater(
           )
 
           setState("12", newState)
-          scheduler.scheduleOnce((miningData.nextBlockUnixTs - time.correctedTime() / 1000).min(1).seconds)(
+          val waitTime =
+            if (prevState.rollbackFaked) 0.seconds
+            else (miningData.nextBlockUnixTs - time.correctedTime() / 1000).min(1).seconds
+          scheduler.scheduleOnce(waitTime)(
             prepareAndApplyPayload(
               miningData.payload,
               parentBlock.hash,
               miningData.nextBlockUnixTs,
               newState.options.startEpochChainFunction(epochInfo.number, parentBlock.hash, epochInfo.hitSource, nodeChainInfo.toOption),
+              prevState.finalizedBlock,
               newState.options
             )
           )
         }).fold(
-          err => logger.error(s"Error starting payload build process: ${err.message}"),
+          err => logger.error(s"Error starting payload build process for first block: ${err.message}"),
           _ => ()
         )
       case _ =>
@@ -481,6 +493,7 @@ class ELUpdater(
                 parentBlock.hash,
                 miningData.nextBlockUnixTs,
                 chainContractOptions.appendFunction(epochInfo.number, parentBlock.hash),
+                finalizedBlock,
                 chainContractOptions
               )
             )
@@ -1713,9 +1726,6 @@ class ELUpdater(
     val finalizedBlockHash = if (finalizedBlock.height > block.height) block.hash else finalizedBlock.hash
     engineApiClient.forkchoiceUpdated(block.hash, finalizedBlockHash)
   }
-
-  private def confirmBlock(hash: BlockHash, finalizedBlockHash: BlockHash): JobResult[PayloadStatus] =
-    engineApiClient.forkchoiceUpdated(hash, finalizedBlockHash)
 
   private def forkchoiceUpdatedWithPayload(
       lastBlock: EcBlock,
