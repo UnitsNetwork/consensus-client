@@ -397,7 +397,7 @@ class ELUpdater(
           }
           nextBlockUnixTs = // We don't collect transactions for simulated payload, thus we don't need to wait blockDelay
             if (prevState.rollbackFaked) time.correctedTime() / 1000
-            else (parentBlock.timestamp + config.blockDelay.toSeconds).max(time.correctedTime() / 1000 + config.blockDelay.toSeconds)
+            else (parentBlock.timestamp + config.blockDelay.toSeconds).max(time.correctedTime() / 1000 + config.firstBlockMinDelay.toSeconds)
           _ = prevState.lastContractBlock
           miningData <- startBuildingPayload(
             epochInfo,
