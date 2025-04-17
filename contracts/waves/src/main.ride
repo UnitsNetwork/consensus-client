@@ -38,7 +38,7 @@ let daoRewardKey               = "daoReward"
 let maxSkippedEpochCountKey    = "maxSkippedEpochCount"
 
 let emergencyStopKey = "stopped"
-func requireNotStopped() = getBoolean(emergencyStopKey).valueOrElse(false) && throw("Asset transfers must not be activated")
+func requireNotStopped() = getBoolean(emergencyStopKey).valueOrElse(false) && throw("The network has been stopped. Please contact the administrator.")
 
 let assetRegistryK       = "assetRegistry_"         # Asset Id -> Settings (index, erc20AddressHex with 0x, ratioExponent)
 let assetRegistryELK     = "assetRegistryAssetE_0x" # ERC20 address -> Index
