@@ -2,19 +2,17 @@ package units.client.contract
 
 import cats.implicits.*
 import com.wavesplatform.account.{Address, PublicKey}
-import com.wavesplatform.block.BlockHeader
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.consensus.{FairPoSCalculator, PoSCalculator}
 import com.wavesplatform.lang.Global
 import com.wavesplatform.serialization.ByteBufferOps
-import com.wavesplatform.state.{BinaryDataEntry, Blockchain, DataEntry, EmptyDataEntry, IntegerDataEntry, StringDataEntry}
-import com.wavesplatform.transaction.Asset as WAsset
-import units.{BlockHash, EAmount, WAmount, scale}
+import com.wavesplatform.state.{BinaryDataEntry, Blockchain, BooleanDataEntry, DataEntry, EmptyDataEntry, IntegerDataEntry, StringDataEntry}
+import com.wavesplatform.transaction.Asset
 import units.client.contract.ChainContractClient.*
 import units.eth.{EthAddress, Gwei}
 import units.util.HexBytesConverter
+import units.{BlockHash, EAmount, WAmount, scale}
 
-import java.math.{BigDecimal, BigInteger}
 import java.nio.ByteBuffer
 import scala.annotation.tailrec
 import scala.reflect.ClassTag
@@ -25,6 +23,8 @@ trait ChainContractClient {
   def extractData(key: String): Option[DataEntry[?]]
 
   def isContractSetup: Boolean = getLongData("minerReward").isDefined
+
+  def isStopped: Boolean = getBooleanData("stopped").getOrElse(false)
 
   def getLastBlockMeta(chainId: Long): Option[ContractBlock] =
     for {
@@ -173,7 +173,7 @@ trait ChainContractClient {
 
   def calculateEpochMiner(epochNumber: Int, blockchain: Blockchain): Either[String, Address] =
     for {
-      header <- blockchain.blockHeader(epochNumber).toRight(s"No header at height $epochNumber")
+      header    <- blockchain.blockHeader(epochNumber).toRight(s"No header at height $epochNumber")
       hitSource <- blockchain.hitSource(epochNumber).toRight(s"No VRF value at height $epochNumber")
       miner <- getAllActualMiners
         .flatMap(miner => calculateMinerDelay(hitSource.arr, header.header.baseTarget, miner, blockchain))
@@ -276,7 +276,7 @@ trait ChainContractClient {
     }
   }
 
-  def getRegisteredAssetData(asset: WAsset): Registry.RegisteredAsset = {
+  def getRegisteredAssetData(asset: Asset): Registry.RegisteredAsset = {
     val key   = s"assetRegistry_${Registry.stringifyAsset(asset)}"
     val raw   = getStringData(key).getOrElse(fail(s"Can't find a registered asset $asset at $key"))
     val parts = raw.split(Sep)
@@ -307,7 +307,7 @@ trait ChainContractClient {
       } else {
         this.getEpochMeta(curEpochNumber) match {
           case Some(epochMeta) => Right(Some(epochMeta.lastBlockHash))
-          case _ => loop(curEpochNumber - 1)
+          case _               => loop(curEpochNumber - 1)
         }
       }
     }
@@ -324,7 +324,7 @@ trait ChainContractClient {
     }
   }
 
-  def getRegisteredAsset(registryIndex: Int): WAsset =
+  def getRegisteredAsset(registryIndex: Int): Asset =
     getStringData(s"assetRegistryIndex_$registryIndex") match {
       case None          => fail(s"Can't find a registered asset at $registryIndex")
       case Some(assetId) => Registry.parseAsset(assetId)
@@ -344,6 +344,9 @@ trait ChainContractClient {
   protected def getLongData(key: String): Option[Long] =
     extractLongValue(key, extractData(key))
 
+  protected def getBooleanData(key: String): Option[Boolean] =
+    extractBooleanValue(key, extractData(key))
+
   private def extractLongValue(context: String, extractedDataEntry: Option[DataEntry[?]]): Option[Long] =
     extractValue[IntegerDataEntry](context, extractedDataEntry).map(_.value)
 
@@ -352,6 +355,9 @@ trait ChainContractClient {
 
   private def extractStringValue(context: String, extractedDataEntry: Option[DataEntry[?]]): Option[String] =
     extractValue[StringDataEntry](context, extractedDataEntry).map(_.value)
+
+  private def extractBooleanValue(context: String, extractedDataEntry: Option[DataEntry[?]]): Option[Boolean] =
+    extractValue[BooleanDataEntry](context, extractedDataEntry).map(_.value)
 
   private def extractValue[T <: DataEntry[?]](context: String, x: Option[DataEntry[?]])(implicit ct: ClassTag[T]): Option[T] = x match {
     case Some(x: T)              => Some(x)
@@ -378,22 +384,23 @@ object ChainContractClient {
   case class EpochContractMeta(miner: Address, prevEpoch: Int, lastBlockHash: BlockHash)
 
   enum ContractTransfer(val index: Long) {
-    case Native(idx: Long, to: EthAddress, amount: Long)                                                              extends ContractTransfer(idx)
-    case Asset(idx: Long, from: EthAddress, to: EthAddress, amount: EAmount, tokenAddress: EthAddress, asset: WAsset) extends ContractTransfer(idx)
+    case Native(idx: Long, to: EthAddress, amount: Long) extends ContractTransfer(idx)
+    case Asset(idx: Long, from: EthAddress, to: EthAddress, amount: EAmount, tokenAddress: EthAddress, asset: com.wavesplatform.transaction.Asset)
+        extends ContractTransfer(idx)
   }
 
   object Registry {
     val WavesAssetName = "WAVES"
 
-    case class RegisteredAsset(asset: WAsset, index: Int, erc20Address: EthAddress, exponent: Int) {
+    case class RegisteredAsset(asset: Asset, index: Int, erc20Address: EthAddress, exponent: Int) {
       override def toString: String = s"RegisteredAsset($asset, i=$index, $erc20Address, e=$exponent)"
     }
 
-    def parseAsset(rawAssetId: String): WAsset =
-      if (rawAssetId == WavesAssetName) WAsset.Waves
-      else WAsset.IssuedAsset(ByteStr.decodeBase58(rawAssetId).getOrElse(fail(s"Can't decode an asset id: $rawAssetId")))
+    def parseAsset(rawAssetId: String): Asset =
+      if (rawAssetId == WavesAssetName) Asset.Waves
+      else Asset.IssuedAsset(ByteStr.decodeBase58(rawAssetId).getOrElse(fail(s"Can't decode an asset id: $rawAssetId")))
 
-    def stringifyAsset(asset: WAsset): String = asset.fold(WavesAssetName)(_.id.toString)
+    def stringifyAsset(asset: Asset): String = asset.fold(WavesAssetName)(_.id.toString)
   }
 
   private def fail(reason: String, cause: Throwable = null): Nothing = throw new InconsistentContractData(reason, cause)
