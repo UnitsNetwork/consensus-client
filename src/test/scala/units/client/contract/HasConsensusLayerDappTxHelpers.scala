@@ -70,7 +70,8 @@ trait HasConsensusLayerDappTxHelpers {
         chainContractAddress,
         Some("enableTokenTransfers"),
         Seq(CONST_STRING(standardBridge.hex.drop(2)).explicitGet(), CONST_STRING(wwaves.hex.drop(2)).explicitGet(), CONST_LONG(activationEpoch)),
-        invoker = chainContractAccount
+        invoker = chainContractAccount,
+        fee = 0.009.waves
       )
 
     def enableTokenTransfers(standardBridge: EthAddress, activationEpoch: Int): DataTransaction =
@@ -79,7 +80,8 @@ trait HasConsensusLayerDappTxHelpers {
         Seq(
           IntegerDataEntry("assetTransfersActivationEpoch", activationEpoch),
           StringDataEntry("elStandardBridgeAddress", standardBridge.hex)
-        )
+        ),
+        fee = 0.009.waves
       )
 
     def join(minerAccount: KeyPair, elRewardAddress: EthAddress): InvokeScriptTransaction = TxHelpers.invoke(
@@ -132,7 +134,8 @@ trait HasConsensusLayerDappTxHelpers {
               limited = true
             )
             .explicitGet()
-        )
+        ),
+        fee = 0.009.waves
       )
 
     def issueAndRegister(
@@ -367,7 +370,7 @@ object HasConsensusLayerDappTxHelpers {
       val extendAltChainFee   = 0.1.waves
       val transferFee         = 0.1.waves
       val withdrawFee         = 0.1.waves
-      val issueAndRegisterFee = 1.005.waves
+      val issueAndRegisterFee = 1.009.waves
     }
   }
 }
