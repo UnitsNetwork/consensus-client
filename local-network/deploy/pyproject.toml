@@ -8,7 +8,7 @@ version = "0.1"
 description = "Scripts and tests for a locally deployed Unit network"
 dependencies = [
   "solc-select",
-  "units-network @ git+https://github.com/UnitsNetwork/examples.git@asset-transfers",
+  "units-network @ git+https://github.com/UnitsNetwork/examples.git",
 ]
 readme = "README.md"
 requires-python = ">=3.9"
