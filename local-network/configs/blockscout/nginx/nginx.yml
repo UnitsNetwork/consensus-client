@@ -2,8 +2,6 @@ services:
   nginx:
     container_name: nginx
     image: nginx
-    extra_hosts:
-      - 'host.docker.internal:host-gateway'
     volumes:
       - './templates:/etc/nginx/templates'
       - '../../../logs/nginx:/var/log/nginx'
