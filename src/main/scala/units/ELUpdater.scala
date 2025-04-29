@@ -281,8 +281,36 @@ class ELUpdater(
       case x: ContractTransfer.Asset  => x.asRight
     }
 
-    val nativeTransferWithdrawals = toWithdrawals(nativeTransfers, rewardWithdrawal.lastOption.fold(startElWithdrawalIndex)(_.index + 1))
-    val withdrawals               = rewardWithdrawal ++ nativeTransferWithdrawals
+    val nativeTransfersViaDepositsActivated = epochInfo.number >= chainContractClient.getNativeTokenDepositTransfersActivationEpoch
+
+    // TODO: remove log
+    logger.debug(
+      s"""
+      Native transfers: ${nativeTransfers.size}
+      Asset transfers: ${assetTransfers.size}
+      Native transfers via deposits activation epoch: ${chainContractClient.getNativeTokenDepositTransfersActivationEpoch}
+      Native transfers via deposits activated: ${nativeTransfersViaDepositsActivated}
+      """
+    )
+
+    val (nativeTransferWithdrawals, nativeTransferDeposits) =
+      if nativeTransfersViaDepositsActivated
+      then
+        (
+          Vector.empty,
+          for {
+            sba <- chainContractOptions.elStandardBridgeAddress.toVector
+            x   <- nativeTransfers
+          } yield StandardBridge.mkFinalizeBridgeNativeTransaction(
+            transferIndex = x.index,
+            standardBridgeAddress = sba,
+            to = x.to,
+            amount = x.amount
+          )
+        )
+      else (toWithdrawals(nativeTransfers, rewardWithdrawal.lastOption.fold(startElWithdrawalIndex)(_.index + 1)), Vector.empty)
+
+    val withdrawals = rewardWithdrawal ++ nativeTransferWithdrawals
 
     val (addedAssets, updateAssetRegistryTransaction) =
       if (epochInfo.number < chainContractOptions.assetTransfersActivationEpoch) (Nil, None)
@@ -307,7 +335,7 @@ class ELUpdater(
         (addedAssets, txn)
       }
 
-    val depositedTransactions = updateAssetRegistryTransaction.toVector ++ (for {
+    val depositedTransactions = updateAssetRegistryTransaction.toVector ++ nativeTransferDeposits ++ (for {
       sba <- chainContractOptions.elStandardBridgeAddress.toVector
       x   <- assetTransfers
     } yield StandardBridge.mkFinalizeBridgeErc20Transaction(
@@ -322,14 +350,15 @@ class ELUpdater(
     val prevRandao = calculateRandao(epochInfo.hitSource, parentBlock.hash)
 
     if (willSimulateBlock) {
-      mkSimulatedBlock(parentBlock.hash, epochInfo.rewardAddress, nextBlockUnixTs, prevRandao, withdrawals, depositedTransactions).map { simulatedPayload =>
-        MiningData(
-          payload = simulatedPayload ++ Json.obj("transactions" -> depositedTransactions.map(_.toHex)),
-          nextBlockUnixTs = nextBlockUnixTs,
-          lastC2ETransferIndex = transfers.lastOption.fold(lastC2ETransferIndex)(_.index),
-          lastElWithdrawalIndex = lastElWithdrawalIndex + withdrawals.size,
-          lastAssetRegistryIndex = addedAssets.lastOption.fold(lastAssetRegistryIndex)(_.index)
-        )
+      mkSimulatedBlock(parentBlock.hash, epochInfo.rewardAddress, nextBlockUnixTs, prevRandao, withdrawals, depositedTransactions).map {
+        simulatedPayload =>
+          MiningData(
+            payload = simulatedPayload ++ Json.obj("transactions" -> depositedTransactions.map(_.toHex)),
+            nextBlockUnixTs = nextBlockUnixTs,
+            lastC2ETransferIndex = transfers.lastOption.fold(lastC2ETransferIndex)(_.index),
+            lastElWithdrawalIndex = lastElWithdrawalIndex + withdrawals.size,
+            lastAssetRegistryIndex = addedAssets.lastOption.fold(lastAssetRegistryIndex)(_.index)
+          )
       }
     } else {
       forkchoiceUpdatedWithPayload(
