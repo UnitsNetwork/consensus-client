@@ -162,79 +162,6 @@ class ELUpdater(
     }
   }
 
-  private def prepareAndApplyPayload(
-      payloadOrId: PayloadId | JsObject,
-      referenceHash: BlockHash,
-      timestamp: Long,
-      contractFunction: ContractFunction,
-      finalizedBlock: L2BlockLike,
-      chainContractOptions: ChainContractOptions
-  ): Unit = {
-    def getWaitingTime: Option[FiniteDuration] = {
-      val timestampAheadTime = (timestamp - time.correctedTime() / 1000).max(0)
-      if (timestampAheadTime > 0) {
-        Some(timestampAheadTime.seconds)
-      } else if (!chainContractClient.blockExists(referenceHash)) {
-        Some(WaitForReferenceConfirmInterval)
-      } else None
-    }
-
-    state match {
-      case state @ Working(epochInfo, _, _, _, _, m: Mining, _, _, _) if m.currentPayload == payloadOrId =>
-        getWaitingTime match {
-          case Some(waitingTime) =>
-            scheduler.scheduleOnce(waitingTime)(
-              prepareAndApplyPayload(payloadOrId, referenceHash, timestamp, contractFunction, finalizedBlock, chainContractOptions)
-            )
-          case _ =>
-            (for {
-              payload <- payloadOrId match {
-                case id: String    => engineApiClient.getPayload(id)
-                case jso: JsObject => jso.asRight
-              }
-              latestValidHashOpt <- engineApiClient.newPayload(payload)
-              latestValidHash    <- Either.fromOption(latestValidHashOpt, ClientError("Latest valid hash not defined"))
-              _ = logger.info(s"Applied payload, block hash is $latestValidHash, timestamp = $timestamp")
-              newBlock <- NetworkL2Block.signed(payload, m.keyPair.privateKey)
-
-              // Make sure, it will be in the canonical chain
-              ecBlock = newBlock.toEcBlock
-              _ <- confirmBlock(ecBlock, finalizedBlock)
-              _ = setState("27", state.copy(lastEcBlock = ecBlock))
-
-              _ = logger.debug(s"Broadcasting block ${newBlock.hash}")
-              _ <- Try(allChannels.broadcast(newBlock)).toEither.leftMap(err =>
-                ClientError(s"Failed to broadcast block ${newBlock.hash}: ${err.toString}")
-              )
-              ecBlockLogs <- engineApiClient.getLogs(
-                hash = ecBlock.hash,
-                addresses = chainContractOptions.bridgeAddresses(epochInfo.number),
-                topics = Nil
-              )
-              transfersRootHash <- BridgeMerkleTree.getE2CTransfersRootHash(ecBlockLogs).leftMap(ClientError.apply)
-              funcCall          <- contractFunction.toFunctionCall(ecBlock.hash, transfersRootHash, m.lastC2ETransferIndex, m.lastAssetRegistryIndex)
-              _ <- callContract(
-                funcCall,
-                ecBlock,
-                m.keyPair
-              )
-            } yield ecBlock).fold(
-              { err =>
-                val message = s"Failed to forge block at epoch ${epochInfo.number}: ${err.message}"
-                if (err.message.contains("not allowed to forge blocks in this epoch")) logger.debug(message) // Expected in the end of epoch
-                else logger.error(message)
-              },
-              newEcBlock => scheduler.execute { () => tryToForgeNextBlock(epochInfo.number, newEcBlock, chainContractOptions) }
-            )
-        }
-      case Working(_, _, _, _, _, _: Mining | _: FollowingChain, _, _, _) =>
-      // a new epoch started, and we're trying to apply a previous epoch payload:
-      // Mining - we mine again
-      // FollowingChain - we validate
-      case other => logger.debug(s"Unexpected state $other attempting to finish building payload")
-    }
-  }
-
   private def rollbackDryRun(prevState: Working[ChainStatus], target: L2BlockLike, finalizedBlock: ContractBlock): JobResult[Working[ChainStatus]] = {
     val targetHash = target.hash
     logger.info(s"Starting FAKE rollback to $targetHash")
@@ -258,6 +185,7 @@ class ELUpdater(
     }
   }
 
+  // Also switches the head in EC
   private def startBuildingPayload(
       epochInfo: EpochInfo,
       parentBlock: EcBlock,
@@ -430,12 +358,11 @@ class ELUpdater(
             if (prevState.rollbackFaked) 0.seconds
             else (miningData.nextBlockUnixTs - time.correctedTime() / 1000).min(1).seconds
           scheduler.scheduleOnce(waitTime)(
-            prepareAndApplyPayload(
+            tryToForgeNextBlock(
               miningData.payload,
               parentBlock.hash,
               miningData.nextBlockUnixTs,
               newState.options.startEpochChainFunction(epochInfo.number, parentBlock.hash, epochInfo.hitSource, nodeChainInfo.toOption),
-              prevState.finalizedBlock,
               newState.options
             )
           )
@@ -449,57 +376,122 @@ class ELUpdater(
   }
 
   private def tryToForgeNextBlock(
-      epochNumber: Int,
-      parentBlock: EcBlock,
+      payloadOrId: PayloadId | JsObject,
+      referenceHash: BlockHash,
+      timestamp: Long,
+      contractFunction: ContractFunction,
       chainContractOptions: ChainContractOptions
   ): Unit = {
-    state match {
-      case w @ Working(epochInfo, _, finalizedBlock, _, _, m: Mining, _, _, _)
-          if epochInfo.number == epochNumber && blockchain.height == epochNumber =>
-        val nextBlockUnixTs = (parentBlock.timestamp + config.blockDelay.toSeconds).max(time.correctedTime() / 1000)
+    def waitForRefApprovalOnCl: Option[FiniteDuration] = {
+      val timestampAheadTime = (timestamp - time.correctedTime() / 1000).max(0)
+      if (timestampAheadTime > 0) {
+        Some(timestampAheadTime.seconds)
+      } else if (!chainContractClient.blockExists(referenceHash)) {
+        Some(WaitForReferenceConfirmInterval)
+      } else None
+    }
 
-        startBuildingPayload(
-          epochInfo,
-          parentBlock,
-          finalizedBlock,
-          nextBlockUnixTs,
-          m.lastC2ETransferIndex,
-          m.lastElWithdrawalIndex,
-          m.lastAssetRegistryIndex,
-          chainContractOptions,
-          None,
-          false
-        ).fold[Unit](
-          err => {
-            logger.error(s"Error starting payload build process: ${err.message}")
-            scheduler.scheduleOnce(MiningRetryInterval) {
-              tryToForgeNextBlock(epochNumber, parentBlock, chainContractOptions)
+    state match {
+      case w @ Working(epochInfo, _, finalizedBlock, _, _, m: Mining, _, _, _) if epochInfo.number == blockchain.height =>
+        waitForRefApprovalOnCl match {
+          case Some(waitingTime) =>
+            scheduler.scheduleOnce(waitingTime) {
+              tryToForgeNextBlock(payloadOrId, referenceHash, timestamp, contractFunction, chainContractOptions)
             }
-          },
-          miningData => {
-            val newState = w.copy(
-              lastEcBlock = parentBlock,
-              chainStatus = m.copy(
-                currentPayload = miningData.payload,
-                lastC2ETransferIndex = miningData.lastC2ETransferIndex,
-                lastElWithdrawalIndex = miningData.lastElWithdrawalIndex,
-                lastAssetRegistryIndex = miningData.lastAssetRegistryIndex
-              )
-            )
-            setState("11", newState)
-            scheduler.scheduleOnce((miningData.nextBlockUnixTs - time.correctedTime() / 1000).min(1).seconds)(
-              prepareAndApplyPayload(
-                miningData.payload,
-                parentBlock.hash,
-                miningData.nextBlockUnixTs,
-                chainContractOptions.appendFunction(epochInfo.number, parentBlock.hash),
-                finalizedBlock,
-                chainContractOptions
-              )
-            )
-          }
-        )
-      case other => logger.debug(s"Unexpected state $other attempting to start building block referencing ${parentBlock.hash} at epoch $epochNumber")
+          case _ =>
+            val getAndApplyPayload = for {
+              payload <- payloadOrId match {
+                case id: String    => engineApiClient.getPayload(id)
+                case jso: JsObject => jso.asRight
+              }
+              latestValidHashOpt <- engineApiClient.newPayload(payload)
+              latestValidHash    <- Either.fromOption(latestValidHashOpt, ClientError("Latest valid hash not defined"))
+              _ = logger.info(s"Applied payload, block hash is $latestValidHash, timestamp = $timestamp")
+              newNetworkBlock <- NetworkL2Block.signed(payload, m.keyPair.privateKey)
+            } yield {
+              logger.debug(s"Broadcasting block ${newNetworkBlock.hash}")
+              Try(allChannels.broadcast(newNetworkBlock)).recover { err =>
+                logger.warn(s"Failed to broadcast block ${newNetworkBlock.hash}: ${err.toString}")
+              }
+
+              newNetworkBlock.toEcBlock
+            }
+
+            getAndApplyPayload match {
+              case Left(err) =>
+                val message = s"Failed to forge block at epoch ${epochInfo.number}: ${err.message}"
+                if (err.message.contains("not allowed to forge blocks in this epoch")) logger.debug(message) // Expected in the end of epoch
+                else logger.error(message)
+
+              case Right(ecBlock) =>
+                val nextBlockUnixTs = (ecBlock.timestamp + config.blockDelay.toSeconds).max(time.correctedTime() / 1000)
+                val startBuildNextBlock = startBuildingPayload(
+                  epochInfo,
+                  ecBlock,
+                  finalizedBlock,
+                  nextBlockUnixTs,
+                  m.lastC2ETransferIndex,
+                  m.lastElWithdrawalIndex,
+                  m.lastAssetRegistryIndex,
+                  chainContractOptions,
+                  None,
+                  false
+                )
+
+                startBuildNextBlock match {
+                  case Left(err) => logger.error(s"Can't change the head to  ${ecBlock.hash} and start building a next payload: ${err.message}")
+                  case Right(nextBlockMiningData) =>
+                    setState(
+                      "11",
+                      w.copy(
+                        lastEcBlock = ecBlock,
+                        chainStatus = m.copy(
+                          currentPayload = nextBlockMiningData.payload,
+                          lastC2ETransferIndex = nextBlockMiningData.lastC2ETransferIndex,
+                          lastElWithdrawalIndex = nextBlockMiningData.lastElWithdrawalIndex,
+                          lastAssetRegistryIndex = nextBlockMiningData.lastAssetRegistryIndex
+                        )
+                      )
+                    )
+
+                    val confirmElBlockOnCl = for {
+                      ecBlockLogs <- engineApiClient.getLogs(
+                        hash = ecBlock.hash,
+                        addresses = chainContractOptions.bridgeAddresses(epochInfo.number),
+                        topics = Nil
+                      )
+                      transfersRootHash <- BridgeMerkleTree.getE2CTransfersRootHash(ecBlockLogs).leftMap(ClientError.apply)
+                      funcCall <- contractFunction.toFunctionCall(
+                        ecBlock.hash,
+                        transfersRootHash,
+                        m.lastC2ETransferIndex,
+                        m.lastAssetRegistryIndex
+                      )
+                      _ <- callContract(funcCall, ecBlock, m.keyPair)
+                    } yield ()
+
+                    confirmElBlockOnCl match {
+                      case Left(err) => logger.error(s"Can't confirm block ${ecBlock.hash} on CL: ${err.message}")
+                      case _ =>
+                        scheduler.scheduleOnce((nextBlockUnixTs - time.correctedTime() / 1000).min(1).seconds)(
+                          tryToForgeNextBlock(
+                            payloadOrId = nextBlockMiningData.payload,
+                            referenceHash = ecBlock.hash,
+                            timestamp = nextBlockUnixTs,
+                            contractFunction = chainContractOptions.appendFunction(epochInfo.number, ecBlock.hash),
+                            chainContractOptions = chainContractOptions
+                          )
+                        )
+                    }
+                }
+            }
+        }
+
+      case Working(_, _, _, _, _, _: Mining | _: FollowingChain, _, _, _) =>
+      // a new epoch started, and we're trying to apply a previous epoch payload:
+      // Mining - we mine again
+      // FollowingChain - we validate
+      case other => logger.debug(s"Unexpected state $other attempting to finish building payload")
     }
   }
 
