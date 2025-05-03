@@ -385,10 +385,9 @@ class ExtensionDomain(
     createEcBlockBuilder(hashPath, miner.elRewardAddress, parent)
 
   def createEcBlockBuilder(hashPath: String, minerRewardL2Address: EthAddress, parent: EcBlock): TestEcBlockBuilder = {
-    TestEcBlockBuilder(ecClients, nativeBridgeAddress, standardBridgeAddress, elMinerDefaultReward, l2Config.blockDelay, parent = parent)
+    TestEcBlockBuilder(hashPath, ecClients, nativeBridgeAddress, standardBridgeAddress, elMinerDefaultReward, l2Config.blockDelay, parent = parent)
       .updateBlock(
         _.copy(
-          hash = TestEcBlockBuilder.createBlockHash(hashPath),
           minerRewardL2Address = minerRewardL2Address,
           prevRandao = ELUpdater.calculateRandao(blockchain.vrf(blockchain.height).get, parent.hash)
         )
