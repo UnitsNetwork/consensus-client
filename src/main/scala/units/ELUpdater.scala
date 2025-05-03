@@ -66,7 +66,7 @@ class ELUpdater(
   private[units] var state: State = Starting
 
   def consensusLayerChanged(): Unit =
-    handleNextUpdate := scheduler.scheduleOnce(ClChangedProcessingDelay)(handleConsensusLayerChanged())
+    handleNextUpdate := scheduler.scheduleOnceLabeled("handleConsensusLayerChanged", ClChangedProcessingDelay)(handleConsensusLayerChanged())
 
   def executionBlockReceived(block: NetworkL2Block, ch: Channel): Unit = scheduler.execute { () =>
     logger.debug(s"New block ${block.hash}->${block.parentHash} (timestamp=${block.timestamp}, height=${block.height}) appeared")
@@ -357,7 +357,7 @@ class ELUpdater(
           val waitTime =
             if (prevState.rollbackFaked) 0.seconds
             else (miningData.nextBlockUnixTs - time.correctedTime() / 1000).min(1).seconds
-          scheduler.scheduleOnce(waitTime)(
+          scheduler.scheduleOnceLabeled("tryToForgeNextBlock", waitTime)(
             tryToForgeNextBlock(
               miningData.payload,
               parentBlock.hash,
@@ -392,10 +392,11 @@ class ELUpdater(
     }
 
     state match {
-      case w @ Working(epochInfo, _, finalizedBlock, _, _, m: Mining, _, _, _) if epochInfo.number == blockchain.height =>
+      case w @ Working(epochInfo, _, finalizedBlock, _, _, m: Mining, _, _, _)
+          if epochInfo.number == blockchain.height && m.currentPayload == payloadOrId =>
         waitForRefApprovalOnCl match {
           case Some(waitingTime) =>
-            scheduler.scheduleOnce(waitingTime) {
+            scheduler.scheduleOnceLabeled("waitApproval", waitingTime) {
               tryToForgeNextBlock(payloadOrId, referenceHash, timestamp, contractFunction, chainContractOptions)
             }
           case _ =>
@@ -473,7 +474,7 @@ class ELUpdater(
                     confirmElBlockOnCl match {
                       case Left(err) => logger.error(s"Can't confirm block ${ecBlock.hash} on CL: ${err.message}")
                       case _ =>
-                        scheduler.scheduleOnce((nextBlockUnixTs - time.correctedTime() / 1000).min(1).seconds)(
+                        scheduler.scheduleOnceLabeled("forgeSecond", (nextBlockUnixTs - time.correctedTime() / 1000).min(1).seconds)(
                           tryToForgeNextBlock(
                             payloadOrId = nextBlockMiningData.payload,
                             referenceHash = ecBlock.hash,
@@ -641,7 +642,7 @@ class ELUpdater(
           w.chainStatus match {
             case FollowingChain(_, Some(nextExpectedBlock)) =>
               logger.debug(s"Waiting for block $nextExpectedBlock from peers")
-              scheduler.scheduleOnce(WaitRequestedBlockTimeout) {
+              scheduler.scheduleOnceLabeled("nextCheck", WaitRequestedBlockTimeout) {
                 if (blockchain.height == prevState.epochInfo.number) {
                   check(missedBlock)
                 }
@@ -658,7 +659,7 @@ class ELUpdater(
 
     prevState.chainStatus.nextExpectedBlock match {
       case Some(missedBlock) =>
-        scheduler.scheduleOnce(WaitRequestedBlockTimeout) {
+        scheduler.scheduleOnceLabeled("firstCheck", WaitRequestedBlockTimeout) {
           if (blockchain.height == prevState.epochInfo.number) {
             check(missedBlock)
           }
@@ -985,7 +986,7 @@ class ELUpdater(
       chainInfo.lastBlock.height > lastEcBlock.height && !chainContractClient.blockExists(lastEcBlock.hash) ||
       chainInfo.lastBlock.height < lastEcBlock.height
 
-  private def waitForSyncCompletion(target: ContractBlock): Unit = scheduler.scheduleOnce(5.seconds)(state match {
+  private def waitForSyncCompletion(target: ContractBlock): Unit = scheduler.scheduleOnceLabeled("sync", 5.seconds)(state match {
     case SyncingToFinalizedBlock(finalizedBlockHash) if finalizedBlockHash == target.hash =>
       logger.debug(s"Checking if EL has synced to ${target.hash} on height ${target.height}")
       engineApiClient.getLastExecutionBlock() match {
@@ -1781,6 +1782,9 @@ object ELUpdater {
         rollbackFaked: Boolean = false
     ) extends State {
       def lastContractBlock: ContractBlock = chainStatus.lastContractBlock
+
+      override def toString: String =
+        s"Working($epochInfo, leb=$lastEcBlock, fb=$finalizedBlock, mc=$mainChainInfo, vs=$fullValidationStatus, $chainStatus, $options, rmc=$returnToMainChainInfo, rb=$rollbackFaked)"
     }
 
     sealed trait ChainStatus {
@@ -1812,8 +1816,10 @@ object ELUpdater {
       }
     }
 
-    case class WaitingForSyncHead(target: ContractBlock, task: CancelableFuture[BlockWithChannel]) extends State
-    case class SyncingToFinalizedBlock(target: BlockHash)                                          extends State
+    case class WaitingForSyncHead(target: ContractBlock, task: CancelableFuture[BlockWithChannel]) extends State {
+      override def toString: String = s"WaitingForSyncHead($target)"
+    }
+    case class SyncingToFinalizedBlock(target: BlockHash) extends State
   }
 
   private case class RollbackBlock(hash: BlockHash, parentBlock: EcBlock)
