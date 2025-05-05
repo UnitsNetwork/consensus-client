@@ -59,7 +59,7 @@ func pad(i: Int) = {
 
 func blockE2CTransfersKey(blockHashHex: String)       = "elToClTransfers_0x" + blockHashHex
 func epochMetaKey(epoch: Int)                         = "epoch_" + pad(epoch) # {minerAddress},{prevEpoch},{lastBlockHash}
-func epochReportedEmptyKey(epoch: Int)                = "empty_" + pad(epoch) # {idleMiner},{reporterAddress},{rewardClaimed} for non-claimed, {idleMiner} for claimed
+func epochReportedEmptyKey(epoch: Int)                = "empty_" + pad(epoch) # {idleMiner},{reporterAddress} for non-claimed, {idleMiner} for claimed
 func chainFirstBlockIdKey(chainId: Int)               = "chain" + chainId.toString() + "FirstBlock"
 func chainMetaKey(chainId: Int)                       = "chain_" + pad(chainId) # {height},{lastBlockHash}
 func chainLastHeightKey(chainId: Int, miner: Address) = "chain_" + pad(chainId) + "_" + miner.toString()
