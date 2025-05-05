@@ -1,18 +1,19 @@
 {-# STDLIB_VERSION 8 #-}
 {-# CONTENT_TYPE DAPP #-}
 {-# SCRIPT_TYPE ACCOUNT #-}
-let INT_MAX                = 9223372036854775807 # 2⁶³ - 1
-let WAVES                  = 100_000_000
-let MIN_BALANCE            = 20_000 * WAVES
-let SEP                    = ","
-let BLOCK_HASH_SIZE        = 32
-let PUBLIC_KEY_HASH_SIZE   = 20
-let ASSET_ID_SIZE          = 32
-let ROOT_HASH_SIZE         = 32
-let WITHDRAW_PROOFS_SIZE   = 10
-let ETH_ADDRESS_STR_SIZE   = 40
-let MAX_CL_TO_EL_TRANSFERS = 16
-let WAVES_ASSET_NAME       = "WAVES"
+let INT_MAX                   = 9223372036854775807 # 2⁶³ - 1
+let WAVES                     = 100_000_000
+let MIN_BALANCE               = 20_000 * WAVES
+let SEP                       = ","
+let BLOCK_HASH_SIZE           = 32
+let PUBLIC_KEY_HASH_SIZE      = 20
+let ASSET_ID_SIZE             = 32
+let ROOT_HASH_SIZE            = 32
+let WITHDRAW_PROOFS_SIZE      = 10
+let ETH_ADDRESS_STR_SIZE      = 40
+let MAX_CL_TO_EL_TRANSFERS    = 16
+let EMPTY_EPOCH_REPORT_REWARD = 50_000_000
+let WAVES_ASSET_NAME          = "WAVES"
 
 # 1024 symbols
 let zeroesStr = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
@@ -34,6 +35,7 @@ let elStandardBridgeAddressKey = "elStandardBridgeAddress"
 let transfersCountKey          = "nativeTransfersCount"
 let daoAddressKey              = "daoAddress"
 let daoRewardKey               = "daoReward"
+let maxSkippedEpochCountKey    = "maxSkippedEpochCount"
 
 let assetRegistryK       = "assetRegistry_"         # Asset Id -> Settings (index, erc20AddressHex with 0x, ratioExponent)
 let assetRegistryELK     = "assetRegistryAssetE_0x" # ERC20 address -> Index
@@ -57,17 +59,20 @@ func pad(i: Int) = {
 
 func blockE2CTransfersKey(blockHashHex: String)       = "elToClTransfers_0x" + blockHashHex
 func epochMetaKey(epoch: Int)                         = "epoch_" + pad(epoch) # {minerAddress},{prevEpoch},{lastBlockHash}
+func epochReportedEmptyKey(epoch: Int)                = "empty_" + pad(epoch) # {idleMiner},{reporterAddress} for non-claimed, {idleMiner} for claimed
 func chainFirstBlockIdKey(chainId: Int)               = "chain" + chainId.toString() + "FirstBlock"
 func chainMetaKey(chainId: Int)                       = "chain_" + pad(chainId) # {height},{lastBlockHash}
 func chainLastHeightKey(chainId: Int, miner: Address) = "chain_" + pad(chainId) + "_" + miner.toString()
 func chainForkedHeightKey(chainId: Int)               = "chain_" + pad(chainId) + "ForkedHeight" # Next to the common block
 
-func supportersKey(chainId: Int)              = "chain" + chainId.toString() + "Supporters"
-func minerRewardAddressKey(minerAddr: String) = "miner_" + minerAddr + "_RewardAddress"
-func minerPkKey(rewardAddress: String)        = "miner_0x" + rewardAddress + "_PK"
-func minerChainIdKey(miner: Address)          = "miner_" + miner.toString() + "_ChainId"
+func supportersKey(chainId: Int)                  = "chain" + chainId.toString() + "Supporters"
+func minerRewardAddressKey(minerAddr: String)     = "miner_" + minerAddr + "_RewardAddress"
+func minerPkKey(rewardAddress: String)            = "miner_0x" + rewardAddress + "_PK"
+func minerChainIdKey(miner: Address)              = "miner_" + miner.toString() + "_ChainId"
+func minerSkippedEpochCountKey(minerAddr: String) = "miner_" + minerAddr + "_SkippedEpochCount"
 
-let transfersCount = this.getInteger(transfersCountKey).valueOrElse(0)
+let transfersCount       = this.getInteger(transfersCountKey).valueOrElse(0)
+let maxSkippedEpochCount = getInteger(maxSkippedEpochCountKey).valueOrElse(200)
 func transferKey(index: Int) = "nativeTransfer_" + index.toString() # {destElAddressHex with 0x}_{amount} | {destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex}
 
 # destElAddressHex - without 0x
@@ -625,6 +630,54 @@ func commonWithdrawChecks(withdrawBlockHashHex: String, merkleProof: List[ByteVe
   isFinalized(withdrawBlockHashHex)
 }
 
+func epochReportedEmpty(epoch: Int) = match getString(epochReportedEmptyKey(epoch)) {
+  case s: String =>
+    let fragments = s.split(SEP)
+    match size(fragments) {
+      case 1 => fragments[0]
+      case 2 => (fragments[0], fragments[1].addressFromStringValue())
+      case _ => throw("Invalid empty epoch record")
+    }
+  case _ => unit
+}
+
+let markEpochNonEmpty = match epochReportedEmpty(height) {
+  case u: Unit => [] # epoch was not marked empty
+  case idleMiner: String =>
+    # `String` case corresponds to an empty epoch, for which the reward has already been claimed by the reporter.
+    # But the reporter can't claim for current epoch. So this is an invalid case.
+    throw("Invalid state: an empty epoch report reward has been claimed for the current epoch")
+  case tuple: (String, Address) =>
+    # `(String, Address)` case corresponds to an empty epoch, for which the reward hasn't been claimed by the reporter
+    let (idleMiner, reporterAddress) = tuple
+    if idleMiner == computedGenerator
+    then {
+      # An epoch was reported empty for the current miner, and we expect skipped epoch counter to be set.
+      let minerSkippedEpochCount = getIntegerValue(minerSkippedEpochCountKey(computedGenerator))
+      let decrementMinerSkippedEpochCountAction = if minerSkippedEpochCount == 1 
+          then DeleteEntry(minerSkippedEpochCountKey(computedGenerator))
+          else IntegerEntry(minerSkippedEpochCountKey(computedGenerator), minerSkippedEpochCount - 1)
+        [DeleteEntry(epochReportedEmptyKey(height)), decrementMinerSkippedEpochCountAction]
+    } else {
+      # An epoch was reported empty for the previous miner, which was already evicted (in this epoch).
+      # We do nothing and let the reported have their reward.
+      []
+    }
+}
+
+func evictIdleCurrentMiner() = {
+  let idleMiner = computedGenerator
+
+  func skipIdleMiner(acc: List[String], miner: String) = if (miner == idleMiner) then acc else acc :+ miner
+  let remainingMiners = FOLD<50>(allMiners, [], skipIdleMiner)
+
+  [
+    StringEntry(allMinersKey, remainingMiners.makeString_2C(SEP)),
+    # Note: minerRewardAddressKey and minerPkKey are not removed or updated here, same as in `leave`
+    DeleteEntry(minerSkippedEpochCountKey(computedGenerator))
+  ]
+}
+
 @Callable(i)
 func extendMainChain(
   blockHashHex: String,
@@ -634,7 +687,7 @@ func extendMainChain(
   lastC2ETransferIndex: Int
 ) = {
   strict check = requireAssetTransfersNotActivated()
-  extendMainChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, -1)
+  extendMainChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, -1) ++ markEpochNonEmpty
 }
 
 @Callable(i)
@@ -647,7 +700,7 @@ func extendMainChain_v2(
   lastAssetRegistryIndex: Int
 ) = {
   strict check = requireAssetTransfersActivated()
-  extendMainChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex)
+  extendMainChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex) ++ markEpochNonEmpty
 }
 
 @Callable(i)
@@ -659,7 +712,7 @@ func startAltChain(
   lastC2ETransferIndex: Int
 ) = {
   strict check = requireAssetTransfersNotActivated()
-  startAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, -1)
+  startAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, -1) ++ markEpochNonEmpty
 }
 
 @Callable(i)
@@ -672,7 +725,7 @@ func startAltChain_v2(
   lastAssetRegistryIndex: Int
 ) = {
   strict check = requireAssetTransfersActivated()
-  startAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex)
+  startAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex) ++ markEpochNonEmpty
 }
 
 @Callable(i)
@@ -685,7 +738,7 @@ func extendAltChain(
   lastC2ETransferIndex: Int
 ) = {
   strict check = requireAssetTransfersNotActivated()
-  extendAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, chainId, e2cTransfersRootHashHex, lastC2ETransferIndex, -1)
+  extendAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, chainId, e2cTransfersRootHashHex, lastC2ETransferIndex, -1) ++ markEpochNonEmpty
 }
 
 @Callable(i)
@@ -699,7 +752,7 @@ func extendAltChain_v2(
   lastAssetRegistryIndex: Int
 ) = {
   strict check = requireAssetTransfersActivated()
-  extendAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, chainId, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex)
+  extendAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, chainId, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex) ++ markEpochNonEmpty
 }
 
 @Callable(i)
@@ -1029,6 +1082,58 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: Stri
       StringEntry(elNativeBridgeAddressKey, "0x0000000000000000000000000000000000006a7e")
     ] ++ daoEntries
   }
+}
+
+@Callable(i)
+func reportEmptyEpoch() = {
+  strict checkEpochEmpty = match epochMeta(height) {
+    case u: Unit => unit
+    case _ => throw("Current epoch is non-empty")
+  }
+  strict checkEpochNotReported = match epochReportedEmpty(height) {
+    case u: Unit => unit
+    case _ => throw("Current epoch is already reported to be empty")
+  }
+  let prevSkippedEpochCount = getInteger(minerSkippedEpochCountKey(computedGenerator)).valueOrElse(0)
+  let skippedEpochCount = prevSkippedEpochCount + 1
+
+  StringEntry(epochReportedEmptyKey(height), computedGenerator + SEP + i.originCaller.toString())
+   :: (if skippedEpochCount >= maxSkippedEpochCount
+      then evictIdleCurrentMiner()
+      else [IntegerEntry(minerSkippedEpochCountKey(computedGenerator), skippedEpochCount)])
+}
+
+@Callable(i)
+func claimEmptyEpochReportRewards(epochs: List[Int]) = {
+  strict lengthCheck = if size(epochs) > 100 then throw("Claimed epochs count exceeds 100") else unit
+
+  let tokenId = getStringValue(tokenIdKey).fromBase58String()
+
+  func step(acc: (Int, List[StringEntry]), epochNumber: Int) = {
+    if epochNumber == height
+    then acc
+    else match epochReportedEmpty(epochNumber) {
+      case u: Unit => acc
+      case s: String => acc
+      case t => {
+        let (rewardCount, actions) = acc
+        let (idleMiner, reporterAddress) = t
+        if reporterAddress == i.originCaller
+        then (rewardCount + 1, StringEntry(epochReportedEmptyKey(epochNumber), idleMiner) :: actions)
+        else acc
+      }
+    }
+  }
+  let (rewardCount, updateActions) = FOLD<100>(epochs, (0, []), step)
+
+  if rewardCount > 0
+  then {
+    let totalRewardAmount = rewardCount * EMPTY_EPOCH_REPORT_REWARD
+    Reissue(tokenId, totalRewardAmount, true)
+      :: ScriptTransfer(i.originCaller, totalRewardAmount, tokenId)
+      :: updateActions
+  }
+  else []
 }
 
 @Verifier(tx)
