@@ -119,7 +119,7 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
         step(s"Block with transaction: $blockHash")
 
         val logsInBlock = ec1.engineApi
-          .getLogs(blockHash, List(NativeBridgeAddress, StandardBridgeAddress), Nil)
+          .getLogs(blockHash, List(NativeBridgeAddress, StandardBridgeAddress))
           .explicitGet()
           .filter(_.topics.intersect(E2CTopics).nonEmpty)
 
