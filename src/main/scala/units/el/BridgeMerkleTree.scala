@@ -3,6 +3,7 @@ package units.el
 import cats.syntax.either.*
 import cats.syntax.traverse.*
 import com.wavesplatform.common.merkle.{Digest, Merkle}
+import units.ClientError
 import units.client.engine.model.GetLogsResponseEntry
 import units.util.HexBytesConverter
 
@@ -12,8 +13,8 @@ trait BridgeMerkleTree[ElEventT] {
 }
 
 object BridgeMerkleTree {
-  def getE2CTransfersRootHash(ecBlockLogs: List[GetLogsResponseEntry]): Either[String, Digest] =
-    getData(ecBlockLogs).map(BridgeMerkleTree.mkTransfersHash)
+  def getE2CTransfersRootHash(ecBlockLogs: List[GetLogsResponseEntry]): Either[ClientError, Digest] =
+    getData(ecBlockLogs).map(BridgeMerkleTree.mkTransfersHash).leftMap(ClientError.apply)
 
   def mkTransfersHash(data: List[Array[Byte]]): Digest =
     if (data.isEmpty) Array.emptyByteArray
