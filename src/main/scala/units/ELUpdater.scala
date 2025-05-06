@@ -1444,7 +1444,7 @@ class ELUpdater(
       .getOrElse(
         throw new RuntimeException(s"Can't find a prev epoch ${blockEpoch.prevEpoch} data of block ${contractBlock.hash} on chain contract")
       )
-    
+
     val isEpochFirstBlock                   = contractBlock.parentHash == blockPrevEpoch.lastBlockHash
     val expectMiningReward                  = isEpochFirstBlock && !contractBlock.referencesGenesis
     val prevMinerElRewardAddress            = if (expectMiningReward) chainContractClient.getElRewardAddress(blockPrevEpoch.miner) else None
@@ -1468,10 +1468,13 @@ class ELUpdater(
       )
 
       (prevWithdrawalIndex, actualTransferWithdrawals) <- {
-        val expectedNativeTransfersNumber = expectedTransfers.count {
-          case _: ContractTransfer.Native => if nativeTransfersViaDepositsActivated then false else true
-          case _                          => false
-        }
+        val expectedNativeTransfersNumber =
+          if nativeTransfersViaDepositsActivated then 0
+          else
+            expectedTransfers.count {
+              case _: ContractTransfer.Native => true
+              case _                          => false
+            }
 
         prevMinerElRewardAddress match {
           case None =>
