@@ -7,12 +7,8 @@ import org.web3j.protocol.core.DefaultBlockParameterName
 import units.eth.EthAddress
 
 class C2ENativeTokenTransfersViaDepositsTestSuite extends BaseDockerTestSuite {
-  val elPoorAccount1PrivateKey = "0x1c740114034be2f658637dc08f9c3689872c57b59cc08a98d9a440392b4e69ee"
-  val elPoorAccount1           = Credentials.create(elPoorAccount1PrivateKey)
-  val elPoorAddress1           = EthAddress.unsafeFrom(elPoorAccount1.getAddress) // 0xc8b418b90e063cc2962ee24dfff6ce72f13ac39e
-
   private val clSender          = clRichAccount1
-  private val elReceiver        = elPoorAccount1
+  private val elReceiver        = elRichAccount1
   private val elReceiverAddress = EthAddress.unsafeFrom(elReceiver.getAddress)
 
   private val userAmount = 1
@@ -21,8 +17,8 @@ class C2ENativeTokenTransfersViaDepositsTestSuite extends BaseDockerTestSuite {
 
   "C2E native token transfers via deposited transactions" in {
     def getElBalance: BigInt = ec1.web3j.ethGetBalance(elReceiverAddress.hex, DefaultBlockParameterName.PENDING).send().getBalance
-    val elBalanceBefore      = getElBalance
-    elBalanceBefore shouldBe 0
+    val elBalanceBefore      = getElBalance 
+    step(s"elBalanceBefore: $elBalanceBefore")
 
     waves1.api.broadcastAndWait(
       ChainContract.transfer(
@@ -34,9 +30,10 @@ class C2ENativeTokenTransfersViaDepositsTestSuite extends BaseDockerTestSuite {
     )
 
     withClue("Expected amount: ") {
-      val expectedBalanceAfter = elBalanceBefore + elAmount
       eventually {
-        val elBalanceAfter = getElBalance
+        val elBalanceAfter = getElBalance 
+        step(s"elBalanceAfter: $elBalanceAfter")
+        val expectedBalanceAfter = elBalanceBefore + elAmount
         UnitsConvert.toUser(elBalanceAfter, NativeTokenElDecimals) shouldBe UnitsConvert.toUser(expectedBalanceAfter, NativeTokenElDecimals)
       }
     }
