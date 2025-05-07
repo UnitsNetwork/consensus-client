@@ -209,13 +209,12 @@ class ExtensionDomain(
       )
       .explicitGet()
 
-  def forgeFromUtxPool(): Unit = {
+  def collectUtx(): Seq[Transaction] = {
     val (txsOpt, _, _) = utxPool.packUnconfirmed(MultiDimensionalMiningConstraint.Unlimited, None)
-    txsOpt match {
-      case None      => throw new RuntimeException("Can't pack transactions from UTX pool")
-      case Some(txs) => appendMicroBlockAndVerify(txs*)
-    }
+    txsOpt.getOrElse(Seq.empty)
   }
+
+  def forgeFromUtxPool(): Unit = appendMicroBlockAndVerify(collectUtx()*)
 
   def appendMicroBlockAndVerify(txs: Transaction*): BlockId = {
     val blockId = appendMicroBlock(txs*)
