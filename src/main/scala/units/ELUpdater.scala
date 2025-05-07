@@ -474,7 +474,6 @@ class ELUpdater(
                     validateResult match {
                       case Left(err) => logger.error(s"Forged an invalid block ${ecBlock.hash}: ${err.message}")
                       case Right(transfersRootHash) =>
-                        logger.debug(s"Broadcasting block ${networkBlock.hash}")
                         Try(allChannels.broadcast(networkBlock)).recover { err =>
                           logger.warn(s"Failed to broadcast block ${networkBlock.hash}: ${err.toString}")
                         }
