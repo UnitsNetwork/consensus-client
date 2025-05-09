@@ -9,7 +9,7 @@ echo "Update consensus client image"
 ./consensus_client-image-build.sh
 
 echo "Update foreign images"
-docker compose pull
+COMPOSE_PROFILES=bs docker compose pull
 
 echo "Update deploy image"
 docker compose build deploy --no-cache
