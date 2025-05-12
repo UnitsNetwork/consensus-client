@@ -436,19 +436,6 @@ class ELUpdater(
                 startBuildNextBlockResult match {
                   case Left(err) => logger.error(s"Can't change the head to  ${ecBlock.hash} and start building a next payload: ${err.message}")
                   case Right(nextMiningData) =>
-                    setState(
-                      "tryToForgeNextBlock",
-                      origState.copy(
-                        lastEcBlock = ecBlock,
-                        chainStatus = m.copy(
-                          currentPayload = nextMiningData.payload,
-                          lastC2ETransferIndex = nextMiningData.lastC2ETransferIndex,
-                          lastElWithdrawalIndex = nextMiningData.lastElWithdrawalIndex,
-                          lastAssetRegistryIndex = nextMiningData.lastAssetRegistryIndex
-                        )
-                      )
-                    )
-
                     val validateResult = for {
                       ecBlockLogs <- engineApiClient.getLogs(
                         hash = ecBlock.hash,
@@ -469,15 +456,11 @@ class ELUpdater(
                       )
                       _ = logger.debug(s"Trying to do a full validation of a forged block ${ecBlock.hash}")
                       _ <- validateAppliedBlock(expectedContractBlock, ecBlock, origState, Some(ecBlockLogs), updateState = false)
-                    } yield transfersRootHash
+                    } yield (transfersRootHash, expectedContractBlock)
 
                     validateResult match {
                       case Left(err) => logger.error(s"Forged an invalid block ${ecBlock.hash}: ${err.message}")
-                      case Right(transfersRootHash) =>
-                        Try(allChannels.broadcast(networkBlock)).recover { err =>
-                          logger.warn(s"Failed to broadcast block ${networkBlock.hash}: ${err.toString}")
-                        }
-
+                      case Right((transfersRootHash, expectedContractBlock)) =>
                         val confirmElBlockOnCl = for {
                           funcCall <- contractFunction.toFunctionCall(
                             ecBlock.hash,
@@ -490,7 +473,29 @@ class ELUpdater(
 
                         confirmElBlockOnCl match {
                           case Left(err) => logger.error(s"Can't confirm block ${ecBlock.hash} on CL: ${err.message}")
-                          case _ =>
+                          case _         =>
+                            // We update state here, because the full validation will fail on other nodes, if we haven't a confirmation transaction
+                            setState(
+                              "tryToForgeNextBlock",
+                              origState.copy(
+                                lastEcBlock = ecBlock,
+                                chainStatus = m.copy(
+                                  currentPayload = nextMiningData.payload,
+                                  lastC2ETransferIndex = nextMiningData.lastC2ETransferIndex,
+                                  lastElWithdrawalIndex = nextMiningData.lastElWithdrawalIndex,
+                                  lastAssetRegistryIndex = nextMiningData.lastAssetRegistryIndex
+                                ),
+                                fullValidationStatus = FullValidationStatus(
+                                  lastValidatedBlock = expectedContractBlock,
+                                  lastElWithdrawalIndex = Some(m.lastElWithdrawalIndex)
+                                )
+                              )
+                            )
+
+                            Try(allChannels.broadcast(networkBlock)).recover { err =>
+                              logger.warn(s"Failed to broadcast block ${networkBlock.hash}: ${err.toString}")
+                            }
+
                             scheduler.scheduleOnceLabeled("forgeSecond", (nextBlockUnixTs - time.correctedTime() / 1000).min(1).seconds)(
                               tryToForgeNextBlock(
                                 payloadOrId = nextMiningData.payload,
@@ -1758,7 +1763,7 @@ object ELUpdater {
       def lastContractBlock: ContractBlock = chainStatus.lastContractBlock
 
       override def toString: String =
-        s"Working($epochInfo, leb=$lastEcBlock, fb=$finalizedBlock, mc=$mainChainInfo, vs=$fullValidationStatus, $chainStatus, $options, rmc=$returnToMainChainInfo, rb=$rollbackFaked)"
+        s"Working($epochInfo, l=$lastEcBlock, f=$finalizedBlock, m=$mainChainInfo, $fullValidationStatus, $chainStatus, $options, $returnToMainChainInfo, rb=$rollbackFaked)"
     }
 
     sealed trait ChainStatus {
@@ -1813,7 +1818,7 @@ object ELUpdater {
 
   private case class MiningData(
       payload: PayloadId | JsObject,
-      nextBlockUnixTs: WithdrawalIndex,
+      nextBlockUnixTs: Long,
       lastC2ETransferIndex: WithdrawalIndex,
       lastElWithdrawalIndex: WithdrawalIndex,
       lastAssetRegistryIndex: Int
@@ -1827,6 +1832,8 @@ object ELUpdater {
     // If we didn't validate the parent block last time, then the index is outdated
     def checkedLastElWithdrawalIndex(parentBlockHash: BlockHash): Option[WithdrawalIndex] =
       lastElWithdrawalIndex.filter(_ => parentBlockHash == lastValidatedBlock.hash)
+
+    override def toString: String = s"FullValidationStatus(l=${lastValidatedBlock.hash}, wi=$lastElWithdrawalIndex)"
   }
 
   private case class MiningReward(recipient: EthAddress, amount: Gwei)
