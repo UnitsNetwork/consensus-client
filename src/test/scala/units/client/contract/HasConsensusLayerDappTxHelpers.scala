@@ -8,10 +8,9 @@ import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.lang.v1.compiler.Terms.{CONST_LONG, CONST_STRING, EXPR}
-import com.wavesplatform.state.{BooleanDataEntry, DataEntry, IntegerDataEntry, StringDataEntry}
+import com.wavesplatform.state.{BooleanDataEntry, DataEntry, EmptyDataEntry, IntegerDataEntry, StringDataEntry}
 import com.wavesplatform.test.NumericExt
 import com.wavesplatform.transaction.Asset.IssuedAsset
-import com.wavesplatform.transaction.TxHelpers.defaultSigner
 import com.wavesplatform.transaction.smart.{InvokeScriptTransaction, SetScriptTransaction}
 import com.wavesplatform.transaction.{Asset, DataTransaction, TxHelpers}
 import units.client.L2BlockLike
@@ -45,6 +44,14 @@ trait HasConsensusLayerDappTxHelpers {
 
   object ChainContract {
     def setScript(): SetScriptTransaction = TxHelpers.setScript(chainContractAccount, CompiledChainContract.script, fee = setScriptFee, version = 2)
+
+    def stop(invoker: KeyPair = chainContractAccount): InvokeScriptTransaction = TxHelpers.invoke(
+      dApp = chainContractAddress,
+      func = "stop".some,
+      fee = stopFee,
+      invoker = invoker
+    )
+    def continue(): DataTransaction = TxHelpers.dataV2(chainContractAccount, Seq(EmptyDataEntry("stopped")))
 
     def setup(
         genesisBlock: L2BlockLike,
@@ -388,6 +395,7 @@ object HasConsensusLayerDappTxHelpers {
       val issueAndRegisterFee             = 1.009.waves
       val reportEmptyEpochFee             = 0.1.waves
       val claimEmptyEpochReportRewardsFee = 0.1.waves
+      val stopFee                         = 0.1.waves
     }
   }
 }
