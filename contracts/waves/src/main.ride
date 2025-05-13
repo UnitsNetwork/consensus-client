@@ -152,8 +152,6 @@ func ensureCorrectTransfers(refTransferIndex: Int, transferIndex: Int, expectRew
     throw("Attempt to transfer #" + transferIndex.toString() + ". Available transfers: " + transfersCount.toString())
 }
 
-func sepStringAppend(s: String, item: String) = if (s.size() == 0) then item else s + SEP + item
-
 func amountGtEq(t: AttachedPayment, gtEq: Int, queueSize: Int) =
   t.amount >= gtEq || throw(
     "Transferring amount " + t.amount.toString() + " should be >= " + gtEq.toString() +
