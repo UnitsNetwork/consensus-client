@@ -662,7 +662,7 @@ let markEpochNonEmpty = match epochReportedEmpty(height) {
     then {
       # An epoch was reported empty for the current miner, and we expect skipped epoch counter to be set.
       let minerSkippedEpochCount = getIntegerValue(minerSkippedEpochCountKey(computedGenerator))
-      let decrementMinerSkippedEpochCountAction = if minerSkippedEpochCount == 1 
+      let decrementMinerSkippedEpochCountAction = if minerSkippedEpochCount == 1
           then DeleteEntry(minerSkippedEpochCountKey(computedGenerator))
           else IntegerEntry(minerSkippedEpochCountKey(computedGenerator), minerSkippedEpochCount - 1)
         [DeleteEntry(epochReportedEmptyKey(height)), decrementMinerSkippedEpochCountAction]
@@ -788,6 +788,22 @@ func appendBlock_v2(
 
 @Callable(i)
 func join(rewardAddressHex: String) = {
+  let newMiner = i.originCaller.toString()
+  func step(prevWellMiners: List[String], miner: String) =
+    if (miner == newMiner)
+      then throw("Already joined")
+      else {
+        let isWell = Address(miner.fromBase58String()).wavesBalance().generating >= MIN_BALANCE
+        if (isWell)
+          then miner :: prevWellMiners
+          else prevWellMiners
+      }
+
+  let wellMiners = FOLD<50>(allMiners, nil, step)
+  strict tooManyMinersCheck = wellMiners.size() >= 50 && throw("Too many miners")
+
+  # Here is 930 complexity consumed, all code below spent more than 1000 of free complexity
+
   # EL miner must sign a Network block by own private key
   func ensureNotOverrideOtherMinerPk(elAddressHex: String) = {
     match getBinary(minerPkKey(elAddressHex)) {
@@ -800,44 +816,26 @@ func join(rewardAddressHex: String) = {
 
   let normalizedRewardAddress = normalizeEthAddress(rewardAddressHex)
 
-  if (!isContractSetup()) then throw("The contract has not yet set up")
-  else if (i.originCaller.wavesBalance().generating < MIN_BALANCE) then
+  strict checkContract    = isContractSetup() || throw("The contract has not yet set up")
+  strict checkMinBalance  = i.originCaller.wavesBalance().generating >= MIN_BALANCE ||
     throw("Insufficient generating balance: " + i.originCaller.wavesBalance().generating.toString() + ". Required: " + MIN_BALANCE.toString())
-  else {
-    func step(prev: (Boolean, Int, String), miner: String) = {
-      let (exists, prevWellMinersNumber, prevWellMiners) = prev
-      if (miner == i.originCaller.toString())
-        then (true, prevWellMinersNumber + 1, sepStringAppend(prevWellMiners, miner))
-        else {
-          let isWell = Address(miner.fromBase58String()).wavesBalance().generating >= MIN_BALANCE
-          if (isWell)
-            then (exists, prevWellMinersNumber + 1, sepStringAppend(prevWellMiners, miner))
-            else (exists, prevWellMinersNumber, prevWellMiners)
-        }
-    }
+  strict checkNotOverride = ensureNotOverrideOtherMinerPk(normalizedRewardAddress)
 
-    let (alreadyExists, wellMinersNumber, wellMiners) = FOLD<50>(allMiners, (false, 0, ""), step)
-    strict tooManyMinersCheck = allMiners.size() > 50 && throw("Too many miners")
-    if (alreadyExists)
-      then [StringEntry(allMinersKey, wellMiners)]
-      else {
-        let newMiner = i.originCaller.toString()
-        strict check = ensureNotOverrideOtherMinerPk(normalizedRewardAddress)
-
-        # If a miner changed the reward address, we need to delete the previous mapping
-        let deletePrevRewardAddressPk = match getString(minerRewardAddressKey(newMiner)) {
-          case prevAddress: String =>
-            if (prevAddress == normalizedRewardAddress) then [] else [DeleteEntry(minerPkKey(prevAddress))]
-          case _ => []
-        }
-
-        [
-          StringEntry(allMinersKey, sepStringAppend(wellMiners, newMiner)),
-          StringEntry(minerRewardAddressKey(newMiner), "0x" + normalizedRewardAddress),
-          BinaryEntry(minerPkKey(normalizedRewardAddress), i.originCallerPublicKey)
-        ] ++ deletePrevRewardAddressPk
-      }
+  # If a miner changed the reward address, we need to delete the previous mapping
+  let deletePrevRewardAddressPk = match getString(minerRewardAddressKey(newMiner)) {
+    case prevAddress: String =>
+      if (prevAddress == normalizedRewardAddress) then [] else [DeleteEntry(minerPkKey(prevAddress))]
+    case _ => []
   }
+
+  func join(r: String, x: String) = r + SEP + x
+  let updatedAllMiners = FOLD<50>(wellMiners, newMiner, join)
+
+  [
+    StringEntry(allMinersKey, updatedAllMiners),
+    StringEntry(minerRewardAddressKey(newMiner), "0x" + normalizedRewardAddress),
+    BinaryEntry(minerPkKey(normalizedRewardAddress), i.originCallerPublicKey)
+  ] ++ deletePrevRewardAddressPk
 }
 
 @Callable(i)
