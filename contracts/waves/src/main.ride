@@ -1156,4 +1156,7 @@ func verify () = {
 }
 
 @Callable(i)
-func stop() = [BooleanEntry(emergencyStopKey, true)]
+func stop() = {
+  strict validCaller = i.originCaller == this || throw("Only owner of chain contract can do this")
+  [BooleanEntry(emergencyStopKey, true)]
+}
