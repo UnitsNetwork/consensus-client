@@ -786,6 +786,10 @@ func appendBlock_v2(
 
 @Callable(i)
 func join(rewardAddressHex: String) = {
+  strict checkContract   = isContractSetup() || throw("The contract has not yet set up")
+  strict checkMinBalance = i.originCaller.wavesBalance().generating >= MIN_BALANCE ||
+    throw("Insufficient generating balance: " + i.originCaller.wavesBalance().generating.toString() + ". Required: " + MIN_BALANCE.toString())
+
   let newMiner = i.originCaller.toString()
   func step(prevWellMiners: List[String], miner: String) =
     if (miner == newMiner)
@@ -800,7 +804,7 @@ func join(rewardAddressHex: String) = {
   let wellMiners = FOLD<50>(allMiners, nil, step)
   strict tooManyMinersCheck = wellMiners.size() >= 50 && throw("Too many miners")
 
-  # Here is 930 complexity consumed, all code below spent more than 1000 of free complexity
+  # Here is 971 complexity consumed, all code below spent more than 1000 of free complexity
 
   # EL miner must sign a Network block by own private key
   func ensureNotOverrideOtherMinerPk(elAddressHex: String) = {
@@ -813,10 +817,6 @@ func join(rewardAddressHex: String) = {
   }
 
   let normalizedRewardAddress = normalizeEthAddress(rewardAddressHex)
-
-  strict checkContract    = isContractSetup() || throw("The contract has not yet set up")
-  strict checkMinBalance  = i.originCaller.wavesBalance().generating >= MIN_BALANCE ||
-    throw("Insufficient generating balance: " + i.originCaller.wavesBalance().generating.toString() + ". Required: " + MIN_BALANCE.toString())
   strict checkNotOverride = ensureNotOverrideOtherMinerPk(normalizedRewardAddress)
 
   # If a miner changed the reward address, we need to delete the previous mapping
