@@ -104,4 +104,13 @@ class ChainContractImpureTestSuite extends BaseTestSuite {
       d.chainContractClient.getAssetRegistrySize shouldBe 2
     }
   }
+
+  "stop" - {
+    "Only owner can call" in withExtensionDomain() { d =>
+      d.appendMicroBlockE(d.ChainContract.stop(invoker = d.chainRegistryAccount)).left.value.getMessage should
+        include("Only owner of chain contract can do this")
+
+      d.appendMicroBlockE(d.ChainContract.stop()).isRight shouldBe true
+    }
+  }
 }
