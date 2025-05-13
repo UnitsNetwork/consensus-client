@@ -3,21 +3,18 @@ package units
 import com.wavesplatform.TestValues
 import com.wavesplatform.db.WithState.AddrWithBalance
 import com.wavesplatform.transaction.TxHelpers
-import com.wavesplatform.wallet.Wallet
 
 class RemovePoorMinerTestSuite extends BaseTestSuite {
   private val MaxMiners = 50
 
-  private val thisMiner = ElMinerSettings(Wallet.generateNewAccount(super.defaultSettings.walletSeed, 0))
   private val poorMiner = ElMinerSettings(TxHelpers.signer(100))
   private val newMiner  = ElMinerSettings(TxHelpers.signer(101))
 
   override protected val defaultSettings: TestSettings = super.defaultSettings
     .copy(
-      initialMiners = List(thisMiner, poorMiner),
+      initialMiners = List(poorMiner),
       additionalBalances = List(AddrWithBalance(newMiner.address, newMiner.wavesBalance))
     )
-    .withEnabledElMining
 
   "A new miner exists in the list" in {
     val initialMiners = newMiner :: (1 until MaxMiners).map(i => ElMinerSettings(TxHelpers.signer(i))).toList
@@ -61,7 +58,7 @@ class RemovePoorMinerTestSuite extends BaseTestSuite {
 
     "50 active miners before cleanup and" - {
       "a new miner don't exist in the list with a poor miner" in {
-        val initialMiners = thisMiner :: poorMiner :: (1 to MaxMiners - 2).map(i => ElMinerSettings(TxHelpers.signer(i))).toList
+        val initialMiners = poorMiner :: (1 until MaxMiners).map(i => ElMinerSettings(TxHelpers.signer(i))).toList
         val settings      = defaultSettings.copy(initialMiners = initialMiners)
         withExtensionDomain(settings) { d =>
           withClue("List of miners before: ") {
@@ -88,7 +85,7 @@ class RemovePoorMinerTestSuite extends BaseTestSuite {
       }
 
       "and a new miner don't exist in the list with rich miners" in {
-        val initialMiners = (1 to MaxMiners - 2).map(i => ElMinerSettings(TxHelpers.signer(i))).toList ::: thisMiner :: poorMiner :: Nil
+        val initialMiners = poorMiner :: (1 until MaxMiners).map(i => ElMinerSettings(TxHelpers.signer(i))).toList
         val settings      = defaultSettings.copy(initialMiners = initialMiners)
         withExtensionDomain(settings) { d =>
           withClue("List of miners before: ") {
