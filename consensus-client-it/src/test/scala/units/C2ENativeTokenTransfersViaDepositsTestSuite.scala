@@ -17,7 +17,7 @@ class C2ENativeTokenTransfersViaDepositsTestSuite extends BaseDockerTestSuite {
 
   "C2E native token transfers via deposited transactions" in {
     def getElBalance: BigInt = ec1.web3j.ethGetBalance(elReceiverAddress.hex, DefaultBlockParameterName.PENDING).send().getBalance
-    val elBalanceBefore      = getElBalance 
+    val elBalanceBefore      = getElBalance
     step(s"elBalanceBefore: $elBalanceBefore")
 
     waves1.api.broadcastAndWait(
@@ -31,7 +31,7 @@ class C2ENativeTokenTransfersViaDepositsTestSuite extends BaseDockerTestSuite {
 
     withClue("Expected amount: ") {
       eventually {
-        val elBalanceAfter = getElBalance 
+        val elBalanceAfter = getElBalance
         step(s"elBalanceAfter: $elBalanceAfter")
         val expectedBalanceAfter = elBalanceBefore + elAmount
         UnitsConvert.toUser(elBalanceAfter, NativeTokenElDecimals) shouldBe UnitsConvert.toUser(expectedBalanceAfter, NativeTokenElDecimals)
@@ -40,7 +40,20 @@ class C2ENativeTokenTransfersViaDepositsTestSuite extends BaseDockerTestSuite {
   }
 
   override def beforeAll(): Unit = {
+
     super.beforeAll()
+    deploySolidityContracts()
+
+    step("Enable token transfers")
+    val activationEpoch = waves1.api.height() + 1
+    waves1.api.broadcastAndWait(
+      ChainContract.enableTokenTransfersWithWaves(
+        StandardBridgeAddress,
+        WWavesAddress,
+        activationEpoch = activationEpoch
+      )
+    )
+    waves1.api.waitForHeight(activationEpoch)
 
     step("Set native token transfers via deposits feature activation epoch")
     val featureActivationHeight = waves1.api.height() + 2
