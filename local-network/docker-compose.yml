@@ -97,6 +97,7 @@ services:
         condition: service_healthy
       update-genesis:
         condition: service_completed_successfully
+    pull_policy: never # builds locally
 
   # Uncomment corresponding cl_miner in local/network.py if you want this node to mine
   # waves-node-2:
@@ -116,6 +117,7 @@ services:
   #       condition: service_healthy
   #     update-genesis:
   #       condition: service_completed_successfully
+  #   pull_policy: never # builds locally
 
   # waves-node-3:
   #   container_name: waves-node-3
@@ -135,6 +137,7 @@ services:
   #       condition: service_healthy
   #     update-genesis:
   #       condition: service_completed_successfully
+  #   pull_policy: never # builds locally
 
   # waves-node-4:
   #   container_name: waves-node-4
@@ -154,6 +157,7 @@ services:
   #       condition: service_healthy
   #     update-genesis:
   #       condition: service_completed_successfully
+  #   pull_policy: never # builds locally
 
   update-genesis:
     container_name: update-genesis

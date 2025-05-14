@@ -35,8 +35,6 @@ services:
     image: ghcr.io/blockscout/stats:${STATS_DOCKER_TAG:-latest}
     platform: linux/amd64
     restart: always
-    extra_hosts:
-      - 'host.docker.internal:host-gateway'
     env_file:
       -  ./stats.env
     environment: # TODO two databases

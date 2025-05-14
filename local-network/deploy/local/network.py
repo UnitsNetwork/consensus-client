@@ -71,7 +71,6 @@ class ExtendedNetwork(Network):
             name=test_asset_name,
             description="Test bridged token",
             clDecimals=8,
-            txFee=100_500_000,
         )
         waves.force_success(self.log, register_txn, "Can not register asset")
 
