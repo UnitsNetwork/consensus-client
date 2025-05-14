@@ -75,7 +75,7 @@ class MultipleTransfersTestSuite extends BaseDockerTestSuite {
     log.debug(s"Block with e2c transfers: $e2cBlockHash")
 
     val e2cLogsInBlock = ec1.engineApi
-      .getLogs(e2cBlockHash, List(NativeBridgeAddress, StandardBridgeAddress), Nil)
+      .getLogs(e2cBlockHash, List(NativeBridgeAddress, StandardBridgeAddress))
       .explicitGet()
       .filter(_.topics.intersect(E2CTopics).nonEmpty)
 

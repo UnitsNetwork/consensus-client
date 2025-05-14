@@ -209,13 +209,12 @@ class ExtensionDomain(
       )
       .explicitGet()
 
-  def forgeFromUtxPool(): Unit = {
+  def collectUtx(): Seq[Transaction] = {
     val (txsOpt, _, _) = utxPool.packUnconfirmed(MultiDimensionalMiningConstraint.Unlimited, None)
-    txsOpt match {
-      case None      => throw new RuntimeException("Can't pack transactions from UTX pool")
-      case Some(txs) => appendMicroBlockAndVerify(txs*)
-    }
+    txsOpt.getOrElse(Seq.empty)
   }
+
+  def forgeFromUtxPool(): Unit = appendMicroBlockAndVerify(collectUtx()*)
 
   def appendMicroBlockAndVerify(txs: Transaction*): BlockId = {
     val blockId = appendMicroBlock(txs*)
@@ -385,10 +384,9 @@ class ExtensionDomain(
     createEcBlockBuilder(hashPath, miner.elRewardAddress, parent)
 
   def createEcBlockBuilder(hashPath: String, minerRewardL2Address: EthAddress, parent: EcBlock): TestEcBlockBuilder = {
-    TestEcBlockBuilder(ecClients, nativeBridgeAddress, standardBridgeAddress, elMinerDefaultReward, l2Config.blockDelay, parent = parent)
+    TestEcBlockBuilder(hashPath, ecClients, nativeBridgeAddress, standardBridgeAddress, elMinerDefaultReward, l2Config.blockDelay, parent = parent)
       .updateBlock(
         _.copy(
-          hash = TestEcBlockBuilder.createBlockHash(hashPath),
           minerRewardL2Address = minerRewardL2Address,
           prevRandao = ELUpdater.calculateRandao(blockchain.vrf(blockchain.height).get, parent.hash)
         )

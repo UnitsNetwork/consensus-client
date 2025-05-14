@@ -41,8 +41,8 @@ trait EngineApiClient {
 
   def getLogs(
       hash: BlockHash,
-      addresses: List[EthAddress],
-      topics: List[String],
+      addresses: List[EthAddress] = Nil,
+      topics: List[String] = Nil,
       requestId: Int = newRequestId
   ): JobResult[List[GetLogsResponseEntry]]
 

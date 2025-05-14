@@ -99,6 +99,7 @@ services:
         condition: service_completed_successfully
     pull_policy: never # builds locally
 
+  # Uncomment corresponding cl_miner in local/network.py if you want this node to mine
   # waves-node-2:
   #   container_name: waves-node-2
   #   image: ${WAVES_NODE_IMAGE_2:-${WAVES_NODE_IMAGE:-consensus-client:local}}

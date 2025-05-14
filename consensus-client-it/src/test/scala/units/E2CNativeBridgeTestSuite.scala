@@ -79,7 +79,7 @@ class E2CNativeBridgeTestSuite extends BaseDockerTestSuite {
       val blockHash = BlockHash(sendTxnReceipt.getBlockHash)
       step(s"Block with transaction: $blockHash")
 
-      val logsInBlock     = ec1.engineApi.getLogs(blockHash, List(NativeBridgeAddress, StandardBridgeAddress), Nil).explicitGet()
+      val logsInBlock     = ec1.engineApi.getLogs(blockHash, List(NativeBridgeAddress, StandardBridgeAddress)).explicitGet()
       val sendTxnLogIndex = logsInBlock.indexWhere(_.transactionHash == sendTxnReceipt.getTransactionHash)
       sendTxnLogIndex shouldBe >=(0)
 

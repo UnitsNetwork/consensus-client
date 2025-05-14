@@ -84,34 +84,10 @@ class ExtendedNetwork(Network):
     def cl_miners(self) -> List[Miner]:
         return [
             Miner.new("devnet-1", "0x7dbcf9c6c3583b76669100f9be3caf6d722bc9f9"),
-            # TODO: Until fixed an issue with rollback
-            # Miner(
-            #     account=pw.Address(
-            #         seed="devnet-2",
-            #         nonce=0,
-            #     ),
-            #     el_reward_address_hex=HexStr(
-            #         "0xcf0b9e13fdd593f4ca26d36afcaa44dd3fdccbed"
-            #     ),
-            # ),
-            # Miner(
-            #     account=pw.Address(
-            #         seed="devnet-3",
-            #         nonce=0,
-            #     ),
-            #     el_reward_address_hex=HexStr(
-            #         "0xf1FE6d7bfebead68A8C06cCcee97B61d7DAA0338"
-            #     ),
-            # ),
-            # Miner(
-            #     account=pw.Address(
-            #         seed="devnet-4",
-            #         nonce=0,
-            #     ),
-            #     el_reward_address_hex=HexStr(
-            #         "0x10eDdE5dc07eF63E6bb7018758e6fcB5320d8cAa"
-            #     ),
-            # ),
+            # Uncomment if needed
+            # Miner.new("devnet-2", "0xcf0b9e13fdd593f4ca26d36afcaa44dd3fdccbed"),
+            # Miner.new("devnet-3", "0xf1FE6d7bfebead68A8C06cCcee97B61d7DAA0338"),
+            # Miner.new("devnet-4", "0x10eDdE5dc07eF63E6bb7018758e6fcB5320d8cAa"),
         ]
 
     @cached_property

@@ -4,7 +4,7 @@ import com.wavesplatform.transaction.TxHelpers
 import units.ELUpdater.State.Working
 import units.eth.EthAddress
 
-class BlockBriefValidationTestSuite extends BaseTestSuite {
+class BlockPreValidateTestSuite extends BaseTestSuite {
   private val miner = ElMinerSettings(TxHelpers.signer(1))
 
   override protected val defaultSettings: TestSettings = super.defaultSettings.copy(
