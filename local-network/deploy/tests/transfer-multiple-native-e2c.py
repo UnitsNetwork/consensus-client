@@ -84,17 +84,13 @@ def main():
         withdraw_txn_params.append((transfer_params, t))
 
         block_hash_str = txn_receipt["blockHash"].to_0x_hex()
-        log.info(
-            f"[C] Wait for a block {block_hash_str} on chain contract"
-        )
+        log.info(f"[C] Wait for a block {block_hash_str} on chain contract")
         withdraw_block_meta = network.cl_chain_contract.waitForBlock(
             transfer_params.block_with_transfer_hash
         )
         log.info(f"[C] Found block on chain contract: {withdraw_block_meta}")
 
-        log.info(
-            f"[C] Wait for a finalized block {block_hash_str} on chain contract"
-        )
+        log.info(f"[C] Wait for a finalized block {block_hash_str} on chain contract")
         network.cl_chain_contract.waitForFinalized(withdraw_block_meta)
 
     withdraw_txn_ids: List[Transfer] = []
@@ -115,7 +111,7 @@ def main():
         withdraw_txn_ids.append(withdraw_result["id"])  # type: ignore
 
     for i, txn_id in enumerate(withdraw_txn_ids):
-        withdraw_result = waves.wait_for(txn_id)
+        withdraw_result = waves.wait_for_approval(log, txn_id)
         log.info(f"[C] #{i} ChainContract.withdraw result: {withdraw_result}")
 
     for to_account, expected_balance in expected_balances.items():
