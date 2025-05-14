@@ -281,8 +281,26 @@ class ELUpdater(
       case x: ContractTransfer.Asset  => x.asRight
     }
 
-    val nativeTransferWithdrawals = toWithdrawals(nativeTransfers, rewardWithdrawal.lastOption.fold(startElWithdrawalIndex)(_.index + 1))
-    val withdrawals               = rewardWithdrawal ++ nativeTransferWithdrawals
+    val nativeTransfersViaDepositsActivated = epochInfo.number >= chainContractClient.getNativeTokenDepositTransfersActivationEpoch
+
+    val (nativeTransferWithdrawals, nativeTransferDeposits) =
+      if nativeTransfersViaDepositsActivated
+      then
+        (
+          Vector.empty,
+          for {
+            sba <- chainContractOptions.elStandardBridgeAddress.toVector
+            x   <- nativeTransfers
+          } yield StandardBridge.mkFinalizeBridgeNativeTransaction(
+            transferIndex = x.index,
+            standardBridgeAddress = sba,
+            to = x.to,
+            amount = x.amount
+          )
+        )
+      else (toWithdrawals(nativeTransfers, rewardWithdrawal.lastOption.fold(startElWithdrawalIndex)(_.index + 1)), Vector.empty)
+
+    val withdrawals = rewardWithdrawal ++ nativeTransferWithdrawals
 
     val (addedAssets, updateAssetRegistryTransaction) =
       if (epochInfo.number < chainContractOptions.assetTransfersActivationEpoch) (Nil, None)
@@ -307,7 +325,7 @@ class ELUpdater(
         (addedAssets, txn)
       }
 
-    val depositedTransactions = updateAssetRegistryTransaction.toVector ++ (for {
+    val depositedTransactions = updateAssetRegistryTransaction.toVector ++ nativeTransferDeposits ++ (for {
       sba <- chainContractOptions.elStandardBridgeAddress.toVector
       x   <- assetTransfers
     } yield StandardBridge.mkFinalizeBridgeErc20Transaction(
@@ -721,7 +739,6 @@ class ELUpdater(
       case Left(error) => logger.error(s"Could not load finalized block", error)
       case Right(Some(finalizedEcBlock)) =>
         logger.trace(s"Finalized block ${finalizedBlock.hash} is at height ${finalizedEcBlock.height}")
-
 
         // Note: `nobodyStartedMining` will be true on every empty epoch.
         // We benefit from it in cases when idle miner was evicted, a list of miners has changed,
@@ -1433,9 +1450,10 @@ class ELUpdater(
         throw new RuntimeException(s"Can't find a prev epoch ${blockEpoch.prevEpoch} data of block ${contractBlock.hash} on chain contract")
       )
 
-    val isEpochFirstBlock        = contractBlock.parentHash == blockPrevEpoch.lastBlockHash
-    val expectMiningReward       = isEpochFirstBlock && !contractBlock.referencesGenesis
-    val prevMinerElRewardAddress = if (expectMiningReward) chainContractClient.getElRewardAddress(blockPrevEpoch.miner) else None
+    val isEpochFirstBlock                   = contractBlock.parentHash == blockPrevEpoch.lastBlockHash
+    val expectMiningReward                  = isEpochFirstBlock && !contractBlock.referencesGenesis
+    val prevMinerElRewardAddress            = if (expectMiningReward) chainContractClient.getElRewardAddress(blockPrevEpoch.miner) else None
+    val nativeTransfersViaDepositsActivated = contractBlock.epoch >= chainContractClient.getNativeTokenDepositTransfersActivationEpoch
 
     for {
       elWithdrawalIndexBefore <- fullValidationStatus.checkedLastElWithdrawalIndex(ecBlock.parentHash) match {
@@ -1455,10 +1473,13 @@ class ELUpdater(
       )
 
       (prevWithdrawalIndex, actualTransferWithdrawals) <- {
-        val expectedNativeTransfersNumber = expectedTransfers.count {
-          case _: ContractTransfer.Native => true
-          case _                          => false
-        }
+        val expectedNativeTransfersNumber =
+          if nativeTransfersViaDepositsActivated then 0
+          else
+            expectedTransfers.count {
+              case _: ContractTransfer.Native => true
+              case _                          => false
+            }
 
         prevMinerElRewardAddress match {
           case None =>

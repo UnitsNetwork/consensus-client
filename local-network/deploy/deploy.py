@@ -178,6 +178,25 @@ if len(network.cl_chain_contract.getData(regex="assetTransfersActivationEpoch"))
     while pw.height() < activation_height:
         sleep(3)
 
+key = "nativeTokenDepositTransfersActivationEpoch"
+if len(network.cl_chain_contract.getData(regex=key)) == 0:
+    log.info("Activation of native token transfers via deposits...")
+    activation_height = pw.height() + 2
+    enable_native_token_transfers_via_deposits_txn = (
+        network.cl_chain_contract.oracleAcc.dataTransaction(
+            [{"type": "integer", "key": key, "value": activation_height}]
+        )
+    )
+    waves.force_success(
+        log,
+        enable_native_token_transfers_via_deposits_txn,
+        "Could not enable native token transfers via deposits",
+        wait=True,
+    )
+    log.info("Waiting for activation of native token transfers via deposits")
+    while pw.height() < activation_height:
+        sleep(3)
+
 log.info(f"StandardBridge address: {network.bridges.standard_bridge.contract_address}")
 log.info(f"ERC20 token address: {network.el_test_erc20.contract_address}")
 # Issues and registers asset under the hood

@@ -9,7 +9,7 @@ import org.web3j.abi.datatypes.{Event, Function, Type, Address as Web3JAddress, 
 import units.client.engine.model.GetLogsResponseEntry
 import units.eth.{EthAddress, EthereumConstants}
 import units.util.HexBytesConverter
-import units.{EAmount, raw}
+import units.*
 
 import java.math.BigInteger
 import java.util
@@ -24,6 +24,8 @@ object StandardBridge {
 
   val UpdateAssetRegistryFunction = "updateAssetRegistry"
   val UpdateAssetRegistryGas      = BigInteger.valueOf(1_000_000L)
+
+  val NativeAssetTransferGas = BigInteger.valueOf(1_000_000L)
 
   case class ERC20BridgeInitiated(localToken: EthAddress, clTo: Address, elFrom: EthAddress, clAmount: Long)
   object ERC20BridgeInitiated extends BridgeMerkleTree[ERC20BridgeInitiated] {
@@ -235,6 +237,22 @@ object StandardBridge {
     )
     FunctionEncoder.encode(function)
   }
+
+  def mkFinalizeBridgeNativeTransaction(
+      transferIndex: Long,
+      standardBridgeAddress: EthAddress,
+      to: EthAddress,
+      amount: Long
+  ): DepositedTransaction = DepositedTransaction(
+    sourceHash = DepositedTransaction.mkUserDepositedSourceHash(transferIndex),
+    from = EthereumConstants.ZeroAddress,
+    to = to,
+    mint = WAmount(amount).scale(NativeTokenElDecimals - NativeTokenClDecimals).raw,
+    value = WAmount(amount).scale(NativeTokenElDecimals - NativeTokenClDecimals).raw,
+    gas = NativeAssetTransferGas,
+    isSystemTx = true,
+    data = "0x"
+  )
 
   def mkUpdateAssetRegistryTransaction(
       standardBridgeAddress: EthAddress,
