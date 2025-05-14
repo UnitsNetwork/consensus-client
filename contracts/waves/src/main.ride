@@ -791,18 +791,18 @@ func join(rewardAddressHex: String) = {
     throw("Insufficient generating balance: " + i.originCaller.wavesBalance().generating.toString() + ". Required: " + MIN_BALANCE.toString())
 
   let newMiner = i.originCaller.toString()
-  func step(prevWellMiners: List[String], miner: String) =
+  func step(prevWealthyMiners: List[String], miner: String) =
     if (miner == newMiner)
       then throw("Already joined")
       else {
-        let isWell = addressFromStringValue(miner).wavesBalance().generating >= MIN_BALANCE
-        if (isWell)
-          then miner :: prevWellMiners
-          else prevWellMiners
+        let isWealthy = addressFromStringValue(miner).wavesBalance().generating >= MIN_BALANCE
+        if (isWealthy)
+          then miner :: prevWealthyMiners
+          else prevWealthyMiners
       }
 
-  let wellMiners = FOLD<50>(allMiners, nil, step)
-  strict tooManyMinersCheck = wellMiners.size() >= 50 && throw("Too many miners")
+  let wealthyMiners = FOLD<50>(allMiners, nil, step)
+  strict tooManyMinersCheck = wealthyMiners.size() >= 50 && throw("Too many miners")
 
   # EL miner must sign a Network block by own private key
   func ensureNotOverrideOtherMinerPk(elAddressHex: String) = {
@@ -827,7 +827,7 @@ func join(rewardAddressHex: String) = {
   }
 
   func join(r: String, x: String) = r + SEP + x
-  let updatedAllMiners = FOLD<50>(wellMiners, newMiner, join)
+  let updatedAllMiners = FOLD<50>(wealthyMiners, newMiner, join)
 
   [
     StringEntry(allMinersKey, updatedAllMiners),
