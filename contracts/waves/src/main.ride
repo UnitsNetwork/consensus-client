@@ -795,7 +795,7 @@ func join(rewardAddressHex: String) = {
     if (miner == newMiner)
       then throw("Already joined")
       else {
-        let isWell = Address(miner.fromBase58String()).wavesBalance().generating >= MIN_BALANCE
+        let isWell = addressFromStringValue(miner).wavesBalance().generating >= MIN_BALANCE
         if (isWell)
           then miner :: prevWellMiners
           else prevWellMiners
@@ -803,8 +803,6 @@ func join(rewardAddressHex: String) = {
 
   let wellMiners = FOLD<50>(allMiners, nil, step)
   strict tooManyMinersCheck = wellMiners.size() >= 50 && throw("Too many miners")
-
-  # Here is 971 complexity consumed, all code below spent more than 1000 of free complexity
 
   # EL miner must sign a Network block by own private key
   func ensureNotOverrideOtherMinerPk(elAddressHex: String) = {
@@ -818,6 +816,8 @@ func join(rewardAddressHex: String) = {
 
   let normalizedRewardAddress = normalizeEthAddress(rewardAddressHex)
   strict checkNotOverride = ensureNotOverrideOtherMinerPk(normalizedRewardAddress)
+
+  # Here is 980 complexity consumed, all code below spent more than 1000 of free complexity
 
   # If a miner changed the reward address, we need to delete the previous mapping
   let deletePrevRewardAddressPk = match getString(minerRewardAddressKey(newMiner)) {
