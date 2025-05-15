@@ -2,6 +2,7 @@ package units
 
 import com.wavesplatform.account.Address
 import com.wavesplatform.state.{Height, IntegerDataEntry, StringDataEntry}
+import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.transaction.TxHelpers
 
 class EmptyEpochMinerEvictionTestSuite extends BaseDockerTestSuite {
@@ -34,9 +35,10 @@ class EmptyEpochMinerEvictionTestSuite extends BaseDockerTestSuite {
         // Wait for another idle miner epoch
         waves1.api.waitForHeight(prevReportedHeight + 1)
         chainContract.waitForMinerEpoch(idleMiner)
-
+        val lastWavesBlock = waves1.api.blockHeader(waves1.api.height()).value
+        val vrf            = ByteStr.decodeBase58(lastWavesBlock.VRF).get
         // Report empty epoch
-        val reportResult = waves1.api.broadcastAndWait(ChainContract.reportEmptyEpoch(reporter))
+        val reportResult = waves1.api.broadcastAndWait(ChainContract.reportEmptyEpoch(reporter, vrf))
         reportResult.height
       })
 

@@ -1093,7 +1093,8 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: Stri
 }
 
 @Callable(i)
-func reportEmptyEpoch() = {
+func reportEmptyEpoch(vrf: ByteVector) = {
+  strict checkEpoch      = ensureCorrectEpoch(vrf)
   strict checkEpochEmpty = match epochMeta(height) {
     case u: Unit => unit
     case _ => throw("Current epoch is non-empty")
