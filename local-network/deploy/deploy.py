@@ -43,7 +43,7 @@ if script_info["script"] is None:
         os.path.join(contracts_dir, "waves", "src", "main.ride"), "r", encoding="utf-8"
     ) as file:
         source = file.read()
-    r = network.cl_chain_contract.setScript(source)
+    r = network.cl_chain_contract.setScript(source, txFee=5_400_000)
     waves.force_success(log, r, "Can not set the chain contract script")
 
 if not network.cl_chain_contract.isContractSetup():
@@ -77,9 +77,13 @@ if cl_poor_accounts_number > 0:
         f"Issue {user_amount_for_each * cl_poor_accounts_number} UNIT0 additional tokens for testing purposes"
     )
     reissue_txn_id = network.cl_chain_contract.oracleAcc.reissueAsset(
-        cl_token, atomic_amount_for_each * cl_poor_accounts_number, reissuable=True
+        cl_token,
+        atomic_amount_for_each * cl_poor_accounts_number,
+        reissuable=True,
+        txFee=500_000,
     )
-    waves.wait_for(reissue_txn_id)
+    waves.wait_for_approval(log, reissue_txn_id)
+    log.info("Additional tokens issued")
 
     for cl_account in cl_poor_accounts:
         log.info(f"Send {user_amount_for_each} UNIT0 tokens to {cl_account.address}")
@@ -87,6 +91,7 @@ if cl_poor_accounts_number > 0:
             recipient=cl_account,
             asset=cl_token,
             amount=atomic_amount_for_each,
+            txFee=500_000,
         )
         waves.force_success(log, txn_result, "Can not send UNIT0 tokens", wait=False)
         txn_id = txn_result["id"]  # type: ignore
@@ -94,7 +99,7 @@ if cl_poor_accounts_number > 0:
         txn_ids.append(txn_id)
 
 for txn_id in txn_ids:
-    waves.wait_for(txn_id)
+    waves.wait_for_approval(log, txn_id)
     log.info(f"Distrubute UNIT0 tokens transaction {txn_id} confirmed")
 
 r = network.cl_chain_contract.evaluate("allMiners")
@@ -119,7 +124,7 @@ for miner in network.cl_miners:
         txn_ids.append(txn_id)
 
 for txn_id in txn_ids:
-    waves.wait_for(txn_id)
+    waves.wait_for_approval(log, txn_id)
     log.info(f"Join transaction {txn_id} confirmed")
 
 while True:
@@ -167,6 +172,7 @@ if len(network.cl_chain_contract.getData(regex="assetTransfersActivationEpoch"))
             {"type": "string", "value": network.el_wwaves_address},
             {"type": "integer", "value": activation_height},
         ],
+        txFee=900_000,
     )
     waves.force_success(
         log,

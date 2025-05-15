@@ -24,9 +24,8 @@ class EmptyEpochMinerEvictionTestSuite extends BaseDockerTestSuite {
       )
     )
     // Assertion: idle miner has successfully joined
-    waves1.api.dataByKey(chainContractAddress, "allMiners") shouldBe Some(
-      StringDataEntry("allMiners", s"${reporter.toAddress},${idleMiner.toAddress}")
-    )
+    waves1.api.dataByKey(chainContractAddress, "allMiners").value shouldBe
+      StringDataEntry("allMiners", s"${idleMiner.toAddress},${reporter.toAddress}")
 
     val lastReportedHeight = Range
       .inclusive(1, maxSkippedEpochCount)
@@ -42,7 +41,7 @@ class EmptyEpochMinerEvictionTestSuite extends BaseDockerTestSuite {
       })
 
     // Assertion: idle miner has been evicted
-    waves1.api.dataByKey(chainContractAddress, "allMiners") shouldBe Some(StringDataEntry("allMiners", s"${reporter.toAddress}"))
+    waves1.api.dataByKey(chainContractAddress, "allMiners").value shouldBe StringDataEntry("allMiners", s"${reporter.toAddress}")
 
     // Assertion: reporter started mining on the same epoch, in which the previous miner has been evicted
     val epochMeta = eventually {
