@@ -1501,7 +1501,9 @@ class ELUpdater(
 
       lastElWithdrawalIndex <- {
         val c2eLogs = ecBlockLogs.filter(_.topics.intersect(C2ETopics).nonEmpty)
-        validateC2ETransfers(actualTransferWithdrawals, c2eLogs, expectedTransfers, prevWithdrawalIndex).leftMap(ClientError.apply)
+        validateC2ETransfers(actualTransferWithdrawals, c2eLogs, expectedTransfers, prevWithdrawalIndex, nativeTransfersViaDepositsActivated).leftMap(
+          ClientError.apply
+        )
       }
     } yield Some(lastElWithdrawalIndex)
   }
@@ -1510,7 +1512,8 @@ class ELUpdater(
       actualWithdrawals: Seq[Withdrawal],
       actualTransferLogs: List[GetLogsResponseEntry],
       expectedTransfers: Seq[ContractTransfer],
-      prevWithdrawalIndex: Long
+      prevWithdrawalIndex: Long,
+      nativeTransfersViaDepositsActivated: Boolean
   ): Either[String, Long] = {
     val totalTransfers = expectedTransfers.size
 
@@ -1541,19 +1544,20 @@ class ELUpdater(
         case expectedTransfer +: restExpectedTransfers =>
           expectedTransfer match {
             case expectedTransfer: ContractTransfer.Native =>
-              // noop validation
-              loop(actualWithdrawals, actualTransferLogs, restExpectedTransfers, prevWithdrawalIndex, currTransferNumber + 1)
-              
-              // old validation
-              // actualWithdrawals match {
-              //   case Seq() => s"$logPrefix Not found EL block withdrawal #$prevWithdrawalIndex, expected $expectedTransfer transfer".asLeft
-              //   case actualWithdrawal +: restActualWithdrawals =>
-              //     val expectedWithdrawal = toWithdrawal(expectedTransfer, prevWithdrawalIndex + 1)
-              //     validateWithdrawal(actualWithdrawal, expectedWithdrawal) match {
-              //       case Left(e) => e.asLeft
-              //       case _ => loop(restActualWithdrawals, actualTransferLogs, restExpectedTransfers, expectedWithdrawal.index, currTransferNumber + 1)
-              //     }
-              // }
+              if nativeTransfersViaDepositsActivated then
+                // TODO: Implement
+                loop(actualWithdrawals, actualTransferLogs, restExpectedTransfers, prevWithdrawalIndex, currTransferNumber + 1)
+              else
+                actualWithdrawals match {
+                  case Seq() => s"$logPrefix Not found EL block withdrawal #$prevWithdrawalIndex, expected $expectedTransfer transfer".asLeft
+                  case actualWithdrawal +: restActualWithdrawals =>
+                    val expectedWithdrawal = toWithdrawal(expectedTransfer, prevWithdrawalIndex + 1)
+                    validateWithdrawal(actualWithdrawal, expectedWithdrawal) match {
+                      case Left(e) => e.asLeft
+                      case _ =>
+                        loop(restActualWithdrawals, actualTransferLogs, restExpectedTransfers, expectedWithdrawal.index, currTransferNumber + 1)
+                    }
+                }
 
             case expectedTransfer: ContractTransfer.Asset =>
               actualTransferLogs match {
