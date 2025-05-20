@@ -152,6 +152,8 @@ object StandardBridge {
       }).left.map(e => s"Can't decode event ${EventDef.getName} from $log. $e")
   }
 
+  case class NativeBridgeFinalized(to: EthAddress, amount: BigInt)
+
   case class RegistryUpdated(addedTokens: List[EthAddress], addedTokenExponents: List[Int], removedTokens: List[EthAddress])
   object RegistryUpdated {
     type AddedTokensComponentType = Web3JAddress
