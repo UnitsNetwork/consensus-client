@@ -21,6 +21,7 @@ import com.wavesplatform.utx.UtxPool
 import com.wavesplatform.wallet.Wallet
 import io.netty.channel.Channel
 import io.netty.channel.group.DefaultChannelGroup
+import kamon.Kamon
 import monix.execution.cancelables.SerialCancelable
 import monix.execution.{CancelableFuture, Scheduler}
 import play.api.libs.json.*
@@ -721,7 +722,6 @@ class ELUpdater(
       case Left(error) => logger.error(s"Could not load finalized block", error)
       case Right(Some(finalizedEcBlock)) =>
         logger.trace(s"Finalized block ${finalizedBlock.hash} is at height ${finalizedEcBlock.height}")
-
 
         // Note: `nobodyStartedMining` will be true on every empty epoch.
         // We benefit from it in cases when idle miner was evicted, a list of miners has changed,
@@ -1753,6 +1753,18 @@ class ELUpdater(
 
   private def setState(label: String, newState: State): Unit = {
     logger.trace(s"New state after $label: $newState")
+    val chainIdOpt = newState match {
+      case Working(chainStatus = cs) =>
+        cs match {
+          case FollowingChain(nodeChainInfo = ChainInfo(id = id)) => Some(id)
+          case Mining(nodeChainInfo = Right(nci))                 => Some(nci.id)
+          case _                                                  => None
+        }
+      case _ => None
+    }
+
+    chainIdOpt.foreach(chainId => Kamon.gauge("consensus-client.chain-id").withTag("chain-contract", config.chainContract).update(chainId.toDouble))
+
     state = newState
   }
 }
