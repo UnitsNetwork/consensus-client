@@ -56,16 +56,16 @@ class C2ENativeTokenTransfersViaDepositsTestSuite extends BaseDockerTestSuite {
     waves1.api.waitForHeight(activationEpoch)
 
     step("Set native token transfers via deposits feature activation epoch")
-    val featureActivationHeight = waves1.api.height() + 2
+    val featureActivationEpoch = waves1.api.height() + 2
     val txRes = waves1.api.broadcastAndWait(
       TxHelpers.dataEntry(
         chainContractAccount,
-        IntegerDataEntry("nativeTokenDepositTransfersActivationEpoch", featureActivationHeight)
+        IntegerDataEntry("nativeTokenDepositTransfersActivationEpoch", featureActivationEpoch)
       )
     )
 
     step("Wait for feature activation")
-    waves1.api.waitForHeight(featureActivationHeight)
+    waves1.api.waitForHeight(featureActivationEpoch)
 
     step("Prepare: issue tokens on chain contract and transfer to a user")
     waves1.api.broadcastAndWait(
