@@ -1544,10 +1544,18 @@ class ELUpdater(
         case expectedTransfer +: restExpectedTransfers =>
           expectedTransfer match {
             case expectedTransfer: ContractTransfer.Native =>
-              if nativeTransfersViaDepositsActivated then
-                // TODO: Implement
-                loop(actualWithdrawals, actualTransferLogs, restExpectedTransfers, prevWithdrawalIndex, currTransferNumber + 1)
-              else
+              if nativeTransfersViaDepositsActivated then {
+                actualTransferLogs match {
+                  case Nil => s"$logPrefix Not found EL transfer log, expected $expectedTransfer transfer".asLeft
+                  case actualTransferLog :: restActualTransferLogs =>
+                    StandardBridge.NativeBridgeFinalized
+                      .decodeLog(actualTransferLog)
+                      .flatMap(validateC2ENativeTransfer(actualTransferLog.logIndex, _, expectedTransfer)) match {
+                      case Left(e) => e.asLeft
+                      case _ => loop(actualWithdrawals, restActualTransferLogs, restExpectedTransfers, prevWithdrawalIndex, currTransferNumber + 1)
+                    }
+                }
+              } else
                 actualWithdrawals match {
                   case Seq() => s"$logPrefix Not found EL block withdrawal #$prevWithdrawalIndex, expected $expectedTransfer transfer".asLeft
                   case actualWithdrawal +: restActualWithdrawals =>
@@ -1717,6 +1725,26 @@ class ELUpdater(
       s"Withdrawal #${actual.index}: expected amount ${expected.amount}, got: ${actual.amount}"
     )
   } yield ()
+
+  private def validateC2ENativeTransfer(
+      logIndex: EthNumber,
+      elTransferEvent: StandardBridge.NativeBridgeFinalized,
+      expectedTransfer: ContractTransfer.Native
+  ): Either[String, Unit] = {
+    def errorPrefix = s"C2E native transfer with logIndex=$logIndex, transferIndex=${expectedTransfer.index}"
+    for {
+      _ <- Either.cond(
+        elTransferEvent.to == expectedTransfer.to,
+        (),
+        s"$errorPrefix: got address: ${elTransferEvent.to}, expected: ${expectedTransfer.to}"
+      )
+      _ <- Either.cond(
+        elTransferEvent.amount == expectedTransfer.amount,
+        (),
+        s"$errorPrefix: got amount: ${elTransferEvent.amount}, expected ${expectedTransfer.amount}"
+      )
+    } yield ()
+  }
 
   private def validateC2EAssetTransfer(
       logIndex: EthNumber,
