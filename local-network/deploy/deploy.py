@@ -43,7 +43,7 @@ if script_info["script"] is None:
         os.path.join(contracts_dir, "waves", "src", "main.ride"), "r", encoding="utf-8"
     ) as file:
         source = file.read()
-    r = network.cl_chain_contract.setScript(source, txFee=5_400_000)
+    r = network.cl_chain_contract.setScript(source, txFee=7_000_000)
     waves.force_success(log, r, "Can not set the chain contract script")
 
 if not network.cl_chain_contract.isContractSetup():
@@ -181,6 +181,25 @@ if len(network.cl_chain_contract.getData(regex="assetTransfersActivationEpoch"))
         wait=True,
     )
     log.info("Wait activation")
+    while pw.height() < activation_height:
+        sleep(3)
+
+key = "nativeTokenDepositTransfersActivationEpoch"
+if len(network.cl_chain_contract.getData(regex=key)) == 0:
+    log.info("Activation of native token transfers via deposits...")
+    activation_height = pw.height() + 2
+    enable_native_token_transfers_via_deposits_txn = (
+        network.cl_chain_contract.oracleAcc.dataTransaction(
+            [{"type": "integer", "key": key, "value": activation_height}]
+        )
+    )
+    waves.force_success(
+        log,
+        enable_native_token_transfers_via_deposits_txn,
+        "Could not enable native token transfers via deposits",
+        wait=True,
+    )
+    log.info("Waiting for activation of native token transfers via deposits")
     while pw.height() < activation_height:
         sleep(3)
 

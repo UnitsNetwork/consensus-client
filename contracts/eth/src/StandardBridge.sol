@@ -28,6 +28,11 @@ contract StandardBridge {
         address indexed elTo,
         uint256 amount
     );
+    
+    event NativeBridgeFinalized(
+        address indexed elTo,
+        uint256 amount
+    );
 
     event RegistryUpdated(address[] addedTokens, uint8[] addedTokenExponents, address[] removedTokens);
 
@@ -143,6 +148,10 @@ contract StandardBridge {
         // Emit the correct events. By default this will be ERC20BridgeFinalized, but child
         // contracts may override this function in order to emit legacy events as well.
         _emitERC20BridgeFinalized(_localToken, _from, _to, _amount);
+    }
+
+    function finalizeBridgeNative(address to, uint256 amount) external onlyMiner {
+        emit NativeBridgeFinalized(to, amount);
     }
 
     /// @notice Emits the ERC20BridgeFinalized event and if necessary the appropriate legacy
