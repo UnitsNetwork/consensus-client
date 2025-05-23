@@ -207,8 +207,8 @@ class MultipleTransfersTestSuiteViaDeposited extends BaseDockerTestSuite {
         IntegerDataEntry("nativeTokenDepositTransfersActivationEpoch", featureActivationEpoch)
       )
     )
-   step("Wait for feature activation")
-   waves1.api.waitForHeight(featureActivationEpoch)
+    step("Wait for feature activation")
+    waves1.api.waitForHeight(featureActivationEpoch)
 
     step("Register asset")
     waves1.api.broadcastAndWait(ChainContract.issueAndRegister(TErc20Address, TErc20Decimals, "TERC20", "Test ERC20 token", issueAssetDecimals))
