@@ -143,13 +143,11 @@ func isClAssetRegistered(assetIdBase58: String) = getString(assetRegistryK + ass
 func isElAssetRegistered(erc20AddressHex: String) = getInteger(assetRegistryELK + erc20AddressHex).isDefined()
 
 func ensureCorrectTransfers(refTransferIndex: Int, transferIndex: Int, expectReward: Boolean) = {
-  let maxTransfers    = if (expectReward) then MAX_CL_TO_EL_TRANSFERS - 1 else MAX_CL_TO_EL_TRANSFERS
-  let actualTransfers = transferIndex - refTransferIndex
+  let atLeastTransfers = if (expectReward) then 1 else 0
+  let actualTransfers  = transferIndex - refTransferIndex
 
-  strict checkNumber = actualTransfers > maxTransfers &&
-    throw("Allowed only " + maxTransfers.toString() + " transfers, got " + actualTransfers.toString())
-  transferIndex >= transfersCount &&
-    throw("Attempt to transfer #" + transferIndex.toString() + ". Available transfers: " + transfersCount.toString())
+  actualTransfers >= atLeastTransfers &&
+    throw("Expected at least transfers: " + atLeastTransfers.toString() + ", got " + actualTransfers.toString())
 }
 
 func amountGtEq(t: AttachedPayment, gtEq: Int, queueSize: Int) =
