@@ -235,11 +235,15 @@ trait ChainContractClient {
     val maxIndex = getTransfersCount - 1
 
     @tailrec def loop(currIndex: Long, foundNative: Long, acc: Vector[ContractTransfer]): Vector[ContractTransfer] =
-      if (currIndex > maxIndex || foundNative >= maxNative) acc
+      if (currIndex > maxIndex) acc
       else
         requireTransfer(currIndex) match {
-          case x: ContractTransfer.Native => loop(currIndex + 1, foundNative + 1, acc :+ x)
-          case x: ContractTransfer.Asset  => loop(currIndex + 1, foundNative, acc :+ x)
+          case x: ContractTransfer.Native =>
+            val updatedFoundNative = foundNative + 1
+            if (updatedFoundNative > maxNative) acc
+            else loop(currIndex + 1, updatedFoundNative, acc :+ x) // if equals - we still can collect asset transfers
+
+          case x: ContractTransfer.Asset => loop(currIndex + 1, foundNative, acc :+ x)
         }
 
     loop(fromIndex, 0, Vector.empty)
