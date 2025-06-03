@@ -258,32 +258,31 @@ trait ChainContractClient {
   private def requireTransfer(atIndex: Long): ContractTransfer = {
     val key = s"nativeTransfer_$atIndex"
     val raw = getStringData(key).getOrElse(fail(s"Expected a transfer at '$key', got nothing"))
-    raw.split(Sep) match {
-      case Array(rawDestElAddress, rawAmount) =>
-        ContractTransfer.Native(
-          idx = atIndex,
-          to = EthAddress.unsafeFrom(rawDestElAddress),
-          amount = rawAmount.toLongOption.getOrElse(fail(s"Expected an integer amount of a native transfer, got: $rawAmount"))
-        )
+    val xs  = raw.split(Sep)
+    if (xs.length == 2 || xs.length == 3) // rawDestElAddress, rawAmount, epoch?
+      ContractTransfer.Native(
+        idx = atIndex,
+        epoch = if (xs.length < 3) 0 else xs(2).toIntOption.getOrElse(fail(s"Expected an integer epoch, got: ${xs(2)}")),
+        to = EthAddress.unsafeFrom(xs(0)),
+        amount = xs(1).toLongOption.getOrElse(fail(s"Expected an integer amount of a native transfer, got: ${xs(1)}"))
+      )
+    else if (xs.length == 4 || xs.length == 5) { // rawDestElAddress, rawFromAddress, rawAmount, rawAssetIndex, epoch?
+      val assetIndex = xs(3).toIntOption.getOrElse(fail(s"Expected an asset index in asset transfer, got: ${xs(3)}"))
+      val asset      = getRegisteredAsset(assetIndex)
+      val assetData  = getRegisteredAssetData(asset)
 
-      case Array(rawDestElAddress, rawFromAddress, rawAmount, rawAssetIndex) =>
-        val assetIndex = rawAssetIndex.toIntOption.getOrElse(fail(s"Expected an asset index in asset transfer, got: $rawAssetIndex"))
-        val asset      = getRegisteredAsset(assetIndex)
-        val assetData  = getRegisteredAssetData(asset)
-
-        ContractTransfer.Asset(
-          idx = atIndex,
-          from = EthAddress.unsafeFrom(rawFromAddress),
-          to = EthAddress.unsafeFrom(rawDestElAddress),
-          amount =
-            try WAmount(rawAmount).scale(assetData.exponent)
-            catch { case e: ArithmeticException => fail(s"Expected an integer amount of a native transfer, got: $rawAmount", e) },
-          tokenAddress = assetData.erc20Address,
-          asset
-        )
-
-      case xs => fail(s"Unexpected number of elements in a transfer key '$key', got ${xs.length}: $raw")
-    }
+      ContractTransfer.Asset(
+        idx = atIndex,
+        epoch = if (xs.length < 5) 0 else xs(4).toIntOption.getOrElse(fail(s"Expected an integer epoch, got: ${xs(4)}")),
+        from = EthAddress.unsafeFrom(xs(1)),
+        to = EthAddress.unsafeFrom(xs(0)),
+        amount =
+          try WAmount(xs(2)).scale(assetData.exponent)
+          catch { case e: ArithmeticException => fail(s"Expected an integer amount of a native transfer, got: ${xs(2)}", e) },
+        tokenAddress = assetData.erc20Address,
+        asset
+      )
+    } else fail(s"Unexpected number of elements in a transfer key '$key', got ${xs.length}: $raw")
   }
 
   def getRegisteredAssetData(asset: Asset): Registry.RegisteredAsset = {
@@ -393,10 +392,17 @@ object ChainContractClient {
 
   case class EpochContractMeta(miner: Address, prevEpoch: Int, lastBlockHash: BlockHash)
 
-  enum ContractTransfer(val index: Long) {
-    case Native(idx: Long, to: EthAddress, amount: Long) extends ContractTransfer(idx)
-    case Asset(idx: Long, from: EthAddress, to: EthAddress, amount: EAmount, tokenAddress: EthAddress, asset: com.wavesplatform.transaction.Asset)
-        extends ContractTransfer(idx)
+  enum ContractTransfer(val index: Long, epoch: Int) {
+    case Native(idx: Long, epoch: Int, to: EthAddress, amount: Long) extends ContractTransfer(idx, epoch)
+    case Asset(
+        idx: Long,
+        epoch: Int,
+        from: EthAddress,
+        to: EthAddress,
+        amount: EAmount,
+        tokenAddress: EthAddress,
+        asset: com.wavesplatform.transaction.Asset
+    ) extends ContractTransfer(idx, epoch)
   }
 
   object Registry {
