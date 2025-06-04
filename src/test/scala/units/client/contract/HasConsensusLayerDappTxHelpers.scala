@@ -94,7 +94,7 @@ trait HasConsensusLayerDappTxHelpers {
     def enableStrictTransfers(activationEpoch: Int): DataTransaction =
       TxHelpers.data(
         chainContractAccount,
-        Seq(IntegerDataEntry("strictTransfersActivationEpoch", activationEpoch)),
+        Seq(IntegerDataEntry("strictC2ETransfersActivationEpoch", activationEpoch)),
         fee = 0.009.waves
       )
 

@@ -210,12 +210,12 @@ trait ChainContractClient {
     elStandardBridgeAddress = getStringData("elStandardBridgeAddress")
       .map(EthAddress.unsafeFrom),
     assetTransfersActivationEpoch = getAssetTransfersActivationEpoch,
-    strictTransfersActivationEpoch = getStrictTransfersActivationEpoch
+    strictC2ETransfersActivationEpoch = getStrictC2ETransfersActivationEpoch
   )
 
   private def getAssetTransfersActivationEpoch: Long = getLongData("assetTransfersActivationEpoch").getOrElse(Long.MaxValue)
 
-  private def getStrictTransfersActivationEpoch: Long = getLongData("strictTransfersActivationEpoch").getOrElse(Long.MaxValue)
+  private def getStrictC2ETransfersActivationEpoch: Long = getLongData("strictC2ETransfersActivationEpoch").getOrElse(Long.MaxValue)
 
   private def getChainMeta(chainId: Long): Option[(Int, BlockHash)] = {
     val key = f"chain_$chainId%08d"

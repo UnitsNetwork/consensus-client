@@ -1432,10 +1432,10 @@ class ELUpdater(
         throw new RuntimeException(s"Can't find a prev epoch ${blockEpoch.prevEpoch} data of block ${contractBlock.hash} on chain contract")
       )
 
-    val isEpochFirstBlock        = contractBlock.parentHash == blockPrevEpoch.lastBlockHash
-    val expectMiningReward       = isEpochFirstBlock && !contractBlock.referencesGenesis
-    val prevMinerElRewardAddress = if (expectMiningReward) chainContractClient.getElRewardAddress(blockPrevEpoch.miner) else None
-    val strictTransfersActivated = contractBlock.epoch >= chainContractOptions.strictTransfersActivationEpoch
+    val isEpochFirstBlock           = contractBlock.parentHash == blockPrevEpoch.lastBlockHash
+    val expectMiningReward          = isEpochFirstBlock && !contractBlock.referencesGenesis
+    val prevMinerElRewardAddress    = if (expectMiningReward) chainContractClient.getElRewardAddress(blockPrevEpoch.miner) else None
+    val strictC2ETransfersActivated = contractBlock.epoch >= chainContractOptions.strictC2ETransfersActivationEpoch
 
     for {
       elWithdrawalIndexBefore <- fullValidationStatus.checkedLastElWithdrawalIndex(ecBlock.parentHash) match {
@@ -1464,8 +1464,8 @@ class ELUpdater(
       _ <- nextTransfer match {
         case None => Either.unit
         case Some(nextTransfer) =>
-          logger.debug(s"${nextTransfer.epoch} >= ${contractBlock.epoch} || ${!strictTransfersActivated}")
-          if (nextTransfer.epoch >= contractBlock.epoch || !strictTransfersActivated) Either.unit
+          logger.debug(s"${nextTransfer.epoch} >= ${contractBlock.epoch} || ${!strictC2ETransfersActivated}")
+          if (nextTransfer.epoch >= contractBlock.epoch || !strictC2ETransfersActivated) Either.unit
           else { // This transfer was on a previous epoch, miner saw it
             val blockHasMaxTransfers = nextTransfer match {
               case _: ContractTransfer.Asset => false

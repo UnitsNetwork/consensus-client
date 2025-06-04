@@ -13,7 +13,7 @@ case class ChainContractOptions(
     elNativeBridgeAddress: EthAddress,
     elStandardBridgeAddress: Option[EthAddress],
     assetTransfersActivationEpoch: Long,
-    strictTransfersActivationEpoch: Long
+    strictC2ETransfersActivationEpoch: Long
 ) {
   def bridgeAddresses(epoch: Int): List[EthAddress] = {
     val before = List(elNativeBridgeAddress)

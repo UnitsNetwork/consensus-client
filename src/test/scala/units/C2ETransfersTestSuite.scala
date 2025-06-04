@@ -100,7 +100,7 @@ class C2ETransfersTestSuite extends BaseTestSuite {
       val malfunction = ElMinerSettings(TxHelpers.signer(2))
       val settings    = defaultSettings.copy(initialMiners = List(reliable, malfunction)).withEnabledElMining
       withExtensionDomain(settings) { d =>
-        step("Activate strict transfers")
+        step("Activate strict C2E transfers")
         val userAmount    = 1
         val amount        = UnitsConvert.toUnitsInWaves(userAmount)
         val destElAddress = EthAddress.unsafeFrom(s"0x$validTransferRecipient")

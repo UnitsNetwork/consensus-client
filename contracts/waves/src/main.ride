@@ -78,8 +78,8 @@ let transfersCount       = this.getInteger(transfersCountKey).valueOrElse(0)
 let maxSkippedEpochCount = getInteger(maxSkippedEpochCountKey).valueOrElse(200)
 func transferKey(index: Int) = "nativeTransfer_" + index.toString() # {destElAddressHex with 0x}_{amount} | {destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex}
 
-let strictTransfersActivationEpochKey = "strictTransfersActivationEpoch"
-let strictTransfersActivationEpoch    = getInteger(strictTransfersActivationEpochKey).valueOrElse(INT_MAX)
+let strictC2ETransfersActivationEpochKey = "strictC2ETransfersActivationEpoch"
+let strictC2ETransfersActivationEpoch    = getInteger(strictC2ETransfersActivationEpochKey).valueOrElse(INT_MAX)
 
 # destElAddressHex - without 0x
 func mkNativeTransferEntries(destElAddressHex: String, amount: Int) = {
@@ -87,7 +87,7 @@ func mkNativeTransferEntries(destElAddressHex: String, amount: Int) = {
 
   let entryKey = transferKey(currTransferIndex)
   let entryValue1 = "0x" + destElAddressHex + SEP + amount.toString()
-  let entryValue2 = if (height < strictTransfersActivationEpoch)
+  let entryValue2 = if (height < strictC2ETransfersActivationEpoch)
     then entryValue1
     else entryValue1 + SEP + height.toString()
 
@@ -102,7 +102,7 @@ func mkAssetTransferEntries(destElAddressHex: String, fromAddressHex: String, am
 
   let entryKey = transferKey(currTransferIndex)
   let entryValue1 = "0x" + destElAddressHex + SEP + "0x" + fromAddressHex + SEP + amount.toString() + SEP + assetIndex.toString()
-  let entryValue2 = if (height < strictTransfersActivationEpoch)
+  let entryValue2 = if (height < strictC2ETransfersActivationEpoch)
     then entryValue1
     else entryValue1 + SEP + height.toString()
 
