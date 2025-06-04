@@ -12,11 +12,12 @@ import com.wavesplatform.utils.ScorexLogging
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues, TryValues}
 import org.web3j.abi.TypeEncoder
-import org.web3j.abi.datatypes.generated.Int64
+import org.web3j.abi.datatypes.Address as Web3JAddress
+import org.web3j.abi.datatypes.generated.{Bytes20, Int64}
 import units.client.engine.model.GetLogsResponseEntry
 import units.el.NativeBridge.ElSentNativeEvent
 import units.el.{NativeBridge, StandardBridge}
-import units.eth.EthNumber
+import units.eth.{EthAddress, EthNumber}
 import units.test.CustomMatchers
 import units.util.HexBytesConverter
 
@@ -136,17 +137,19 @@ trait BaseTestSuite
       ""
     )
 
-  protected def getLogsResponseEntry(event: StandardBridge.ERC20BridgeFinalized): GetLogsResponseEntry =
+  protected def getLogsResponseEntry(event: StandardBridge.ERC20BridgeFinalized, logIndex: Int = 0): GetLogsResponseEntry = {
+    def encode(x: EthAddress): String = TypeEncoder.encode(new Web3JAddress(x.hex))
     GetLogsResponseEntry(
-      EthNumber(0),
+      EthNumber(logIndex),
       StandardBridgeAddress,
       TypeEncoder.encode(new Int64(event.amount.raw)),
       List(
         StandardBridge.ERC20BridgeFinalized.Topic,
-        event.localToken.hex,
-        event.from.hex,
-        event.elTo.hex
+        encode(event.localToken),
+        encode(event.from),
+        encode(event.elTo)
       ),
       ""
     )
+  }
 }
