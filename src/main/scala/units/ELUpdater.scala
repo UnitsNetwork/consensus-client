@@ -722,7 +722,6 @@ class ELUpdater(
       case Right(Some(finalizedEcBlock)) =>
         logger.trace(s"Finalized block ${finalizedBlock.hash} is at height ${finalizedEcBlock.height}")
 
-
         // Note: `nobodyStartedMining` will be true on every empty epoch.
         // We benefit from it in cases when idle miner was evicted, a list of miners has changed,
         // and we would like it to start mining right away.
@@ -1436,6 +1435,7 @@ class ELUpdater(
     val isEpochFirstBlock        = contractBlock.parentHash == blockPrevEpoch.lastBlockHash
     val expectMiningReward       = isEpochFirstBlock && !contractBlock.referencesGenesis
     val prevMinerElRewardAddress = if (expectMiningReward) chainContractClient.getElRewardAddress(blockPrevEpoch.miner) else None
+    val strictTransfersActivated = contractBlock.epoch >= chainContractOptions.strictTransfersActivationEpoch
 
     for {
       elWithdrawalIndexBefore <- fullValidationStatus.checkedLastElWithdrawalIndex(ecBlock.parentHash) match {
@@ -1449,10 +1449,34 @@ class ELUpdater(
         .getBlock(contractBlock.parentHash)
         .getOrElse(throw new RuntimeException(s"Can't find a parent block ${contractBlock.parentHash} of block ${contractBlock.hash}"))
 
-      expectedTransfers = chainContractClient.getTransfers(
-        fromIndex = parentContractBlock.lastC2ETransferIndex + 1,
-        max = contractBlock.lastC2ETransferIndex - parentContractBlock.lastC2ETransferIndex
-      )
+      (expectedTransfers, nextTransfer) = {
+        val inBlock = contractBlock.lastC2ETransferIndex - parentContractBlock.lastC2ETransferIndex
+        val xs = chainContractClient.getTransfers(
+          fromIndex = parentContractBlock.lastC2ETransferIndex + 1,
+          max = inBlock + 1
+        )
+        if (xs.isEmpty) (Vector.empty, None)
+        else if (xs.size <= inBlock) (xs, None)
+        else (xs.init, xs.lastOption)
+      }
+
+      // Checks for maximum transfers processing
+      _ <- nextTransfer match {
+        case None => Either.unit
+        case Some(nextTransfer) =>
+          logger.debug(s"${nextTransfer.epoch} >= ${contractBlock.epoch} || ${!strictTransfersActivated}")
+          if (nextTransfer.epoch >= contractBlock.epoch || !strictTransfersActivated) Either.unit
+          else { // This transfer was on a previous epoch, miner saw it
+            val blockHasMaxTransfers = nextTransfer match {
+              case _: ContractTransfer.Asset => false
+              case _: ContractTransfer.Native =>
+                val maxNativeTransfersInBlock = EcBlock.MaxWithdrawals - prevMinerElRewardAddress.fold(0)(_ => 1)
+                ecBlock.withdrawals.size == maxNativeTransfersInBlock
+            }
+
+            Either.raiseUnless(blockHasMaxTransfers)(ClientError(s"Block should contain a next C2E transfer: $nextTransfer"))
+          }
+      }
 
       (prevWithdrawalIndex, actualTransferWithdrawals) <- {
         val expectedNativeTransfersNumber = expectedTransfers.count {

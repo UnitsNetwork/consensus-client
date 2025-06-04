@@ -25,7 +25,7 @@ class BlockFullValidationTestSuite extends BaseTestSuite {
   "Full validation when the block is available on EL and CL" - {
     "doesn't happen for finalized blocks" in withExtensionDomain(defaultSettings.copy(initialMiners = List(reliable))) { d =>
       step("Start new epoch for ecBlock")
-      d.advanceNewBlocks(reliable.address)
+      d.advanceNewBlocks(reliable)
       val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
       d.advanceConsensusLayerChanged()
 
@@ -53,7 +53,7 @@ class BlockFullValidationTestSuite extends BaseTestSuite {
     "happens for not finalized blocks" - {
       "successful validation updates the chain information" in withExtensionDomain() { d =>
         step("Start new epoch for ecBlock")
-        d.advanceNewBlocks(reliable.address)
+        d.advanceNewBlocks(reliable)
         val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
         d.advanceConsensusLayerChanged()
 
@@ -85,7 +85,7 @@ class BlockFullValidationTestSuite extends BaseTestSuite {
             badBlockPostProcessing: EcBlock => EcBlock = identity
         ): Unit = withExtensionDomain() { d =>
           step("Start new epoch for ecBlock1")
-          d.advanceNewBlocks(malfunction.address)
+          d.advanceNewBlocks(malfunction)
           d.advanceConsensusLayerChanged()
 
           val ecBlock1 = d.createEcBlockBuilder("0", malfunction).buildAndSetLogs()
@@ -94,7 +94,7 @@ class BlockFullValidationTestSuite extends BaseTestSuite {
           d.advanceConsensusLayerChanged()
 
           step("Start new epoch for ecBlock2")
-          d.advanceNewBlocks(malfunction.address)
+          d.advanceNewBlocks(malfunction)
           d.advanceConsensusLayerChanged()
 
           val ecBlock2 = badBlockPostProcessing(d.createEcBlockBuilder("0-0", malfunction, ecBlock1).rewardPrevMiner().buildAndSetLogs(blockLogs))

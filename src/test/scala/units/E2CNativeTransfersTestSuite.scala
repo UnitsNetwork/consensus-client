@@ -49,7 +49,7 @@ class E2CNativeTransfersTestSuite extends BaseTestSuite {
 
     withExtensionDomain(settings) { d =>
       step(s"Start new epoch for ecBlock")
-      d.advanceNewBlocks(reliable.address)
+      d.advanceNewBlocks(reliable)
 
       val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
       def tryWithdraw(): Either[Throwable, BlockId] = d.appendMicroBlockE(
@@ -85,7 +85,7 @@ class E2CNativeTransfersTestSuite extends BaseTestSuite {
   ) { case (index, errorMessage) =>
     withExtensionDomain() { d =>
       step(s"Start new epoch with ecBlock")
-      d.advanceNewBlocks(reliable.address)
+      d.advanceNewBlocks(reliable)
       val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
       d.ecClients.addKnown(ecBlock)
       d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(reliable.account, ecBlock, transfersRootHashHex))
@@ -100,7 +100,7 @@ class E2CNativeTransfersTestSuite extends BaseTestSuite {
 
   private def wrongAmountTest(amount: Long): Unit = withExtensionDomain() { d =>
     step("Start new epoch with ecBlock")
-    d.advanceNewBlocks(reliable.address)
+    d.advanceNewBlocks(reliable)
     val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
     d.ecClients.addKnown(ecBlock)
     d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(reliable.account, ecBlock, transfersRootHashHex))
@@ -118,7 +118,7 @@ class E2CNativeTransfersTestSuite extends BaseTestSuite {
 
   "Can't get transferred tokens if the data is incorrect and able if it is correct" in withExtensionDomain() { d =>
     step(s"Start new epoch with ecBlock")
-    d.advanceNewBlocks(reliable.address)
+    d.advanceNewBlocks(reliable)
     val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
     def tryWithdraw(): Either[Throwable, BlockId] =
       d.appendMicroBlockE(d.ChainContract.withdraw(transferReceiver, ecBlock, transferProofs, 0, transfer.amount))
@@ -142,7 +142,7 @@ class E2CNativeTransfersTestSuite extends BaseTestSuite {
 
     withExtensionDomain(settings) { d =>
       step(s"Start new epoch with ecBlock")
-      d.advanceNewBlocks(reliable.address)
+      d.advanceNewBlocks(reliable)
       val ecBlock = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(ecBlockLogs)
       def tryWithdraw(): Either[Throwable, BlockId] =
         d.appendMicroBlockE(d.ChainContract.withdraw(transferReceiver, ecBlock, transferProofs, 0, transfer.amount))
@@ -161,7 +161,7 @@ class E2CNativeTransfersTestSuite extends BaseTestSuite {
     val settings = defaultSettings.withEnabledElMining
     withExtensionDomain(settings) { d =>
       step(s"Start new epoch with ecBlock1")
-      d.advanceNewBlocks(reliable.address)
+      d.advanceNewBlocks(reliable)
       val ecBlock1 = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(List(transferEvent.copy(data = "d3ad884fa04292")))
       d.ecClients.willForge(ecBlock1)
       d.ecClients.willForge(d.createEcBlockBuilder("0-0", reliable).build())
@@ -177,7 +177,7 @@ class E2CNativeTransfersTestSuite extends BaseTestSuite {
     val settings = defaultSettings.copy(initialMiners = List(reliable, malfunction)).withEnabledElMining
     withExtensionDomain(settings) { d =>
       step(s"Start a new epoch of malfunction miner ${malfunction.address} with ecBlock1")
-      d.advanceNewBlocks(malfunction.address)
+      d.advanceNewBlocks(malfunction)
       // Need this block, because we can not rollback to the genesis block
       val ecBlock1 = d.createEcBlockBuilder("0", malfunction).buildAndSetLogs()
       d.advanceConsensusLayerChanged()
@@ -187,7 +187,7 @@ class E2CNativeTransfersTestSuite extends BaseTestSuite {
       d.advanceConsensusLayerChanged()
 
       step(s"Try to append a block with a wrong transfers root hash")
-      d.advanceNewBlocks(malfunction.address)
+      d.advanceNewBlocks(malfunction)
       val ecBadBlock2 = d.createEcBlockBuilder("0-0", malfunction, ecBlock1).rewardPrevMiner().buildAndSetLogs(ecBlockLogs)
       d.advanceConsensusLayerChanged()
 
@@ -201,7 +201,7 @@ class E2CNativeTransfersTestSuite extends BaseTestSuite {
       }
 
       step(s"Start an alternative chain by a reliable miner ${reliable.address} with ecBlock2")
-      d.advanceNewBlocks(reliable.address)
+      d.advanceNewBlocks(reliable)
       val ecBlock2 = d.createEcBlockBuilder("0-1", reliable, ecBlock1).rewardPrevMiner().buildAndSetLogs(ecBlockLogs)
       d.ecClients.willSimulate(ecBlock2)
       // Prepare a following block, because we start mining it immediately
@@ -233,7 +233,7 @@ class E2CNativeTransfersTestSuite extends BaseTestSuite {
       }
 
       step(s"Moving whole network to the alternative chain with ecBlock3")
-      d.advanceNewBlocks(reliable.address)
+      d.advanceNewBlocks(reliable)
       val ecBlock3 = d.createEcBlockBuilder("0-1-1-1", reliable, ecBlock2).rewardPrevMiner(1).buildAndSetLogs()
       d.ecClients.willSimulate(ecBlock3)
       d.ecClients.willForge(d.createEcBlockBuilder("0-1-1-i", reliable, ecBlock3).build())

@@ -209,10 +209,13 @@ trait ChainContractClient {
       .getOrElse(throw new IllegalStateException("elBridgeAddress is empty on contract")),
     elStandardBridgeAddress = getStringData("elStandardBridgeAddress")
       .map(EthAddress.unsafeFrom),
-    assetTransfersActivationEpoch = getAssetTransfersActivationEpoch
+    assetTransfersActivationEpoch = getAssetTransfersActivationEpoch,
+    strictTransfersActivationEpoch = getStrictTransfersActivationEpoch
   )
 
   private def getAssetTransfersActivationEpoch: Long = getLongData("assetTransfersActivationEpoch").getOrElse(Long.MaxValue)
+
+  private def getStrictTransfersActivationEpoch: Long = getLongData("strictTransfersActivationEpoch").getOrElse(Long.MaxValue)
 
   private def getChainMeta(chainId: Long): Option[(Int, BlockHash)] = {
     val key = f"chain_$chainId%08d"
@@ -261,7 +264,7 @@ trait ChainContractClient {
     val xs  = raw.split(Sep)
     if (xs.length == 2 || xs.length == 3) // rawDestElAddress, rawAmount, epoch?
       ContractTransfer.Native(
-        idx = atIndex,
+        index = atIndex,
         epoch = if (xs.length < 3) 0 else xs(2).toIntOption.getOrElse(fail(s"Expected an integer epoch, got: ${xs(2)}")),
         to = EthAddress.unsafeFrom(xs(0)),
         amount = xs(1).toLongOption.getOrElse(fail(s"Expected an integer amount of a native transfer, got: ${xs(1)}"))
@@ -272,7 +275,7 @@ trait ChainContractClient {
       val assetData  = getRegisteredAssetData(asset)
 
       ContractTransfer.Asset(
-        idx = atIndex,
+        index = atIndex,
         epoch = if (xs.length < 5) 0 else xs(4).toIntOption.getOrElse(fail(s"Expected an integer epoch, got: ${xs(4)}")),
         from = EthAddress.unsafeFrom(xs(1)),
         to = EthAddress.unsafeFrom(xs(0)),
@@ -392,17 +395,20 @@ object ChainContractClient {
 
   case class EpochContractMeta(miner: Address, prevEpoch: Int, lastBlockHash: BlockHash)
 
-  enum ContractTransfer(val index: Long, epoch: Int) {
-    case Native(idx: Long, epoch: Int, to: EthAddress, amount: Long) extends ContractTransfer(idx, epoch)
+  enum ContractTransfer {
+    val index: Long
+    val epoch: Int
+
+    case Native(index: Long, epoch: Int, to: EthAddress, amount: Long) extends ContractTransfer
     case Asset(
-        idx: Long,
+        index: Long,
         epoch: Int,
         from: EthAddress,
         to: EthAddress,
         amount: EAmount,
         tokenAddress: EthAddress,
         asset: com.wavesplatform.transaction.Asset
-    ) extends ContractTransfer(idx, epoch)
+    ) extends ContractTransfer
   }
 
   object Registry {

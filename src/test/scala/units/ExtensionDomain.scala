@@ -227,7 +227,10 @@ class ExtensionDomain(
     blockId
   }
 
-  def advanceNewBlocks(expectedElGenerator: Address, attempts: Int = 100): Unit =
+  def advanceNewBlocks(expectedElGenerator: ElMinerSettings, attempts: Int = 100): Unit =
+    advanceNewBlocks(expectedElGenerator.address, attempts)
+
+  def advanceNewBlocks(expectedElGenerator: Address, attempts: Int): Unit =
     if (attempts == 0) throw new RuntimeException(s"Can't advance blocks so EL generator is $expectedElGenerator: all attempts are out!")
     else {
       appendBlock()

@@ -157,13 +157,9 @@ func isClAssetRegistered(assetIdBase58: String) = getString(assetRegistryK + ass
 # erc20AddressHex without 0x
 func isElAssetRegistered(erc20AddressHex: String) = getInteger(assetRegistryELK + erc20AddressHex).isDefined()
 
-func ensureCorrectTransfers(refTransferIndex: Int, transferIndex: Int, expectReward: Boolean) = {
-  let atLeastTransfers = if (expectReward) then 1 else 0
-  let actualTransfers  = transferIndex - refTransferIndex
-
-  actualTransfers >= atLeastTransfers &&
-    throw("Expected at least transfers: " + atLeastTransfers.toString() + ", got " + actualTransfers.toString())
-}
+func ensureCorrectTransfers(refTransferIndex: Int, transferIndex: Int) =
+  transferIndex >= refTransferIndex ||
+    throw("Expected a transfer index: " + transferIndex.toString() + " to be >= a transfer index of a referenced block " + refTransferIndex.toString())
 
 func amountGtEq(t: AttachedPayment, gtEq: Int, queueSize: Int) =
   t.amount >= gtEq || throw(
@@ -285,7 +281,7 @@ let (computedGenerator, computedTotalBalance) = {
   FOLD<50>(allMiners, ("", 0, INT_MAX, []), processMiner)
 }
 
-let (mclbIgnored1, mainChainEpoch) = blockMeta(mainChainLastBlock)
+let (mainChainLastBlockHeight, mainChainEpoch) = blockMeta(mainChainLastBlock)
 
 func calculateFinalizedBlockHashAndEpoch(curMiner: Address, curPrevEpoch: Int, curLastBlockHash: String) = {
   let halfBalance = computedTotalBalance / 2
@@ -466,7 +462,7 @@ func extendMainChain_base(
   strict checkEpoch     = ensureCorrectEpoch(vrf)
   strict checkChain     = ensureExpectedOrInactiveChain(originCaller, mainChainId, unit)
   strict checkReference = isReferenceCorrect(referenceHex, mainChainLastBlock)
-  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._6, lastC2ETransferIndex, true)
+  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._6, lastC2ETransferIndex)
 
   strict thisEpochMeta = match epochMeta(height) {
     case _: Unit => StringEntry(epochMetaKey(height), originCaller.toString() + SEP + mainChainEpoch.toString() + SEP + blockHashHex)
@@ -506,7 +502,7 @@ func startAltChain_base(
     else throw("Can not start alt chain from epoch " + refEpoch.toString() + ", epoch " + finalizedEpoch.toString() + " is finalized")
 
   strict checkChain     = ensureExpectedOrInactiveChain(originCaller, mainChainId, referenceHex)
-  strict checkTransfers = ensureCorrectTransfers(refTransferIndex, lastC2ETransferIndex, true)
+  strict checkTransfers = ensureCorrectTransfers(refTransferIndex, lastC2ETransferIndex)
   let newChainId        = getInteger(lastChainIdKey).valueOrElse(0) + 1
   let newChainHeight    = refChainHeight + 1
 
@@ -551,7 +547,7 @@ func extendAltChain_base(
   strict checkChain       = ensureExpectedOrInactiveChain(originCaller, chainId, chainFirstBlockMeta._3.toBase16String())
   let (chainHeight, chainLastBlock) = chainMeta(chainId)
   strict checkReference = isReferenceCorrect(referenceHex, chainLastBlock)
-  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._6, lastC2ETransferIndex, true)
+  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._6, lastC2ETransferIndex)
 
   let newChainHeight  = chainHeight + 1
 
@@ -608,7 +604,7 @@ func appendBlock_base(
 
   let (chainHeight, lastBlockId) = chainMeta(chainId)
   strict checkReference = isReferenceCorrect(referenceHex, lastBlockId)
-  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._6, lastC2ETransferIndex, false)
+  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._6, lastC2ETransferIndex)
 
   let newChainHeight    = chainHeight + 1
   strict checkBlockHash = validateBlockHash(blockHashHex)

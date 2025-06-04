@@ -19,7 +19,7 @@ class MultiplePrivateKeysTestSuite extends BaseTestSuite {
     val settings = defaultSettings.withPrivateKeys(Seq(miner1.account.privateKey, miner2.account.privateKey))
     withExtensionDomain(settings) { d =>
       step("Start new epoch for ecBlock")
-      d.advanceNewBlocks(minerFromWallet.address)
+      d.advanceNewBlocks(minerFromWallet)
       d.advanceConsensusLayerChanged()
 
       d.ecClients.miningAttempts shouldBe 0
@@ -31,7 +31,7 @@ class MultiplePrivateKeysTestSuite extends BaseTestSuite {
 
     withExtensionDomain(settings) { d =>
       step("Start new epoch for ecBlock")
-      d.advanceNewBlocks(minerFromWallet.address)
+      d.advanceNewBlocks(minerFromWallet)
 
       d.ecClients.willForge(d.createEcBlockBuilder("0", minerFromWallet).build())
       d.advanceConsensusLayerChanged()
@@ -45,7 +45,7 @@ class MultiplePrivateKeysTestSuite extends BaseTestSuite {
 
     withExtensionDomain(settings) { d =>
       step("Start new epoch for ecBlock")
-      d.advanceNewBlocks(minerFromWallet.address)
+      d.advanceNewBlocks(minerFromWallet)
 
       d.ecClients.willForge(d.createEcBlockBuilder("0", minerFromWallet).build())
       d.advanceConsensusLayerChanged()
@@ -59,7 +59,7 @@ class MultiplePrivateKeysTestSuite extends BaseTestSuite {
 
     withExtensionDomain(settings) { d =>
       step("Start new epoch for ecBlock")
-      d.advanceNewBlocks(miner1.address)
+      d.advanceNewBlocks(miner1)
 
       d.ecClients.willForge(d.createEcBlockBuilder("0", miner1).build())
       d.advanceConsensusLayerChanged()
@@ -73,12 +73,12 @@ class MultiplePrivateKeysTestSuite extends BaseTestSuite {
 
     withExtensionDomain(settings) { d =>
       step("Start new epoch for ecBlock")
-      d.advanceNewBlocks(miner1.address)
+      d.advanceNewBlocks(miner1)
 
       d.ecClients.willForge(d.createEcBlockBuilder("0", miner1).build())
       d.advanceConsensusLayerChanged()
 
-      d.advanceNewBlocks(miner2.address)
+      d.advanceNewBlocks(miner2)
       d.advanceConsensusLayerChanged()
 
       d.ecClients.miningAttempts shouldBe 2
