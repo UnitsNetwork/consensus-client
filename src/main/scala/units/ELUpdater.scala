@@ -1464,7 +1464,6 @@ class ELUpdater(
       _ <- nextTransfer match {
         case None => Either.unit
         case Some(nextTransfer) =>
-          logger.debug(s"${nextTransfer.epoch} >= ${contractBlock.epoch} || ${!strictC2ETransfersActivated}")
           if (nextTransfer.epoch >= contractBlock.epoch || !strictC2ETransfersActivated) Either.unit
           else { // This transfer was on a previous epoch, miner saw it
             val blockHasMaxTransfers = nextTransfer match {

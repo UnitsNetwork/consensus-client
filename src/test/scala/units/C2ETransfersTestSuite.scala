@@ -4,10 +4,13 @@ import com.wavesplatform.block.Block.BlockId
 import com.wavesplatform.db.WithState.AddrWithBalance
 import com.wavesplatform.state.IntegerDataEntry
 import com.wavesplatform.test.produce
+import com.wavesplatform.transaction.utils.EthConverters.EthereumAddressExt
 import com.wavesplatform.transaction.{Asset, TxHelpers}
 import com.wavesplatform.wallet.Wallet
-import units.client.engine.model.Withdrawal
-import units.eth.EthAddress
+import org.web3j.abi.EventEncoder
+import units.client.engine.model.{GetLogsResponseEntry, Withdrawal}
+import units.el.{NativeBridge, StandardBridge}
+import units.eth.{EthAddress, EthNumber}
 
 class C2ETransfersTestSuite extends BaseTestSuite {
   private val transferSenderAccount  = TxHelpers.secondSigner
@@ -95,7 +98,7 @@ class C2ETransfersTestSuite extends BaseTestSuite {
   }
 
   "Strict C2E transfers" - {
-    "Not enough C2E transfers" in {
+    "Not enough native C2E transfers" in {
       val reliable    = ElMinerSettings(Wallet.generateNewAccount(super.defaultSettings.walletSeed, 0))
       val malfunction = ElMinerSettings(TxHelpers.signer(2))
       val settings    = defaultSettings.copy(initialMiners = List(reliable, malfunction)).withEnabledElMining
@@ -132,6 +135,61 @@ class C2ETransfersTestSuite extends BaseTestSuite {
             b.copy(withdrawals = Vector(Withdrawal(0, destElAddress, UnitsConvert.toGwei(userAmount)))) // Only one
           }
           .buildAndSetLogs()
+
+        d.appendMicroBlock(d.ChainContract.extendMainChain(malfunction.account, wrongBlock, lastC2ETransferIndex = 0))
+        d.advanceConsensusLayerChanged()
+
+        step(s"Receive wrongBlock ${wrongBlock.hash}")
+        d.receiveNetworkBlock(wrongBlock, malfunction.account)
+        withClue("Full EL block validation:") {
+          d.triggerScheduledTasks()
+          if (d.pollSentNetworkBlock().isDefined) fail(s"${wrongBlock.hash} should be ignored")
+        }
+      }
+    }
+
+    "Not enough asset C2E transfers" in {
+      val reliable    = ElMinerSettings(Wallet.generateNewAccount(super.defaultSettings.walletSeed, 0))
+      val malfunction = ElMinerSettings(TxHelpers.signer(2))
+      val settings    = defaultSettings.copy(initialMiners = List(reliable, malfunction)).withEnabledElMining
+      withExtensionDomain(settings) { d =>
+        step("Activate strict C2E transfers")
+        val userAmount    = 1
+        val amount        = UnitsConvert.toUnitsInWaves(userAmount)
+        val destElAddress = EthAddress.unsafeFrom(s"0x$validTransferRecipient")
+        def mkTransfer(ts: Long) = d.ChainContract.transfer(
+          sender = transferSenderAccount,
+          destElAddress = destElAddress,
+          asset = Asset.Waves,
+          amount = amount,
+          timestamp = ts
+        )
+
+        val now = System.currentTimeMillis()
+        d.appendBlock(
+          d.ChainContract.enableStrictTransfers(d.blockchain.height + 1),
+          // Transfers of Waves
+          TxHelpers.transfer(d.chainContractAccount, transferSenderAccount.toAddress, amount * 2, Asset.Waves),
+          mkTransfer(now),
+          mkTransfer(now + 1)
+        )
+
+        val transferEvents = List(
+          StandardBridge.ERC20BridgeFinalized( // Only one
+            WWavesAddress,
+            EthAddress.unsafeFrom(transferSenderAccount.toAddress.toEthAddress),
+            destElAddress,
+            EAmount(UnitsConvert.toWei(userAmount).bigInteger)
+          )
+        )
+
+        step(s"Start a new epoch of malfunction miner ${malfunction.address}")
+        d.advanceNewBlocks(malfunction)
+        d.advanceConsensusLayerChanged()
+
+        val wrongBlock = d
+          .createEcBlockBuilder("0", malfunction)
+          .buildAndSetLogs(transferEvents.map(getLogsResponseEntry))
 
         d.appendMicroBlock(d.ChainContract.extendMainChain(malfunction.account, wrongBlock, lastC2ETransferIndex = 0))
         d.advanceConsensusLayerChanged()
