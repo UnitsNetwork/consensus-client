@@ -159,7 +159,7 @@ func isElAssetRegistered(erc20AddressHex: String) = getInteger(assetRegistryELK 
 
 func ensureCorrectTransfers(refTransferIndex: Int, transferIndex: Int) =
   transferIndex >= refTransferIndex ||
-    throw("Expected a transfer index: " + transferIndex.toString() + " to be >= a transfer index of a referenced block " + refTransferIndex.toString())
+    throw("Expected the transfer index of " + transferIndex.toString() + " to be >= " + refTransferIndex.toString())
 
 func amountGtEq(t: AttachedPayment, gtEq: Int, queueSize: Int) =
   t.amount >= gtEq || throw(
@@ -281,7 +281,7 @@ let (computedGenerator, computedTotalBalance) = {
   FOLD<50>(allMiners, ("", 0, INT_MAX, []), processMiner)
 }
 
-let (mainChainLastBlockHeight, mainChainEpoch) = blockMeta(mainChainLastBlock)
+let (mclbIgnored1, mainChainEpoch) = blockMeta(mainChainLastBlock)
 
 func calculateFinalizedBlockHashAndEpoch(curMiner: Address, curPrevEpoch: Int, curLastBlockHash: String) = {
   let halfBalance = computedTotalBalance / 2

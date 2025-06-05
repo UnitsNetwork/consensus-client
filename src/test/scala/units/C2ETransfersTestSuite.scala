@@ -121,79 +121,84 @@ class C2ETransfersTestSuite extends BaseTestSuite {
       timestamp = ts
     )
 
-    val reliable    = ElMinerSettings(Wallet.generateNewAccount(super.defaultSettings.walletSeed, 0))
-    val malfunction = ElMinerSettings(TxHelpers.signer(2))
-    val settings    = defaultSettings.copy(initialMiners = List(reliable, malfunction)).withEnabledElMining
+    val reliable = ElMinerSettings(Wallet.generateNewAccount(super.defaultSettings.walletSeed, 0))
+    val second   = ElMinerSettings(TxHelpers.signer(2))
+    val settings = defaultSettings.copy(initialMiners = List(reliable, second)).withEnabledElMining
+    "Not enough" - {
+      val malfunction = second
 
-    "Not enough native C2E transfers" in withExtensionDomain(settings) { d =>
-      step("Activate strict C2E transfers")
-      val now = System.currentTimeMillis()
-      d.appendBlock(
-        d.ChainContract.enableStrictTransfers(d.blockchain.height + 1),
-        // Transfers of native token
-        TxHelpers.reissue(d.nativeTokenId, d.chainContractAccount, nativeTokensClAmount * 2),
-        TxHelpers.transfer(d.chainContractAccount, transferSenderAccount.toAddress, nativeTokensClAmount * 2, d.nativeTokenId),
-        mkNativeTransfer(d, now),
-        mkNativeTransfer(d, now + 1)
-      )
-
-      step(s"Start a new epoch of malfunction miner ${malfunction.address}")
-      d.advanceNewBlocks(malfunction)
-      d.advanceConsensusLayerChanged()
-
-      val wrongBlock = d
-        .createEcBlockBuilder("0", malfunction)
-        .updateBlock { b =>
-          b.copy(withdrawals = Vector(Withdrawal(0, destElAddress, nativeTokensElAmount))) // Only one
-        }
-        .buildAndSetLogs()
-
-      d.appendMicroBlock(d.ChainContract.extendMainChain(malfunction.account, wrongBlock, lastC2ETransferIndex = 0))
-      d.advanceConsensusLayerChanged()
-
-      step(s"Receive wrongBlock ${wrongBlock.hash}")
-      d.receiveNetworkBlock(wrongBlock, malfunction.account)
-      withClue("Full EL block validation:") {
-        d.triggerScheduledTasks()
-        if (d.pollSentNetworkBlock().isDefined) fail(s"${wrongBlock.hash} should be ignored")
-      }
-    }
-
-    "Not enough asset C2E transfers" in withExtensionDomain(settings) { d =>
-      step("Activate strict C2E transfers")
-      val now = System.currentTimeMillis()
-      d.appendBlock(
-        d.ChainContract.enableStrictTransfers(d.blockchain.height + 1),
-        // Transfers of Waves
-        mkAssetTransfer(d, now),
-        mkAssetTransfer(d, now + 1)
-      )
-
-      val transferEvents = List(
-        StandardBridge.ERC20BridgeFinalized( // Only one
-          WWavesAddress,
-          EthAddress.unsafeFrom(transferSenderAccount.toAddress.toEthAddress),
-          destElAddress,
-          EAmount(assetTokensElAmount.bigInteger)
+      "Native C2E transfers" in withExtensionDomain(settings) { d =>
+        step("Activate strict C2E transfers")
+        val now = System.currentTimeMillis()
+        d.appendBlock(
+          d.ChainContract.enableStrictTransfers(d.blockchain.height + 1),
+          // Transfers of native token
+          TxHelpers.reissue(d.nativeTokenId, d.chainContractAccount, nativeTokensClAmount * 2),
+          TxHelpers.transfer(d.chainContractAccount, transferSenderAccount.toAddress, nativeTokensClAmount * 2, d.nativeTokenId),
+          mkNativeTransfer(d, now),
+          mkNativeTransfer(d, now + 1)
         )
-      )
 
-      step(s"Start a new epoch of malfunction miner ${malfunction.address}")
-      d.advanceNewBlocks(malfunction)
-      d.advanceConsensusLayerChanged()
+        step(s"Start a new epoch of malfunction miner ${malfunction.address}")
+        d.advanceNewBlocks(malfunction)
+        d.advanceConsensusLayerChanged()
 
-      val wrongBlock = d
-        .createEcBlockBuilder("0", malfunction)
-        .buildAndSetLogs(transferEvents.map(getLogsResponseEntry(_)))
+        val wrongBlock = d
+          .createEcBlockBuilder("0", malfunction)
+          .updateBlock { b =>
+            b.copy(withdrawals = Vector(Withdrawal(0, destElAddress, nativeTokensElAmount))) // Only one
+          }
+          .buildAndSetLogs()
 
-      d.appendMicroBlock(d.ChainContract.extendMainChain(malfunction.account, wrongBlock, lastC2ETransferIndex = 0))
-      d.advanceConsensusLayerChanged()
+        d.appendMicroBlock(d.ChainContract.extendMainChain(malfunction.account, wrongBlock, lastC2ETransferIndex = 0))
+        d.advanceConsensusLayerChanged()
 
-      step(s"Receive wrongBlock ${wrongBlock.hash}")
-      d.receiveNetworkBlock(wrongBlock, malfunction.account)
-      withClue("Full EL block validation:") {
-        d.triggerScheduledTasks()
-        if (d.pollSentNetworkBlock().isDefined) fail(s"${wrongBlock.hash} should be ignored")
+        step(s"Receive wrongBlock ${wrongBlock.hash}")
+        d.receiveNetworkBlock(wrongBlock, malfunction.account)
+        withClue("Full EL block validation:") {
+          d.triggerScheduledTasks()
+          if (d.pollSentNetworkBlock().isDefined) fail(s"${wrongBlock.hash} should be ignored")
+        }
+      }
+
+      "Asset C2E transfers" in withExtensionDomain(settings) { d =>
+        val malfunction = second
+
+        step("Activate strict C2E transfers")
+        val now = System.currentTimeMillis()
+        d.appendBlock(
+          d.ChainContract.enableStrictTransfers(d.blockchain.height + 1),
+          // Transfers of Waves
+          mkAssetTransfer(d, now),
+          mkAssetTransfer(d, now + 1)
+        )
+
+        val transferEvents = List(
+          StandardBridge.ERC20BridgeFinalized( // Only one
+            WWavesAddress,
+            EthAddress.unsafeFrom(transferSenderAccount.toAddress.toEthAddress),
+            destElAddress,
+            EAmount(assetTokensElAmount.bigInteger)
+          )
+        )
+
+        step(s"Start a new epoch of malfunction miner ${malfunction.address}")
+        d.advanceNewBlocks(malfunction)
+        d.advanceConsensusLayerChanged()
+
+        val wrongBlock = d
+          .createEcBlockBuilder("0", malfunction)
+          .buildAndSetLogs(transferEvents.map(getLogsResponseEntry(_)))
+
+        d.appendMicroBlock(d.ChainContract.extendMainChain(malfunction.account, wrongBlock, lastC2ETransferIndex = 0))
+        d.advanceConsensusLayerChanged()
+
+        step(s"Receive wrongBlock ${wrongBlock.hash}")
+        d.receiveNetworkBlock(wrongBlock, malfunction.account)
+        withClue("Full EL block validation:") {
+          d.triggerScheduledTasks()
+          if (d.pollSentNetworkBlock().isDefined) fail(s"${wrongBlock.hash} should be ignored")
+        }
       }
     }
 
@@ -221,12 +226,12 @@ class C2ETransfersTestSuite extends BaseTestSuite {
         getLogsResponseEntry(event, i)
       }.toList
 
-      step(s"Start a new epoch of miner ${malfunction.address}")
-      d.advanceNewBlocks(malfunction)
+      step(s"Start a new epoch of miner ${second.address}")
+      d.advanceNewBlocks(second)
       d.advanceConsensusLayerChanged()
 
       val block = d
-        .createEcBlockBuilder("0", malfunction)
+        .createEcBlockBuilder("0", second)
         .updateBlock { b =>
           b.copy(withdrawals = (0 to 1).map(Withdrawal(_, destElAddress, nativeTokensElAmount)).toVector)
         }
@@ -237,12 +242,12 @@ class C2ETransfersTestSuite extends BaseTestSuite {
         mkNativeTransfer(d, now + 4),
         mkAssetTransfer(d, now + 5),
         // EL-block confirmation
-        d.ChainContract.extendMainChain(malfunction.account, block, lastC2ETransferIndex = 3)
+        d.ChainContract.extendMainChain(second.account, block, lastC2ETransferIndex = 3)
       )
       d.advanceConsensusLayerChanged()
 
       step(s"Receive block ${block.hash}")
-      d.receiveNetworkBlock(block, malfunction.account)
+      d.receiveNetworkBlock(block, second.account)
       withClue("Full EL block validation:") {
         d.triggerScheduledTasks()
         if (d.pollSentNetworkBlock().isEmpty) fail(s"${block.hash} should not be ignored")
@@ -264,24 +269,24 @@ class C2ETransfersTestSuite extends BaseTestSuite {
 
       d.appendBlock(txns*)
 
-      step(s"Start a new epoch of miner ${malfunction.address}")
-      d.advanceNewBlocks(malfunction)
+      step(s"Start a new epoch of miner ${second.address}")
+      d.advanceNewBlocks(second)
       d.advanceConsensusLayerChanged()
 
       val block = d
-        .createEcBlockBuilder("0", malfunction)
+        .createEcBlockBuilder("0", second)
         .updateBlock { b =>
           b.copy(withdrawals = (0 until EcBlock.MaxWithdrawals).map(Withdrawal(_, destElAddress, nativeTokensElAmount)).toVector)
         }
         .buildAndSetLogs()
 
       d.appendMicroBlock(
-        d.ChainContract.extendMainChain(malfunction.account, block, lastC2ETransferIndex = EcBlock.MaxWithdrawals - 1)
+        d.ChainContract.extendMainChain(second.account, block, lastC2ETransferIndex = EcBlock.MaxWithdrawals - 1)
       )
       d.advanceConsensusLayerChanged()
 
       step(s"Receive block ${block.hash}")
-      d.receiveNetworkBlock(block, malfunction.account)
+      d.receiveNetworkBlock(block, second.account)
       withClue("Full EL block validation:") {
         d.triggerScheduledTasks()
         if (d.pollSentNetworkBlock().isEmpty) fail(s"${block.hash} should not be ignored")
