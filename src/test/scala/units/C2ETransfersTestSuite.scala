@@ -8,7 +8,7 @@ import com.wavesplatform.transaction.utils.EthConverters.EthereumAddressExt
 import com.wavesplatform.transaction.{Asset, TxHelpers}
 import com.wavesplatform.wallet.Wallet
 import org.web3j.abi.EventEncoder
-import units.client.engine.model.{GetLogsResponseEntry, Withdrawal}
+import units.client.engine.model.{EcBlock, GetLogsResponseEntry, Withdrawal}
 import units.el.{NativeBridge, StandardBridge}
 import units.eth.{EthAddress, EthNumber}
 
@@ -238,6 +238,45 @@ class C2ETransfersTestSuite extends BaseTestSuite {
         mkAssetTransfer(d, now + 5),
         // EL-block confirmation
         d.ChainContract.extendMainChain(malfunction.account, block, lastC2ETransferIndex = 3)
+      )
+      d.advanceConsensusLayerChanged()
+
+      step(s"Receive block ${block.hash}")
+      d.receiveNetworkBlock(block, malfunction.account)
+      withClue("Full EL block validation:") {
+        d.triggerScheduledTasks()
+        if (d.pollSentNetworkBlock().isEmpty) fail(s"${block.hash} should not be ignored")
+      }
+    }
+
+    "More than maximum C2E native transfers" in withExtensionDomain(settings) { d =>
+      step("Activate strict C2E transfers")
+      val now             = System.currentTimeMillis()
+      val transfersNumber = EcBlock.MaxWithdrawals + 1
+      val txns = Seq(
+        d.ChainContract.enableStrictTransfers(d.blockchain.height + 1),
+        // Transfers
+        TxHelpers.reissue(d.nativeTokenId, d.chainContractAccount, nativeTokensClAmount * transfersNumber),
+        TxHelpers.transfer(d.chainContractAccount, transferSenderAccount.toAddress, nativeTokensClAmount * transfersNumber, d.nativeTokenId)
+      ) ++ (0 until transfersNumber).map { i =>
+        mkNativeTransfer(d, now + i)
+      }
+
+      d.appendBlock(txns*)
+
+      step(s"Start a new epoch of miner ${malfunction.address}")
+      d.advanceNewBlocks(malfunction)
+      d.advanceConsensusLayerChanged()
+
+      val block = d
+        .createEcBlockBuilder("0", malfunction)
+        .updateBlock { b =>
+          b.copy(withdrawals = (0 until EcBlock.MaxWithdrawals).map(Withdrawal(_, destElAddress, nativeTokensElAmount)).toVector)
+        }
+        .buildAndSetLogs()
+
+      d.appendMicroBlock(
+        d.ChainContract.extendMainChain(malfunction.account, block, lastC2ETransferIndex = EcBlock.MaxWithdrawals - 1)
       )
       d.advanceConsensusLayerChanged()
 
