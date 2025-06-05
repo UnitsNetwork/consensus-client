@@ -43,7 +43,7 @@ if script_info["script"] is None:
         os.path.join(contracts_dir, "waves", "src", "main.ride"), "r", encoding="utf-8"
     ) as file:
         source = file.read()
-    r = network.cl_chain_contract.setScript(source, txFee=5_400_000)
+    r = network.cl_chain_contract.setScript(source, txFee=5_600_000)
     waves.force_success(log, r, "Can not set the chain contract script")
 
 if not network.cl_chain_contract.isContractSetup():
@@ -174,10 +174,25 @@ if len(network.cl_chain_contract.getData(regex="assetTransfersActivationEpoch"))
         ],
         txFee=900_000,
     )
+    strict_transfers_txn = network.cl_chain_contract.oracleAcc.dataTransaction(
+        [
+            {
+                "type": "integer",
+                "key": "strictC2ETransfersActivationEpoch",
+                "value": activation_height,
+            }
+        ]
+    )
     waves.force_success(
         log,
         enable_transfers_txn,
         "Could not enable token transfers",
+        wait=True,
+    )
+    waves.force_success(
+        log,
+        strict_transfers_txn,
+        "Could not enable strict transfers",
         wait=True,
     )
     log.info("Wait activation")
