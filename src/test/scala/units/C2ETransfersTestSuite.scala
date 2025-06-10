@@ -4,7 +4,12 @@ import com.wavesplatform.block.Block.BlockId
 import com.wavesplatform.db.WithState.AddrWithBalance
 import com.wavesplatform.state.IntegerDataEntry
 import com.wavesplatform.test.produce
+import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import com.wavesplatform.transaction.{Asset, TxHelpers}
+import com.wavesplatform.wallet.Wallet
+import units.ELUpdater.State.ChainStatus.WaitForNewChain
+import units.el.StandardBridge
+import units.eth.EthAddress
 
 class C2ETransfersTestSuite extends BaseTestSuite {
   private val transferSenderAccount  = TxHelpers.secondSigner
@@ -89,6 +94,53 @@ class C2ETransfersTestSuite extends BaseTestSuite {
 
     val registeredAssets = d.chainContractClient.getAllRegisteredAssets.map(_.asset)
     registeredAssets shouldBe List(Asset.Waves, issueAsset, issueAsset2Txn.asset)
+  }
+
+  "Native Transfers via Deposits" - {
+    val userAmount           = 1
+    val nativeTokensClAmount = UnitsConvert.toUnitsInWaves(userAmount)
+    val destElAddress        = EthAddress.unsafeFrom(s"0x$validTransferRecipient")
+
+    def mkNativeTransfer(d: ExtensionDomain): InvokeScriptTransaction = d.ChainContract.transfer(
+      sender = transferSenderAccount,
+      destElAddress = destElAddress,
+      asset = d.nativeTokenId,
+      amount = nativeTokensClAmount
+    )
+
+    val reliable = ElMinerSettings(Wallet.generateNewAccount(super.defaultSettings.walletSeed, 0))
+    val second   = ElMinerSettings(TxHelpers.signer(2))
+    val settings = defaultSettings.copy(initialMiners = List(reliable, second)).withEnabledElMining
+
+    "Infinite loop test" in withExtensionDomain(settings) { d =>
+      d.appendBlock(
+        TxHelpers.reissue(d.nativeTokenId, d.chainContractAccount, nativeTokensClAmount),
+        TxHelpers.transfer(d.chainContractAccount, transferSenderAccount.toAddress, nativeTokensClAmount, d.nativeTokenId),
+        mkNativeTransfer(d)
+      )
+
+      step("Start new epoch for ecBlock1")
+      d.advanceNewBlocks(second.address)
+      d.advanceConsensusLayerChanged()
+
+      val ecBlock1 = d.createEcBlockBuilder("0", second).buildAndSetLogs()
+      d.ecClients.addKnown(ecBlock1)
+      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(second.account, ecBlock1))
+      d.advanceConsensusLayerChanged()
+
+      step(s"Start a new epoch of miner ${second.address}")
+      d.advanceNewBlocks(second.address)
+      d.advanceConsensusLayerChanged()
+
+      val transferLogEntries = List() // doesn't matter for this test
+      val ecBlock2 = d
+        .createEcBlockBuilder("0", second, ecBlock1)
+        .buildAndSetLogs(transferLogEntries)
+
+      step(s"Append a CL micro block with ecBlock2 ${ecBlock2.hash} confirmation")
+      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(second.account, ecBlock2))
+      d.advanceConsensusLayerChanged() // TODO: Somehow causes an infinite loop
+    }
   }
 
   private def transferFuncTest(
