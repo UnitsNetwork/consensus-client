@@ -412,11 +412,7 @@ class ELUpdater(
             } yield newNetworkBlock
 
             getAndApplyPayloadResult match {
-              case Left(err) =>
-                val message = s"Failed to forge block at epoch ${epochInfo.number}: ${err.message}"
-                if (err.message.contains("not allowed to forge blocks in this epoch")) logger.debug(message) // Expected in the end of epoch
-                else logger.error(message)
-
+              case Left(err) => logger.error(s"Failed to forge block at epoch ${epochInfo.number}: ${err.message}")
               case Right(networkBlock) =>
                 val ecBlock         = networkBlock.toEcBlock
                 val nextBlockUnixTs = (ecBlock.timestamp + config.blockDelay.toSeconds).max(time.correctedTime() / 1000)
@@ -472,8 +468,13 @@ class ELUpdater(
                         } yield ()
 
                         confirmElBlockOnCl match {
-                          case Left(err) => logger.error(s"Can't confirm block ${ecBlock.hash} on CL: ${err.message}")
-                          case _         =>
+                          case Left(err) =>
+                            val message = s"Can't confirm block ${ecBlock.hash} on CL: ${err.message}"
+                            if (err.message.contains("not allowed to forge blocks in this epoch"))
+                              logger.debug(message) // Expected in the end of epoch
+                            else logger.error(message)
+
+                          case _ =>
                             // We update state here, because the full validation will fail on other nodes, if we haven't a confirmation transaction
                             setState(
                               "tryToForgeNextBlock",
@@ -750,7 +751,6 @@ class ELUpdater(
       case Left(error) => logger.error(s"Could not load finalized block", error)
       case Right(Some(finalizedEcBlock)) =>
         logger.trace(s"Finalized block ${finalizedBlock.hash} is at height ${finalizedEcBlock.height}")
-
 
         // Note: `nobodyStartedMining` will be true on every empty epoch.
         // We benefit from it in cases when idle miner was evicted, a list of miners has changed,
