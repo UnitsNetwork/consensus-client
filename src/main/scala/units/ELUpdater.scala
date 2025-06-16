@@ -1463,12 +1463,13 @@ class ELUpdater(
       _ <- nextTransfer match {
         case None => Either.unit
         case Some(nextTransfer) =>
-          val strictC2ETransfersActivated = contractBlock.epoch >= chainContractOptions.strictC2ETransfersActivationEpoch
+          val strictC2ETransfersActivated = contractBlock.epoch >= chainContractClient.strictC2ETransfersActivationEpoch
           if (nextTransfer.epoch >= contractBlock.epoch || !strictC2ETransfersActivated) Either.unit
           else { // This transfer was on a previous epoch, miner saw it
             val blockHasMaxTransfers = nextTransfer match {
-              case _: ContractTransfer.Asset => false
+              case _: ContractTransfer.Asset  => false // Could add an asset transfer even it took maximum native transfers
               case _: ContractTransfer.Native =>
+                // Could not take a native transfer only if there were no free slots
                 val maxNativeTransfersInBlock = EcBlock.MaxWithdrawals - prevMinerElRewardAddress.fold(0)(_ => 1)
                 ecBlock.withdrawals.size == maxNativeTransfersInBlock
             }

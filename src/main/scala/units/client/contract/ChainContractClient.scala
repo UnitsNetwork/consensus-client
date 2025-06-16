@@ -209,8 +209,7 @@ trait ChainContractClient {
       .getOrElse(throw new IllegalStateException("elBridgeAddress is empty on contract")),
     elStandardBridgeAddress = getStringData("elStandardBridgeAddress")
       .map(EthAddress.unsafeFrom),
-    assetTransfersActivationEpoch = getAssetTransfersActivationEpoch,
-    strictC2ETransfersActivationEpoch = getStrictC2ETransfersActivationEpoch
+    assetTransfersActivationEpoch = getAssetTransfersActivationEpoch
   )
 
   private def getAssetTransfersActivationEpoch: Long = getLongData("assetTransfersActivationEpoch").getOrElse(Long.MaxValue)

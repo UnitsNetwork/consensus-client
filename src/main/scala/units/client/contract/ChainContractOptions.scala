@@ -12,8 +12,7 @@ case class ChainContractOptions(
     miningReward: Gwei,
     elNativeBridgeAddress: EthAddress,
     elStandardBridgeAddress: Option[EthAddress],
-    assetTransfersActivationEpoch: Long,
-    strictC2ETransfersActivationEpoch: Long
+    assetTransfersActivationEpoch: Long
 ) {
   def bridgeAddresses(epoch: Int): List[EthAddress] = {
     val before = List(elNativeBridgeAddress)
