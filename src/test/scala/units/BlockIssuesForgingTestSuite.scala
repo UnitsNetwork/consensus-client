@@ -70,7 +70,9 @@ class BlockIssuesForgingTestSuite extends BaseTestSuite {
     }
 
     "EC-block doesn't come - then we start an alternative chain" in test { (d, ecBlock1, _, _) =>
-      d.ecClients.willSimulate(d.createEcBlockBuilder("0-1", thisMiner, ecBlock1).buildAndSetLogs())
+      val nextBlock = d.createEcBlockBuilder("0-1", thisMiner, ecBlock1).buildAndSetLogs()
+      d.ecClients.willSimulate(nextBlock)
+      d.ecClients.willForge(d.createEcBlockBuilder("0-1-i", thisMiner, nextBlock).build())
       d.waitForCS[Mining]("Switched to alternative chain") { s =>
         s.nodeChainInfo.isLeft shouldBe true
       }
