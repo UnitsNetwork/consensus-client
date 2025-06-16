@@ -214,7 +214,7 @@ trait ChainContractClient {
 
   private def getAssetTransfersActivationEpoch: Long = getLongData("assetTransfersActivationEpoch").getOrElse(Long.MaxValue)
 
-  private def getStrictC2ETransfersActivationEpoch: Long = getLongData("strictC2ETransfersActivationEpoch").getOrElse(Long.MaxValue)
+  def getStrictC2ETransfersActivationEpoch: Long = getLongData("strictC2ETransfersActivationEpoch").getOrElse(Long.MaxValue)
 
   private def getChainMeta(chainId: Long): Option[(Int, BlockHash)] = {
     val key = f"chain_$chainId%08d"
