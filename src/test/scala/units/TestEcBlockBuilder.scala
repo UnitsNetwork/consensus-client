@@ -1,22 +1,23 @@
 package units
 
+import com.wavesplatform.utils.ScorexLogging
 import org.web3j.abi.datatypes.generated.Uint256
 import units.client.TestEcClients
 import units.client.engine.model.{EcBlock, GetLogsRequest, GetLogsResponseEntry, Withdrawal}
-import units.el.{NativeBridge, StandardBridge}
 import units.eth.{EthAddress, EthereumConstants, Gwei}
 
 import java.nio.charset.StandardCharsets
 import scala.concurrent.duration.FiniteDuration
 
 class TestEcBlockBuilder private (
+    hashPath: String,
     testEcClients: TestEcClients,
     elNativeBridgeAddress: EthAddress,
     elStandardBridgeAddress: EthAddress,
     elMinerDefaultReward: Gwei,
     private var block: EcBlock,
     parentBlock: EcBlock
-) {
+) extends ScorexLogging {
   def updateBlock(f: EcBlock => EcBlock): this.type = {
     block = f(block)
     this
@@ -37,12 +38,17 @@ class TestEcBlockBuilder private (
     this
   }
 
-  def build(): EcBlock                                                        = block
-  def buildAndSetLogs(ecBlockLogs: List[GetLogsResponseEntry] = Nil): EcBlock = setLogs(ecBlockLogs).block
+  def build(): EcBlock = {
+    log.debug(s"Created a block with hashPath=$hashPath: $block")
+    block
+  }
+
+  def buildAndSetLogs(ecBlockLogs: List[GetLogsResponseEntry] = Nil): EcBlock = setLogs(ecBlockLogs).build()
 }
 
 object TestEcBlockBuilder {
   def apply(
+      hashPath: String,
       testEcClients: TestEcClients,
       elNativeBridgeAddress: EthAddress,
       elStandardBridgeAddress: EthAddress,
@@ -51,12 +57,13 @@ object TestEcBlockBuilder {
       parent: EcBlock
   ): TestEcBlockBuilder =
     new TestEcBlockBuilder(
+      hashPath,
       testEcClients,
       elNativeBridgeAddress,
       elStandardBridgeAddress,
       elMinerDefaultReward,
       EcBlock(
-        hash = createBlockHash("???"),
+        hash = createBlockHash(hashPath),
         parentHash = parent.hash,
         stateRoot = EthereumConstants.EmptyRootHashHex,
         height = parent.height + 1,

@@ -61,6 +61,7 @@ class ClientConfigTestSuite extends FlatSpec {
          |    api-request-retry-wait-time = 2s
          |
          |    block-delay = 6s
+         |    first-block-min-delay = 1s
          |    block-sync-request-timeout = 500ms
          |
          |    network = $stubNetworkSettingsString
@@ -82,6 +83,7 @@ class ClientConfigTestSuite extends FlatSpec {
     clientConfig.apiRequestRetries shouldBe 2
     clientConfig.apiRequestRetryWaitTime shouldBe 2.seconds
     clientConfig.blockDelay shouldBe 6.seconds
+    clientConfig.firstBlockMinDelay shouldBe 1.second
     clientConfig.blockSyncRequestTimeout shouldBe 500.millis
     clientConfig.miningEnable shouldBe true
     clientConfig.privateKeys shouldBe Seq(
@@ -101,6 +103,7 @@ class ClientConfigTestSuite extends FlatSpec {
          |    api-request-retry-wait-time = 2s
          |
          |    block-delay = 6s
+         |    first-block-min-delay = 1s
          |    block-sync-request-timeout = 500ms
          |
          |    network = $stubNetworkSettingsString

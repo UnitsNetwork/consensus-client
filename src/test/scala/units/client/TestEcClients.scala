@@ -13,58 +13,59 @@ import units.client.engine.model.*
 import units.client.engine.{EngineApiClient, LoggedEngineApiClient}
 import units.collections.ListOps.*
 import units.eth.{EthAddress, EthereumConstants}
-import units.{BlockHash, JobResult, NetworkL2Block}
+import units.{BlockHash, ClientError, JobResult, NetworkL2Block}
 
 import scala.util.chaining.*
 
+/** Life of a block:
+  *   1. User calls willForge - goes to futureBlocks, willSimulate - to sumulatedBlocks.
+  *   2. CC calls forkchoiceUpdatedWithPayload - moves from futureBlocks to pendingPayloads.
+  *   3. CC calls newPayload - moves from pendingPayloads to readyBlocks.
+  *   4. CC calls forkchoiceUpdated / forkchoiceUpdatedWithPayload - head block moves from readyBlocks to chain.
+  */
 class TestEcClients private (
     elStandardBridgeAddress: EthAddress,
     elNativeBridgeAddress: EthAddress,
-    knownBlocks: Atomic[Map[BlockHash, ChainId]],
-    chains: Atomic[Map[ChainId, List[EcBlock]]],
+    pendingPayloads: Atomic[Map[PayloadId, EcBlock]],
+    readyBlocks: Atomic[Map[BlockHash, EcBlock]],
+    chain: Atomic[List[EcBlock]],
     currChainIdValue: AtomicInt,
     blockchain: Blockchain
 ) extends ScorexLogging {
   def this(elStandardBridgeAddress: EthAddress, elNativeBridgeAddress: EthAddress, genesis: EcBlock, blockchain: Blockchain) = this(
     elStandardBridgeAddress = elStandardBridgeAddress,
     elNativeBridgeAddress = elNativeBridgeAddress,
-    knownBlocks = Atomic(Map(genesis.hash -> 0)),
-    chains = Atomic(Map(0 -> List(genesis))),
+    pendingPayloads = Atomic(Map.empty),
+    readyBlocks = Atomic(Map.empty),
+    chain = Atomic(List(genesis)),
     currChainIdValue = AtomicInt(0),
     blockchain = blockchain
   )
 
-  private def currChainId: ChainId = currChainIdValue.get()
-
-  def lastKnownBlock(chainId: ChainId = currChainId): EcBlock =
-    chains
-      .get()
-      .getOrElse(chainId, fail(s"Can't find chain #$chainId"))
-      .headOption
-      .getOrElse(fail(s"No blocks in chain #$chainId"))
-
   def addKnown(ecBlock: EcBlock): EcBlock = {
-    knownBlocks.transform(_.updated(ecBlock.hash, currChainId))
-    prependToCurrentChain(ecBlock)
+    chain.transform(ecBlock :: _)
     ecBlock
   }
 
-  private def prependToCurrentChain(b: EcBlock): Unit =
-    prependToChain(currChainId, b)
+  private val futureBlocks   = Atomic(List.empty[EcBlock])
+  private val simulateBlocks = Atomic(List.empty[EcBlock])
 
-  private def prependToChain(chainId: ChainId, b: EcBlock): Unit =
-    chains.transform { chains =>
-      chains.updated(chainId, b :: chains(chainId))
+  // Also removes all blocks in sumulateBlocks, futureBlocks and pendingPayloads those have same parent
+  private def appendBlock(b: EcBlock, simulated: Boolean): Unit = {
+    if (simulated) {
+      simulateBlocks.transform(bs => b :: bs.filterNot(_.parentHash == b.parentHash))
+      futureBlocks.transform(bs => bs.filterNot(_.parentHash == b.parentHash))
+    } else {
+      simulateBlocks.transform(bs => bs.filterNot(_.parentHash == b.parentHash))
+      futureBlocks.transform(bs => b :: bs.filterNot(_.parentHash == b.parentHash))
     }
 
-  private def currChain: List[EcBlock] =
-    chains.get().getOrElse(currChainId, fail(s"Unknown chain $currChainId"))
+    pendingPayloads.transform(_.filterNot { case (_, pb) => pb.parentHash == b.parentHash })
+    log.debug(s"Will ${if (simulated) "simulate" else "forge"} ${b.hash.take(LogChars)}->${b.parentHash.take(LogChars)}")
+  }
 
-  private val generatedBlocks                               = Atomic(List.empty[GeneratedBlock])
-  private def appendGeneratedBlock(b: GeneratedBlock): Unit = generatedBlocks.transform(b :: _)
-
-  def willForge(ecBlock: EcBlock): Unit    = appendGeneratedBlock(GeneratedBlock(ecBlock))
-  def willSimulate(ecBlock: EcBlock): Unit = appendGeneratedBlock(GeneratedBlock(ecBlock, simulated = true))
+  def willForge(ecBlock: EcBlock): Unit    = appendBlock(ecBlock, simulated = false)
+  def willSimulate(ecBlock: EcBlock): Unit = appendBlock(ecBlock, simulated = true)
 
   private val logs = Atomic(Map.empty[GetLogsRequest, List[GetLogsResponseEntry]])
   def setBlockLogs(request: GetLogsRequest, response: List[GetLogsResponseEntry]): Unit = logs.transform(_.updated(request, response))
@@ -80,76 +81,82 @@ class TestEcClients private (
 
   val engineApi = new LoggedEngineApiClient(
     new EngineApiClient {
-      private val LogChars = 7
+      override def simulate(blockStateCalls: Seq[BlockStateCall], hash: BlockHash, requestId: Int): JobResult[Seq[JsObject]] = {
+        val stateCall = blockStateCalls.headOption.getOrElse(fail("Multiple blockStateCalls"))
+        require(stateCall.calls.isEmpty, s"Not implemented for nonempty calls, because of logs: ${stateCall.calls}")
 
-      override def simulate(blockStateCalls: Seq[BlockStateCall], hash: BlockHash, requestId: Int): JobResult[Seq[JsObject]] =
-        generatedBlocks.transformAndExtract(_.withoutFirst { b => b.simulated && b.testBlock.parentHash == hash }) match {
-          case None =>
-            val related = generatedBlocks
-              .get()
-              .collect { case b if b.simulated => s"${b.testBlock.hash.take(LogChars)}->${b.testBlock.parentHash.take(LogChars)}" }
-              .mkString(", ")
-            fail(s"Can't find the simulated block with the ${hash.take(LogChars)} parent hash among: $related. Call willSimulate")
-
-          case Some(b) =>
-            val stateCall = blockStateCalls.headOption.getOrElse(fail("Multiple blockStateCalls"))
-            require(stateCall.calls.isEmpty, s"Not implemented for nonempty calls, because of logs: ${stateCall.calls}")
-
-            val simulated = EcBlock(
-              hash = b.testBlock.hash,
-              parentHash = hash,
-              stateRoot = EthereumConstants.EmptyRootHashHex,
-              height = stateCall.blockOverrides.number,
-              timestamp = stateCall.blockOverrides.time,
-              minerRewardL2Address = stateCall.blockOverrides.feeRecipient,
-              baseFeePerGas = stateCall.blockOverrides.baseFeePerGas,
-              gasLimit = 0,
-              gasUsed = 0,
-              prevRandao = stateCall.blockOverrides.prevRandao,
-              withdrawals = stateCall.blockOverrides.withdrawals.toVector
-            )
-
-            require(simulated.height == b.testBlock.height, s"Required height ${simulated.height}, got: ${b.testBlock.height}")
-            require(
-              simulated.minerRewardL2Address == b.testBlock.minerRewardL2Address,
-              s"Required minerRewardL2Address ${simulated.minerRewardL2Address}, got: ${b.testBlock.minerRewardL2Address}"
-            )
-
-            val json = Json.obj(
-              "miner"        -> simulated.minerRewardL2Address,
-              "number"       -> EthEncoding.toHexString(simulated.height),
-              "hash"         -> simulated.hash,
-              "mixHash"      -> simulated.prevRandao,
-              "parentHash"   -> simulated.parentHash,
-              "stateRoot"    -> simulated.stateRoot,
-              "receiptsRoot" -> EthereumConstants.EmptyRootHashHex,
-              "logsBloom"    -> EthereumConstants.EmptyLogsBloomHex,
-              "gasLimit"     -> EthEncoding.toHexString(simulated.gasLimit),
-              "gasUsed"      -> EthEncoding.toHexString(simulated.gasUsed),
-              "timestamp"    -> EthEncoding.toHexString(simulated.timestamp),
-              // Empty extraData
-              "baseFeePerGas" -> EthEncoding.toHexString(simulated.baseFeePerGas.getValue)
-              // "withdrawals"   -> simulated.withdrawals
-            )
-
-            setBlockLogs(GetLogsRequest(simulated.hash, List(elStandardBridgeAddress, elNativeBridgeAddress), Nil, 0), Nil)
-
-            Seq(json).asRight
+        val nextFutureBlock = simulateBlocks.transformAndExtract { xs =>
+          val (found, rest) = xs.partition(_.parentHash == hash)
+          found match {
+            case b :: Nil => (b, rest)
+            case Nil =>
+              val foundStr = simulateBlocks.get().map { b => s"${b.hash.take(LogChars)}->${b.parentHash.take(LogChars)}" }
+              fail(s"Can't find the block with the ${hash.take(LogChars)} parent hash among: ${foundStr.mkString(", ")}. Call willSimulate")
+            case xs => fail(s"Found multiple future block candidates: $found")
+          }
         }
+
+        // We don't add a pending payload, because simulate returns a ready to apply payload instead of payload id
+        // pendingPayloads.transform(_.updated(nextFutureBlock.payloadId, nextFutureBlock.testBlock))
+
+        val sb = nextFutureBlock.copy(
+          parentHash = hash,
+          height = stateCall.blockOverrides.number,
+          timestamp = stateCall.blockOverrides.time,
+          minerRewardL2Address = stateCall.blockOverrides.feeRecipient,
+          baseFeePerGas = stateCall.blockOverrides.baseFeePerGas,
+          prevRandao = stateCall.blockOverrides.prevRandao,
+          withdrawals = stateCall.blockOverrides.withdrawals.toVector
+        )
+
+        require(
+          sb.height == nextFutureBlock.height,
+          s"Required height ${sb.height}, got: ${nextFutureBlock.height}"
+        )
+        require(
+          sb.minerRewardL2Address == nextFutureBlock.minerRewardL2Address,
+          s"Required minerRewardL2Address ${sb.minerRewardL2Address}, got: ${nextFutureBlock.minerRewardL2Address}"
+        )
+
+        val json = Json.obj(
+          "miner"        -> sb.minerRewardL2Address,
+          "number"       -> EthEncoding.toHexString(sb.height),
+          "hash"         -> sb.hash,
+          "mixHash"      -> sb.prevRandao,
+          "parentHash"   -> sb.parentHash,
+          "stateRoot"    -> sb.stateRoot,
+          "receiptsRoot" -> EthereumConstants.EmptyRootHashHex,
+          "logsBloom"    -> EthereumConstants.EmptyLogsBloomHex,
+          "gasLimit"     -> EthEncoding.toHexString(sb.gasLimit),
+          "gasUsed"      -> EthEncoding.toHexString(sb.gasUsed),
+          "timestamp"    -> EthEncoding.toHexString(sb.timestamp),
+          // Empty extraData
+          "baseFeePerGas" -> EthEncoding.toHexString(sb.baseFeePerGas.getValue),
+          "withdrawals"   -> sb.withdrawals
+        )
+
+        simulateBlocks.transform(sb :: _) // Insert an updated
+
+        Seq(json).asRight
+      }
 
       override def forkchoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int): JobResult[PayloadStatus] = {
-        knownBlocks.get().get(blockHash) match {
-          case Some(cid) =>
-            currChainIdValue.set(cid)
-            chains.transform { chains =>
-              chains.updated(cid, chains(cid).dropWhile(_.hash != blockHash))
-            }
-            log.debug(s"Curr chain: ${currChain.map(_.hash).mkString(" <- ")}")
-            PayloadStatus.Valid
-          case None =>
-            log.warn(s"Can't find a block $blockHash during forkChoiceUpdate call")
-            PayloadStatus.Unexpected("INVALID") // Generally this is wrong, but enough for now
+        val readyBlock = readyBlocks.transformAndExtract { xs =>
+          val (found, rest) = xs.partition { case (h, _) => h == blockHash } // Remove from future blocks, it's going to chain
+          require(found.size <= 1, s"Found multiple blocks: ${found.keys.mkString(", ")}")
+          (found.values.headOption, rest)
         }
+
+        // Changes the head to the expected
+        val updatedChain = chain.transformAndGet { chain =>
+          readyBlock match {
+            case Some(b) => b :: chain.dropWhile(_.hash != b.parentHash)
+            case None    => chain.dropWhile(_.hash != blockHash)
+          }
+        }
+
+        log.debug(s"Chain: ${updatedChain.map(_.hash.take(LogChars)).mkString(" -> ")}")
+        PayloadStatus.Valid
       }.asRight
 
       override def forkchoiceUpdatedWithPayload(
@@ -163,68 +170,78 @@ class TestEcClients private (
           requestId: Int
       ): JobResult[PayloadId] = {
         forkChoiceUpdateWithPayloadIdCalls.increment()
-        generatedBlocks
-          .get()
-          .collectFirst { case b if !b.simulated && b.testBlock.parentHash == lastBlockHash => b } match {
-          case Some(b) => b.payloadId.asRight
+        forkchoiceUpdated(lastBlockHash, finalizedBlockHash, requestId)
+
+        val nextFutureBlock = futureBlocks.transformAndExtract { xs =>
+          val (found, rest) = xs.partition(_.parentHash == lastBlockHash)
+          found match {
+            case b :: Nil => (b, rest)
+            case Nil =>
+              val foundForgedStr = futureBlocks.get().map { b =>
+                s"${b.hash.take(LogChars)}->${b.parentHash.take(LogChars)}"
+              }
+              fail(
+                s"Can't find the block with the ${lastBlockHash.take(LogChars)} parent hash among: ${foundForgedStr.mkString(", ")}. Call willForge"
+              )
+            case xs => fail(s"Found multiple future block candidates: $found")
+          }
+        }
+
+        val payloadId = getPayloadId(nextFutureBlock.hash)
+        pendingPayloads.transform(_.updated(payloadId, nextFutureBlock))
+        payloadId.asRight
+      }
+
+      override def getPayload(payloadId: PayloadId, requestId: Int): JobResult[JsObject] = {
+        log.debug(s"Pending payloads: ${pendingPayloads.get().values.map(b => s"${b.hash}->${b.parentHash}")}")
+        pendingPayloads.get().get(payloadId) match {
+          case Some(b) => TestEcBlocks.toPayload(b, b.prevRandao).asRight
           case None =>
-            val related = generatedBlocks.get().collect {
-              case b if !b.simulated => s"${b.testBlock.hash.take(LogChars)}->${b.testBlock.parentHash.take(LogChars)}"
-            }
-            fail(s"Can't find the block with the ${lastBlockHash.take(LogChars)} parent hash among: ${related.mkString(", ")}. Call willForge")
+            val pendingPayloadIdsStr = pendingPayloads.get().keys.mkString(", ")
+            fail(s"Can't find a block with the $payloadId payload id among: $pendingPayloadIdsStr. Call willForge")
         }
       }
 
-      override def getPayload(payloadId: PayloadId, requestId: Int): JobResult[JsObject] =
-        generatedBlocks.transformAndExtract(_.withoutFirst { b => !b.simulated && b.payloadId == payloadId }) match {
-          case Some(b) => TestEcBlocks.toPayload(b.testBlock, b.testBlock.prevRandao).asRight
-          case None =>
-            val related = generatedBlocks.get().collect { case b if !b.simulated => b.payloadId }
-            fail(s"Can't find a block with the $payloadId payload id among: ${related.mkString(", ")}. Call willForge")
-        }
-
       override def newPayload(payload: JsObject, requestId: Int): JobResult[Option[BlockHash]] = {
-        val newBlock = NetworkL2Block(payload).explicitGet().toEcBlock
-        knownBlocks.get().get(newBlock.parentHash) match {
-          case Some(cid) =>
-            val chain = chains.get()(cid)
-            if (newBlock.parentHash == chain.head.hash) {
-              prependToChain(cid, newBlock)
-              knownBlocks.transform(_.updated(newBlock.hash, cid))
-            } else { // Rollback
-              log.debug(s"A rollback using ${newBlock.hash} detected")
-              val newCid   = currChainIdValue.incrementAndGet()
-              val newChain = newBlock :: chain.dropWhile(_.hash != newBlock.parentHash)
-              chains.transform(_.updated(newCid, newChain))
-              knownBlocks.transform(_.updated(newBlock.hash, newCid))
-            }
-
-          case None => notImplementedCase(s"Can't find a parent block ${newBlock.parentHash} for ${newBlock.hash}")
+        val blockHash = (payload \ "blockHash").as[BlockHash]
+        val payloadId = getPayloadId(blockHash)
+        val forgedBlock = pendingPayloads.transformAndExtract { xs =>
+          (xs.get(payloadId), xs.removed(payloadId))
         }
-        Some(newBlock.hash)
-      }.asRight
+        val simulatedBlock = simulateBlocks.transformAndExtract { xs =>
+          val (x, rest) = xs.partition(_.hash == blockHash)
+          require(x.size <= 1, s"Found multiple simulated blocks with same hash: $x")
+          (x.headOption, rest)
+        }
+
+        (forgedBlock, simulatedBlock) match {
+          case (Some(fb), Some(sb)) => fail(s"Found forged and simulated blocks: fb=$fb, sb=$sb")
+          case (Some(fb), _)        => readyBlocks.transform(_.updated(fb.hash, fb))
+          case (_, Some(sb))        => readyBlocks.transform(_.updated(sb.hash, sb))
+          case _ =>
+            val nb = NetworkL2Block(payload).explicitGet().toEcBlock
+            log.debug(s"Neither a forged, nor a simulated block ${nb.hash.take(LogChars)}. Assume it came from network.")
+            readyBlocks.transform(_.updated(nb.hash, nb))
+        }
+        Some(blockHash).asRight
+      }
 
       override def getPayloadBodyByHash(hash: BlockHash, requestId: Int): JobResult[Option[JsObject]] =
         getBlockByHashJson(hash)
 
       override def getBlockByNumber(number: BlockNumber, requestId: Int): JobResult[Option[EcBlock]] =
         number match {
-          case BlockNumber.Latest    => currChain.headOption.asRight
-          case BlockNumber.Number(n) => currChain.find(_.height == n).asRight
+          case BlockNumber.Latest    => chain.get().headOption.asRight
+          case BlockNumber.Number(n) => chain.get().find(_.height == n).asRight
         }
 
-      override def getBlockByHash(hash: BlockHash, requestId: Int): JobResult[Option[EcBlock]] = {
-        for {
-          cid <- knownBlocks.get().get(hash)
-          c   <- chains.get().get(cid)
-          b   <- c.find(_.hash == hash)
-        } yield b
-      }.asRight
+      override def getBlockByHash(hash: BlockHash, requestId: Int): JobResult[Option[EcBlock]] =
+        chain.get().find(_.hash == hash).asRight
 
       override def getBlockByHashJson(hash: BlockHash, requestId: Int): JobResult[Option[JsObject]] =
         notImplementedMethodJob("getBlockByHashJson")
 
-      override def getLastExecutionBlock(requestId: Int): JobResult[EcBlock] = currChain.head.asRight
+      override def getLastExecutionBlock(requestId: Int): JobResult[EcBlock] = chain.get().head.asRight
 
       override def blockExists(hash: BlockHash, requestId: Int): JobResult[Boolean] = notImplementedMethodJob("blockExists")
 
@@ -236,7 +253,7 @@ class TestEcClients private (
       ): JobResult[List[GetLogsResponseEntry]] = {
         val request = GetLogsRequest(hash, addresses, topics, 0) // requestId is ignored, see setBlockLogs
         getLogsCalls.transform(_ + hash)
-        logs.get().getOrElse(request, notImplementedCase(s"call setBlockLogs with $request)"))
+        logs.get().getOrElse(request, notImplementedCase(s"call setBlockLogs with $request"))
       }.asRight
     }
   )
@@ -255,12 +272,14 @@ class TestEcClients private (
 }
 
 object TestEcClients {
+  val LogChars = 7
+
   final class NotImplementedMethod(message: String) extends RuntimeException(message)
   final class NotImplementedCase(message: String)   extends RuntimeException(message)
 
   private type ChainId = Int
 
-  case class GeneratedBlock(testBlock: EcBlock, simulated: Boolean = false) {
-    val payloadId: String = testBlock.hash.take(16)
-  }
+  case class BlockInChain(block: EcBlock, chainId: ChainId)
+
+  def getPayloadId(hash: BlockHash): PayloadId = hash.take(16)
 }
