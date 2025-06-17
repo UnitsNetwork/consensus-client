@@ -19,7 +19,8 @@ inScope(Global)(
       "-unchecked",
       "-language:higherKinds",
       "-language:implicitConversions",
-      "-language:postfixOps"
+      "-language:postfixOps",
+      "-language:experimental.namedTuples"
     )
   )
 )
