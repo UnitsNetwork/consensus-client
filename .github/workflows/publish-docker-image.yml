@@ -25,12 +25,23 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+      - uses: regclient/actions/regctl-installer@4d6888fcc4842c9630f60ebc91715a45dd9bd7a3
+      - uses: proudust/gh-describe@70f72d4f6304ea053cf5a3d71c36211d5acc0c73
+        id: ghd
+      - run: |
+          image_digest=$(regctl manifest digest ${{ inputs.baseImage }})
+          pinned_base_image=${{ inputs.baseImage }}@$image_digest
+          echo "base-image=$pinned_base_image" >> "$GITHUB_OUTPUT"
+          echo "consensus-client-version=$(echo ${{ steps.ghd.outputs.describe }} | cut -c 2-)" >> "$GITHUB_OUTPUT"
+          echo "waves-node-version=$(regctl manifest get --format '{{ index .Annotations "org.opencontainers.image.version" }}' $pinned_base_image)" >> "$GITHUB_OUTPUT"
+        id: versions
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '11'
           cache: 'sbt'
       - uses: sbt/setup-sbt@v1
+      - run: sbt --batch -Dproject.version=${{ steps.versions.outputs.consensus-client-version }} buildTarballsForDocker
       - run: |
           {
             echo 'tags<<EOF'
@@ -39,7 +50,6 @@ jobs:
             echo EOF
           } >> "$GITHUB_OUTPUT"
         id: tag-list
-      - run: sbt --batch buildTarballsForDocker
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -49,28 +59,40 @@ jobs:
       - uses: docker/metadata-action@v5
         id: meta
         env:
-          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: index,manifest-descriptor,index-descriptor
         with:
           images: ${{ env.IMAGE_NAME }}
           flavor: latest=${{ contains(inputs.dockerTags, 'latest') }}
           tags: |
             ${{ steps.tag-list.outputs.tags }}
           labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}/tree/${{ github.sha }}/docker
             org.opencontainers.image.licenses=MIT
             org.opencontainers.image.description=Unit Zero Node
-      - uses: docker/build-push-action@v5
+            org.opencontainers.image.base.name=${{ inputs.baseImage }}
+            org.opencontainers.image.base.digest=${{ steps.versions.outputs.base-image-digest }}
+            org.opencontainers.image.version=${{ steps.versions.outputs.consensus-client-version }}
+            dev.unit0.waves-version=${{ steps.versions.outputs.waves-node-version }}
+          annotations: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}/tree/${{ github.sha }}/docker
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.description=Unit Zero Node
+            org.opencontainers.image.base.name=${{ inputs.baseImage }}
+            org.opencontainers.image.base.digest=${{ steps.versions.outputs.base-image-digest }}
+            org.opencontainers.image.version=${{ steps.versions.outputs.consensus-client-version }}
+            dev.unit0.waves-version=${{ steps.versions.outputs.waves-node-version }}
+      - uses: docker/build-push-action@v6
         id: push
         with:
           context: ./docker
           platforms: linux/amd64,linux/arm64
           push: true
           pull: true
-          build-args: baseImage=${{ inputs.baseImage }}
+          build-args: baseImage=${{ steps.versions.outputs.base-image }}
           tags: ${{ steps.meta.outputs.tags }}
           annotations: ${{ steps.meta.outputs.annotations }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - run: |
-          echo 'Base image: `${{ inputs.baseImage }}`' >> $GITHUB_STEP_SUMMARY
+          echo 'Base image: `${{ steps.versions.outputs.base-image }}`' >> $GITHUB_STEP_SUMMARY
