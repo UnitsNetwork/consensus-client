@@ -9,7 +9,7 @@ import org.web3j.abi.datatypes.{Event, Function, Type, Address as Web3JAddress, 
 import units.client.engine.model.GetLogsResponseEntry
 import units.eth.{EthAddress, EthereumConstants}
 import units.util.HexBytesConverter
-import units.{EAmount, raw}
+import units.*
 
 import java.math.BigInteger
 import java.util
@@ -24,6 +24,9 @@ object StandardBridge {
 
   val UpdateAssetRegistryFunction = "updateAssetRegistry"
   val UpdateAssetRegistryGas      = BigInteger.valueOf(1_000_000L)
+
+  val FinalizeBridgeETHFunction = "finalizeBridgeETH"
+  val NativeAssetTransferGas    = BigInteger.valueOf(1_000_000L)
 
   case class ERC20BridgeInitiated(localToken: EthAddress, clTo: Address, elFrom: EthAddress, clAmount: Long)
   object ERC20BridgeInitiated extends BridgeMerkleTree[ERC20BridgeInitiated] {
@@ -150,6 +153,51 @@ object StandardBridge {
       }).left.map(e => s"Can't decode event ${EventDef.getName} from $log. $e")
   }
 
+  case class ETHBridgeFinalized(to: EthAddress, amount: BigInt)
+
+  object ETHBridgeFinalized {
+    type ElToType    = Web3JAddress
+    type EAmountType = Uint256
+
+    private val ElToTypeRef   = new TypeReference[ElToType](true) {}
+    private val AmountTypeRef = new TypeReference[EAmountType](false) {}
+
+    private val EventDef = new Event(
+      "ETHBridgeFinalized",
+      List[TypeReference[?]](
+        ElToTypeRef,
+        AmountTypeRef
+      ).asJava
+    )
+
+    val Topic = EventEncoder.encode(EventDef)
+
+    def decodeLog(log: GetLogsResponseEntry): Either[String, ETHBridgeFinalized] =
+      (try {
+        for {
+          elTo <- log.topics match {
+            case _ :: elToTopic :: Nil => Right(elToTopic)
+            case xs                    => Left(s"Topics should contain exactly 2 entries (signature + elTo), got ${xs.size}")
+          }
+          elTo <- Try(FunctionReturnDecoder.decodeIndexedValue(elTo, ElToTypeRef)).toEither.bimap(
+            e => s"Can't decode elTo: ${e.getMessage}",
+            r => r.asInstanceOf[ElToType]
+          )
+          elTo <- EthAddress.from(elTo.getValue)
+          amount <- FunctionReturnDecoder.decode(log.data, EventDef.getNonIndexedParameters).asScala.toList match {
+            case (clAmount: EAmountType) :: Nil =>
+              for {
+                clAmount <- Try(clAmount.getValue).toEither.left.map(e => s"Can't decode clAmount: ${e.getMessage}")
+                _        <- Either.cond(clAmount.compareTo(BigInteger.ZERO) > 0, (), s"clAmount must be positive, got: $clAmount")
+              } yield clAmount
+            case xs => Left(s"Expected (clAmount: ${classOf[EAmountType].getSimpleName}) non-indexed fields, got: ${xs.mkString(", ")}")
+          }
+        } yield ETHBridgeFinalized(elTo, amount)
+      } catch {
+        case NonFatal(e) => Left(e.getMessage)
+      }).left.map(e => s"Can't decode ${EventDef.getName} event from $log. $e")
+  }
+
   case class RegistryUpdated(addedTokens: List[EthAddress], addedTokenExponents: List[Int], removedTokens: List[EthAddress])
   object RegistryUpdated {
     type AddedTokensComponentType = Web3JAddress
@@ -228,6 +276,37 @@ object StandardBridge {
       util.Arrays.asList[Type[?]](
         new Web3JAddress(token.hexNoPrefix),
         new Web3JAddress(from.hexNoPrefix),
+        new Web3JAddress(elTo.hexNoPrefix),
+        new Uint256(amount.raw)
+      ),
+      Collections.emptyList
+    )
+    FunctionEncoder.encode(function)
+  }
+
+  def mkFinalizeBridgeETHTransaction(
+      transferIndex: Long,
+      standardBridgeAddress: EthAddress,
+      to: EthAddress,
+      amount: Long
+  ): DepositedTransaction = {
+    val elAmount = WAmount(amount).scale(NativeTokenElDecimals - NativeTokenClDecimals)
+    DepositedTransaction(
+      sourceHash = DepositedTransaction.mkUserDepositedSourceHash(transferIndex),
+      from = EthereumConstants.ZeroAddress,
+      to = standardBridgeAddress,
+      mint = elAmount.raw,
+      value = elAmount.raw,
+      gas = NativeAssetTransferGas,
+      isSystemTx = true,
+      data = finalizeBridgeETHCall(to, elAmount)
+    )
+  }
+
+  private def finalizeBridgeETHCall(elTo: EthAddress, amount: EAmount): String = {
+    val function = new Function(
+      FinalizeBridgeETHFunction,
+      util.Arrays.asList[Type[?]](
         new Web3JAddress(elTo.hexNoPrefix),
         new Uint256(amount.raw)
       ),
