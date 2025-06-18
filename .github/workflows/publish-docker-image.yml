@@ -31,9 +31,12 @@ jobs:
       - run: |
           image_digest=$(regctl manifest digest ${{ inputs.baseImage }})
           pinned_base_image=${{ inputs.baseImage }}@$image_digest
-          echo "base-image=$pinned_base_image" >> "$GITHUB_OUTPUT"
-          echo "consensus-client-version=$(echo ${{ steps.ghd.outputs.describe }} | cut -c 2-)" >> "$GITHUB_OUTPUT"
-          echo "waves-node-version=$(regctl manifest get --format '{{ index .Annotations "org.opencontainers.image.version" }}' $pinned_base_image)" >> "$GITHUB_OUTPUT"
+          {
+            echo "base-image-digest=$image_digest"
+            echo "base-image=$pinned_base_image"
+            echo "consensus-client-version=$(echo ${{ steps.ghd.outputs.describe }} | cut -c 2-)"
+            echo "waves-node-version=$(regctl manifest get --format '{{ index .Annotations "org.opencontainers.image.version" }}' $pinned_base_image)"
+          } >> "$GITHUB_OUTPUT"
         id: versions
       - uses: actions/setup-java@v4
         with:
@@ -47,6 +50,17 @@ jobs:
             echo 'tags<<EOF'
             echo ${{ inputs.dockerTags }} | tr ',' '\n' | sed -e 's/^/type=raw,value=/'
             echo type=sha
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo 'annotations<<EOF'
+            echo org.opencontainers.image.source=https://github.com/${{ github.repository }}/tree/${{ github.sha }}/docker
+            echo org.opencontainers.image.licenses=MIT
+            echo org.opencontainers.image.description=Unit Zero Node
+            echo org.opencontainers.image.base.name=${{ inputs.baseImage }}
+            echo org.opencontainers.image.base.digest=${{ steps.versions.outputs.base-image-digest }}
+            echo org.opencontainers.image.version=${{ steps.versions.outputs.consensus-client-version }}
+            echo dev.unit0.waves-version=${{ steps.versions.outputs.waves-node-version }}
             echo EOF
           } >> "$GITHUB_OUTPUT"
         id: tag-list
@@ -63,31 +77,15 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAME }}
           flavor: latest=${{ contains(inputs.dockerTags, 'latest') }}
-          tags: |
-            ${{ steps.tag-list.outputs.tags }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}/tree/${{ github.sha }}/docker
-            org.opencontainers.image.licenses=MIT
-            org.opencontainers.image.description=Unit Zero Node
-            org.opencontainers.image.base.name=${{ inputs.baseImage }}
-            org.opencontainers.image.base.digest=${{ steps.versions.outputs.base-image-digest }}
-            org.opencontainers.image.version=${{ steps.versions.outputs.consensus-client-version }}
-            dev.unit0.waves-version=${{ steps.versions.outputs.waves-node-version }}
-          annotations: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}/tree/${{ github.sha }}/docker
-            org.opencontainers.image.licenses=MIT
-            org.opencontainers.image.description=Unit Zero Node
-            org.opencontainers.image.base.name=${{ inputs.baseImage }}
-            org.opencontainers.image.base.digest=${{ steps.versions.outputs.base-image-digest }}
-            org.opencontainers.image.version=${{ steps.versions.outputs.consensus-client-version }}
-            dev.unit0.waves-version=${{ steps.versions.outputs.waves-node-version }}
+          tags: ${{ steps.tag-list.outputs.tags }}
+          labels: ${{ steps.tag-list.outputs.annotations }}
+          annotations: ${{ steps.tag-list.outputs.annotations }}
       - uses: docker/build-push-action@v6
         id: push
         with:
           context: ./docker
           platforms: linux/amd64,linux/arm64
           push: true
-          pull: true
           build-args: baseImage=${{ steps.versions.outputs.base-image }}
           tags: ${{ steps.meta.outputs.tags }}
           annotations: ${{ steps.meta.outputs.annotations }}
@@ -95,4 +93,9 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - run: |
-          echo 'Base image: `${{ steps.versions.outputs.base-image }}`' >> $GITHUB_STEP_SUMMARY
+          {
+            echo '## Image Info'
+            echo '- This image: `${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}`'
+            echo '- Base image: `${{ steps.versions.outputs.base-image }}`'
+            echo '- Waves node version: `${{ steps.versions.outputs.waves-node-version }}`'
+          } >> $GITHUB_STEP_SUMMARY
