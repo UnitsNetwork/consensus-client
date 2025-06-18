@@ -29,6 +29,11 @@ contract StandardBridge {
         uint256 amount
     );
 
+    event ETHBridgeFinalized(
+        address indexed elTo,
+        uint256 amount
+    );
+
     event RegistryUpdated(address[] addedTokens, uint8[] addedTokenExponents, address[] removedTokens);
 
     /// @notice Ensures that the caller is an empty address.
@@ -143,6 +148,24 @@ contract StandardBridge {
         // Emit the correct events. By default this will be ERC20BridgeFinalized, but child
         // contracts may override this function in order to emit legacy events as well.
         _emitERC20BridgeFinalized(_localToken, _from, _to, _amount);
+    }
+
+    /// @notice Finalizes a native token bridge on this chain. Can only be triggered by the
+    ///         Chain contract on the remote chain.
+    /// @param _to          Address of the receiver.
+    /// @param _amount      Amount of the native token being bridged.
+    function finalizeBridgeETH(
+        address _to,
+        uint256 _amount
+    ) public payable onlyMiner {
+        require(
+            msg.value == _amount,
+            "StandardBridge: amount sent does not match amount required"
+        );
+        require(_to != address(this), "StandardBridge: cannot send to self");
+
+        Address.sendValue(payable(_to), _amount);
+        emit ETHBridgeFinalized(_to, _amount);
     }
 
     /// @notice Emits the ERC20BridgeFinalized event and if necessary the appropriate legacy

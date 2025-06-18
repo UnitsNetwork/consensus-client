@@ -4,7 +4,12 @@ import com.wavesplatform.block.Block.BlockId
 import com.wavesplatform.db.WithState.AddrWithBalance
 import com.wavesplatform.state.IntegerDataEntry
 import com.wavesplatform.test.produce
+import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import com.wavesplatform.transaction.{Asset, TxHelpers}
+import com.wavesplatform.wallet.Wallet
+import units.ELUpdater.State.ChainStatus.WaitForNewChain
+import units.el.StandardBridge
+import units.eth.EthAddress
 
 class C2ETransfersTestSuite extends BaseTestSuite {
   private val transferSenderAccount  = TxHelpers.secondSigner
@@ -89,6 +94,118 @@ class C2ETransfersTestSuite extends BaseTestSuite {
 
     val registeredAssets = d.chainContractClient.getAllRegisteredAssets.map(_.asset)
     registeredAssets shouldBe List(Asset.Waves, issueAsset, issueAsset2Txn.asset)
+  }
+
+  "Native Transfers via Deposits" - {
+    val userAmount           = 1
+    val nativeTokensClAmount = UnitsConvert.toUnitsInWaves(userAmount)
+    val nativeTokensElAmount = WAmount(nativeTokensClAmount).scale(NativeTokenElDecimals - NativeTokenClDecimals)
+    val destElAddress        = EthAddress.unsafeFrom(s"0x$validTransferRecipient")
+
+    def mkNativeTransfer(d: ExtensionDomain): InvokeScriptTransaction = d.ChainContract.transfer(
+      sender = transferSenderAccount,
+      destElAddress = destElAddress,
+      asset = d.nativeTokenId,
+      amount = nativeTokensClAmount
+    )
+
+    val reliable = ElMinerSettings(Wallet.generateNewAccount(super.defaultSettings.walletSeed, 0))
+    val second   = ElMinerSettings(TxHelpers.signer(2))
+    val settings = defaultSettings.copy(initialMiners = List(reliable, second))
+
+    "Conversion works as expected" in withExtensionDomain(settings) { d =>
+      nativeTokensClAmount shouldBe 100_000_000L
+      nativeTokensElAmount.raw shouldBe BigInt("1000000000000000000").bigInteger // 1_000_000_000_000_000_000
+    }
+
+    "Validation passes if transfer logs match" in withExtensionDomain(settings) { d =>
+      step("Activate native token transfers via deposits")
+      d.appendBlock(
+        d.ChainContract.enableNativeTokenTransfersViaDeposits(d.blockchain.height),
+        TxHelpers.reissue(d.nativeTokenId, d.chainContractAccount, nativeTokensClAmount),
+        TxHelpers.transfer(d.chainContractAccount, transferSenderAccount.toAddress, nativeTokensClAmount, d.nativeTokenId),
+        mkNativeTransfer(d)
+      )
+
+      val transferLogEntries = List(getLogsResponseEntry(StandardBridge.ETHBridgeFinalized(destElAddress, nativeTokensElAmount.raw)))
+      val ecGoodBlock = d
+        .createEcBlockBuilder("0", second)
+        .buildAndSetLogs(transferLogEntries)
+
+      step(s"Append a CL micro block with ecGoodBlock ${ecGoodBlock.hash} confirmation")
+      d.advanceNewBlocks(second.address)
+      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(second.account, ecGoodBlock, lastC2ETransferIndex = 0))
+
+      step(s"Receive block ${ecGoodBlock.hash}")
+      d.receiveNetworkBlock(ecGoodBlock, second.account)
+
+      d.waitForWorking("Block considered validated") { s =>
+        val vs = s.fullValidationStatus
+        vs.lastValidatedBlock.hash shouldBe ecGoodBlock.hash
+      }
+    }
+
+    "Validation fails if the amount doesn't match" in withExtensionDomain(settings) { d =>
+      step("Activate native token transfers via deposits")
+      d.appendBlock(
+        d.ChainContract.enableNativeTokenTransfersViaDeposits(d.blockchain.height),
+        TxHelpers.reissue(d.nativeTokenId, d.chainContractAccount, nativeTokensClAmount),
+        TxHelpers.transfer(d.chainContractAccount, transferSenderAccount.toAddress, nativeTokensClAmount, d.nativeTokenId),
+        mkNativeTransfer(d)
+      )
+
+      val wrongAmount        = 42
+      val transferLogEntries = List(getLogsResponseEntry(StandardBridge.ETHBridgeFinalized(destElAddress, wrongAmount)))
+      val ecBadBlock = d
+        .createEcBlockBuilder("0", second)
+        .buildAndSetLogs(transferLogEntries)
+
+      step(s"Append a CL micro block with ecBadBlock ${ecBadBlock.hash} confirmation")
+      d.advanceNewBlocks(second.address)
+      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(second.account, ecBadBlock, lastC2ETransferIndex = 0))
+
+      step(s"Receive block ${ecBadBlock.hash}")
+      d.receiveNetworkBlock(ecBadBlock, second.account)
+
+      withClue("Full EL block validation:") {
+        d.triggerScheduledTasks()
+        if (d.pollSentNetworkBlock().isDefined) fail(s"${ecBadBlock.hash} should be ignored")
+      }
+      d.waitForCS[WaitForNewChain]("Forking") { cs =>
+        cs.chainSwitchInfo.referenceBlock.hash shouldBe d.ecGenesisBlock.hash
+      }
+    }
+
+    "Validation fails if the address doesn't match" in withExtensionDomain(settings) { d =>
+      step("Activate native token transfers via deposits")
+      d.appendBlock(
+        d.ChainContract.enableNativeTokenTransfersViaDeposits(d.blockchain.height),
+        TxHelpers.reissue(d.nativeTokenId, d.chainContractAccount, nativeTokensClAmount),
+        TxHelpers.transfer(d.chainContractAccount, transferSenderAccount.toAddress, nativeTokensClAmount, d.nativeTokenId),
+        mkNativeTransfer(d)
+      )
+
+      val wrongButValidTransferRecipient = EthAddress.unsafeFrom(s"0x2222222222222222222222222222222222222222")
+      val transferLogEntries = List(getLogsResponseEntry(StandardBridge.ETHBridgeFinalized(wrongButValidTransferRecipient, nativeTokensElAmount.raw)))
+      val ecBadBlock = d
+        .createEcBlockBuilder("0", second)
+        .buildAndSetLogs(transferLogEntries)
+
+      step(s"Append a CL micro block with ecBadBlock ${ecBadBlock.hash} confirmation")
+      d.advanceNewBlocks(second.address)
+      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(second.account, ecBadBlock, lastC2ETransferIndex = 0))
+
+      step(s"Receive block ${ecBadBlock.hash}")
+      d.receiveNetworkBlock(ecBadBlock, second.account)
+
+      withClue("Full EL block validation:") {
+        d.triggerScheduledTasks()
+        if (d.pollSentNetworkBlock().isDefined) fail(s"${ecBadBlock.hash} should be ignored")
+      }
+      d.waitForCS[WaitForNewChain]("Forking") { cs =>
+        cs.chainSwitchInfo.referenceBlock.hash shouldBe d.ecGenesisBlock.hash
+      }
+    }
   }
 
   private def transferFuncTest(
