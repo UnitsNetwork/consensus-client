@@ -158,15 +158,16 @@ class E2CNativeTransfersTestSuite extends BaseTestSuite {
   }
 
   "Fails on wrong data" in {
-    val settings = defaultSettings.withEnabledElMining
+    val settings    = defaultSettings.withEnabledElMining
+    val malfunction = reliable // Reliable is a default miner, but here it is malfunction
     withExtensionDomain(settings) { d =>
       step(s"Start new epoch with ecBlock1")
-      d.advanceNewBlocks(reliable)
-      val ecBlock1 = d.createEcBlockBuilder("0", reliable).buildAndSetLogs(List(transferEvent.copy(data = "d3ad884fa04292")))
+      d.advanceNewBlocks(malfunction)
+      val ecBlock1 = d.createEcBlockBuilder("0", malfunction).buildAndSetLogs(List(transferEvent.copy(data = "d3ad884fa04292")))
       d.ecClients.willForge(ecBlock1)
-      d.ecClients.willForge(d.createEcBlockBuilder("0-0", reliable).build())
-
+      d.ecClients.willForge(d.createEcBlockBuilder("0-0", malfunction, ecBlock1).build())
       d.advanceConsensusLayerChanged()
+      d.advanceMining()
 
       val (txsOpt, _, _) = d.utxPool.packUnconfirmed(MultiDimensionalMiningConstraint.Unlimited, None)
       txsOpt shouldBe empty
@@ -188,11 +189,11 @@ class E2CNativeTransfersTestSuite extends BaseTestSuite {
 
       step(s"Try to append a block with a wrong transfers root hash")
       d.advanceNewBlocks(malfunction)
-      val ecBadBlock2 = d.createEcBlockBuilder("0-0", malfunction, ecBlock1).rewardPrevMiner().buildAndSetLogs(ecBlockLogs)
+      val ecBadBlock2 = d.createEcBlockBuilder("0-e", malfunction, ecBlock1).rewardPrevMiner().buildAndSetLogs(ecBlockLogs)
       d.advanceConsensusLayerChanged()
 
       // No root hash in extendMainChain tx
-      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(malfunction.account, ecBadBlock2)) // No root hash
+      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(malfunction.account, ecBadBlock2))
       d.receiveNetworkBlock(ecBadBlock2, malfunction.account)
       d.advanceConsensusLayerChanged()
 
@@ -208,11 +209,6 @@ class E2CNativeTransfersTestSuite extends BaseTestSuite {
       d.ecClients.willForge(d.createEcBlockBuilder("0-1-i", reliable, ecBlock2).build())
 
       d.advanceConsensusLayerChanged()
-      d.waitForCS[Mining]("State is expected") { s =>
-        s.nodeChainInfo.left.value.referenceBlock.hash shouldBe ecBlock1.hash
-      }
-
-      d.advanceMining()
       d.waitForCS[Mining]("State is expected") { s =>
         s.nodeChainInfo.left.value.referenceBlock.hash shouldBe ecBlock1.hash
       }
@@ -234,7 +230,7 @@ class E2CNativeTransfersTestSuite extends BaseTestSuite {
 
       step(s"Moving whole network to the alternative chain with ecBlock3")
       d.advanceNewBlocks(reliable)
-      val ecBlock3 = d.createEcBlockBuilder("0-1-1-1", reliable, ecBlock2).rewardPrevMiner(1).buildAndSetLogs()
+      val ecBlock3 = d.createEcBlockBuilder("0-1-1", reliable, ecBlock2).rewardPrevMiner(1).buildAndSetLogs()
       d.ecClients.willSimulate(ecBlock3)
       d.ecClients.willForge(d.createEcBlockBuilder("0-1-1-i", reliable, ecBlock3).build())
       d.advanceConsensusLayerChanged()

@@ -1,8 +1,10 @@
 package units
 
+import com.wavesplatform.mining.MultiDimensionalMiningConstraint
 import com.wavesplatform.settings.WavesSettings
 import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.wallet.Wallet
+import units.ELUpdater.State.ChainStatus.Mining
 
 class MultiplePrivateKeysTestSuite extends BaseTestSuite {
   private val minerFromWallet = ElMinerSettings(Wallet.generateNewAccount(super.defaultSettings.walletSeed, 0))
@@ -72,13 +74,14 @@ class MultiplePrivateKeysTestSuite extends BaseTestSuite {
     val settings = defaultSettings.withPrivateKeys(Seq(miner1.account.privateKey, miner2.account.privateKey))
 
     withExtensionDomain(settings) { d =>
-      step("Start new epoch for ecBlock")
+      step("Start epoch of miner1")
       d.advanceNewBlocks(miner1)
-
       d.ecClients.willForge(d.createEcBlockBuilder("0", miner1).build())
       d.advanceConsensusLayerChanged()
 
+      step("Start epoch of miner2")
       d.advanceNewBlocks(miner2)
+      d.ecClients.willForge(d.createEcBlockBuilder("0", miner2).build())
       d.advanceConsensusLayerChanged()
 
       d.ecClients.miningAttempts shouldBe 2

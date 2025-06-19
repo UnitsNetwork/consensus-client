@@ -16,6 +16,7 @@ case class ClientConfig(
     apiRequestRetries: Int,
     apiRequestRetryWaitTime: FiniteDuration,
     blockDelay: FiniteDuration,
+    firstBlockMinDelay: FiniteDuration,
     blockSyncRequestTimeout: FiniteDuration,
     network: NetworkSettings,
     miningEnable: Boolean,

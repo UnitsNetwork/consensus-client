@@ -371,10 +371,11 @@ trait HasConsensusLayerDappTxHelpers {
         fee = withdrawFee
       )
 
-    def reportEmptyEpoch(minerAccount: KeyPair): InvokeScriptTransaction = TxHelpers.invoke(
+    def reportEmptyEpoch(minerAccount: KeyPair, vrf: ByteStr = currentHitSource): InvokeScriptTransaction = TxHelpers.invoke(
       invoker = minerAccount,
       dApp = chainContractAddress,
       func = "reportEmptyEpoch".some,
+      args = List(Terms.CONST_BYTESTR(vrf).explicitGet()),
       fee = reportEmptyEpochFee
     )
 
