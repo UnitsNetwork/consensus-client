@@ -1814,7 +1814,7 @@ object ELUpdater {
     ) extends State {
       def lastContractBlock: ContractBlock = chainStatus.lastContractBlock
       override def toString: String =
-        s"Working($epochInfo, ec=${lastEcBlock.hash}, f=${finalizedBlock.hash}, $mainChainInfo, $fullValidationStatus, $chainStatus, $options, $returnToMainChainInfo, rb=$rollbackFaked)"
+        s"Working($epochInfo, l=${lastEcBlock.hash}, f=${finalizedBlock.hash}, $mainChainInfo, $fullValidationStatus, $chainStatus, $options, $returnToMainChainInfo, rb=$rollbackFaked)"
     }
 
     sealed trait ChainStatus {
@@ -1823,7 +1823,6 @@ object ELUpdater {
     object ChainStatus {
       case class FollowingChain(nodeChainInfo: ChainInfo, nextExpectedBlock: Option[ContractBlock]) extends ChainStatus {
         override def lastContractBlock: ContractBlock = nodeChainInfo.lastBlock
-        override def toString: String                 = s"FollowingChain($nodeChainInfo, ${nextExpectedBlock.map(_.hash)})"
       }
       case class Mining(
           keyPair: KeyPair,
@@ -1848,7 +1847,7 @@ object ELUpdater {
     }
 
     case class WaitingForSyncHead(target: ContractBlock, task: CancelableFuture[BlockWithChannel]) extends State {
-      override def toString: String = s"WaitingForSyncHead(${target.hash})"
+      override def toString: String = s"WaitingForSyncHead($target)"
     }
     case class SyncingToFinalizedBlock(target: BlockHash) extends State
   }

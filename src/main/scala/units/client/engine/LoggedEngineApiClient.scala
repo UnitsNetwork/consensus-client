@@ -2,7 +2,7 @@ package units.client.engine
 
 import com.wavesplatform.utils.LoggerFacade
 import org.slf4j.LoggerFactory
-import play.api.libs.json.{JsObject, JsString, Json}
+import play.api.libs.json.JsObject
 import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.LoggedEngineApiClient.excludedJsonFields
 import units.client.engine.model.*
@@ -46,7 +46,7 @@ class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient
     wrap(requestId, s"getPayload($payloadId)", underlying.getPayload(payloadId, _), filteredJson)
 
   override def newPayload(payload: JsObject, requestId: Int): JobResult[Option[BlockHash]] =
-    wrap(requestId, s"newPayload(${(payload \ "blockHash").getOrElse(JsString("?"))})", underlying.newPayload(payload, _), _.fold("None")(_.toString))
+    wrap(requestId, s"newPayload(${filteredJson(payload)})", underlying.newPayload(payload, _), _.fold("None")(_.toString))
 
   override def getPayloadBodyByHash(hash: BlockHash, requestId: Int): JobResult[Option[JsObject]] =
     wrap(requestId, s"getPayloadBodyByHash($hash)", underlying.getPayloadBodyByHash(hash, _), _.fold("None")(filteredJson))
