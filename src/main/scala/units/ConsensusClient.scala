@@ -94,7 +94,6 @@ object ConsensusClient {
     val elu = new ELUpdater(
       engineApiClient,
       context.blockchain,
-      context.utx,
       allChannels,
       config,
       context.time,

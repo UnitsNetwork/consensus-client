@@ -91,6 +91,13 @@ trait HasConsensusLayerDappTxHelpers {
         fee = 0.009.waves
       )
 
+    def enableStrictTransfers(activationEpoch: Int): DataTransaction =
+      TxHelpers.data(
+        chainContractAccount,
+        Seq(IntegerDataEntry("strictC2ETransfersActivationEpoch", activationEpoch)),
+        fee = 0.009.waves
+      )
+
     def join(minerAccount: KeyPair, elRewardAddress: EthAddress): InvokeScriptTransaction = TxHelpers.invoke(
       invoker = minerAccount,
       dApp = chainContractAddress,
@@ -283,13 +290,15 @@ trait HasConsensusLayerDappTxHelpers {
         sender: KeyPair,
         destElAddress: EthAddress,
         asset: Asset,
-        amount: Long
+        amount: Long,
+        timestamp: Long = TxHelpers.timestamp
     ): InvokeScriptTransaction =
       transferUnsafe(
         sender = sender,
         destElAddressHex = destElAddress.hexNoPrefix,
         asset = asset,
-        amount = amount
+        amount = amount,
+        timestamp = timestamp
       )
 
     /** @param destElAddressHex
@@ -299,7 +308,8 @@ trait HasConsensusLayerDappTxHelpers {
         sender: KeyPair,
         destElAddressHex: String,
         asset: Asset,
-        amount: Long
+        amount: Long,
+        timestamp: Long = TxHelpers.timestamp
     ): InvokeScriptTransaction =
       TxHelpers.invoke(
         invoker = sender,
@@ -307,7 +317,8 @@ trait HasConsensusLayerDappTxHelpers {
         func = "transfer".some,
         args = List(Terms.CONST_STRING(destElAddressHex).explicitGet()),
         payments = List(InvokeScriptTransaction.Payment(amount, asset)),
-        fee = transferFee
+        fee = transferFee,
+        timestamp = timestamp
       )
 
     def withdraw(

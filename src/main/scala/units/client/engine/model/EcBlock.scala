@@ -32,6 +32,8 @@ case class EcBlock(
 }
 
 object EcBlock {
+  val MaxWithdrawals = 16
+
   implicit val reads: Reads[EcBlock] = (
     (JsPath \ "hash").read[BlockHash] and
       (JsPath \ "parentHash").read[BlockHash] and

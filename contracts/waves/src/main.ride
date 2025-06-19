@@ -78,21 +78,36 @@ let transfersCount       = this.getInteger(transfersCountKey).valueOrElse(0)
 let maxSkippedEpochCount = getInteger(maxSkippedEpochCountKey).valueOrElse(200)
 func transferKey(index: Int) = "nativeTransfer_" + index.toString() # {destElAddressHex with 0x}_{amount} | {destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex}
 
+let strictC2ETransfersActivationEpochKey = "strictC2ETransfersActivationEpoch"
+let strictC2ETransfersActivationEpoch    = getInteger(strictC2ETransfersActivationEpochKey).valueOrElse(INT_MAX)
+
 # destElAddressHex - without 0x
 func mkNativeTransferEntries(destElAddressHex: String, amount: Int) = {
   let currTransferIndex = transfersCount
-  let key = transferKey(currTransferIndex)
+
+  let entryKey = transferKey(currTransferIndex)
+  let entryValue1 = "0x" + destElAddressHex + SEP + amount.toString()
+  let entryValue2 = if (height < strictC2ETransfersActivationEpoch)
+    then entryValue1
+    else entryValue1 + SEP + height.toString()
+
   [
-    StringEntry(key, "0x" + destElAddressHex + SEP + amount.toString()),
+    StringEntry(entryKey, entryValue2),
     IntegerEntry(transfersCountKey, currTransferIndex + 1)
   ]
 }
 # destElAddressHex - without 0x
 func mkAssetTransferEntries(destElAddressHex: String, fromAddressHex: String, amount: Int, assetIndex: Int) = {
   let currTransferIndex = transfersCount
-  let key = transferKey(currTransferIndex)
+
+  let entryKey = transferKey(currTransferIndex)
+  let entryValue1 = "0x" + destElAddressHex + SEP + "0x" + fromAddressHex + SEP + amount.toString() + SEP + assetIndex.toString()
+  let entryValue2 = if (height < strictC2ETransfersActivationEpoch)
+    then entryValue1
+    else entryValue1 + SEP + height.toString()
+
   [
-    StringEntry(key, "0x" + destElAddressHex + SEP + "0x" + fromAddressHex + SEP + amount.toString() + SEP + assetIndex.toString()),
+    StringEntry(entryKey, entryValue2),
     IntegerEntry(transfersCountKey, currTransferIndex + 1)
   ]
 }
@@ -142,15 +157,9 @@ func isClAssetRegistered(assetIdBase58: String) = getString(assetRegistryK + ass
 # erc20AddressHex without 0x
 func isElAssetRegistered(erc20AddressHex: String) = getInteger(assetRegistryELK + erc20AddressHex).isDefined()
 
-func ensureCorrectTransfers(refTransferIndex: Int, transferIndex: Int, expectReward: Boolean) = {
-  let maxTransfers    = if (expectReward) then MAX_CL_TO_EL_TRANSFERS - 1 else MAX_CL_TO_EL_TRANSFERS
-  let actualTransfers = transferIndex - refTransferIndex
-
-  strict checkNumber = actualTransfers > maxTransfers &&
-    throw("Allowed only " + maxTransfers.toString() + " transfers, got " + actualTransfers.toString())
-  transferIndex >= transfersCount &&
-    throw("Attempt to transfer #" + transferIndex.toString() + ". Available transfers: " + transfersCount.toString())
-}
+func ensureCorrectTransfers(refTransferIndex: Int, transferIndex: Int) =
+  transferIndex >= refTransferIndex ||
+    throw("Expected the transfer index of " + transferIndex.toString() + " to be >= " + refTransferIndex.toString())
 
 func amountGtEq(t: AttachedPayment, gtEq: Int, queueSize: Int) =
   t.amount >= gtEq || throw(
@@ -453,7 +462,7 @@ func extendMainChain_base(
   strict checkEpoch     = ensureCorrectEpoch(vrf)
   strict checkChain     = ensureExpectedOrInactiveChain(originCaller, mainChainId, unit)
   strict checkReference = isReferenceCorrect(referenceHex, mainChainLastBlock)
-  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._6, lastC2ETransferIndex, true)
+  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._6, lastC2ETransferIndex)
 
   strict thisEpochMeta = match epochMeta(height) {
     case _: Unit => StringEntry(epochMetaKey(height), originCaller.toString() + SEP + mainChainEpoch.toString() + SEP + blockHashHex)
@@ -493,7 +502,7 @@ func startAltChain_base(
     else throw("Can not start alt chain from epoch " + refEpoch.toString() + ", epoch " + finalizedEpoch.toString() + " is finalized")
 
   strict checkChain     = ensureExpectedOrInactiveChain(originCaller, mainChainId, referenceHex)
-  strict checkTransfers = ensureCorrectTransfers(refTransferIndex, lastC2ETransferIndex, true)
+  strict checkTransfers = ensureCorrectTransfers(refTransferIndex, lastC2ETransferIndex)
   let newChainId        = getInteger(lastChainIdKey).valueOrElse(0) + 1
   let newChainHeight    = refChainHeight + 1
 
@@ -538,7 +547,7 @@ func extendAltChain_base(
   strict checkChain       = ensureExpectedOrInactiveChain(originCaller, chainId, chainFirstBlockMeta._3.toBase16String())
   let (chainHeight, chainLastBlock) = chainMeta(chainId)
   strict checkReference = isReferenceCorrect(referenceHex, chainLastBlock)
-  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._6, lastC2ETransferIndex, true)
+  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._6, lastC2ETransferIndex)
 
   let newChainHeight  = chainHeight + 1
 
@@ -595,7 +604,7 @@ func appendBlock_base(
 
   let (chainHeight, lastBlockId) = chainMeta(chainId)
   strict checkReference = isReferenceCorrect(referenceHex, lastBlockId)
-  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._6, lastC2ETransferIndex, false)
+  strict checkTransfers = ensureCorrectTransfers(blockMeta(referenceHex)._6, lastC2ETransferIndex)
 
   let newChainHeight    = chainHeight + 1
   strict checkBlockHash = validateBlockHash(blockHashHex)

@@ -29,8 +29,8 @@ class EmergencyStopTestSuite extends BaseTestSuite {
     d.appendBlock(d.ChainContract.continue())
     d.advanceConsensusLayerChanged()
 
-    // ...We need to trigger an additional consensus layer event
-    d.appendMicroBlock(TxHelpers.createAlias())
+    // ...Mining will be possible on next epoch
+    d.appendBlock()
     d.waitForCS[Mining]("Continue") { s =>
       s.nodeChainInfo.isRight shouldBe true
     }
