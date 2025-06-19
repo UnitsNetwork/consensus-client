@@ -1449,50 +1449,50 @@ class ELUpdater(
         else getLastWithdrawalIndex(ecBlock.parentHash)
     }
 
-      (expectedTransfers, nextTransfer) = {
-        val parentContractBlock = chainContractClient
-          .getBlock(contractBlock.parentHash)
-          .getOrElse(throw new RuntimeException(s"Can't find a parent block ${contractBlock.parentHash} of block ${contractBlock.hash}"))
+    parentContractBlock = chainContractClient
+      .getBlock(contractBlock.parentHash)
+      .getOrElse(throw new RuntimeException(s"Can't find a parent block ${contractBlock.parentHash} of block ${contractBlock.hash}"))
 
-        val inBlock = contractBlock.lastC2ETransferIndex - parentContractBlock.lastC2ETransferIndex
-        val xs = chainContractClient.getTransfers(
-          fromIndex = parentContractBlock.lastC2ETransferIndex + 1,
-          max = inBlock + 1
-        )
-        if (xs.isEmpty) (Vector.empty, None)
-        else if (xs.size <= inBlock) (xs, None)
-        else (xs.init, xs.lastOption)
-      }
+    (expectedTransfers, nextTransfer) = {
+      val inBlock = contractBlock.lastC2ETransferIndex - parentContractBlock.lastC2ETransferIndex
+      val xs = chainContractClient.getTransfers(
+        fromIndex = parentContractBlock.lastC2ETransferIndex + 1,
+        max = inBlock + 1
+      )
+      if (xs.isEmpty) (Vector.empty, None)
+      else if (xs.size <= inBlock) (xs, None)
+      else (xs.init, xs.lastOption)
+    }
 
-      expectedNativeTransfersNumber = expectedTransfers.count {
-        case _: ContractTransfer.Native => true
-        case _                          => false
-      }
+    expectedNativeTransfersNumber = expectedTransfers.count {
+      case _: ContractTransfer.Native => true
+      case _                          => false
+    }
 
-      // Checks for maximum transfers processing
-      _ <- nextTransfer match {
-        case None => Either.unit
-        case Some(nextTransfer) =>
-          val strictC2ETransfersActivated = contractBlock.epoch >= chainContractClient.getStrictC2ETransfersActivationEpoch
-          if (nextTransfer.epoch >= contractBlock.epoch || !strictC2ETransfersActivated) Either.unit
-          else { // This transfer was on a previous epoch, miner saw it
-            val blockHasMaxTransfers = nextTransfer match {
-              case _: ContractTransfer.Asset  => false // Could add an asset transfer even it took maximum native transfers
-              case _: ContractTransfer.Native =>
-                // Could not take a native transfer only if there were no free slots
-                val maxNativeTransfersInBlock = EcBlock.MaxWithdrawals - miningReward.fold(0)(_ => 1)
-                expectedNativeTransfersNumber == maxNativeTransfersInBlock
-            }
-
-            Either.raiseUnless(blockHasMaxTransfers)(ClientError(s"Block should contain a next C2E transfer: $nextTransfer"))
+    // Checks for maximum transfers processing
+    _ <- nextTransfer match {
+      case None => Either.unit
+      case Some(nextTransfer) =>
+        val strictC2ETransfersActivated = contractBlock.epoch >= chainContractClient.getStrictC2ETransfersActivationEpoch
+        if (nextTransfer.epoch >= contractBlock.epoch || !strictC2ETransfersActivated) Either.unit
+        else { // This transfer was on a previous epoch, miner saw it
+          val blockHasMaxTransfers = nextTransfer match {
+            case _: ContractTransfer.Asset  => false // Could add an asset transfer even it took maximum native transfers
+            case _: ContractTransfer.Native =>
+              // Could not take a native transfer only if there were no free slots
+              val maxNativeTransfersInBlock = EcBlock.MaxWithdrawals - miningReward.fold(0)(_ => 1)
+              expectedNativeTransfersNumber == maxNativeTransfersInBlock
           }
-      }
 
-      (prevWithdrawalIndex, actualTransferWithdrawals) <- {
-        miningReward match {
-          case None =>
-            if (ecBlock.withdrawals.size == expectedNativeTransfersNumber) (elWithdrawalIndexBefore, ecBlock.withdrawals).asRight
-            else ClientError(s"Expected $expectedNativeTransfersNumber withdrawals, got ${ecBlock.withdrawals.size}").asLeft
+          Either.raiseUnless(blockHasMaxTransfers)(ClientError(s"Block should contain a next C2E transfer: $nextTransfer"))
+        }
+    }
+
+    (prevWithdrawalIndex, actualTransferWithdrawals) <- {
+      miningReward match {
+        case None =>
+          if (ecBlock.withdrawals.size == expectedNativeTransfersNumber) (elWithdrawalIndexBefore, ecBlock.withdrawals).asRight
+          else ClientError(s"Expected $expectedNativeTransfersNumber withdrawals, got ${ecBlock.withdrawals.size}").asLeft
 
         case Some(miningReward) =>
           ecBlock.withdrawals match {
@@ -1848,7 +1848,7 @@ object ELUpdater {
     }
 
     case class WaitingForSyncHead(target: ContractBlock, task: CancelableFuture[BlockWithChannel]) extends State {
-      override def toString: String = s"WaitingForSyncHead(${target.hash}, completed=${task.isCompleted})"
+      override def toString: String = s"WaitingForSyncHead(${target.hash})"
     }
     case class SyncingToFinalizedBlock(target: BlockHash) extends State
   }
