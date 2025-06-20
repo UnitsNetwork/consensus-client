@@ -100,7 +100,7 @@ if cl_poor_accounts_number > 0:
 
 for txn_id in txn_ids:
     waves.wait_for_approval(log, txn_id)
-    log.info(f"Distrubute UNIT0 tokens transaction {txn_id} confirmed")
+    log.info(f"Distribute UNIT0 tokens transaction {txn_id} confirmed")
 
 r = network.cl_chain_contract.evaluate("allMiners")
 joined_miners = []
