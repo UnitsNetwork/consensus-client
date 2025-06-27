@@ -905,7 +905,7 @@ class ELUpdater(
     requestBlockFromPeers(hash).andThen {
       case Success((ch, block)) => executionBlockReceived(block, ch)
       case Failure(exception)   => logger.error(s"Error loading block $hash", exception)
-    }(globalScheduler)
+    }(using globalScheduler)
   }
 
   private def updateToFollowChain(

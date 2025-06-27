@@ -45,14 +45,14 @@ class ConsensusClientDependencies(val config: ClientConfig) extends AutoCloseabl
   val messageObserver = new MessageObserver()
   private val networkServer = NetworkServer(
     config,
-    new HistoryReplier(engineApiClient)(globalScheduler),
+    new HistoryReplier(engineApiClient)(using globalScheduler),
     peerDatabase,
     messageObserver,
     allChannels,
     new ConcurrentHashMap[Channel, PeerInfo]
   )
 
-  val blockObserver = new BlocksObserverImpl(allChannels, messageObserver.blocks, config.blockSyncRequestTimeout)(blockObserverScheduler)
+  val blockObserver = new BlocksObserverImpl(allChannels, messageObserver.blocks, config.blockSyncRequestTimeout)(using blockObserverScheduler)
 
   override def close(): Unit = {
     log.info("Closing HTTP/Engine API")

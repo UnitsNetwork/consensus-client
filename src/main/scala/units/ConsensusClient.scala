@@ -107,7 +107,7 @@ object ConsensusClient {
     )
 
     private val blocksStreamCancelable: CancelableFuture[Unit] =
-      blockObserver.getBlockStream.foreach { case (ch, block) => elu.executionBlockReceived(block, ch) }(globalScheduler)
+      blockObserver.getBlockStream.foreach { case (ch, block) => elu.executionBlockReceived(block, ch) }(using globalScheduler)
 
     override def close(): Unit = {
       blocksStreamCancelable.cancel()
