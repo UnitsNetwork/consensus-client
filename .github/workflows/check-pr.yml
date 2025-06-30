@@ -6,6 +6,7 @@ jobs:
   check-pr:
     name: Check PR
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       JAVA_OPTS: -Dfile.encoding=UTF-8
       BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
