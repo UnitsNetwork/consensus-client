@@ -58,7 +58,7 @@ class RegistryTestSuite extends BaseTestSuite {
       d.advanceConsensusLayerChanged()
 
       step("Start new epoch for ecBlock")
-      d.advanceNewBlocks(miner.address)
+      d.advanceNewBlocks(miner)
 
       d.ecClients.willForge(d.createEcBlockBuilder("0", miner).build())
       d.advanceConsensusLayerChanged()

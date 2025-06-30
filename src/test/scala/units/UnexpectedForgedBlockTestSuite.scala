@@ -15,7 +15,7 @@ class UnexpectedForgedBlockTestSuite extends BaseTestSuite {
 
   // Real case: wrong deployment causes lack of expected events (Asset registration, transfers)
   "Miner stops mining in its epoch, don't broadcast and confirm an unexpected block" in withExtensionDomain() { d =>
-    d.advanceNewBlocks(thisMiner.address)
+    d.advanceNewBlocks(thisMiner)
 
     val ecBlockLogs = List(
       GetLogsResponseEntry( // Unexpected transfer
