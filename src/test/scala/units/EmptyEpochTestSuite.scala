@@ -23,7 +23,7 @@ class EmptyEpochTestSuite extends BaseTestSuite {
   "Empty epoch confirmed, reporter rewarded" in {
     withExtensionDomain(defaultSettings) { d =>
       // Start idleMiner
-      d.advanceNewBlocks(idleMiner.address)
+      d.advanceNewBlocks(idleMiner)
 
       // Report empty epoch
       d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
@@ -43,7 +43,7 @@ class EmptyEpochTestSuite extends BaseTestSuite {
       d.portfolio(reporter1.address) shouldBe Seq.empty
 
       // Start reporter1
-      d.advanceNewBlocks(reporter1.address)
+      d.advanceNewBlocks(reporter1)
 
       // Claim reporter reward with wrong epoch number
       d.appendMicroBlock(d.ChainContract.claimEmptyEpochReportRewards(reporter1.account, List(42L)))
@@ -70,13 +70,13 @@ class EmptyEpochTestSuite extends BaseTestSuite {
   "Empty epoch confirmed 2 times, reporter rewarded 2 times, skipped epoch count is 2" in {
     withExtensionDomain(defaultSettings) { d =>
       // Start idleMiner
-      d.advanceNewBlocks(idleMiner.address)
+      d.advanceNewBlocks(idleMiner)
 
       // Report empty epoch
       d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
 
       // Start idleMiner
-      d.advanceNewBlocks(idleMiner.address)
+      d.advanceNewBlocks(idleMiner)
 
       // Report empty epoch
       d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
@@ -90,7 +90,7 @@ class EmptyEpochTestSuite extends BaseTestSuite {
       d.portfolio(reporter1.address) shouldBe Seq.empty
 
       // Start reporter1
-      d.advanceNewBlocks(reporter1.address)
+      d.advanceNewBlocks(reporter1)
 
       // Claim reporter reward
       d.appendMicroBlock(d.ChainContract.claimEmptyEpochReportRewards(reporter1.account, List(3L, 4L)))
@@ -108,7 +108,7 @@ class EmptyEpochTestSuite extends BaseTestSuite {
     val settings = defaultSettings.copy(initialMiners = List(idleMiner, reporter1, reporter2))
     withExtensionDomain(settings) { d =>
       // Start idleMiner
-      d.advanceNewBlocks(idleMiner.address)
+      d.advanceNewBlocks(idleMiner)
 
       // Report empty epoch, 1st time
       d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
@@ -133,7 +133,7 @@ class EmptyEpochTestSuite extends BaseTestSuite {
         Some(IntegerDataEntry(minerSkippedEpochCountKey, 1L))
 
       // Start reporter1
-      d.advanceNewBlocks(reporter1.address)
+      d.advanceNewBlocks(reporter1)
 
       // Claim reporter reward
       d.appendMicroBlock(d.ChainContract.claimEmptyEpochReportRewards(reporter1.account, List(4L)))
@@ -150,13 +150,13 @@ class EmptyEpochTestSuite extends BaseTestSuite {
     val settings = defaultSettings.copy(initialMiners = List(idleMiner, reporter1, reporter2))
     withExtensionDomain(settings) { d =>
       // Start idleMiner
-      d.advanceNewBlocks(idleMiner.address)
+      d.advanceNewBlocks(idleMiner)
 
       // Report empty epoch
       d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
 
       // Start reporter1
-      d.advanceNewBlocks(reporter1.address)
+      d.advanceNewBlocks(reporter1)
 
       // Claim reporter reward from irrelevant account
       d.appendMicroBlock(d.ChainContract.claimEmptyEpochReportRewards(reporter2.account, List(4L)))
@@ -199,13 +199,13 @@ class EmptyEpochTestSuite extends BaseTestSuite {
   "The last epoch in a list of 100 is claimed successfully" in {
     withExtensionDomain(defaultSettings) { d =>
       // Start idleMiner
-      d.advanceNewBlocks(idleMiner.address)
+      d.advanceNewBlocks(idleMiner)
 
       // Report empty epoch
       d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
 
       // Start reporter1
-      d.advanceNewBlocks(reporter1.address)
+      d.advanceNewBlocks(reporter1)
 
       // Build a list of 100 epochs, with the last one being the reported one
       val epochList = Range.inclusive(1001, 1099).map(_.toLong) ++ Seq(3L)
@@ -219,7 +219,7 @@ class EmptyEpochTestSuite extends BaseTestSuite {
   "Empty epoch changed to non-empty after reporting, a reporter is not rewarded" in {
     withExtensionDomain(defaultSettings) { d =>
       // Start idleMiner
-      d.advanceNewBlocks(idleMiner.address)
+      d.advanceNewBlocks(idleMiner)
 
       // Report empty epoch
       d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
@@ -246,7 +246,7 @@ class EmptyEpochTestSuite extends BaseTestSuite {
       d.accountsApi.data(d.chainContractAddress, minerSkippedEpochCountKey) shouldBe None
 
       // Start reporter1
-      d.advanceNewBlocks(reporter1.address)
+      d.advanceNewBlocks(reporter1)
 
       // Claim reporter reward
       d.appendMicroBlock(d.ChainContract.claimEmptyEpochReportRewards(reporter1.account, List(reportedEpochNumber)))
@@ -259,7 +259,7 @@ class EmptyEpochTestSuite extends BaseTestSuite {
   "Non-empty epoch reported, report rejected" in {
     withExtensionDomain(defaultSettings) { d =>
       // Start idleMiner
-      d.advanceNewBlocks(idleMiner.address)
+      d.advanceNewBlocks(idleMiner)
 
       // Append a block
       val ecBlock1 = d.createEcBlockBuilder("0", idleMiner).build()
@@ -281,7 +281,7 @@ class EmptyEpochTestSuite extends BaseTestSuite {
       d.accountsApi.data(d.chainContractAddress, minerSkippedEpochKey) shouldBe None
 
       // Start reporter1
-      d.advanceNewBlocks(reporter1.address)
+      d.advanceNewBlocks(reporter1)
 
       // Claim reporter reward
       d.appendMicroBlock(d.ChainContract.claimEmptyEpochReportRewards(reporter1.account, List(reportedEpochNumber)))
@@ -294,19 +294,19 @@ class EmptyEpochTestSuite extends BaseTestSuite {
   "Miner started mining after 2 epochs, but skipped epoch count is preserved for the future measures" in {
     withExtensionDomain(defaultSettings) { d =>
       // Start idleMiner
-      d.advanceNewBlocks(idleMiner.address)
+      d.advanceNewBlocks(idleMiner)
 
       // Report empty epoch
       d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
 
       // Start idleMiner again
-      d.advanceNewBlocks(idleMiner.address)
+      d.advanceNewBlocks(idleMiner)
 
       // Report empty epoch
       d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
 
       // Start idleMiner again
-      d.advanceNewBlocks(idleMiner.address)
+      d.advanceNewBlocks(idleMiner)
 
       // Append a block
       val ecBlock1 = d.createEcBlockBuilder("0", idleMiner).build()
@@ -318,7 +318,7 @@ class EmptyEpochTestSuite extends BaseTestSuite {
         Some(IntegerDataEntry(minerSkippedEpochCountKey, 2L))
 
       // Start reporter1
-      d.advanceNewBlocks(reporter1.address)
+      d.advanceNewBlocks(reporter1)
 
       // Claim reporter reward
       d.appendMicroBlock(d.ChainContract.claimEmptyEpochReportRewards(reporter1.account, List(3L, 4L)))
@@ -335,7 +335,7 @@ class EmptyEpochTestSuite extends BaseTestSuite {
   "Reporter can not have their reward until an epoch is completed" in {
     withExtensionDomain(defaultSettings) { d =>
       // Start idleMiner
-      d.advanceNewBlocks(idleMiner.address)
+      d.advanceNewBlocks(idleMiner)
 
       // Report empty epoch
       d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
@@ -347,7 +347,7 @@ class EmptyEpochTestSuite extends BaseTestSuite {
       d.portfolio(reporter1.address) shouldBe Seq.empty
 
       // Start reporter1
-      d.advanceNewBlocks(reporter1.address)
+      d.advanceNewBlocks(reporter1)
 
       // Claim reporter reward for the same epoch
       d.appendMicroBlock(d.ChainContract.claimEmptyEpochReportRewards(reporter1.account, List(3L)))
@@ -372,7 +372,7 @@ class EmptyEpochTestSuite extends BaseTestSuite {
         .inclusive(1, maxSkippedEpochCount)
         .foreach(_ => {
           // Start new epoch for idleMiner
-          d.advanceNewBlocks(idleMiner.address)
+          d.advanceNewBlocks(idleMiner)
 
           // Remember reported epochs
           reportedEpochs = d.blockchain.height :: reportedEpochs
@@ -405,7 +405,7 @@ class EmptyEpochTestSuite extends BaseTestSuite {
       val emptyEpochChunks = Range.inclusive(1, d.blockchain.height).map(_.toLong).grouped(maxEpochsPerClaim)
       emptyEpochChunks.foreach { emptyEpochList =>
         // Start new epoch
-        d.advanceNewBlocks(thisMiner.address)
+        d.advanceNewBlocks(thisMiner)
         d.appendMicroBlock(d.ChainContract.claimEmptyEpochReportRewards(thisMiner.account, emptyEpochList))
       }
 
@@ -431,7 +431,7 @@ class EmptyEpochTestSuite extends BaseTestSuite {
         .inclusive(1, maxSkippedEpochCount - 1)
         .foreach(_ => {
           // Start new epoch for idleMiner
-          d.advanceNewBlocks(idleMiner.address)
+          d.advanceNewBlocks(idleMiner)
 
           // Remember reported epochs
           reportedEpochs1 = d.blockchain.height :: reportedEpochs1
@@ -440,7 +440,7 @@ class EmptyEpochTestSuite extends BaseTestSuite {
           d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
 
           // Start new epoch for idleMiner2
-          d.advanceNewBlocks(idleMiner2.address)
+          d.advanceNewBlocks(idleMiner2)
 
           // Remember reported epochs
           reportedEpochs2 = d.blockchain.height :: reportedEpochs2
@@ -450,7 +450,7 @@ class EmptyEpochTestSuite extends BaseTestSuite {
         })
 
       // Start new epoch for idleMiner
-      d.advanceNewBlocks(idleMiner.address)
+      d.advanceNewBlocks(idleMiner)
 
       // Remember reported epochs
       reportedEpochs1 = d.blockchain.height :: reportedEpochs1
