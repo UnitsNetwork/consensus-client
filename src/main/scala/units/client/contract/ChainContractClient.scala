@@ -398,7 +398,7 @@ object ChainContractClient {
     val index: Long
     val epoch: Int
 
-    case Native(index: Long, epoch: Int, to: EthAddress, amount: Long) extends ContractTransfer
+    case Native(index: Long, epoch: Int, to: EthAddress, amount: Long)
     case Asset(
         index: Long,
         epoch: Int,
@@ -407,7 +407,7 @@ object ChainContractClient {
         amount: EAmount,
         tokenAddress: EthAddress,
         asset: com.wavesplatform.transaction.Asset
-    ) extends ContractTransfer
+    )
   }
 
   object Registry {
