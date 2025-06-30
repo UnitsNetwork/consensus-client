@@ -1,7 +1,6 @@
 package units
 
 import com.wavesplatform.block.Block.BlockId
-import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.db.WithState.AddrWithBalance
 import com.wavesplatform.mining.MultiDimensionalMiningConstraint

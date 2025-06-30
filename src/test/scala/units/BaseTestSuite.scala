@@ -13,7 +13,7 @@ import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues, TryValues}
 import org.web3j.abi.TypeEncoder
 import org.web3j.abi.datatypes.Address as Web3JAddress
-import org.web3j.abi.datatypes.generated.{Bytes20, Int64}
+import org.web3j.abi.datatypes.generated.Int64
 import units.client.engine.model.GetLogsResponseEntry
 import units.el.NativeBridge.ElSentNativeEvent
 import units.el.{NativeBridge, StandardBridge}

@@ -17,6 +17,11 @@ inScope(Global)(
       "-feature",
       "-deprecation",
       "-unchecked",
+      "-Wshadow:all",
+      "-Wunused:all",
+      "-explain-cyclic",
+      "-Wimplausible-patterns",
+      "-Wsafe-init",
       "-language:higherKinds",
       "-language:implicitConversions",
       "-language:postfixOps"

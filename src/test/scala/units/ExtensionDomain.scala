@@ -8,7 +8,6 @@ import com.wavesplatform.api.http.utils.UtilsEvaluator
 import com.wavesplatform.block.Block.BlockId
 import com.wavesplatform.block.{Block, MicroBlock}
 import com.wavesplatform.common.state.ByteStr
-import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.database.{RDB, RocksDBWriter}
 import com.wavesplatform.events.{BlockchainUpdateTriggers, UtxEvent}
@@ -50,15 +49,15 @@ import units.network.TestBlocksObserver
 import units.test.CustomMatchers
 
 import java.nio.charset.StandardCharsets
-import scala.annotation.tailrec
+import scala.annotation.{nowarn, tailrec}
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.reflect.ClassTag
 
 class ExtensionDomain(
-    rdb: RDB,
-    blockchainUpdater: BlockchainUpdaterImpl,
-    rocksDBWriter: RocksDBWriter,
-    settings: WavesSettings,
+    @nowarn rdb: RDB,
+    @nowarn blockchainUpdater: BlockchainUpdaterImpl,
+    @nowarn rocksDBWriter: RocksDBWriter,
+    @nowarn settings: WavesSettings,
     override val chainRegistryAccount: KeyPair,
     nativeBridgeAddress: EthAddress,
     standardBridgeAddress: EthAddress,
@@ -88,7 +87,7 @@ class ExtensionDomain(
   )
 
   val chainContractClient = new ChainContractStateClient(chainContractAddress, blockchainUpdater)
-  val ecClients           = new TestEcClients(standardBridgeAddress, nativeBridgeAddress, ecGenesisBlock, blockchain)
+  val ecClients           = new TestEcClients(ecGenesisBlock)
 
   val globalScheduler = TestScheduler(ExecutionModel.AlwaysAsyncExecution)
   val eluScheduler    = TestScheduler(ExecutionModel.AlwaysAsyncExecution)

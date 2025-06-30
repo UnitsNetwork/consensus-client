@@ -17,7 +17,7 @@ import units.eth.{EthAddress, EthereumConstants}
 import java.math.BigInteger
 
 class NativeBridgeClient(web3j: Web3j, address: EthAddress, gasProvider: DefaultGasProvider = new DefaultGasProvider) extends ScorexLogging {
-  def sendSendNative(sender: Credentials, recipient: Address, amountInEther: BigInt, nonce: Option[Int] = None): EthSendTransaction = sendSendNative(
+  def sendSendNative(sender: Credentials, recipient: Address, amountInEther: BigInt): EthSendTransaction = sendSendNative(
     sender,
     recipient,
     amountInEther,

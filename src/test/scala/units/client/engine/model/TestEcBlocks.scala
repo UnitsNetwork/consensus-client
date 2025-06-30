@@ -1,7 +1,6 @@
 package units.client.engine.model
 
 import com.wavesplatform.account.SeedKeyPair
-import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import play.api.libs.json.{JsObject, Json}
 import units.NetworkL2Block

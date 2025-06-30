@@ -1,6 +1,5 @@
 package units
 
-import com.wavesplatform.db.WithState.AddrWithBalance
 import com.wavesplatform.wallet.Wallet
 import units.client.engine.model.GetLogsResponseEntry
 import units.el.StandardBridge

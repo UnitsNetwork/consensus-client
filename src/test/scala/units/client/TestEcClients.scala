@@ -1,9 +1,7 @@
 package units.client
 
 import cats.syntax.either.*
-import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
-import com.wavesplatform.state.Blockchain
 import com.wavesplatform.utils.{EthEncoding, ScorexLogging}
 import monix.execution.atomic.{Atomic, AtomicInt}
 import play.api.libs.json.{JsObject, Json}
@@ -11,11 +9,8 @@ import units.client.TestEcClients.*
 import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.model.*
 import units.client.engine.{EngineApiClient, LoggedEngineApiClient}
-import units.collections.ListOps.*
 import units.eth.{EthAddress, EthereumConstants}
-import units.{BlockHash, ClientError, JobResult, NetworkL2Block}
-
-import scala.util.chaining.*
+import units.{BlockHash, JobResult, NetworkL2Block}
 
 /** Life of a block:
   *   1. User calls willForge - goes to futureBlocks, willSimulate - to sumulatedBlocks.
@@ -24,22 +19,14 @@ import scala.util.chaining.*
   *   4. CC calls forkchoiceUpdated / forkchoiceUpdatedWithPayload - head block moves from readyBlocks to chain.
   */
 class TestEcClients private (
-    elStandardBridgeAddress: EthAddress,
-    elNativeBridgeAddress: EthAddress,
     pendingPayloads: Atomic[Map[PayloadId, EcBlock]],
     readyBlocks: Atomic[Map[BlockHash, EcBlock]],
-    chain: Atomic[List[EcBlock]],
-    currChainIdValue: AtomicInt,
-    blockchain: Blockchain
+    chain: Atomic[List[EcBlock]]
 ) extends ScorexLogging {
-  def this(elStandardBridgeAddress: EthAddress, elNativeBridgeAddress: EthAddress, genesis: EcBlock, blockchain: Blockchain) = this(
-    elStandardBridgeAddress = elStandardBridgeAddress,
-    elNativeBridgeAddress = elNativeBridgeAddress,
+  def this(genesis: EcBlock) = this(
     pendingPayloads = Atomic(Map.empty),
     readyBlocks = Atomic(Map.empty),
-    chain = Atomic(List(genesis)),
-    currChainIdValue = AtomicInt(0),
-    blockchain = blockchain
+    chain = Atomic(List(genesis))
   )
 
   def addKnown(ecBlock: EcBlock): EcBlock = {
@@ -92,7 +79,7 @@ class TestEcClients private (
             case Nil =>
               val foundStr = simulateBlocks.get().map { b => s"${b.hash.take(LogChars)}->${b.parentHash.take(LogChars)}" }
               fail(s"Can't find the block with the ${hash.take(LogChars)} parent hash among: ${foundStr.mkString(", ")}. Call willSimulate")
-            case xs => fail(s"Found multiple future block candidates: $found")
+            case _ => fail(s"Found multiple future block candidates: $found")
           }
         }
 
@@ -183,7 +170,7 @@ class TestEcClients private (
               fail(
                 s"Can't find the block with the ${lastBlockHash.take(LogChars)} parent hash among: ${foundForgedStr.mkString(", ")}. Call willForge"
               )
-            case xs => fail(s"Found multiple future block candidates: $found")
+            case _ => fail(s"Found multiple future block candidates: $found")
           }
         }
 

@@ -65,7 +65,7 @@ exec geth --networkid=1337 \\
       HttpService.getOkHttpClientBuilder
         .addInterceptor { (chain: Interceptor.Chain) =>
           val orig     = chain.request()
-          val jwtToken = JwtJson.encode(JwtClaim().issuedNow(Clock.systemUTC), jwtSecretKey, JwtAlgorithm.HS256)
+          val jwtToken = JwtJson.encode(JwtClaim().issuedNow(using Clock.systemUTC), jwtSecretKey, JwtAlgorithm.HS256)
           val request = orig
             .newBuilder()
             .header("Authorization", s"Bearer $jwtToken")

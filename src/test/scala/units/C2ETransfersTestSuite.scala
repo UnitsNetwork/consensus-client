@@ -7,10 +7,9 @@ import com.wavesplatform.test.produce
 import com.wavesplatform.transaction.utils.EthConverters.EthereumAddressExt
 import com.wavesplatform.transaction.{Asset, TxHelpers}
 import com.wavesplatform.wallet.Wallet
-import org.web3j.abi.EventEncoder
-import units.client.engine.model.{EcBlock, GetLogsResponseEntry, Withdrawal}
-import units.el.{NativeBridge, StandardBridge}
-import units.eth.{EthAddress, EthNumber}
+import units.client.engine.model.{EcBlock, Withdrawal}
+import units.el.StandardBridge
+import units.eth.EthAddress
 
 class C2ETransfersTestSuite extends BaseTestSuite {
   private val transferSenderAccount  = TxHelpers.secondSigner

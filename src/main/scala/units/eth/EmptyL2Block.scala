@@ -1,16 +1,10 @@
 package units.eth
 
 import org.web3j.abi.datatypes.generated.Uint256
-import org.web3j.rlp.{RlpEncoder, RlpList, RlpString}
-import play.api.libs.json.{JsObject, Json}
-import units.BlockHash
 import units.client.engine.model.{BlockOverrides, BlockStateCall, EcBlock, Withdrawal}
 import units.el.DepositedTransaction
-import units.util.HexBytesConverter
 
 object EmptyL2Block {
-  private val InternalBlockTimestampDiff = 1 // seconds
-
   def mkSimulateCall(
       parent: EcBlock,
       feeRecipient: EthAddress,
