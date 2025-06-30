@@ -17,9 +17,9 @@ import scala.jdk.CollectionConverters.*
 import scala.util.{Failure, Success}
 
 class BlocksObserverImpl(allChannels: DefaultChannelGroup, blocks: ChannelObservable[NetworkL2Block], syncTimeout: FiniteDuration)(implicit
-                                                                                                                                   sc: Scheduler
+    sc: Scheduler
 ) extends BlocksObserver
-  with ScorexLogging {
+    with ScorexLogging {
 
   private var state: State = State.Idle(None)
   private val blocksResult: ConcurrentSubject[BlockWithChannel, BlockWithChannel] =
@@ -50,7 +50,7 @@ class BlocksObserverImpl(allChannels: DefaultChannelGroup, blocks: ChannelObserv
     .build[BlockHash, BlockWithChannel]()
 
   blocks
-    .foreach { case v@(ch, block) =>
+    .foreach { case v @ (ch, block) =>
       state = state match {
         case State.LoadingBlock(expectedHash, nextAttempt, p) if expectedHash == block.hash =>
           nextAttempt.cancel()

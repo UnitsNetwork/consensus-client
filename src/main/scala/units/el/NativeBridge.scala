@@ -56,7 +56,7 @@ object NativeBridge {
           case xs =>
             Left(
               s"Expected (wavesRecipient: ${PublicKeyHashType.getClassType.getSimpleName}, amount: ${AmountType.getClassType.getSimpleName}) fields, got: ${xs
-                .mkString(", ")}"
+                  .mkString(", ")}"
             )
         }
       } catch {

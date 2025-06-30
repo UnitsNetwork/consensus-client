@@ -22,7 +22,7 @@ case class ClientConfig(
     miningEnable: Boolean,
     jwtSecretFile: Option[String],
     privateKeys: Seq[PrivateKey] = Seq.empty
-  ) {
+) {
   lazy val chainContractAddress: Address = Address.fromString(chainContract).explicitGet()
 
   val jsonRpcClient = JsonRpcClient.Config(

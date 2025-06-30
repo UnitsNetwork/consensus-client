@@ -43,7 +43,7 @@ jobs:
           which solc || echo "Solc not found in PATH"
       - uses: sbt/setup-sbt@v1
       - name: Run tests
-        run: sbt --batch "test;docker;consensus-client-it/test"
+        run: sbt --batch "scalafmtCheck;test;docker;consensus-client-it/test"
       - name: Archive logs
         uses: actions/upload-artifact@v4
         if: always()
