@@ -298,7 +298,7 @@ trait ChainContractClient {
       )
     // {epoch}_{destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex} (Asset, after strict transfers and deposits activation)
     } else if (xs.length == 5) { // epoch, rawDestElAddress, rawFromAddress, rawAmount, rawAssetIndex
-      val assetIndex = xs(3).toIntOption.getOrElse(fail(s"Expected an asset index in asset transfer, got: ${xs(3)}"))
+      val assetIndex = xs(4).toIntOption.getOrElse(fail(s"Expected an asset index in asset transfer, got: ${xs(4)}"))
       val asset      = getRegisteredAsset(assetIndex)
       val assetData  = getRegisteredAssetData(asset)
 
