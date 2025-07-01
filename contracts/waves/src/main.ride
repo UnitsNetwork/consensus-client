@@ -78,13 +78,16 @@ let transfersCount       = this.getInteger(transfersCountKey).valueOrElse(0)
 let maxSkippedEpochCount = getInteger(maxSkippedEpochCountKey).valueOrElse(200)
 
 # transferKey value variants:
-# - Native, before strict transfers activation
+# - Native transfer, before strict transfers activation
 #   {destElAddressHex with 0x}_{amount}
-# - Asset, before strict transfers activation
-#   {destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex}
-# - Native, after strict transfers activation
+# 
+# - Native transfer, after strict transfers activation
 #   {epoch}_{destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}
-# - Asset, after strict transfers activation
+# 
+# - Asset transfer, before strict transfers activation
+#   {destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex}
+# 
+# - Asset transfer, after strict transfers activation
 #   {epoch}_{destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex}
 func transferKey(index: Int) = "nativeTransfer_" + index.toString()
 
