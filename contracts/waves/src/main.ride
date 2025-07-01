@@ -76,35 +76,51 @@ func minerSkippedEpochCountKey(minerAddr: String) = "miner_" + minerAddr + "_Ski
 
 let transfersCount       = this.getInteger(transfersCountKey).valueOrElse(0)
 let maxSkippedEpochCount = getInteger(maxSkippedEpochCountKey).valueOrElse(200)
-func transferKey(index: Int) = "nativeTransfer_" + index.toString() # {destElAddressHex with 0x}_{amount} | {destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex}
+
+# transferKey value variants:
+# - Native, before strict transfers activation
+#   {destElAddressHex with 0x}_{amount}
+# - Asset, before strict transfers activation
+#   {destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex}
+# - Native, after strict transfers activation
+#   {epoch}_{destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}
+# - Asset, after strict transfers activation
+#   {epoch}_{destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex}
+func transferKey(index: Int) = "nativeTransfer_" + index.toString()
 
 let strictC2ETransfersActivationEpochKey = "strictC2ETransfersActivationEpoch"
 let strictC2ETransfersActivationEpoch    = getInteger(strictC2ETransfersActivationEpochKey).valueOrElse(INT_MAX)
+let strictC2ETransfersActivated          = height >= strictC2ETransfersActivationEpoch
 
 # destElAddressHex - without 0x
-func mkNativeTransferEntries(destElAddressHex: String, amount: Int) = {
+func mkNativeTransferViaWithdrawalEntries(destElAddressHex: String, amount: Int) = {
   let currTransferIndex = transfersCount
-
-  let entryKey = transferKey(currTransferIndex)
-  let entryValue1 = "0x" + destElAddressHex + SEP + amount.toString()
-  let entryValue2 = if (height < strictC2ETransfersActivationEpoch)
-    then entryValue1
-    else entryValue1 + SEP + height.toString()
-
+  let key = transferKey(currTransferIndex)
   [
-    StringEntry(entryKey, entryValue2),
+    StringEntry(key, "0x" + destElAddressHex + SEP + amount.toString()),
     IntegerEntry(transfersCountKey, currTransferIndex + 1)
   ]
 }
+
+# destElAddressHex - without 0x
+func mkNativeTransferViaDepositEntries(destElAddressHex: String, fromAddressHex: String, amount: Int) = {
+  let currTransferIndex = transfersCount
+  let key = transferKey(currTransferIndex)
+  [
+    StringEntry(key, height.toString() + SEP + "0x" + destElAddressHex + SEP + "0x" + fromAddressHex + SEP + amount.toString()),
+    IntegerEntry(transfersCountKey, currTransferIndex + 1)
+  ]
+}
+
 # destElAddressHex - without 0x
 func mkAssetTransferEntries(destElAddressHex: String, fromAddressHex: String, amount: Int, assetIndex: Int) = {
   let currTransferIndex = transfersCount
 
   let entryKey = transferKey(currTransferIndex)
   let entryValue1 = "0x" + destElAddressHex + SEP + "0x" + fromAddressHex + SEP + amount.toString() + SEP + assetIndex.toString()
-  let entryValue2 = if (height < strictC2ETransfersActivationEpoch)
-    then entryValue1
-    else entryValue1 + SEP + height.toString()
+  let entryValue2 = if (strictC2ETransfersActivated)
+    then height.toString() + SEP + entryValue1
+    else entryValue1
 
   [
     StringEntry(entryKey, entryValue2),
@@ -871,6 +887,7 @@ func transfer(destElAddressHex: String) = {
   let t = if (size(i.payments) == 1) then i.payments[0] else throw("Expected one payment as a transfer amount, got " + i.payments.size().toString())
   let nativeTokenIdStr = getStringValue(tokenIdKey)
   let nativeTokenId    = nativeTokenIdStr.fromBase58String()
+  let fromAddressHex = i.caller.bytes.drop(2).take(20).toBase16String()
   if (t.assetId == nativeTokenId) then {
     # TODO Return this logic:
     # let lastIndex = blockMeta(mainChainLastBlock)._6
@@ -881,7 +898,11 @@ func transfer(destElAddressHex: String) = {
     #   else if (queueSize < 3200) then amountGtEq(t,   100_000_000, queueSize)
     #   else if (queueSize < 6400) then amountGtEq(t, 1_000_000_000, queueSize)
     #   else throw("Transfers denied for queue size of " + queueSize.toString() + ". Wait until current transfers processed")
-    Burn(nativeTokenId, t.amount) :: mkNativeTransferEntries(normalizedDestElAddressHex, t.amount)
+    let nativeTransferEntries = 
+      if (strictC2ETransfersActivated)
+      then mkNativeTransferViaDepositEntries(normalizedDestElAddressHex, fromAddressHex, t.amount)
+      else mkNativeTransferViaWithdrawalEntries(normalizedDestElAddressHex, t.amount)
+    Burn(nativeTokenId, t.amount) :: nativeTransferEntries
   } else {
     strict activated = requireAssetTransfersActivated()
 
@@ -894,7 +915,6 @@ func transfer(destElAddressHex: String) = {
       case _ => (WAVES_ASSET_NAME, [])
     }
 
-    let fromAddressHex = i.caller.bytes.drop(2).take(20).toBase16String()
     let assetIndex     = getAssetIndex(assetIdBase58OrWaves)
     preActions ++ mkAssetTransferEntries(normalizedDestElAddressHex, fromAddressHex, t.amount, assetIndex)
   }

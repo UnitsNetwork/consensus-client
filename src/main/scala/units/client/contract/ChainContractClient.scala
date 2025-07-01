@@ -261,26 +261,55 @@ trait ChainContractClient {
     val key = s"nativeTransfer_$atIndex"
     val raw = getStringData(key).getOrElse(fail(s"Expected a transfer at '$key', got nothing"))
     val xs  = raw.split(Sep)
-    if (xs.length == 2 || xs.length == 3) // rawDestElAddress, rawAmount, epoch?
+    // transferKey value variants:
+  
+    // {destElAddressHex with 0x}_{amount} (Native, before strict transfers activation)
+    if (xs.length == 2) // rawDestElAddress, rawAmount
       ContractTransfer.Native(
         index = atIndex,
-        epoch = if (xs.length < 3) 0 else xs(2).toIntOption.getOrElse(fail(s"Expected an integer epoch, got: ${xs(2)}")),
+        epoch = 0,
         to = EthAddress.unsafeFrom(xs(0)),
         amount = xs(1).toLongOption.getOrElse(fail(s"Expected an integer amount of a native transfer, got: ${xs(1)}"))
       )
-    else if (xs.length == 4 || xs.length == 5) { // rawDestElAddress, rawFromAddress, rawAmount, rawAssetIndex, epoch?
+    // {epoch}_{destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount} (Native, after strict transfers and deposits activation)
+    else if (xs.length == 4 && EthAddress.from(xs(0)).isLeft) // epoch, rawDestElAddress, (rawFromAddress), rawAmount
+      ContractTransfer.Native(
+        index = atIndex,
+        epoch = xs(0).toIntOption.getOrElse(fail(s"Expected an integer epoch, got: ${xs(0)}")),
+        to = EthAddress.unsafeFrom(xs(1)),
+        amount = xs(3).toLongOption.getOrElse(fail(s"Expected an integer amount of a native transfer, got: ${xs(3)}"))
+      )
+    // {destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex} (Asset, before strict transfers activation)
+    else if (xs.length == 4 && EthAddress.from(xs(0)).isRight) { // rawDestElAddress, rawFromAddress, rawAmount, rawAssetIndex
       val assetIndex = xs(3).toIntOption.getOrElse(fail(s"Expected an asset index in asset transfer, got: ${xs(3)}"))
       val asset      = getRegisteredAsset(assetIndex)
       val assetData  = getRegisteredAssetData(asset)
 
       ContractTransfer.Asset(
         index = atIndex,
-        epoch = if (xs.length < 5) 0 else xs(4).toIntOption.getOrElse(fail(s"Expected an integer epoch, got: ${xs(4)}")),
+        epoch = 0,
         from = EthAddress.unsafeFrom(xs(1)),
         to = EthAddress.unsafeFrom(xs(0)),
         amount =
           try WAmount(xs(2)).scale(assetData.exponent)
           catch { case e: ArithmeticException => fail(s"Expected an integer amount of a native transfer, got: ${xs(2)}", e) },
+        tokenAddress = assetData.erc20Address,
+        asset
+      )
+    // {epoch}_{destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex} (Asset, after strict transfers and deposits activation)
+    } else if (xs.length == 5) { // epoch, rawDestElAddress, rawFromAddress, rawAmount, rawAssetIndex
+      val assetIndex = xs(3).toIntOption.getOrElse(fail(s"Expected an asset index in asset transfer, got: ${xs(3)}"))
+      val asset      = getRegisteredAsset(assetIndex)
+      val assetData  = getRegisteredAssetData(asset)
+
+      ContractTransfer.Asset(
+        index = atIndex,
+        epoch = xs(0).toIntOption.getOrElse(fail(s"Expected an integer epoch, got: ${xs(0)}")),
+        from = EthAddress.unsafeFrom(xs(2)),
+        to = EthAddress.unsafeFrom(xs(1)),
+        amount =
+          try WAmount(xs(3)).scale(assetData.exponent)
+          catch { case e: ArithmeticException => fail(s"Expected an integer amount of a native transfer, got: ${xs(3)}", e) },
         tokenAddress = assetData.erc20Address,
         asset
       )
