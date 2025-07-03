@@ -21,7 +21,7 @@ Test / sourceGenerators += Def.task {
   val contractSources              = baseDirectory.value / ".." / "contracts" / "eth"
   val compiledDir                  = contractSources / "target"
   // --silent to bypass garbage "Counting objects" git logs
-  s"forge build --silent --config-path ${contractSources / "foundry.toml"} --contracts ${contractSources / "src"} " +
+  s"forge build --silent --config-path ${contractSources / "foundry.toml"} --contracts " +
     s"${contractSources / "src" / "utils" / "TERC20.sol"} " +
     s"${contractSources / "src" / "StandardBridge.sol"} " +
     s"${contractSources / "src" / "Bridge.sol"} " +
