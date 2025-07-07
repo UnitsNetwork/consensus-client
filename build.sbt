@@ -9,18 +9,22 @@ git.uncommittedSignifier := Some("DIRTY")
 inScope(Global)(
   Seq(
     onChangedBuildSource := ReloadOnSourceChanges,
-    scalaVersion         := "3.6.4",
+    scalaVersion         := "3.7.1",
     organization         := "network.units",
     organizationName     := "Units Network",
-    resolvers ++= Resolver.sonatypeOssRepos("releases") ++ Resolver.sonatypeOssRepos("snapshots") ++ Seq(Resolver.mavenLocal),
+    resolvers ++= Seq(Resolver.sonatypeCentralSnapshots, Resolver.mavenLocal),
     scalacOptions ++= Seq(
       "-feature",
       "-deprecation",
       "-unchecked",
+      "-Wshadow:all",
+      "-Wunused:all",
+      "-explain-cyclic",
+      "-Wimplausible-patterns",
+      "-Wsafe-init",
       "-language:higherKinds",
       "-language:implicitConversions",
-      "-language:postfixOps",
-      "-language:experimental.namedTuples"
+      "-language:postfixOps"
     )
   )
 )
@@ -29,7 +33,7 @@ name       := "consensus-client"
 maintainer := "Units Network Team"
 
 libraryDependencies ++= {
-  val node        = "1.5.10"
+  val node        = "1.5.11-SNAPSHOT"
   val sttpVersion = "3.10.3"
   Seq(
     "com.wavesplatform"              % "node-testkit"  % node % Test,

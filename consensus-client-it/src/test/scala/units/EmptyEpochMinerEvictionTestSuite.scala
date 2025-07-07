@@ -17,7 +17,6 @@ class EmptyEpochMinerEvictionTestSuite extends BaseDockerTestSuite {
       TxHelpers.dataEntry(chainContractAccount, IntegerDataEntry("maxSkippedEpochCount", maxSkippedEpochCount))
     )
 
-    val heightBeforeJoin = waves1.api.height()
     waves1.api.broadcastAndWait(
       ChainContract.join(
         minerAccount = idleMiner,

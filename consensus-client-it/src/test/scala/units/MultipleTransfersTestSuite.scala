@@ -1,6 +1,5 @@
 package units
 
-import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.transaction.Asset
 import com.wavesplatform.transaction.Asset.IssuedAsset
@@ -10,7 +9,6 @@ import org.web3j.protocol.core.DefaultBlockParameterName
 import org.web3j.protocol.core.methods.response.{EthSendTransaction, TransactionReceipt}
 import org.web3j.tx.RawTransactionManager
 import org.web3j.tx.gas.DefaultGasProvider
-import org.web3j.utils.Convert
 import units.client.contract.HasConsensusLayerDappTxHelpers.DefaultFees
 import units.docker.EcContainer
 import units.el.{BridgeMerkleTree, E2CTopics, Erc20Client}
@@ -19,7 +17,6 @@ import units.eth.EthAddress
 import scala.jdk.OptionConverters.RichOptional
 
 class MultipleTransfersTestSuite extends BaseDockerTestSuite {
-  private val clAssetOwner    = clRichAccount2
   private val clRecipient     = clRichAccount1
   private val elSender        = elRichAccount1
   private val elSenderAddress = elRichAddress1
@@ -28,8 +25,6 @@ class MultipleTransfersTestSuite extends BaseDockerTestSuite {
   private lazy val issueAsset    = chainContract.getRegisteredAsset(1) // 0 is WAVES
 
   private val userAmount = BigDecimal("1")
-
-  private val tenGwei = BigInt(Convert.toWei("10", Convert.Unit.GWEI).toBigIntegerExact)
 
   private val gasProvider     = new DefaultGasProvider
   private lazy val txnManager = new RawTransactionManager(ec1.web3j, elSender, EcContainer.ChainId, 20, 2000)
@@ -57,7 +52,7 @@ class MultipleTransfersTestSuite extends BaseDockerTestSuite {
     val e2cWavesTxn  = standardBridge.sendBridgeErc20(elSender, WWavesAddress, clRecipient.toAddress, wavesE2CAmount, nextNonce)
 
     chainContract.waitForEpoch(waves1.api.height() + 1) // Bypass rollbacks
-    val e2cReceipts = List(e2cIssuedTxn, e2cIssuedTxn, e2cWavesTxn).map { txn =>
+    val e2cReceipts = List(e2cNativeTxn, e2cIssuedTxn, e2cWavesTxn).map { txn =>
       eventually {
         val hash = txn.getTransactionHash
         withClue(s"$hash: ") {

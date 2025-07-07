@@ -20,8 +20,6 @@ class C2ENativeBridgeTestSuite extends BaseDockerTestSuite {
     val clAssetQuantityBefore      = clAssetQuantity
     val chainContractBalanceBefore = chainContractBalance
 
-    val elCurrHeight = ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact()
-
     waves1.api.broadcastAndWait(
       ChainContract.transfer(
         sender = clSender,

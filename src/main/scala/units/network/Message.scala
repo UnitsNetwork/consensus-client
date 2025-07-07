@@ -19,7 +19,7 @@ case class RawBytes(code: Byte, data: Array[Byte]) extends Message {
 
   override def equals(obj: Any): Boolean = obj match {
     case o: RawBytes => o.code == code && util.Arrays.equals(o.data, data)
-    case _ => false
+    case _           => false
   }
 }
 

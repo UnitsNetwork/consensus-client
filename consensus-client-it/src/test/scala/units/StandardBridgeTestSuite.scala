@@ -1,6 +1,5 @@
 package units
 
-import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.transaction.Asset
 import com.wavesplatform.transaction.Asset.Waves
@@ -19,7 +18,6 @@ import units.eth.EthAddress
 import scala.jdk.OptionConverters.RichOptional
 
 class StandardBridgeTestSuite extends BaseDockerTestSuite {
-  private val clAssetOwner    = clRichAccount2
   private val clRecipient     = clRichAccount1
   private val elSender        = elRichAccount1
   private val elSenderAddress = elRichAddress1
@@ -30,10 +28,6 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
   private val userAmount = 1
   private val clAmount   = UnitsConvert.toWavesAtomic(userAmount, issueAssetDecimals)
   private val elAmount   = UnitsConvert.toAtomic(userAmount, TErc20Decimals)
-
-  private val testTransfers  = 2
-  private val enoughClAmount = clAmount * testTransfers
-  private val enoughElAmount = elAmount * testTransfers
 
   private val tenGwei = BigInt(Convert.toWei("10", Convert.Unit.GWEI).toBigIntegerExact)
 
@@ -235,8 +229,6 @@ class StandardBridgeTestSuite extends BaseDockerTestSuite {
       balanceAfter shouldBe (recipientBalanceBefore + clWithdrawAmount)
     }
   }
-
-  private def getBalance(erc20Contract: ERC20, account: String): BigInt = erc20Contract.call_balanceOf(account).send()
 
   private def sendApproveErc20(erc20Contract: ERC20, ethAmount: BigInt): TransactionReceipt = {
     val txnResult = erc20Contract.send_approve(StandardBridgeAddress.toString, ethAmount.bigInteger).send()

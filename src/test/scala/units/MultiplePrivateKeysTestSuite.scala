@@ -1,10 +1,7 @@
 package units
 
-import com.wavesplatform.mining.MultiDimensionalMiningConstraint
-import com.wavesplatform.settings.WavesSettings
 import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.wallet.Wallet
-import units.ELUpdater.State.ChainStatus.Mining
 
 class MultiplePrivateKeysTestSuite extends BaseTestSuite {
   private val minerFromWallet = ElMinerSettings(Wallet.generateNewAccount(super.defaultSettings.walletSeed, 0))

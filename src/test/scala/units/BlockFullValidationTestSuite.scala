@@ -1,13 +1,11 @@
 package units
 
-import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.transaction.TxHelpers
 import units.ELUpdater.State.ChainStatus.{FollowingChain, WaitForNewChain}
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.client.engine.model.{EcBlock, GetLogsResponseEntry}
 import units.el.NativeBridge
-import units.eth.EthAddress
 import units.util.HexBytesConverter
 
 class BlockFullValidationTestSuite extends BaseTestSuite {

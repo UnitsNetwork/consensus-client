@@ -6,6 +6,7 @@ jobs:
   check-pr:
     name: Check PR
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       JAVA_OPTS: -Dfile.encoding=UTF-8
       BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
@@ -43,7 +44,9 @@ jobs:
           which solc || echo "Solc not found in PATH"
       - uses: sbt/setup-sbt@v1
       - name: Run tests
-        run: sbt --batch "test;docker;consensus-client-it/test"
+        run: |
+          forge --version
+          sbt --batch "scalafmtCheck;test;docker;consensus-client-it/test"
       - name: Archive logs
         uses: actions/upload-artifact@v4
         if: always()

@@ -1,17 +1,12 @@
 package units.client.engine.model
 
-import com.wavesplatform.common.state.ByteStr
-import eu.timepit.refined.types.string.HexString
 import org.web3j.abi.datatypes.generated.Uint256
-import org.web3j.utils
 import play.api.libs.json.{JsValue, Json, Writes}
 import units.BlockHash
 import units.el.DepositedTransaction
 import units.el.DepositedTransaction.given
 import units.eth.{EthAddress, EthereumConstants}
 import units.util.HexBytesConverter
-
-import java.math.BigInteger
 
 case class BlockOverrides(
     number: Long,

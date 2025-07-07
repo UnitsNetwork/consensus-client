@@ -8,6 +8,7 @@ import com.wavesplatform.lang.Global
 import com.wavesplatform.serialization.ByteBufferOps
 import com.wavesplatform.state.{BinaryDataEntry, Blockchain, BooleanDataEntry, DataEntry, EmptyDataEntry, IntegerDataEntry, StringDataEntry}
 import com.wavesplatform.transaction.Asset
+import units.ELUpdater.EpochInfo
 import units.client.contract.ChainContractClient.*
 import units.eth.{EthAddress, Gwei}
 import units.util.HexBytesConverter
@@ -177,7 +178,7 @@ trait ChainContractClient {
     } else None
   }
 
-  def calculateEpochMiner(epochNumber: Int, blockchain: Blockchain): Either[String, Address] =
+  private def calculateEpochMiner(epochNumber: Int, blockchain: Blockchain): Either[String, Address] =
     for {
       header    <- blockchain.blockHeader(epochNumber).toRight(s"No header at height $epochNumber")
       hitSource <- blockchain.hitSource(epochNumber).toRight(s"No VRF value at height $epochNumber")
@@ -187,6 +188,17 @@ trait ChainContractClient {
         .map(_._1)
         .toRight(s"No miner for epoch $epochNumber")
     } yield miner
+
+  def calculateEpochInfo(blockchain: Blockchain): Either[String, EpochInfo] = {
+    val epochNumber = blockchain.height
+    for {
+      _                      <- blockchain.blockHeader(epochNumber).toRight(s"No header at epoch $epochNumber")
+      hitSource              <- blockchain.hitSource(epochNumber).toRight(s"No hit source at epoch $epochNumber")
+      miner                  <- this.calculateEpochMiner(epochNumber, blockchain)
+      rewardAddress          <- this.getElRewardAddress(miner).toRight(s"No reward address for $miner")
+      prevEpochLastBlockHash <- this.getPrevEpochLastBlockHash(epochNumber)
+    } yield EpochInfo(epochNumber, miner, rewardAddress, hitSource, prevEpochLastBlockHash)
+  }
 
   private def getBlockHash(key: String): Option[BlockHash] =
     extractData(key).collect {
@@ -379,6 +391,21 @@ trait ChainContractClient {
       case None          => fail(s"Can't find a registered asset at $registryIndex")
       case Some(assetId) => Registry.parseAsset(assetId)
     }
+
+  def findAltChain(prevChainId: Long, referenceBlock: BlockHash): Option[ChainInfo] = {
+    val lastChainId          = this.getLastChainId
+    val firstValidAltChainId = this.getFirstValidAltChainId
+
+    (firstValidAltChainId.max(prevChainId + 1) to lastChainId).foldLeft(Option.empty[ChainInfo]) {
+      case (Some(chainInfo), _) => Some(chainInfo)
+      case (_, chainId) =>
+        val chainInfo = this.getChainInfo(chainId)
+        val isNeededAltChain = chainInfo.exists { chainInfo =>
+          !chainInfo.isMain && chainInfo.firstBlock.parentHash == referenceBlock
+        }
+        if (isNeededAltChain) chainInfo else None
+    }
+  }
 
   private def getLastBlockHash(chainId: Long): Option[BlockHash] = getChainMeta(chainId).map(_._2)
 

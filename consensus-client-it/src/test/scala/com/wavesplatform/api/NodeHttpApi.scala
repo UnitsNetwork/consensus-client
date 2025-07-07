@@ -49,13 +49,13 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
   def waitForHeight(atLeast: Int)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Height = {
     if (loggingOptions.logCall) log.debug(s"${loggingOptions.prefix} waitForHeight($atLeast)")
     val subsequentLoggingOptions = loggingOptions.copy(logCall = false, logResult = false, logRequest = false)
-    val currHeight               = height()(subsequentLoggingOptions)
+    val currHeight               = height()(using subsequentLoggingOptions)
     if (currHeight >= atLeast) currHeight
     else {
       Thread.sleep(patienceConfig.interval.toMillis)
       val waitBlocks = (atLeast - currHeight).max(1)
       eventually(timeout(MaxBlockDelay * waitBlocks)) {
-        val h = height()(subsequentLoggingOptions)
+        val h = height()(using subsequentLoggingOptions)
         h should be >= atLeast
         if (loggingOptions.logResult) log.debug(s"${loggingOptions.prefix} $h")
         h
@@ -82,7 +82,7 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
       txn: Transaction
   )(implicit loggingOptions: LoggingOptions = LoggingOptions(logResponseBody = false)): TransactionInfoResponse = {
     if (loggingOptions.logCall) log.debug(s"${loggingOptions.prefix} broadcastAndWait")
-    broadcast(txn)(loggingOptions.copy(logRequest = false)).left.foreach { e =>
+    broadcast(txn)(using loggingOptions.copy(logRequest = false)).left.foreach { e =>
       fail(s"Can't broadcast ${txn.id()}: code=${e.error}, message=${e.message}")
     }
     waitForSucceeded(txn.id())
@@ -109,7 +109,7 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
     eventually {
       attempt += 1
       val subsequentLoggingOptions = loggingOptions.copy(logCall = false, logResult = false, logRequest = attempt == 1)
-      transactionInfo(txnId)(subsequentLoggingOptions) match {
+      transactionInfo(txnId)(using subsequentLoggingOptions) match {
         case Some(r) if r.applicationStatus == ApplicationStatus.Succeeded =>
           if (loggingOptions.logResult) log.debug(s"${loggingOptions.prefix} $r")
           r

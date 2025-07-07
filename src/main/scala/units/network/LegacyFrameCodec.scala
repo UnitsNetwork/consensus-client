@@ -11,7 +11,7 @@ class LegacyFrameCodec(peerDatabase: PeerDatabase) extends LFC(peerDatabase) {
 
   override protected def messageToRawData(msg: Any): MessageRawData = {
     val rawBytesL2 = (msg: @unchecked) match {
-      case rb: RawBytes   => rb
+      case rb: RawBytes          => rb
       case block: NetworkL2Block => RawBytes.from(BlockSpec, block)
     }
 

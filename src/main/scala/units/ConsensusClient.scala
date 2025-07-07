@@ -4,7 +4,6 @@ import com.typesafe.config.Config
 import com.typesafe.scalalogging.StrictLogging
 import com.wavesplatform.block.{Block, MicroBlock}
 import com.wavesplatform.common.state.ByteStr
-import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.events.BlockchainUpdateTriggers
 import com.wavesplatform.extensions.{Extension, Context as ExtensionContext}
@@ -106,7 +105,7 @@ object ConsensusClient {
     )
 
     private val blocksStreamCancelable: CancelableFuture[Unit] =
-      blockObserver.getBlockStream.foreach { case (ch, block) => elu.executionBlockReceived(block, ch) }(globalScheduler)
+      blockObserver.getBlockStream.foreach { case (ch, block) => elu.executionBlockReceived(block, ch) }(using globalScheduler)
 
     override def close(): Unit = {
       blocksStreamCancelable.cancel()

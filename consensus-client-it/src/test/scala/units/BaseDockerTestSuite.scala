@@ -3,7 +3,6 @@ package units
 import com.wavesplatform.account.AddressScheme
 import com.wavesplatform.api.LoggingBackend
 import com.wavesplatform.common.state.ByteStr
-import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.utils.ScorexLogging
 import monix.execution.atomic.AtomicBoolean

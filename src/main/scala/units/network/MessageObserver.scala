@@ -16,7 +16,7 @@ class MessageObserver extends ChannelInboundHandlerAdapter {
 
   override def channelRead(ctx: ChannelHandlerContext, msg: AnyRef): Unit = msg match {
     case b: NetworkL2Block => blocks.onNext((ctx.channel(), b))
-    case _ => super.channelRead(ctx, msg)
+    case _                 => super.channelRead(ctx, msg)
   }
 
   def shutdown(): Unit = {

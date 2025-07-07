@@ -1,7 +1,6 @@
 package units
 
 import com.wavesplatform.account.{Address, PrivateKey}
-import com.wavesplatform.common.utils.EitherExt2
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.settings.*
 import pureconfig.ConfigReader
@@ -22,7 +21,7 @@ case class ClientConfig(
     miningEnable: Boolean,
     jwtSecretFile: Option[String],
     privateKeys: Seq[PrivateKey] = Seq.empty
-  ) {
+) {
   lazy val chainContractAddress: Address = Address.fromString(chainContract).explicitGet()
 
   val jsonRpcClient = JsonRpcClient.Config(

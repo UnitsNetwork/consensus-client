@@ -6,7 +6,6 @@ import com.wavesplatform.api.LoggingBackend.LoggingOptions
 import com.wavesplatform.api.NodeHttpApi
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.state.DataEntry
-import com.wavesplatform.transaction.Asset
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.utils.ScorexLogging
 import org.scalatest.OptionValues
@@ -25,7 +24,7 @@ class HttpChainContractClient(api: NodeHttpApi, override val contract: Address)
     with Matchers
     with OptionValues
     with ScorexLogging {
-  override def extractData(key: String): Option[DataEntry[?]] = api.dataByKey(contract, key)(LoggingOptions(logRequest = false))
+  override def extractData(key: String): Option[DataEntry[?]] = api.dataByKey(contract, key)(using LoggingOptions(logRequest = false))
 
   private val fiveBlocks              = WavesNodeContainer.MaxBlockDelay * 5
   lazy val nativeTokenId: IssuedAsset = IssuedAsset(ByteStr.decodeBase58(getStringData("tokenId").getOrElse(fail("Call setup first"))).get)
@@ -59,7 +58,7 @@ class HttpChainContractClient(api: NodeHttpApi, override val contract: Address)
 
     val subsequentLoggingOptions = loggingOptions.copy(logCall = false)
     eventually(timeout(fiveBlocks)) {
-      val actualGenerator = computedGenerator()(subsequentLoggingOptions)
+      val actualGenerator = computedGenerator()(using subsequentLoggingOptions)
       actualGenerator shouldBe expectedGenerator
     }
   }
