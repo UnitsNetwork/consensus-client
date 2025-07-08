@@ -1543,7 +1543,7 @@ class ELUpdater(
                 case actualTransferLog :: restActualTransferLogs =>
                   StandardBridge.ERC20BridgeFinalized
                     .decodeLog(actualTransferLog)
-                    .flatMap(validateC2EAssetTransfer(actualTransferLog.logIndex, _, expectedTransfer)) match {
+                    .flatMap(validateC2EAssetTransfer(actualTransferLog.logIndex, _, expectedTransfer, strictC2ETransfersActivated)) match {
                     case Left(e) => e.asLeft
                     case _ => loop(actualWithdrawals, restActualTransferLogs, restExpectedTransfers, prevWithdrawalIndex, currTransferNumber + 1)
                   }
@@ -1859,10 +1859,10 @@ object ELUpdater {
     def errorPrefix = s"C2E native transfer with logIndex=$logIndex, transferIndex=${expectedTransfer.index}"
     for {
       _ <- Either.raiseUnless(elTransferEvent.from == expectedTransfer.from) {
-        s"$errorPrefix: got address: ${elTransferEvent.from}, expected: ${expectedTransfer.from}"
+        s"$errorPrefix: got from address: ${elTransferEvent.from}, expected: ${expectedTransfer.from}"
       }
       _ <- Either.raiseUnless(elTransferEvent.to == expectedTransfer.to)(
-        s"$errorPrefix: got address: ${elTransferEvent.to}, expected: ${expectedTransfer.to}"
+        s"$errorPrefix: got to address: ${elTransferEvent.to}, expected: ${expectedTransfer.to}"
       )
       _ <- Either.raiseUnless(elTransferEvent.amount == WAmount(expectedTransfer.amount).scale(NativeTokenElDecimals - NativeTokenClDecimals))(
         s"$errorPrefix: got amount: ${elTransferEvent.amount}, expected ${expectedTransfer.amount}"
@@ -1873,18 +1873,22 @@ object ELUpdater {
   private def validateC2EAssetTransfer(
       logIndex: EthNumber,
       elTransferEvent: StandardBridge.ERC20BridgeFinalized,
-      expectedTransfer: ContractTransfer.Asset
+      expectedTransfer: ContractTransfer.Asset,
+      strictC2ETransfersActivated: Boolean
   ): Either[String, Unit] = {
     def errorPrefix = s"C2E asset transfer with logIndex=$logIndex, transferIndex=${expectedTransfer.index}"
     for {
       _ <- Either.raiseUnless(elTransferEvent.localToken == expectedTransfer.tokenAddress) {
         s"$errorPrefix: got ERC20 address: ${elTransferEvent.localToken}, expected: ${expectedTransfer.tokenAddress}"
       }
-      _ <- Either.raiseUnless(elTransferEvent.from == expectedTransfer.from) {
-        s"$errorPrefix: got address: ${elTransferEvent.from}, expected: ${expectedTransfer.from}"
-      }
+      _ <-
+        if strictC2ETransfersActivated then
+          Either.raiseUnless(elTransferEvent.from == expectedTransfer.from) {
+            s"$errorPrefix: got from address: ${elTransferEvent.from}, expected: ${expectedTransfer.from}"
+          }
+        else Right(())
       _ <- Either.raiseUnless(elTransferEvent.elTo == expectedTransfer.to) {
-        s"$errorPrefix: got address: ${elTransferEvent.elTo}, expected: ${expectedTransfer.to}"
+        s"$errorPrefix: got to address: ${elTransferEvent.elTo}, expected: ${expectedTransfer.to}"
       }
       _ <- Either.raiseUnless(elTransferEvent.amount == expectedTransfer.amount) {
         s"$errorPrefix: got amount: ${elTransferEvent.amount}, expected ${expectedTransfer.amount}"
