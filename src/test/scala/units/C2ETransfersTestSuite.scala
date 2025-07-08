@@ -119,7 +119,6 @@ class C2ETransfersTestSuite extends BaseTestSuite {
       step("Activate native token transfers via deposits")
       d.appendBlock(
         d.ChainContract.enableStrictTransfers(d.blockchain.height + 1),
-        d.ChainContract.enableNativeTokenTransfersViaDeposits(d.blockchain.height + 1),
         TxHelpers.reissue(d.nativeTokenId, d.chainContractAccount, nativeTokensClAmount),
         TxHelpers.transfer(d.chainContractAccount, transferSenderAccount.toAddress, nativeTokensClAmount, d.nativeTokenId),
         mkNativeTransfer(d)
@@ -151,7 +150,6 @@ class C2ETransfersTestSuite extends BaseTestSuite {
       step("Activate native token transfers via deposits")
       d.appendBlock(
         d.ChainContract.enableStrictTransfers(d.blockchain.height + 1),
-        d.ChainContract.enableNativeTokenTransfersViaDeposits(d.blockchain.height + 1),
         TxHelpers.reissue(d.nativeTokenId, d.chainContractAccount, nativeTokensClAmount),
         TxHelpers.transfer(d.chainContractAccount, transferSenderAccount.toAddress, nativeTokensClAmount, d.nativeTokenId),
         mkNativeTransfer(d)
@@ -187,7 +185,6 @@ class C2ETransfersTestSuite extends BaseTestSuite {
       step("Activate native token transfers via deposits")
       d.appendBlock(
         d.ChainContract.enableStrictTransfers(d.blockchain.height + 1),
-        d.ChainContract.enableNativeTokenTransfersViaDeposits(d.blockchain.height + 1),
         TxHelpers.reissue(d.nativeTokenId, d.chainContractAccount, nativeTokensClAmount),
         TxHelpers.transfer(d.chainContractAccount, transferSenderAccount.toAddress, nativeTokensClAmount, d.nativeTokenId),
         mkNativeTransfer(d)
@@ -226,7 +223,6 @@ class C2ETransfersTestSuite extends BaseTestSuite {
     "Validation fails if the sender address doesn't match" in withExtensionDomain(settings) { d =>
       step("Activate native token transfers via deposits")
       d.appendBlock(
-        d.ChainContract.enableNativeTokenTransfersViaDeposits(d.blockchain.height),
         TxHelpers.reissue(d.nativeTokenId, d.chainContractAccount, nativeTokensClAmount),
         TxHelpers.transfer(d.chainContractAccount, transferSenderAccount.toAddress, nativeTokensClAmount, d.nativeTokenId),
         mkNativeTransfer(d)

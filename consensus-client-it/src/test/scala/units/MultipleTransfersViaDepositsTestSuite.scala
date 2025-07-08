@@ -199,13 +199,6 @@ class MultipleTransfersViaDepositsTestSuite extends BaseDockerTestSuite {
         IntegerDataEntry("strictC2ETransfersActivationEpoch", activationEpoch)
       )
     )
-    step("Set native token transfers via deposits feature activation epoch")
-    waves1.api.broadcastAndWait(
-      TxHelpers.dataEntry(
-        chainContractAccount,
-        IntegerDataEntry("nativeTokenDepositTransfersActivationEpoch", activationEpoch)
-      )
-    )
 
     step("Wait for features activation")
     waves1.api.waitForHeight(activationEpoch)

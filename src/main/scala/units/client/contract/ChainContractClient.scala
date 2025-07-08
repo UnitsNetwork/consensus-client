@@ -228,8 +228,6 @@ trait ChainContractClient {
 
   def getStrictC2ETransfersActivationEpoch: Long = getLongData("strictC2ETransfersActivationEpoch").getOrElse(Long.MaxValue)
 
-  def getNativeTokenDepositTransfersActivationEpoch: Long = getLongData("nativeTokenDepositTransfersActivationEpoch").getOrElse(Long.MaxValue)
-
   private def getChainMeta(chainId: Long): Option[(Int, BlockHash)] = {
     val key = f"chain_$chainId%08d"
     getStringData(key).map { s =>

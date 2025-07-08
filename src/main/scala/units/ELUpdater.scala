@@ -206,10 +206,10 @@ class ELUpdater(
 
     val (nativeTransfersViaWithdrawals, nativeTransfersViaDeposits) = nativeTransfers.partitionMap(identity)
 
-    val nativeTransfersViaDepositsActivated = epochInfo.number >= chainContractClient.getNativeTokenDepositTransfersActivationEpoch
+    val strictC2ETransfersActivated = epochInfo.number >= chainContractClient.getStrictC2ETransfersActivationEpoch
 
     val (nativeTransferWithdrawals, nativeTransferDeposits) =
-      if nativeTransfersViaDepositsActivated
+      if strictC2ETransfersActivated
       then
         (
           Vector.empty,
@@ -1413,10 +1413,10 @@ class ELUpdater(
       else (xs.init, xs.lastOption)
     }
 
-    nativeTransfersViaDepositsActivated = contractBlock.epoch >= chainContractClient.getNativeTokenDepositTransfersActivationEpoch
+    strictC2ETransfersActivated = contractBlock.epoch >= chainContractClient.getStrictC2ETransfersActivationEpoch
 
     expectedNativeTransfersNumber =
-      if nativeTransfersViaDepositsActivated then 0
+      if strictC2ETransfersActivated then 0
       else
         expectedTransfers.count {
           case _: ContractTransfer.NativeViaWithdrawal => true
@@ -1428,7 +1428,6 @@ class ELUpdater(
     _ <- nextTransfer match {
       case None => Either.unit
       case Some(nextTransfer) =>
-        val strictC2ETransfersActivated = contractBlock.epoch >= chainContractClient.getStrictC2ETransfersActivationEpoch
         if (nextTransfer.epoch >= contractBlock.epoch || !strictC2ETransfersActivated) Either.unit
         else { // This transfer was on a previous epoch, miner saw it
           val blockHasMaxTransfers = nextTransfer match {
@@ -1464,7 +1463,7 @@ class ELUpdater(
 
     lastElWithdrawalIndex <- {
       val c2eLogs = ecBlockLogs.filter(_.topics.intersect(C2ETopics).nonEmpty)
-      validateC2ETransfers(actualTransferWithdrawals, c2eLogs, expectedTransfers, prevWithdrawalIndex, nativeTransfersViaDepositsActivated).leftMap(
+      validateC2ETransfers(actualTransferWithdrawals, c2eLogs, expectedTransfers, prevWithdrawalIndex, strictC2ETransfersActivated).leftMap(
         ClientError.apply
       )
     }
@@ -1475,7 +1474,7 @@ class ELUpdater(
       actualTransferLogs: List[GetLogsResponseEntry],
       expectedTransfers: Seq[ContractTransfer],
       prevWithdrawalIndex: Long,
-      nativeTransfersViaDepositsActivated: Boolean
+      strictC2ETransfersActivated: Boolean
   ): Either[String, Long] = {
     val totalTransfers = expectedTransfers.size
 
@@ -1512,7 +1511,7 @@ class ELUpdater(
             //       }
             //   }
             case expectedTransfer: ContractTransfer.NativeViaWithdrawal =>
-              if nativeTransfersViaDepositsActivated then
+              if strictC2ETransfersActivated then
                 Left("Native transfers via withdrawals are unexpected after native transfers via deposits are activated")
               else
                 actualWithdrawals match {
@@ -1526,7 +1525,7 @@ class ELUpdater(
                     }
                 }
             case expectedTransfer: ContractTransfer.NativeViaDeposit =>
-              if nativeTransfersViaDepositsActivated then {
+              if strictC2ETransfersActivated then {
                 actualTransferLogs match {
                   case Nil => s"$logPrefix Not found EL transfer log, expected $expectedTransfer transfer".asLeft
                   case actualTransferLog :: restActualTransferLogs =>
