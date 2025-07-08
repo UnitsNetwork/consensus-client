@@ -276,37 +276,25 @@ trait ChainContractClient {
     xs match {
       // Native transfer, before strict transfers activation
       // {destElAddressHex with 0x}_{amount}
-      case Array(rawDestElAddress, rawAmount) =>
-        ContractTransfer.NativeViaWithdrawal(
-          index = atIndex,
-          epoch = 0,
-          to = EthAddress.unsafeFrom(rawDestElAddress),
-          amount = rawAmount.toLongOption.getOrElse(fail(s"Expected an integer amount of a native transfer, got: ${rawAmount}"))
-        )
+      case Array(EthAddress(destElAddress), NativeTransferAmount(amount)) =>
+        ContractTransfer.NativeViaWithdrawal(atIndex, 0, destElAddress, amount)
 
       // Native transfer, after strict transfers activation
       // {epoch}_{destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}
-      case Array(rawEpoch, rawDestElAddress, rawFromAddress, rawAmount) if EthAddress.from(rawEpoch).isLeft =>
-        ContractTransfer.NativeViaDeposit(
-          index = atIndex,
-          epoch = rawEpoch.toIntOption.getOrElse(fail(s"Expected an integer epoch, got: ${rawEpoch}")),
-          from = EthAddress.unsafeFrom(rawFromAddress),
-          to = EthAddress.unsafeFrom(rawDestElAddress),
-          amount = rawAmount.toLongOption.getOrElse(fail(s"Expected an integer amount of a native transfer, got: ${rawAmount}"))
-        )
+      case Array(Epoch(epoch), EthAddress(destElAddress), EthAddress(fromAddress), NativeTransferAmount(amount)) =>
+        ContractTransfer.NativeViaDeposit(atIndex, epoch, fromAddress, destElAddress, amount)
 
       // Asset transfer, before strict transfers activation
       // {destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex}
-      case Array(rawDestElAddress, rawFromAddress, rawAmount, rawAssetIndex) if EthAddress.from(rawDestElAddress).isRight => {
-        val assetIndex = rawAssetIndex.toIntOption.getOrElse(fail(s"Expected an asset index in asset transfer, got: ${rawAssetIndex}"))
-        val asset      = getRegisteredAsset(assetIndex)
-        val assetData  = getRegisteredAssetData(asset)
+      case Array(EthAddress(destElAddress), EthAddress(fromAddress), rawAmount, AssetIndex(assetIndex)) => {
+        val asset     = getRegisteredAsset(assetIndex)
+        val assetData = getRegisteredAssetData(asset)
 
         ContractTransfer.Asset(
           index = atIndex,
           epoch = 0,
-          from = EthAddress.unsafeFrom(rawFromAddress),
-          to = EthAddress.unsafeFrom(rawDestElAddress),
+          from = fromAddress,
+          to = destElAddress,
           amount =
             try WAmount(rawAmount).scale(assetData.exponent)
             catch { case e: ArithmeticException => fail(s"Expected an integer amount of a native transfer, got: ${rawAmount}", e) },
@@ -317,16 +305,15 @@ trait ChainContractClient {
 
       // Asset transfer, after strict transfers activation
       // {epoch}_{destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex}
-      case Array(rawEpoch, rawDestElAddress, rawFromAddress, rawAmount, rawAssetIndex) => {
-        val assetIndex = rawAssetIndex.toIntOption.getOrElse(fail(s"Expected an asset index in asset transfer, got: ${rawAssetIndex}"))
-        val asset      = getRegisteredAsset(assetIndex)
-        val assetData  = getRegisteredAssetData(asset)
+      case Array(Epoch(epoch), EthAddress(destElAddress), EthAddress(fromAddress), rawAmount, AssetIndex(assetIndex)) => {
+        val asset     = getRegisteredAsset(assetIndex)
+        val assetData = getRegisteredAssetData(asset)
 
         ContractTransfer.Asset(
           index = atIndex,
-          epoch = rawEpoch.toIntOption.getOrElse(fail(s"Expected an integer epoch, got: ${rawEpoch}")),
-          from = EthAddress.unsafeFrom(rawFromAddress),
-          to = EthAddress.unsafeFrom(rawDestElAddress),
+          epoch = epoch,
+          from = fromAddress,
+          to = destElAddress,
           amount =
             try WAmount(rawAmount).scale(assetData.exponent)
             catch { case e: ArithmeticException => fail(s"Expected an integer amount of a native transfer, got: ${rawAmount}", e) },
@@ -335,7 +322,7 @@ trait ChainContractClient {
         )
       }
 
-      case _ => fail(s"Unexpected number of elements in a transfer key '$key', got ${xs.length}: $raw")
+      case _ => fail(s"Expected one of ContractTransfer variants in a transfer key '$key', got: $raw")
     }
   }
 
@@ -493,4 +480,16 @@ object ChainContractClient {
   }
 
   private def fail(reason: String, cause: Throwable = null): Nothing = throw new InconsistentContractData(reason, cause)
+
+  object Epoch {
+    def unapply(raw: String): Option[Int] = raw.toIntOption
+  }
+
+  object NativeTransferAmount {
+    def unapply(raw: String): Option[Long] = raw.toLongOption
+  }
+
+  object AssetIndex {
+    def unapply(raw: String): Option[Int] = raw.toIntOption
+  }
 }
