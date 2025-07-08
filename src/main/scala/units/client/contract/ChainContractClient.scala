@@ -228,6 +228,8 @@ trait ChainContractClient {
 
   def getStrictC2ETransfersActivationEpoch: Long = getLongData("strictC2ETransfersActivationEpoch").getOrElse(Long.MaxValue)
 
+  def getNativeTokenDepositTransfersActivationEpoch: Long = getLongData("nativeTokenDepositTransfersActivationEpoch").getOrElse(Long.MaxValue)
+
   private def getChainMeta(chainId: Long): Option[(Int, BlockHash)] = {
     val key = f"chain_$chainId%08d"
     getStringData(key).map { s =>
@@ -252,7 +254,7 @@ trait ChainContractClient {
       if (currIndex > maxIndex) acc
       else
         requireTransfer(currIndex) match {
-          case x: ContractTransfer.Native =>
+          case x: (ContractTransfer.NativeViaWithdrawal | ContractTransfer.NativeViaDeposit) =>
             val updatedFoundNative = foundNative + 1
             if (updatedFoundNative > maxNative) acc
             else loop(currIndex + 1, updatedFoundNative, acc :+ x) // if equals - we still can collect asset transfers
@@ -277,7 +279,7 @@ trait ChainContractClient {
       // Native transfer, before strict transfers activation
       // {destElAddressHex with 0x}_{amount}
       case Array(rawDestElAddress, rawAmount) =>
-        ContractTransfer.Native(
+        ContractTransfer.NativeViaWithdrawal(
           index = atIndex,
           epoch = 0,
           to = EthAddress.unsafeFrom(rawDestElAddress),
@@ -286,10 +288,11 @@ trait ChainContractClient {
 
       // Native transfer, after strict transfers activation
       // {epoch}_{destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}
-      case Array(rawEpoch, rawDestElAddress, _rawFromAddress, rawAmount) if EthAddress.from(rawEpoch).isLeft =>
-        ContractTransfer.Native(
+      case Array(rawEpoch, rawDestElAddress, rawFromAddress, rawAmount) if EthAddress.from(rawEpoch).isLeft =>
+        ContractTransfer.NativeViaDeposit(
           index = atIndex,
           epoch = rawEpoch.toIntOption.getOrElse(fail(s"Expected an integer epoch, got: ${rawEpoch}")),
+          from = EthAddress.unsafeFrom(rawFromAddress),
           to = EthAddress.unsafeFrom(rawDestElAddress),
           amount = rawAmount.toLongOption.getOrElse(fail(s"Expected an integer amount of a native transfer, got: ${rawAmount}"))
         )
@@ -456,7 +459,7 @@ object ChainContractClient {
   val Sep                        = ","
 
   private class InconsistentContractData(message: String, cause: Throwable = null)
-      extends IllegalStateException(s"Probably, your have to upgrade your client. $message", cause)
+      extends IllegalStateException(s"Probably, you have to upgrade your client. $message", cause)
 
   case class EpochContractMeta(miner: Address, prevEpoch: Int, lastBlockHash: BlockHash)
 
@@ -464,7 +467,8 @@ object ChainContractClient {
     val index: Long
     val epoch: Int
 
-    case Native(index: Long, epoch: Int, to: EthAddress, amount: Long)
+    case NativeViaWithdrawal(index: Long, epoch: Int, to: EthAddress, amount: Long)
+    case NativeViaDeposit(index: Long, epoch: Int, from: EthAddress, to: EthAddress, amount: Long)
     case Asset(
         index: Long,
         epoch: Int,

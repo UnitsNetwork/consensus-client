@@ -43,7 +43,7 @@ if script_info["script"] is None:
         os.path.join(contracts_dir, "waves", "src", "main.ride"), "r", encoding="utf-8"
     ) as file:
         source = file.read()
-    r = network.cl_chain_contract.setScript(source, txFee=5_600_000)
+    r = network.cl_chain_contract.setScript(source, txFee=7_000_000)
     waves.force_success(log, r, "Can not set the chain contract script")
 
 if not network.cl_chain_contract.isContractSetup():
@@ -100,7 +100,7 @@ if cl_poor_accounts_number > 0:
 
 for txn_id in txn_ids:
     waves.wait_for_approval(log, txn_id)
-    log.info(f"Distrubute UNIT0 tokens transaction {txn_id} confirmed")
+    log.info(f"Distribute UNIT0 tokens transaction {txn_id} confirmed")
 
 r = network.cl_chain_contract.evaluate("allMiners")
 joined_miners = []
@@ -161,41 +161,79 @@ except OSError as e:
     log.error(f"Execution failed: {e}")
     exit(1)
 
-key = "assetTransfersActivationEpoch"
-if len(network.cl_chain_contract.getData(regex="assetTransfersActivationEpoch")) == 0:
+features_to_activate = []
+
+key_asset_transfers = "assetTransfersActivationEpoch"
+if len(network.cl_chain_contract.getData(regex=key_asset_transfers)) == 0:
+    features_to_activate.append("asset_transfers")
+
+key_strict_transfers = "strictC2ETransfersActivationEpoch"
+if len(network.cl_chain_contract.getData(regex=key_strict_transfers)) == 0:
+    features_to_activate.append("strict_transfers")
+
+key_native_transfers = "nativeTokenDepositTransfersActivationEpoch"
+if len(network.cl_chain_contract.getData(regex=key_native_transfers)) == 0:
+    features_to_activate.append("native_token_deposit_transfers")
+
+if features_to_activate:
     activation_height = pw.height() + 2
-    enable_transfers_txn = network.cl_chain_contract.oracleAcc.invokeScript(
-        dappAddress=network.cl_chain_contract.oracleAddress,
-        functionName="enableTokenTransfers",
-        params=[
-            {"type": "string", "value": network.el_standard_bridge_address},
-            {"type": "string", "value": network.el_wwaves_address},
-            {"type": "integer", "value": activation_height},
-        ],
-        txFee=900_000,
-    )
-    strict_transfers_txn = network.cl_chain_contract.oracleAcc.dataTransaction(
-        [
-            {
-                "type": "integer",
-                "key": "strictC2ETransfersActivationEpoch",
-                "value": activation_height,
-            }
-        ]
-    )
-    waves.force_success(
-        log,
-        enable_transfers_txn,
-        "Could not enable token transfers",
-        wait=True,
-    )
-    waves.force_success(
-        log,
-        strict_transfers_txn,
-        "Could not enable strict transfers",
-        wait=True,
-    )
-    log.info("Wait activation")
+    if "asset_transfers" in features_to_activate:
+        log.info("Activating asset transfers...")
+        enable_transfers_txn = network.cl_chain_contract.oracleAcc.invokeScript(
+            dappAddress=network.cl_chain_contract.oracleAddress,
+            functionName="enableTokenTransfers",
+            params=[
+                {"type": "string", "value": network.el_standard_bridge_address},
+                {"type": "string", "value": network.el_wwaves_address},
+                {"type": "integer", "value": activation_height},
+            ],
+            txFee=900_000,
+        )
+        waves.force_success(
+            log,
+            enable_transfers_txn,
+            "Could not enable token transfers",
+            wait=True,
+        )
+
+    if "strict_transfers" in features_to_activate:
+        strict_transfers_txn = network.cl_chain_contract.oracleAcc.dataTransaction(
+            [
+                {
+                    "type": "integer",
+                    "key": "strictC2ETransfersActivationEpoch",
+                    "value": activation_height,
+                }
+            ]
+        )
+        waves.force_success(
+            log,
+            strict_transfers_txn,
+            "Could not enable strict transfers",
+            wait=True,
+        )
+
+    if "native_token_deposit_transfers" in features_to_activate:
+        log.info("Activating native token transfers via deposits...")
+        enable_native_token_transfers_via_deposits_txn = (
+            network.cl_chain_contract.oracleAcc.dataTransaction(
+                [
+                    {
+                        "type": "integer",
+                        "key": key_native_transfers,
+                        "value": activation_height,
+                    }
+                ]
+            )
+        )
+        waves.force_success(
+            log,
+            enable_native_token_transfers_via_deposits_txn,
+            "Could not enable native token transfers via deposits",
+            wait=True,
+        )
+
+    log.info("Waiting for activation height...")
     while pw.height() < activation_height:
         sleep(3)
 

@@ -4,6 +4,9 @@ import java.math.{BigDecimal, BigInteger}
 import scala.concurrent.duration.FiniteDuration
 
 package object units {
+  val NativeTokenElDecimals: Byte = 18.toByte
+  val NativeTokenClDecimals: Byte = 8.toByte
+
   type BlockHash    = BlockHash.Type
   type JobResult[A] = Either[ClientError, A]
 
@@ -16,6 +19,7 @@ package object units {
   opaque type WAmount = Long
   object WAmount:
     def apply(x: String): WAmount = x.toLong
+    def apply(x: Long): WAmount   = x
 
   extension (x: WAmount) def scale(powerOfTen: Int): EAmount = BigDecimal.valueOf(x).scaleByPowerOfTen(powerOfTen).toBigIntegerExact
 

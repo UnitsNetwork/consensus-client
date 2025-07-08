@@ -97,6 +97,13 @@ trait HasConsensusLayerDappTxHelpers {
         fee = 0.009.waves
       )
 
+    def enableNativeTokenTransfersViaDeposits(activationEpoch: Int): DataTransaction =
+      TxHelpers.data(
+        chainContractAccount,
+        Seq(IntegerDataEntry("nativeTokenDepositTransfersActivationEpoch", activationEpoch)),
+        fee = 0.009.waves
+      )
+
     def join(minerAccount: KeyPair, elRewardAddress: EthAddress): InvokeScriptTransaction = TxHelpers.invoke(
       invoker = minerAccount,
       dApp = chainContractAddress,
