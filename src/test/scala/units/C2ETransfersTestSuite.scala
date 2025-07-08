@@ -260,14 +260,15 @@ class C2ETransfersTestSuite extends BaseTestSuite {
   }
 
   "Strict C2E transfers" - {
-    val userAmount           = 1
-    val nativeTokensClAmount = UnitsConvert.toUnitsInWaves(userAmount)
-    val nativeTokensElAmount = UnitsConvert.toGwei(userAmount)
-    val assetTokensClAmount  = UnitsConvert.toWavesAtomic(userAmount, WavesDecimals)
-    val assetTokensElAmount  = UnitsConvert.toAtomic(userAmount, WavesDecimals)
-    val destElAddress        = EthAddress.unsafeFrom(s"0x$validTransferRecipient")
+    val userAmount            = 1
+    val nativeTokensClAmount  = UnitsConvert.toUnitsInWaves(userAmount)
+    val nativeTokensElAmountGwei  = UnitsConvert.toGwei(userAmount) // TODO: remove, not used after Strict C2E transfers activation
+    val nativeTokensElAmount = WAmount(nativeTokensClAmount).scale(NativeTokenElDecimals - NativeTokenClDecimals)
+    val assetTokensClAmount   = UnitsConvert.toWavesAtomic(userAmount, WavesDecimals)
+    val assetTokensElAmount   = UnitsConvert.toAtomic(userAmount, WavesDecimals)
+    val destElAddress         = EthAddress.unsafeFrom(s"0x$validTransferRecipient")
 
-    def mkNativeTransfer(d: ExtensionDomain, ts: Long) = d.ChainContract.transfer(
+    def mkNativeTransfer(d: ExtensionDomain, ts: Long): InvokeScriptTransaction = d.ChainContract.transfer(
       sender = transferSenderAccount,
       destElAddress = destElAddress,
       asset = d.nativeTokenId,
@@ -275,7 +276,7 @@ class C2ETransfersTestSuite extends BaseTestSuite {
       timestamp = ts
     )
 
-    def mkAssetTransfer(d: ExtensionDomain, ts: Long) = d.ChainContract.transfer(
+    def mkAssetTransfer(d: ExtensionDomain, ts: Long): InvokeScriptTransaction = d.ChainContract.transfer(
       sender = transferSenderAccount,
       destElAddress = destElAddress,
       asset = Asset.Waves,
@@ -308,7 +309,7 @@ class C2ETransfersTestSuite extends BaseTestSuite {
         val wrongBlock = d
           .createEcBlockBuilder("0", malfunction)
           .updateBlock { b =>
-            b.copy(withdrawals = Vector(Withdrawal(0, destElAddress, nativeTokensElAmount))) // Only one
+            b.copy(withdrawals = Vector(Withdrawal(0, destElAddress, nativeTokensElAmountGwei))) // Only one
           }
           .buildAndSetLogs()
 
@@ -378,15 +379,42 @@ class C2ETransfersTestSuite extends BaseTestSuite {
         mkAssetTransfer(d, now + 3)
       )
 
-      val transferLogEntries = (0 to 1).map { i =>
-        val event = StandardBridge.ERC20BridgeFinalized(
-          WWavesAddress,
-          EthAddress.unsafeFrom(transferSenderAccount.toAddress.toEthAddress),
-          destElAddress,
-          EAmount(assetTokensElAmount.bigInteger)
+      val transferLogEntries = List(
+        getLogsResponseEntryETH(
+          StandardBridge.ETHBridgeFinalized(
+            EthAddress.unsafeFrom(transferSenderAccount.toAddress.toEthAddress),
+            destElAddress,
+            nativeTokensElAmount
+          ),
+          0
+        ),
+        getLogsResponseEntryETH(
+          StandardBridge.ETHBridgeFinalized(
+            EthAddress.unsafeFrom(transferSenderAccount.toAddress.toEthAddress),
+            destElAddress,
+            nativeTokensElAmount
+          ),
+          1
+        ),
+        getLogsResponseEntry(
+          StandardBridge.ERC20BridgeFinalized(
+            WWavesAddress,
+            EthAddress.unsafeFrom(transferSenderAccount.toAddress.toEthAddress),
+            destElAddress,
+            EAmount(assetTokensElAmount.bigInteger)
+          ),
+          2
+        ),
+        getLogsResponseEntry(
+          StandardBridge.ERC20BridgeFinalized(
+            WWavesAddress,
+            EthAddress.unsafeFrom(transferSenderAccount.toAddress.toEthAddress),
+            destElAddress,
+            EAmount(assetTokensElAmount.bigInteger)
+          ),
+          3
         )
-        getLogsResponseEntry(event, i)
-      }.toList
+      )
 
       step(s"Start a new epoch of miner ${second.address}")
       d.advanceNewBlocks(second)
@@ -394,9 +422,6 @@ class C2ETransfersTestSuite extends BaseTestSuite {
 
       val block = d
         .createEcBlockBuilder("0", second)
-        .updateBlock { b =>
-          b.copy(withdrawals = (0 to 1).map(Withdrawal(_, destElAddress, nativeTokensElAmount)).toVector)
-        }
         .buildAndSetLogs(transferLogEntries)
 
       d.appendMicroBlock(
@@ -412,7 +437,11 @@ class C2ETransfersTestSuite extends BaseTestSuite {
       d.receiveNetworkBlock(block, second.account)
       withClue("Full EL block validation:") {
         d.triggerScheduledTasks()
-        if (d.pollSentNetworkBlock().isEmpty) fail(s"${block.hash} should not be ignored")
+         if (d.pollSentNetworkBlock().isEmpty) fail(s"${block.hash} should not be ignored")
+      }
+      d.waitForWorking("Block considered validated") { s =>
+        val vs = s.fullValidationStatus
+        vs.lastValidatedBlock.hash shouldBe block.hash
       }
     }
 
@@ -438,7 +467,7 @@ class C2ETransfersTestSuite extends BaseTestSuite {
       val block = d
         .createEcBlockBuilder("0", second)
         .updateBlock { b =>
-          b.copy(withdrawals = (0 until EcBlock.MaxWithdrawals).map(Withdrawal(_, destElAddress, nativeTokensElAmount)).toVector)
+          b.copy(withdrawals = (0 until EcBlock.MaxWithdrawals).map(Withdrawal(_, destElAddress, nativeTokensElAmountGwei)).toVector)
         }
         .buildAndSetLogs()
 
