@@ -1500,16 +1500,6 @@ class ELUpdater(
 
         case expectedTransfer +: restExpectedTransfers =>
           expectedTransfer match {
-            // case expectedTransfer: ContractTransfer.Native =>
-            //   actualWithdrawals match {
-            //     case Seq() => s"$logPrefix Not found EL block withdrawal #$prevWithdrawalIndex, expected $expectedTransfer transfer".asLeft
-            //     case actualWithdrawal +: restActualWithdrawals =>
-            //       val expectedWithdrawal = toWithdrawal(expectedTransfer, prevWithdrawalIndex + 1)
-            //       validateWithdrawal(actualWithdrawal, expectedWithdrawal) match {
-            //         case Left(e) => e.asLeft
-            //         case _ => loop(restActualWithdrawals, actualTransferLogs, restExpectedTransfers, expectedWithdrawal.index, currTransferNumber + 1)
-            //       }
-            //   }
             case expectedTransfer: ContractTransfer.NativeViaWithdrawal =>
               if strictC2ETransfersActivated then
                 Left("Native transfers via withdrawals are unexpected after native transfers via deposits are activated")
