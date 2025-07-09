@@ -98,7 +98,7 @@ class C2ETransfersTestSuite extends BaseTestSuite {
     registeredAssets shouldBe List(Asset.Waves, issueAsset, issueAsset2Txn.asset)
   }
 
-  "Native Transfers via Deposits" - {
+  "Native Transfers via Deposits (a part of strict C2E transfers feature)" - {
     val userAmount           = 1
     val nativeTokensClAmount = UnitsConvert.toUnitsInWaves(userAmount)
     val nativeTokensElAmount = WAmount(nativeTokensClAmount).scale(NativeTokenElDecimals - NativeTokenClDecimals)
@@ -116,7 +116,7 @@ class C2ETransfersTestSuite extends BaseTestSuite {
     val settings = defaultSettings.copy(initialMiners = List(reliable, second))
 
     "Validation passes if transfer logs match" in withExtensionDomain(settings) { d =>
-      step("Activate native token transfers via deposits")
+      step("Activate strict C2E transfers")
       d.appendBlock(
         d.ChainContract.enableStrictTransfers(d.blockchain.height + 1),
         TxHelpers.reissue(d.nativeTokenId, d.chainContractAccount, nativeTokensClAmount),
@@ -147,7 +147,7 @@ class C2ETransfersTestSuite extends BaseTestSuite {
     }
 
     "Validation fails if the amount doesn't match" in withExtensionDomain(settings) { d =>
-      step("Activate native token transfers via deposits")
+      step("Activate strict C2E transfers")
       d.appendBlock(
         d.ChainContract.enableStrictTransfers(d.blockchain.height + 1),
         TxHelpers.reissue(d.nativeTokenId, d.chainContractAccount, nativeTokensClAmount),
@@ -182,7 +182,7 @@ class C2ETransfersTestSuite extends BaseTestSuite {
     }
 
     "Validation fails if the recipient address doesn't match" in withExtensionDomain(settings) { d =>
-      step("Activate native token transfers via deposits")
+      step("Activate strict C2E transfers")
       d.appendBlock(
         d.ChainContract.enableStrictTransfers(d.blockchain.height + 1),
         TxHelpers.reissue(d.nativeTokenId, d.chainContractAccount, nativeTokensClAmount),
@@ -221,7 +221,7 @@ class C2ETransfersTestSuite extends BaseTestSuite {
     }
 
     "Validation fails if the sender address doesn't match" in withExtensionDomain(settings) { d =>
-      step("Activate native token transfers via deposits")
+      step("Activate strict C2E transfers")
       d.appendBlock(
         TxHelpers.reissue(d.nativeTokenId, d.chainContractAccount, nativeTokensClAmount),
         TxHelpers.transfer(d.chainContractAccount, transferSenderAccount.toAddress, nativeTokensClAmount, d.nativeTokenId),
@@ -260,13 +260,13 @@ class C2ETransfersTestSuite extends BaseTestSuite {
   }
 
   "Strict C2E transfers" - {
-    val userAmount            = 1
-    val nativeTokensClAmount  = UnitsConvert.toUnitsInWaves(userAmount)
-    val nativeTokensElAmountGwei  = UnitsConvert.toGwei(userAmount) // TODO: remove, not used after Strict C2E transfers activation
-    val nativeTokensElAmount = WAmount(nativeTokensClAmount).scale(NativeTokenElDecimals - NativeTokenClDecimals)
-    val assetTokensClAmount   = UnitsConvert.toWavesAtomic(userAmount, WavesDecimals)
-    val assetTokensElAmount   = UnitsConvert.toAtomic(userAmount, WavesDecimals)
-    val destElAddress         = EthAddress.unsafeFrom(s"0x$validTransferRecipient")
+    val userAmount               = 1
+    val nativeTokensClAmount     = UnitsConvert.toUnitsInWaves(userAmount)
+    val nativeTokensElAmountGwei = UnitsConvert.toGwei(userAmount) // TODO: remove, not used after Strict C2E transfers activation
+    val nativeTokensElAmount     = WAmount(nativeTokensClAmount).scale(NativeTokenElDecimals - NativeTokenClDecimals)
+    val assetTokensClAmount      = UnitsConvert.toWavesAtomic(userAmount, WavesDecimals)
+    val assetTokensElAmount      = UnitsConvert.toAtomic(userAmount, WavesDecimals)
+    val destElAddress            = EthAddress.unsafeFrom(s"0x$validTransferRecipient")
 
     def mkNativeTransfer(d: ExtensionDomain, ts: Long): InvokeScriptTransaction = d.ChainContract.transfer(
       sender = transferSenderAccount,
@@ -437,7 +437,7 @@ class C2ETransfersTestSuite extends BaseTestSuite {
       d.receiveNetworkBlock(block, second.account)
       withClue("Full EL block validation:") {
         d.triggerScheduledTasks()
-         if (d.pollSentNetworkBlock().isEmpty) fail(s"${block.hash} should not be ignored")
+        if (d.pollSentNetworkBlock().isEmpty) fail(s"${block.hash} should not be ignored")
       }
       d.waitForWorking("Block considered validated") { s =>
         val vs = s.fullValidationStatus
@@ -462,7 +462,7 @@ class C2ETransfersTestSuite extends BaseTestSuite {
 
       val transferLogEntries = (0 until transfersNumber).map { i =>
         getLogsResponseEntryETH(
-           StandardBridge.ETHBridgeFinalized(
+          StandardBridge.ETHBridgeFinalized(
             EthAddress.unsafeFrom(transferSenderAccount.toAddress.toEthAddress),
             destElAddress,
             nativeTokensElAmount
@@ -489,7 +489,7 @@ class C2ETransfersTestSuite extends BaseTestSuite {
 
       withClue("Full EL block validation:") {
         d.triggerScheduledTasks()
-          if (d.pollSentNetworkBlock().isEmpty) fail(s"${block.hash} should not be ignored")
+        if (d.pollSentNetworkBlock().isEmpty) fail(s"${block.hash} should not be ignored")
       }
       d.waitForWorking("Block considered validated") { s =>
         val vs = s.fullValidationStatus

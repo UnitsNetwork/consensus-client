@@ -1491,8 +1491,7 @@ class ELUpdater(
         case expectedTransfer +: restExpectedTransfers =>
           expectedTransfer match {
             case expectedTransfer: ContractTransfer.NativeViaWithdrawal =>
-              if strictC2ETransfersActivated then
-                Left("Native transfers via withdrawals are unexpected after native transfers via deposits are activated")
+              if strictC2ETransfersActivated then Left("Native transfers via withdrawals are unexpected after strict C2E transfers activation")
               else
                 actualWithdrawals match {
                   case Seq() => s"$logPrefix Not found EL block withdrawal #$prevWithdrawalIndex, expected $expectedTransfer transfer".asLeft
@@ -1516,7 +1515,7 @@ class ELUpdater(
                       case _ => loop(actualWithdrawals, restActualTransferLogs, restExpectedTransfers, prevWithdrawalIndex, currTransferNumber + 1)
                     }
                 }
-              } else Left("Native transfers via deposits are unexpected before native transfers via deposits are activated")
+              } else Left("Native transfers via deposits are unexpected before strict C2E transfers activation")
             case expectedTransfer: ContractTransfer.Asset =>
               actualTransferLogs match {
                 case Nil => s"$logPrefix Not found EL transfer log, expected $expectedTransfer transfer".asLeft
