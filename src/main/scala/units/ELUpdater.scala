@@ -1429,17 +1429,7 @@ class ELUpdater(
       case None => Either.unit
       case Some(nextTransfer) =>
         if (nextTransfer.epoch >= contractBlock.epoch || !strictC2ETransfersActivated) Either.unit
-        else { // This transfer was on a previous epoch, miner saw it
-          val blockHasMaxTransfers = nextTransfer match {
-            case _: ContractTransfer.Asset => false // Could add an asset transfer even it took maximum native transfers
-            case _: (ContractTransfer.NativeViaWithdrawal | ContractTransfer.NativeViaDeposit) =>
-              // Could not take a native transfer only if there were no free slots
-              val maxNativeTransfersInBlock = EcBlock.MaxWithdrawals - miningReward.size
-              expectedNativeTransfersNumber == maxNativeTransfersInBlock
-          }
-
-          Either.raiseUnless(blockHasMaxTransfers)(ClientError(s"Block should contain a next C2E transfer: $nextTransfer"))
-        }
+        else Either.left(ClientError(s"Block should contain a next C2E transfer: $nextTransfer"))
     }
 
     (prevWithdrawalIndex, actualTransferWithdrawals) <- {
