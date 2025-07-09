@@ -448,7 +448,7 @@ class C2ETransfersTestSuite extends BaseTestSuite {
     "More than maximum C2E native transfers" in withExtensionDomain(settings) { d =>
       step("Activate strict C2E transfers")
       val now             = System.currentTimeMillis()
-      val transfersNumber = EcBlock.MaxWithdrawals + 1
+      val transfersNumber = 30 // More than maximum withdrawals
       val txns = Seq(
         d.ChainContract.enableStrictTransfers(d.blockchain.height + 1),
         // Transfers
@@ -460,27 +460,40 @@ class C2ETransfersTestSuite extends BaseTestSuite {
 
       d.appendBlock(txns*)
 
+      val transferLogEntries = (0 until transfersNumber).map { i =>
+        getLogsResponseEntryETH(
+           StandardBridge.ETHBridgeFinalized(
+            EthAddress.unsafeFrom(transferSenderAccount.toAddress.toEthAddress),
+            destElAddress,
+            nativeTokensElAmount
+          ),
+          i
+        )
+      }.toList
+
       step(s"Start a new epoch of miner ${second.address}")
       d.advanceNewBlocks(second)
       d.advanceConsensusLayerChanged()
 
       val block = d
         .createEcBlockBuilder("0", second)
-        .updateBlock { b =>
-          b.copy(withdrawals = (0 until EcBlock.MaxWithdrawals).map(Withdrawal(_, destElAddress, nativeTokensElAmountGwei)).toVector)
-        }
-        .buildAndSetLogs()
+        .buildAndSetLogs(transferLogEntries)
 
       d.appendMicroBlock(
-        d.ChainContract.extendMainChain(second.account, block, lastC2ETransferIndex = EcBlock.MaxWithdrawals - 1)
+        d.ChainContract.extendMainChain(second.account, block, lastC2ETransferIndex = transfersNumber - 1)
       )
       d.advanceConsensusLayerChanged()
 
       step(s"Receive block ${block.hash}")
       d.receiveNetworkBlock(block, second.account)
+
       withClue("Full EL block validation:") {
         d.triggerScheduledTasks()
-        if (d.pollSentNetworkBlock().isEmpty) fail(s"${block.hash} should not be ignored")
+          if (d.pollSentNetworkBlock().isEmpty) fail(s"${block.hash} should not be ignored")
+      }
+      d.waitForWorking("Block considered validated") { s =>
+        val vs = s.fullValidationStatus
+        vs.lastValidatedBlock.hash shouldBe block.hash
       }
     }
   }
