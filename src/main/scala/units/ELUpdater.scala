@@ -305,7 +305,8 @@ class ELUpdater(
               s"of epoch ${epochInfo.number} (ref=${parentBlock.hash})" +
               (if (withdrawals.isEmpty) "" else s", ${withdrawals.size} withdrawals from EL index=$startElWithdrawalIndex") +
               (if (transfers.isEmpty) "" else s", total ${transfers.size} transfers from $startC2ETransferIndex") +
-              (if (nativeTransfers.isEmpty) "" else s", ${nativeTransfers.size} native") +
+              (if (nativeTransfersViaWithdrawals.isEmpty) "" else s", ${nativeTransfersViaWithdrawals.size} native via withdrawals") +
+              (if (nativeTransfersViaDeposits.isEmpty) "" else s", ${nativeTransfersViaDeposits.size} native via deposits") +
               (if (assetTransfers.isEmpty) "" else s", ${assetTransfers.size} asset transfers") +
               updateAssetRegistryTransaction.fold("")(_ => s", ${addedAssets.size} new assets: {${addedAssets.mkString(", ")}}")
           )
