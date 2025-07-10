@@ -251,7 +251,7 @@ class ELUpdater(
         (addedAssets, txn)
       }
 
-    val depositedTransactions = updateAssetRegistryTransaction.toVector ++ nativeTransferDeposits ++ (for {
+    val depositedTransactions = updateAssetRegistryTransaction.toVector ++ (for {
       sba <- chainContractOptions.elStandardBridgeAddress.toVector
       x   <- assetTransfers
     } yield StandardBridge.mkFinalizeBridgeErc20Transaction(
@@ -261,7 +261,7 @@ class ELUpdater(
       to = x.to,
       from = x.from,
       amount = x.amount
-    ))
+    )) ++ nativeTransferDeposits
 
     val prevRandao = calculateRandao(epochInfo.hitSource, parentBlock.hash)
 
