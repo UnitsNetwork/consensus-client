@@ -193,9 +193,11 @@ class ELUpdater(
       .map(Withdrawal(startElWithdrawalIndex, _, chainContractOptions.miningReward))
       .toVector
 
+    val strictC2ETransfersActivated = epochInfo.number >= chainContractClient.getStrictC2ETransfersActivationEpoch
+
     val transfers = chainContractClient.getTransfersForPayload(
       fromIndex = startC2ETransferIndex,
-      maxNative = MaxC2ENativeTransfers - rewardWithdrawal.size
+      maxNative = if strictC2ETransfersActivated then None else Some(MaxWithdrawals - rewardWithdrawal.size)
     )
 
     val (nativeTransfers, assetTransfers) = transfers.partitionMap {
@@ -205,8 +207,6 @@ class ELUpdater(
     }
 
     val (nativeTransfersViaWithdrawals, nativeTransfersViaDeposits) = nativeTransfers.partitionMap(identity)
-
-    val strictC2ETransfersActivated = epochInfo.number >= chainContractClient.getStrictC2ETransfersActivationEpoch
 
     val (nativeTransferWithdrawals, nativeTransferDeposits) =
       if strictC2ETransfersActivated

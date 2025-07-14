@@ -245,7 +245,7 @@ trait ChainContractClient {
     }
   }
 
-  def getTransfersForPayload(fromIndex: Long, maxNative: Long): Vector[ContractTransfer] = {
+  def getTransfersForPayload(fromIndex: Long, maxNative: Option[Long]): Vector[ContractTransfer] = {
     val maxIndex = getTransfersCount - 1
 
     @tailrec def loop(currIndex: Long, foundNative: Long, acc: Vector[ContractTransfer]): Vector[ContractTransfer] =
@@ -254,8 +254,9 @@ trait ChainContractClient {
         requireTransfer(currIndex) match {
           case x: (ContractTransfer.NativeViaWithdrawal | ContractTransfer.NativeViaDeposit) =>
             val updatedFoundNative = foundNative + 1
-            if (updatedFoundNative > maxNative) acc
-            else loop(currIndex + 1, updatedFoundNative, acc :+ x) // if equals - we still can collect asset transfers
+            maxNative match
+              case Some(maxNative) if (updatedFoundNative > maxNative) => acc
+              case _ => loop(currIndex + 1, updatedFoundNative, acc :+ x) // if equals - we still can collect asset transfers
 
           case x: ContractTransfer.Asset => loop(currIndex + 1, foundNative, acc :+ x)
         }

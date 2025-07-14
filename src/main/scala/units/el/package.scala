@@ -8,8 +8,8 @@ package object el {
     if (data.size >= size) data
     else data ++ Array.fill(size - data.size)(emptyData)
 
-  val MaxC2ENativeTransfers = 16
-  val MinE2CTransfers       = 1024
+  val MaxWithdrawals  = 16
+  val MinE2CTransfers = 1024
 
   val C2ETopics: Seq[String] = List(StandardBridge.ERC20BridgeFinalized.Topic, StandardBridge.ETHBridgeFinalized.Topic)
   val E2CTopics: Seq[String] = List(NativeBridge.ElSentNativeEventTopic, StandardBridge.ERC20BridgeInitiated.Topic)
