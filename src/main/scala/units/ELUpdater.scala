@@ -200,31 +200,16 @@ class ELUpdater(
       maxNative = if strictC2ETransfersActivated then None else Some(MaxWithdrawals - rewardWithdrawal.size)
     )
 
-    val (nativeTransfers, assetTransfers) = transfers.partitionMap {
-      case x: ContractTransfer.NativeViaWithdrawal => x.asLeft.asLeft
-      case x: ContractTransfer.NativeViaDeposit    => x.asRight.asLeft
-      case x: ContractTransfer.Asset               => x.asRight
+    val nativeTransfersViaWithdrawals = transfers.flatMap {
+      case x: ContractTransfer.NativeViaWithdrawal => Some(x)
+      case _: ContractTransfer.NativeViaDeposit    => None
+      case _: ContractTransfer.Asset               => None
     }
 
-    val (nativeTransfersViaWithdrawals, nativeTransfersViaDeposits) = nativeTransfers.partitionMap(identity)
-
-    val (nativeTransferWithdrawals, nativeTransferDeposits) =
+    val nativeTransferWithdrawals =
       if strictC2ETransfersActivated
-      then
-        (
-          Vector.empty,
-          for {
-            sba <- chainContractOptions.elStandardBridgeAddress.toVector
-            x   <- nativeTransfersViaDeposits
-          } yield StandardBridge.mkFinalizeBridgeETHTransaction(
-            transferIndex = x.index,
-            standardBridgeAddress = sba,
-            from = x.from,
-            to = x.to,
-            amount = x.amount
-          )
-        )
-      else (toWithdrawals(nativeTransfersViaWithdrawals, rewardWithdrawal.lastOption.fold(startElWithdrawalIndex)(_.index + 1)), Vector.empty)
+      then Vector.empty
+      else toWithdrawals(nativeTransfersViaWithdrawals, rewardWithdrawal.lastOption.fold(startElWithdrawalIndex)(_.index + 1))
 
     val withdrawals = rewardWithdrawal ++ nativeTransferWithdrawals
 
@@ -251,19 +236,39 @@ class ELUpdater(
         (addedAssets, txn)
       }
 
-    val depositedTransactions = updateAssetRegistryTransaction.toVector ++ (for {
-      sba <- chainContractOptions.elStandardBridgeAddress.toVector
-      x   <- assetTransfers
-    } yield StandardBridge.mkFinalizeBridgeErc20Transaction(
-      transferIndex = x.index,
-      standardBridgeAddress = sba,
-      token = x.tokenAddress,
-      to = x.to,
-      from = x.from,
-      amount = x.amount
-    )) ++ nativeTransferDeposits
+    val nativeAndAssetTransfersViaDeposits = transfers.flatMap {
+      case _: ContractTransfer.NativeViaWithdrawal => None
+      case x: ContractTransfer.NativeViaDeposit    => Some(x.asLeft)
+      case x: ContractTransfer.Asset               => Some(x.asRight)
+    }
+
+    val depositedTransactions = updateAssetRegistryTransaction.toVector ++ nativeAndAssetTransfersViaDeposits.flatMap {
+      case Left(x) =>
+        for {
+          sba <- chainContractOptions.elStandardBridgeAddress.toVector
+        } yield StandardBridge.mkFinalizeBridgeETHTransaction(
+          transferIndex = x.index,
+          standardBridgeAddress = sba,
+          from = x.from,
+          to = x.to,
+          amount = x.amount
+        )
+      case Right(x) =>
+        for {
+          sba <- chainContractOptions.elStandardBridgeAddress.toVector
+        } yield StandardBridge.mkFinalizeBridgeErc20Transaction(
+          transferIndex = x.index,
+          standardBridgeAddress = sba,
+          token = x.tokenAddress,
+          to = x.to,
+          from = x.from,
+          amount = x.amount
+        )
+    }
 
     val prevRandao = calculateRandao(epochInfo.hitSource, parentBlock.hash)
+
+    val (nativeTransfersViaDeposits, assetTransfers) = nativeAndAssetTransfersViaDeposits.partitionMap(identity)
 
     if (willSimulateBlock) {
       engineApiClient
