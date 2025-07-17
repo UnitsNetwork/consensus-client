@@ -9,7 +9,6 @@ import com.wavesplatform.transaction.utils.EthConverters.EthereumAddressExt
 import com.wavesplatform.transaction.{Asset, TxHelpers}
 import com.wavesplatform.wallet.Wallet
 import units.ELUpdater.State.ChainStatus.WaitForNewChain
-import units.client.engine.model.Withdrawal
 import units.el.StandardBridge
 import units.eth.EthAddress
 
@@ -467,13 +466,12 @@ class C2ETransfersTestSuite extends BaseTestSuite {
   }
 
   "Strict C2E transfers" - {
-    val userAmount               = 1
-    val nativeTokensClAmount     = UnitsConvert.toUnitsInWaves(userAmount)
-    val nativeTokensElAmountGwei = UnitsConvert.toGwei(userAmount) // TODO: remove, not used after Strict C2E transfers activation
-    val nativeTokensElAmount     = WAmount(nativeTokensClAmount).scale(NativeTokenElDecimals - NativeTokenClDecimals)
-    val assetTokensClAmount      = UnitsConvert.toWavesAtomic(userAmount, WavesDecimals)
-    val assetTokensElAmount      = UnitsConvert.toAtomic(userAmount, WavesDecimals)
-    val destElAddress            = EthAddress.unsafeFrom(s"0x$validTransferRecipient")
+    val userAmount           = 1
+    val nativeTokensClAmount = UnitsConvert.toUnitsInWaves(userAmount)
+    val nativeTokensElAmount = WAmount(nativeTokensClAmount).scale(NativeTokenElDecimals - NativeTokenClDecimals)
+    val assetTokensClAmount  = UnitsConvert.toWavesAtomic(userAmount, WavesDecimals)
+    val assetTokensElAmount  = UnitsConvert.toAtomic(userAmount, WavesDecimals)
+    val destElAddress        = EthAddress.unsafeFrom(s"0x$validTransferRecipient")
 
     def mkNativeTransfer(d: ExtensionDomain, ts: Long): InvokeScriptTransaction = d.ChainContract.transfer(
       sender = transferSenderAccount,
@@ -513,12 +511,19 @@ class C2ETransfersTestSuite extends BaseTestSuite {
         d.advanceNewBlocks(malfunction)
         d.advanceConsensusLayerChanged()
 
+        val transferLogEntries = List(
+          // Note: Only one transfer here
+          getLogsResponseEntryETH(
+            StandardBridge.ETHBridgeFinalized(
+              EthAddress.unsafeFrom(transferSenderAccount.toAddress.toEthAddress),
+              destElAddress,
+              nativeTokensElAmount
+            )
+          )
+        )
         val wrongBlock = d
           .createEcBlockBuilder("0", malfunction)
-          .updateBlock { b =>
-            b.copy(withdrawals = Vector(Withdrawal(0, destElAddress, nativeTokensElAmountGwei))) // Only one
-          }
-          .buildAndSetLogs()
+          .buildAndSetLogs(transferLogEntries)
 
         d.appendMicroBlock(d.ChainContract.extendMainChain(malfunction.account, wrongBlock, lastC2ETransferIndex = 0))
         d.advanceConsensusLayerChanged()
