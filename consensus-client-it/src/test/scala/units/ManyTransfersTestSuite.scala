@@ -3,8 +3,8 @@ package units
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.state.IntegerDataEntry
 import com.wavesplatform.transaction.Asset.IssuedAsset
-import com.wavesplatform.transaction.{Asset, TxHelpers}
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
+import com.wavesplatform.transaction.{Asset, TxHelpers}
 import monix.execution.atomic.AtomicInt
 import org.web3j.protocol.core.DefaultBlockParameterName
 import org.web3j.protocol.core.methods.response.{EthSendTransaction, TransactionReceipt}
@@ -30,7 +30,6 @@ class ManyTransfersTestSuite extends BaseDockerTestSuite {
 
   private val gasProvider     = new DefaultGasProvider
   private lazy val txnManager = new RawTransactionManager(ec1.web3j, elSender, EcContainer.ChainId, 20, 2000)
-  private lazy val wwaves     = new Erc20Client(ec1.web3j, WWavesAddress, txnManager, gasProvider)
   private lazy val terc20     = new Erc20Client(ec1.web3j, TErc20Address, txnManager, gasProvider)
 
   "Many native + many asset transfers" in {
@@ -201,7 +200,6 @@ class ManyTransfersTestSuite extends BaseDockerTestSuite {
     }
   }
 
-  private def clRecipientWavesBalance: Long       = waves1.api.balance(clRecipient.toAddress, Asset.Waves)
   private def clRecipientAssetBalance: Long       = waves1.api.balance(clRecipient.toAddress, issueAsset)
   private def clRecipientNativeTokenBalance: Long = waves1.api.balance(clRecipient.toAddress, chainContract.nativeTokenId)
 

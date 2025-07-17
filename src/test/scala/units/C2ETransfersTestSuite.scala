@@ -9,7 +9,7 @@ import com.wavesplatform.transaction.utils.EthConverters.EthereumAddressExt
 import com.wavesplatform.transaction.{Asset, TxHelpers}
 import com.wavesplatform.wallet.Wallet
 import units.ELUpdater.State.ChainStatus.WaitForNewChain
-import units.client.engine.model.{EcBlock, Withdrawal}
+import units.client.engine.model.Withdrawal
 import units.el.StandardBridge
 import units.eth.EthAddress
 
