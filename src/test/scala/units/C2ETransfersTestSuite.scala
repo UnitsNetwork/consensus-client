@@ -259,6 +259,100 @@ class C2ETransfersTestSuite extends BaseTestSuite {
     }
   }
 
+  "Asset transfers validation" - {
+    val userAmount           = 1
+    val assetTokensClAmount      = UnitsConvert.toWavesAtomic(userAmount, WavesDecimals)
+    val assetTokensElAmount      = UnitsConvert.toAtomic(userAmount, WavesDecimals)
+    val destElAddress        = EthAddress.unsafeFrom(s"0x$validTransferRecipient")
+
+    def mkAssetTransfer(d: ExtensionDomain, ts: Long): InvokeScriptTransaction = d.ChainContract.transfer(
+      sender = transferSenderAccount,
+      destElAddress = destElAddress,
+      asset = Asset.Waves,
+      amount = assetTokensClAmount,
+      timestamp = ts
+    )
+
+    val reliable = ElMinerSettings(Wallet.generateNewAccount(super.defaultSettings.walletSeed, 0))
+    val second   = ElMinerSettings(TxHelpers.signer(2))
+    val settings = defaultSettings.copy(initialMiners = List(reliable, second))
+
+    "Validation passes if transfer logs match" in withExtensionDomain(settings) { d =>
+      step("Activate strict C2E transfers")
+      val now = System.currentTimeMillis()
+      d.appendBlock(
+        d.ChainContract.enableStrictTransfers(d.blockchain.height + 1),
+        mkAssetTransfer(d, now)
+      )
+
+      val transferLogEntries = List(
+        getLogsResponseEntry(
+          StandardBridge.ERC20BridgeFinalized(
+            WWavesAddress,
+            EthAddress.unsafeFrom(transferSenderAccount.toAddress.toEthAddress),
+            destElAddress,
+            EAmount(assetTokensElAmount.bigInteger)
+          ),
+        )
+      )
+      val ecGoodBlock = d
+        .createEcBlockBuilder("0", second)
+        .buildAndSetLogs(transferLogEntries)
+
+      step(s"Append a CL micro block with ecGoodBlock ${ecGoodBlock.hash} confirmation")
+      d.advanceNewBlocks(second)
+      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(second.account, ecGoodBlock, lastC2ETransferIndex = 0))
+
+      step(s"Receive block ${ecGoodBlock.hash}")
+      d.receiveNetworkBlock(ecGoodBlock, second.account)
+
+      d.waitForWorking("Block considered validated") { s =>
+        val vs = s.fullValidationStatus
+        vs.lastValidatedBlock.hash shouldBe ecGoodBlock.hash
+      }
+    }
+
+    "Validation fails if the amount doesn't match" in withExtensionDomain(settings) { d =>
+      step("Activate strict C2E transfers")
+      val now = System.currentTimeMillis()
+      d.appendBlock(
+        d.ChainContract.enableStrictTransfers(d.blockchain.height + 1),
+        mkAssetTransfer(d, now)
+      )
+
+      val wrongAmount = EAmount(BigInt(42).bigInteger)
+      val transferLogEntries = List(
+        getLogsResponseEntry(
+          StandardBridge.ERC20BridgeFinalized(
+            WWavesAddress,
+            EthAddress.unsafeFrom(transferSenderAccount.toAddress.toEthAddress),
+            destElAddress,
+            wrongAmount
+          ),
+        )
+      )
+
+      val ecBadBlock = d
+        .createEcBlockBuilder("0", second)
+        .buildAndSetLogs(transferLogEntries)
+
+      step(s"Append a CL micro block with ecBadBlock ${ecBadBlock.hash} confirmation")
+      d.advanceNewBlocks(second)
+      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(second.account, ecBadBlock, lastC2ETransferIndex = 0))
+
+      step(s"Receive block ${ecBadBlock.hash}")
+      d.receiveNetworkBlock(ecBadBlock, second.account)
+
+      withClue("Full EL block validation:") {
+        d.triggerScheduledTasks()
+        if (d.pollSentNetworkBlock().isDefined) fail(s"${ecBadBlock.hash} should be ignored")
+      }
+      d.waitForCS[WaitForNewChain]("Forking") { cs =>
+        cs.chainSwitchInfo.referenceBlock.hash shouldBe d.ecGenesisBlock.hash
+      }
+    }
+  }
+
   "Strict C2E transfers" - {
     val userAmount               = 1
     val nativeTokensClAmount     = UnitsConvert.toUnitsInWaves(userAmount)
