@@ -260,10 +260,10 @@ class C2ETransfersTestSuite extends BaseTestSuite {
   }
 
   "Asset transfers validation" - {
-    val userAmount           = 1
-    val assetTokensClAmount      = UnitsConvert.toWavesAtomic(userAmount, WavesDecimals)
-    val assetTokensElAmount      = UnitsConvert.toAtomic(userAmount, WavesDecimals)
-    val destElAddress        = EthAddress.unsafeFrom(s"0x$validTransferRecipient")
+    val userAmount          = 1
+    val assetTokensClAmount = UnitsConvert.toWavesAtomic(userAmount, WavesDecimals)
+    val assetTokensElAmount = UnitsConvert.toAtomic(userAmount, WavesDecimals)
+    val destElAddress       = EthAddress.unsafeFrom(s"0x$validTransferRecipient")
 
     def mkAssetTransfer(d: ExtensionDomain, ts: Long): InvokeScriptTransaction = d.ChainContract.transfer(
       sender = transferSenderAccount,
@@ -292,7 +292,7 @@ class C2ETransfersTestSuite extends BaseTestSuite {
             EthAddress.unsafeFrom(transferSenderAccount.toAddress.toEthAddress),
             destElAddress,
             EAmount(assetTokensElAmount.bigInteger)
-          ),
+          )
         )
       )
       val ecGoodBlock = d
@@ -328,10 +328,49 @@ class C2ETransfersTestSuite extends BaseTestSuite {
             EthAddress.unsafeFrom(transferSenderAccount.toAddress.toEthAddress),
             destElAddress,
             wrongAmount
-          ),
+          )
         )
       )
 
+      val ecBadBlock = d
+        .createEcBlockBuilder("0", second)
+        .buildAndSetLogs(transferLogEntries)
+
+      step(s"Append a CL micro block with ecBadBlock ${ecBadBlock.hash} confirmation")
+      d.advanceNewBlocks(second)
+      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(second.account, ecBadBlock, lastC2ETransferIndex = 0))
+
+      step(s"Receive block ${ecBadBlock.hash}")
+      d.receiveNetworkBlock(ecBadBlock, second.account)
+
+      withClue("Full EL block validation:") {
+        d.triggerScheduledTasks()
+        if (d.pollSentNetworkBlock().isDefined) fail(s"${ecBadBlock.hash} should be ignored")
+      }
+      d.waitForCS[WaitForNewChain]("Forking") { cs =>
+        cs.chainSwitchInfo.referenceBlock.hash shouldBe d.ecGenesisBlock.hash
+      }
+    }
+
+    "Validation fails if the recipient address doesn't match" in withExtensionDomain(settings) { d =>
+      step("Activate strict C2E transfers")
+      val now = System.currentTimeMillis()
+      d.appendBlock(
+        d.ChainContract.enableStrictTransfers(d.blockchain.height + 1),
+        mkAssetTransfer(d, now)
+      )
+
+      val wrongButValidTransferRecipient = EthAddress.unsafeFrom(s"0x2222222222222222222222222222222222222222")
+      val transferLogEntries = List(
+        getLogsResponseEntry(
+          StandardBridge.ERC20BridgeFinalized(
+            WWavesAddress,
+            EthAddress.unsafeFrom(transferSenderAccount.toAddress.toEthAddress),
+            wrongButValidTransferRecipient,
+            EAmount(assetTokensElAmount.bigInteger)
+          )
+        )
+      )
       val ecBadBlock = d
         .createEcBlockBuilder("0", second)
         .buildAndSetLogs(transferLogEntries)
