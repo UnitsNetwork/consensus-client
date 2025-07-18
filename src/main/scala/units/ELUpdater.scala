@@ -241,9 +241,10 @@ class ELUpdater(
       case x: (ContractTransfer.NativeViaDeposit | ContractTransfer.Asset) => Some(x)
     }
 
-    val depositedTransactions = updateAssetRegistryTransaction.toVector ++ nativeAndAssetTransfersViaDeposits.flatMap(transfer =>
-      for {
-        sba <- chainContractOptions.elStandardBridgeAddress
+    val depositedTransactions = updateAssetRegistryTransaction.toVector ++
+      (for {
+        sba      <- chainContractOptions.elStandardBridgeAddress.toVector
+        transfer <- nativeAndAssetTransfersViaDeposits
       } yield {
         transfer match {
           case x: ContractTransfer.NativeViaDeposit =>
@@ -264,8 +265,7 @@ class ELUpdater(
               amount = x.amount
             )
         }
-      }
-    )
+      })
 
     val prevRandao = calculateRandao(epochInfo.hitSource, parentBlock.hash)
 
