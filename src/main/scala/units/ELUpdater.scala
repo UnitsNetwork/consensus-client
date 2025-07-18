@@ -1434,8 +1434,9 @@ class ELUpdater(
     _ <- nextTransfer match {
       case None => Either.unit
       case Some(nextTransfer) =>
-        if (nextTransfer.epoch >= contractBlock.epoch || !strictC2ETransfersActivated) Either.unit
-        else Either.left(ClientError(s"Block should contain a next C2E transfer: $nextTransfer"))
+        Either.raiseUnless(nextTransfer.epoch >= contractBlock.epoch || !strictC2ETransfersActivated)(
+          ClientError(s"Block should contain a next C2E transfer: $nextTransfer")
+        )
     }
 
     (prevWithdrawalIndex, actualTransferWithdrawals) <- {
