@@ -42,9 +42,7 @@ class ManyTransfersTestSuite extends BaseDockerTestSuite {
     val issuedE2CAmount = UnitsConvert.toAtomic(userAmount * assetC2ETransferCount, TErc20Decimals)
 
     step("Send allowances")
-    List(
-      terc20.sendApprove(StandardBridgeAddress, issuedE2CAmount, nextNonce)
-    ).foreach(waitFor)
+    waitFor(terc20.sendApprove(StandardBridgeAddress, issuedE2CAmount, nextNonce))
 
     step("Initiate E2C transfers")
     val e2cNativeTxn = nativeBridge.sendSendNative(elSender, clRecipient.toAddress, nativeE2CAmount, nextNonce)
