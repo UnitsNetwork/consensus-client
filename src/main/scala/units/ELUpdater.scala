@@ -237,38 +237,42 @@ class ELUpdater(
       }
 
     val nativeAndAssetTransfersViaDeposits = transfers.flatMap {
-      case _: ContractTransfer.NativeViaWithdrawal => None
-      case x: ContractTransfer.NativeViaDeposit    => Some(x.asLeft)
-      case x: ContractTransfer.Asset               => Some(x.asRight)
+      case _: ContractTransfer.NativeViaWithdrawal                         => None
+      case x: (ContractTransfer.NativeViaDeposit | ContractTransfer.Asset) => Some(x)
     }
 
-    val depositedTransactions = updateAssetRegistryTransaction.toVector ++ nativeAndAssetTransfersViaDeposits.flatMap {
-      case Left(x) =>
-        for {
-          sba <- chainContractOptions.elStandardBridgeAddress.toVector
-        } yield StandardBridge.mkFinalizeBridgeETHTransaction(
-          transferIndex = x.index,
-          standardBridgeAddress = sba,
-          from = x.from,
-          to = x.to,
-          amount = x.amount
-        )
-      case Right(x) =>
-        for {
-          sba <- chainContractOptions.elStandardBridgeAddress.toVector
-        } yield StandardBridge.mkFinalizeBridgeErc20Transaction(
-          transferIndex = x.index,
-          standardBridgeAddress = sba,
-          token = x.tokenAddress,
-          to = x.to,
-          from = x.from,
-          amount = x.amount
-        )
-    }
+    val depositedTransactions = updateAssetRegistryTransaction.toVector ++ nativeAndAssetTransfersViaDeposits.flatMap(transfer =>
+      for {
+        sba <- chainContractOptions.elStandardBridgeAddress
+      } yield {
+        transfer match {
+          case x: ContractTransfer.NativeViaDeposit =>
+            StandardBridge.mkFinalizeBridgeETHTransaction(
+              transferIndex = x.index,
+              standardBridgeAddress = sba,
+              from = x.from,
+              to = x.to,
+              amount = x.amount
+            )
+          case x: ContractTransfer.Asset =>
+            StandardBridge.mkFinalizeBridgeErc20Transaction(
+              transferIndex = x.index,
+              standardBridgeAddress = sba,
+              token = x.tokenAddress,
+              to = x.to,
+              from = x.from,
+              amount = x.amount
+            )
+        }
+      }
+    )
 
     val prevRandao = calculateRandao(epochInfo.hitSource, parentBlock.hash)
 
-    val (nativeTransfersViaDeposits, assetTransfers) = nativeAndAssetTransfersViaDeposits.partitionMap(identity)
+    val (nativeTransfersViaDeposits, assetTransfers) = nativeAndAssetTransfersViaDeposits.partitionMap {
+      case x: ContractTransfer.NativeViaDeposit => Left(x)
+      case x: ContractTransfer.Asset            => Right(x)
+    }
 
     if (willSimulateBlock) {
       engineApiClient
