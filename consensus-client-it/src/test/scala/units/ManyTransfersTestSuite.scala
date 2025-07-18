@@ -7,7 +7,7 @@ import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import com.wavesplatform.transaction.{Asset, TxHelpers}
 import monix.execution.atomic.AtomicInt
 import org.web3j.protocol.core.DefaultBlockParameterName
-import org.web3j.protocol.core.methods.response.{EthSendTransaction, TransactionReceipt}
+import org.web3j.protocol.core.methods.response.TransactionReceipt
 import org.web3j.tx.RawTransactionManager
 import org.web3j.tx.gas.DefaultGasProvider
 import units.docker.EcContainer
@@ -24,9 +24,8 @@ class ManyTransfersTestSuite extends BaseDockerTestSuite {
   private val issueAssetDecimals = 8.toByte
   private lazy val issueAsset    = chainContract.getRegisteredAsset(1) // 0 is WAVES
 
-  private val userAmount             = BigDecimal("1")
-  private val nativeC2ETransferCount = 20
-  private val assetC2ETransferCount  = 20
+  private val userAmount            = BigDecimal("1")
+  private val eachTransferTypeCount = 20
 
   private val gasProvider     = new DefaultGasProvider
   private lazy val txnManager = new RawTransactionManager(ec1.web3j, elSender, EcContainer.ChainId, 20, 2000)
@@ -38,8 +37,8 @@ class ManyTransfersTestSuite extends BaseDockerTestSuite {
       AtomicInt(ec1.web3j.ethGetTransactionCount(elSenderAddress.hex, DefaultBlockParameterName.PENDING).send().getTransactionCount.intValueExact())
     def nextNonce: Int = currNonce.getAndIncrement()
 
-    val nativeE2CAmount = UnitsConvert.toAtomic(userAmount * nativeC2ETransferCount, NativeTokenElDecimals)
-    val issuedE2CAmount = UnitsConvert.toAtomic(userAmount * assetC2ETransferCount, TErc20Decimals)
+    val nativeE2CAmount = UnitsConvert.toAtomic(userAmount * eachTransferTypeCount, NativeTokenElDecimals)
+    val issuedE2CAmount = UnitsConvert.toAtomic(userAmount * eachTransferTypeCount, TErc20Decimals)
 
     step("Send allowances")
     waitFor(terc20.sendApprove(StandardBridgeAddress, issuedE2CAmount, nextNonce))
@@ -101,8 +100,8 @@ class ManyTransfersTestSuite extends BaseDockerTestSuite {
     )
 
     val e2cWithdrawTxns = List(
-      mkE2CWithdrawTxn(0, chainContract.nativeTokenId, userAmount * nativeC2ETransferCount, NativeTokenClDecimals),
-      mkE2CWithdrawTxn(1, issueAsset, userAmount * assetC2ETransferCount, issueAssetDecimals)
+      mkE2CWithdrawTxn(0, chainContract.nativeTokenId, userAmount * eachTransferTypeCount, NativeTokenClDecimals),
+      mkE2CWithdrawTxn(1, issueAsset, userAmount * eachTransferTypeCount, issueAssetDecimals)
     )
 
     e2cWithdrawTxns.foreach(waves1.api.broadcast)
@@ -112,14 +111,14 @@ class ManyTransfersTestSuite extends BaseDockerTestSuite {
       withClue("Native token: ") {
         val balanceAfter = clRecipientNativeTokenBalance
         balanceAfter shouldBe (recipientNativeTokenBalanceBefore + UnitsConvert.toWavesAtomic(
-          userAmount * nativeC2ETransferCount,
+          userAmount * eachTransferTypeCount,
           NativeTokenClDecimals
         ))
       }
 
       withClue("Issued asset: ") {
         val balanceAfter = clRecipientAssetBalance
-        balanceAfter shouldBe (recipientAssetBalanceBefore + UnitsConvert.toWavesAtomic(userAmount * assetC2ETransferCount, issueAssetDecimals))
+        balanceAfter shouldBe (recipientAssetBalanceBefore + UnitsConvert.toWavesAtomic(userAmount * eachTransferTypeCount, issueAssetDecimals))
       }
     }
 
@@ -133,48 +132,13 @@ class ManyTransfersTestSuite extends BaseDockerTestSuite {
       UnitsConvert.toWavesAtomic(userAmount, decimals)
     )
 
-    val c2eTransferTxns = List(
-      mkC2ETransferTxn(issueAsset, issueAssetDecimals),
-      mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals),
-      mkC2ETransferTxn(issueAsset, issueAssetDecimals),
-      mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals),
-      mkC2ETransferTxn(issueAsset, issueAssetDecimals),
-      mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals),
-      mkC2ETransferTxn(issueAsset, issueAssetDecimals),
-      mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals),
-      mkC2ETransferTxn(issueAsset, issueAssetDecimals),
-      mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals),
-      mkC2ETransferTxn(issueAsset, issueAssetDecimals),
-      mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals),
-      mkC2ETransferTxn(issueAsset, issueAssetDecimals),
-      mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals),
-      mkC2ETransferTxn(issueAsset, issueAssetDecimals),
-      mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals),
-      mkC2ETransferTxn(issueAsset, issueAssetDecimals),
-      mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals),
-      mkC2ETransferTxn(issueAsset, issueAssetDecimals),
-      mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals),
-      mkC2ETransferTxn(issueAsset, issueAssetDecimals),
-      mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals),
-      mkC2ETransferTxn(issueAsset, issueAssetDecimals),
-      mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals),
-      mkC2ETransferTxn(issueAsset, issueAssetDecimals),
-      mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals),
-      mkC2ETransferTxn(issueAsset, issueAssetDecimals),
-      mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals),
-      mkC2ETransferTxn(issueAsset, issueAssetDecimals),
-      mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals),
-      mkC2ETransferTxn(issueAsset, issueAssetDecimals),
-      mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals),
-      mkC2ETransferTxn(issueAsset, issueAssetDecimals),
-      mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals),
-      mkC2ETransferTxn(issueAsset, issueAssetDecimals),
-      mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals),
-      mkC2ETransferTxn(issueAsset, issueAssetDecimals),
-      mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals),
-      mkC2ETransferTxn(issueAsset, issueAssetDecimals),
-      mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals)
-    )
+    val c2eTransferTxns = for {
+      _ <- 1 to eachTransferTypeCount
+      tx <- Seq(
+        mkC2ETransferTxn(issueAsset, issueAssetDecimals),
+        mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals)
+      )
+    } yield tx
 
     c2eTransferTxns.foreach(waves1.api.broadcast)
     val c2eTransferTxnResults = c2eTransferTxns.map(txn => waves1.api.waitForSucceeded(txn.id()))
