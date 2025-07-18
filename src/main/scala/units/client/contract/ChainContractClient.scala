@@ -256,7 +256,7 @@ trait ChainContractClient {
             val updatedFoundNative = foundNative + 1
             maxNative match
               case Some(maxNative) if (updatedFoundNative > maxNative) => acc
-              case _ => loop(currIndex + 1, updatedFoundNative, acc :+ x) // if equals - we still can collect asset transfers
+              case _ => loop(currIndex + 1, updatedFoundNative, acc :+ x)
 
           case x: ContractTransfer.Asset => loop(currIndex + 1, foundNative, acc :+ x)
         }
