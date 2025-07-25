@@ -1854,8 +1854,9 @@ object ELUpdater {
       _ <- Either.raiseUnless(elTransferEvent.to == expectedTransfer.to)(
         s"$errorPrefix: got to address: ${elTransferEvent.to}, expected: ${expectedTransfer.to}"
       )
-      _ <- Either.raiseUnless(elTransferEvent.amount == WAmount(expectedTransfer.amount).scale(NativeTokenElDecimals - NativeTokenClDecimals))(
-        s"$errorPrefix: got amount: ${elTransferEvent.amount}, expected ${expectedTransfer.amount}"
+      expectedAmount = WAmount(expectedTransfer.amount).scale(NativeTokenElDecimals - NativeTokenClDecimals)
+      _ <- Either.raiseUnless(elTransferEvent.amount == expectedAmount)(
+        s"$errorPrefix: got amount: ${elTransferEvent.amount}, expected ${expectedAmount}"
       )
     } yield ()
   }
