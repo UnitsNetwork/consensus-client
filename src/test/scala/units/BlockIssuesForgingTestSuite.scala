@@ -71,8 +71,7 @@ class BlockIssuesForgingTestSuite extends BaseTestSuite {
 
     "EC-block doesn't come - then we start an alternative chain" in test { (d, ecBlock1, _, _) =>
       val nextBlock = d.createEcBlockBuilder("0-1", thisMiner, ecBlock1).buildAndSetLogs()
-      d.ecClients.willSimulate(nextBlock)
-      d.ecClients.willForge(d.createEcBlockBuilder("0-1-i", thisMiner, nextBlock).build())
+      d.ecClients.willForge(nextBlock)
       d.waitForCS[Mining]("Switched to alternative chain") { s =>
         s.nodeChainInfo.isLeft shouldBe true
       }
@@ -159,7 +158,7 @@ class BlockIssuesForgingTestSuite extends BaseTestSuite {
       }
     }
 
-    "We mined before the alternative chain before and EC-block doesn't come - then we still wait for it" in withExtensionDomain() { d =>
+    "We mined the alternative chain before and EC-block doesn't come - then we still wait for it" in withExtensionDomain() { d =>
       step(s"Start a new epoch of otherMiner1 ${otherMiner1.address} with ecBlock1")
       d.advanceNewBlocks(otherMiner1)
       val ecBlock1 = d.createEcBlockBuilder("0", otherMiner1).buildAndSetLogs()
@@ -184,7 +183,7 @@ class BlockIssuesForgingTestSuite extends BaseTestSuite {
       step(s"Start a new epoch of thisMiner ${thisMiner.address} with alternative chain ecBlock2")
       d.advanceNewBlocks(thisMiner)
       val ecBlock2 = d.createEcBlockBuilder("0-1", thisMiner, ecBlock1).rewardPrevMiner().buildAndSetLogs()
-      d.ecClients.willSimulate(ecBlock2)
+      d.ecClients.willForge(ecBlock2)
       d.ecClients.willForge(d.createEcBlockBuilder("0-1-i", thisMiner, ecBlock2).buildAndSetLogs())
 
       d.waitForCS[Mining]() { s =>

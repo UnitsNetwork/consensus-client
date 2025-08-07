@@ -12,6 +12,8 @@ import units.client.contract.HasConsensusLayerDappTxHelpers.DefaultFees
 import units.el.NativeBridge
 import units.util.HexBytesConverter
 
+import scala.concurrent.duration.DurationInt
+
 class E2CNativeTransfersTestSuite extends BaseTestSuite {
   private val transferReceiver     = TxHelpers.secondSigner
   private val transfer             = NativeBridge.ElSentNativeEvent(transferReceiver.toAddress, 1)
@@ -203,11 +205,13 @@ class E2CNativeTransfersTestSuite extends BaseTestSuite {
       step(s"Start an alternative chain by a reliable miner ${reliable.address} with ecBlock2")
       d.advanceNewBlocks(reliable)
       val ecBlock2 = d.createEcBlockBuilder("0-1", reliable, ecBlock1).rewardPrevMiner().buildAndSetLogs(ecBlockLogs)
-      d.ecClients.willSimulate(ecBlock2)
+      d.ecClients.willForge(ecBlock2)
       // Prepare a following block, because we start mining it immediately
       d.ecClients.willForge(d.createEcBlockBuilder("0-1-i", reliable, ecBlock2).build())
 
       d.advanceConsensusLayerChanged()
+      d.advanceElu(6.seconds, "ecBlock2")
+
       d.waitForCS[Mining]("State is expected") { s =>
         s.nodeChainInfo.left.value.referenceBlock.hash shouldBe ecBlock1.hash
       }
@@ -230,12 +234,12 @@ class E2CNativeTransfersTestSuite extends BaseTestSuite {
       step(s"Moving whole network to the alternative chain with ecBlock3")
       d.advanceNewBlocks(reliable)
       val ecBlock3 = d.createEcBlockBuilder("0-1-1", reliable, ecBlock2).rewardPrevMiner(1).buildAndSetLogs()
-      d.ecClients.willSimulate(ecBlock3)
+      d.ecClients.willForge(ecBlock3)
       d.ecClients.willForge(d.createEcBlockBuilder("0-1-1-i", reliable, ecBlock3).build())
       d.advanceConsensusLayerChanged()
 
       step("Confirm extendAltChain to make this chain main")
-      d.advanceMining()
+      d.advanceElu(10.seconds, "ecBlock3")
 
       d.appendMicroBlockAndVerify(d.ChainContract.extendAltChain(reliable.account, ecBlock3, chainId = 1))
       d.advanceConsensusLayerChanged()

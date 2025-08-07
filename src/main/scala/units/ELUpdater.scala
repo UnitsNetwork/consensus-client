@@ -36,8 +36,8 @@ import units.client.engine.model.Withdrawal.WithdrawalIndex
 import units.el.*
 import units.eth.*
 import units.network.BlocksObserverImpl.BlockWithChannel
-import units.util.HexBytesConverter.toHexNoPrefix
 import units.util.HexBytesConverter
+import units.util.HexBytesConverter.toHexNoPrefix
 
 import scala.annotation.tailrec
 import scala.concurrent.duration.*
@@ -321,8 +321,9 @@ class ELUpdater(
           }
           lastEcBlock <- engineApiClient.getLastExecutionBlock()
           willSimulateBlock = lastEcBlock.hash != parentBlock.hash
+          currentUnixTs     = time.correctedTime() / 1000
           nextBlockUnixTs = (parentBlock.timestamp + config.blockDelay.toSeconds).max(
-            time.correctedTime() / 1000 +
+            currentUnixTs +
               // We don't collect transactions for simulated payload, thus we don't need to wait for firstBlockMinDelay
               (if (willSimulateBlock) 0 else config.firstBlockMinDelay.toSeconds)
           )
@@ -353,7 +354,7 @@ class ELUpdater(
           )
 
           setState("tryToStartMining", newState)
-          scheduler.scheduleOnceLabeled("tryToForgeNextBlock", (miningData.nextBlockUnixTs - time.correctedTime() / 1000).seconds)(
+          scheduler.scheduleOnceLabeled("tryToForgeNextBlock", (miningData.nextBlockUnixTs - currentUnixTs).seconds)(
             tryToForgeNextBlock(
               miningData.payload,
               parentBlock.hash,
@@ -1498,8 +1499,7 @@ class ELUpdater(
     logger.trace(s"Trying to apply and do a full validation of block ${networkBlock.hash}")
     for {
       _ <- applyBlock(networkBlock, parentBlock, epochInfo = None) // epochInfo is empty, because we don't need to validate a block signature
-      ecBlock = networkBlock.toEcBlock
-      updatedState <- validateAppliedBlock(contractBlock, ecBlock, prevState)
+      updatedState <- validateAppliedBlock(contractBlock, networkBlock.toEcBlock, prevState)
     } yield updatedState
   }
 
