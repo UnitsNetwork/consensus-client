@@ -9,7 +9,7 @@ git.uncommittedSignifier := Some("DIRTY")
 inScope(Global)(
   Seq(
     onChangedBuildSource := ReloadOnSourceChanges,
-    scalaVersion         := "3.7.1",
+    scalaVersion         := "3.7.2",
     organization         := "network.units",
     organizationName     := "Units Network",
     resolvers ++= Seq(Resolver.sonatypeCentralSnapshots, Resolver.mavenLocal),
@@ -33,14 +33,14 @@ name       := "consensus-client"
 maintainer := "Units Network Team"
 
 libraryDependencies ++= {
-  val node        = "1.5.11-SNAPSHOT"
-  val sttpVersion = "3.10.3"
+  val node        = "1.5.11"
+  val sttpVersion = "3.11.0"
   Seq(
     "com.wavesplatform"              % "node-testkit"  % node % Test,
     "com.wavesplatform"              % "node"          % node % Provided,
     "com.softwaremill.sttp.client3" %% "core"          % sttpVersion,
     "com.softwaremill.sttp.client3" %% "play-json"     % sttpVersion,
-    "com.github.jwt-scala"          %% "jwt-play-json" % "10.0.4",
+    "com.github.jwt-scala"          %% "jwt-play-json" % "11.0.2",
     "org.web3j"                      % "core"          % "4.9.8"
   )
 }
