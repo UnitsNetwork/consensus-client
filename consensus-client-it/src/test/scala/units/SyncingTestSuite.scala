@@ -42,9 +42,7 @@ class SyncingTestSuite extends BaseDockerTestSuite {
     waves1.api.rollback(Height(contractBlock.epoch - 1))
 
     step("Wait for EL blocks")
-    eventually {
-      ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact() >= elWaitHeight
-    }
+    while (ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact() < elWaitHeight) Thread.sleep(3000)
 
     step("Waiting transactions 2 and 3 on EL")
     val txn2ReceiptAfterRb = waitForTxn(txn2Result)
