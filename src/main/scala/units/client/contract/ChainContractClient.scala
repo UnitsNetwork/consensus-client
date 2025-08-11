@@ -282,6 +282,7 @@ trait ChainContractClient {
 
       // Native transfer, after strict transfers activation
       // {epoch}_{destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}
+
       case Array(Epoch(epoch), EthAddress(destElAddress), EthAddress(fromAddress), NativeTransferAmount(amount)) =>
         ContractTransfer.NativeViaDeposit(atIndex, epoch, fromAddress, destElAddress, amount)
 

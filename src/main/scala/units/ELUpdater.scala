@@ -88,9 +88,8 @@ class ELUpdater(
               logger.debug(s"Waiting for sync completion: $fcuStatus")
               waitForSyncCompletion(target)
           }
-        case w @ Working(_, lastEcBlock, _, _, _, FollowingChain(nodeChainInfo, _), _, returnToMainChainInfo, _)
-            if block.parentHash == lastEcBlock.hash =>
-          validateAndApply(block, ch, w, lastEcBlock, nodeChainInfo, returnToMainChainInfo)
+        case w @ Working(chainStatus = FollowingChain(nodeChainInfo, _)) if block.parentHash == w.lastEcBlock.hash =>
+          validateAndApply(block, ch, w, w.lastEcBlock, nodeChainInfo, w.returnToMainChainInfo)
         case w: Working[ChainStatus] =>
           w.returnToMainChainInfo match {
             case Some(rInfo) if rInfo.missedBlock.hash == block.hash =>
@@ -152,11 +151,10 @@ class ELUpdater(
 
   private def rollbackDryRun(prevState: Working[ChainStatus], target: L2BlockLike, finalizedBlock: ContractBlock): JobResult[Working[ChainStatus]] = {
     val targetHash = target.hash
-    logger.info(s"Starting FAKE rollback to $targetHash")
     for {
       lastEcBlock <- engineApiClient.getBlockByHash(targetHash).flatMap(_.toRight(ClientError(s"Block $targetHash was not found")))
     } yield {
-      logger.info(s"FAKE Rollback to $targetHash at height ${lastEcBlock.height} finished successfully")
+      logger.info(s"Ready for rollback to $targetHash at height ${lastEcBlock.height}")
       val updatedLastValidatedBlock = if (lastEcBlock.height < prevState.fullValidationStatus.lastValidatedBlock.height) {
         chainContractClient.getBlock(lastEcBlock.hash).getOrElse(finalizedBlock)
       } else {
@@ -165,10 +163,9 @@ class ELUpdater(
       val newState =
         prevState.copy(
           lastEcBlock = lastEcBlock,
-          fullValidationStatus = FullValidationStatus(updatedLastValidatedBlock, None),
-          rollbackFaked = true
+          fullValidationStatus = FullValidationStatus(updatedLastValidatedBlock, None)
         )
-      setState("rollbackDryRun", newState)
+      setState("prepareForRollback", newState)
       newState
     }
   }
@@ -341,9 +338,7 @@ class ELUpdater(
 
     chosenKeyPair match {
       case Some(keyPair) if config.miningEnable =>
-        logger.trace(
-          s"Designated miner in epoch ${epochInfo.number} is ${epochInfo.miner}, attempting to build payload, ROLLBACK: ${prevState.rollbackFaked}"
-        )
+        logger.trace(s"Designated miner in epoch ${epochInfo.number} is ${epochInfo.miner}, attempting to build payload")
         val refContractBlock = nodeChainInfo match {
           case Left(chainSwitchInfo) => chainSwitchInfo.referenceBlock
           case Right(chainInfo)      => chainInfo.lastBlock
@@ -357,9 +352,14 @@ class ELUpdater(
               if (parentBlock.height - 1 <= EthereumConstants.GenesisBlockHeight) Right(-1L)
               else getLastWithdrawalIndex(parentBlock.parentHash)
           }
-          nextBlockUnixTs = // We don't collect transactions for simulated payload, thus we don't need to wait blockDelay
-            if (prevState.rollbackFaked) time.correctedTime() / 1000
-            else (parentBlock.timestamp + config.blockDelay.toSeconds).max(time.correctedTime() / 1000 + config.firstBlockMinDelay.toSeconds)
+          lastEcBlock <- engineApiClient.getLastExecutionBlock()
+          willSimulateBlock = lastEcBlock.hash != parentBlock.hash
+          currentUnixTs     = time.correctedTime() / 1000
+          nextBlockUnixTs = (parentBlock.timestamp + config.blockDelay.toSeconds).max(
+            currentUnixTs +
+              // We don't collect transactions for simulated payload, thus we don't need to wait for firstBlockMinDelay
+              (if (willSimulateBlock) 0 else config.firstBlockMinDelay.toSeconds)
+          )
           miningData <- updateHeadAndStartBuildingPayload(
             epochInfo,
             parentBlock,
@@ -370,7 +370,7 @@ class ELUpdater(
             prevState.lastContractBlock.lastAssetRegistryIndex,
             prevState.options,
             Option.unless(parentBlock.height == EthereumConstants.GenesisBlockHeight)(parentBlock.minerRewardL2Address),
-            prevState.rollbackFaked
+            willSimulateBlock
           )
         } yield {
           val newState = prevState.copy(
@@ -387,12 +387,7 @@ class ELUpdater(
           )
 
           setState("tryToStartMining", newState)
-          // TODO: Here should be max, because we need to wait at least 1 second.
-          //  Or we should remove scheduleOnce, because we do same logic in prepareAndApplyPayload.
-          val waitTime =
-            if (prevState.rollbackFaked) 0.seconds
-            else (miningData.nextBlockUnixTs - time.correctedTime() / 1000).min(1).seconds
-          scheduler.scheduleOnceLabeled("tryToForgeNextBlock", waitTime)(
+          scheduler.scheduleOnceLabeled("tryToForgeNextBlock", (miningData.nextBlockUnixTs - currentUnixTs).seconds)(
             tryToForgeNextBlock(
               miningData.payload,
               parentBlock.hash,
@@ -622,7 +617,7 @@ class ELUpdater(
   private def requestBlocksAndStartMining(prevState: Working[FollowingChain]): Unit = {
     def check(missedBlock: ContractBlock): Unit = {
       state match {
-        case w @ Working(epochInfo, lastEcBlock, finalizedBlock, mainChainInfo, _, fc: FollowingChain, _, returnToMainChainInfo, _)
+        case w @ Working(epochInfo, lastEcBlock, finalizedBlock, mainChainInfo, _, fc: FollowingChain, _, returnToMainChainInfo)
             if fc.nextExpectedBlock.map(_.hash).contains(missedBlock.hash) && canSupportAnotherAltChain(fc.nodeChainInfo) =>
           logger.debug(s"Block ${missedBlock.hash} wasn't received for $WaitRequestedBlockTimeout, need to switch to alternative chain")
           (for {
@@ -743,9 +738,9 @@ class ELUpdater(
   private def updateWorkingState(prevState: Working[ChainStatus]): Unit = {
     val finalizedBlock = chainContractClient.getFinalizedBlock
     val options        = chainContractClient.getOptions
-    logger.debug(s"Finalized block is ${finalizedBlock.hash}")
+    logger.trace(s"Finalized block is ${finalizedBlock.hash}")
     engineApiClient.getBlockByHash(finalizedBlock.hash) match {
-      case Left(error) => logger.error(s"Could not load finalized block", error)
+      case Left(error) => logger.error(s"Could not load finalized block: ${error.message}")
       case Right(Some(finalizedEcBlock)) =>
         logger.trace(s"Finalized block ${finalizedBlock.hash} is at height ${finalizedEcBlock.height}")
 
@@ -856,7 +851,7 @@ class ELUpdater(
   }
 
   private def requestBlock(contractBlock: ContractBlock): BlockRequestResult = {
-    logger.debug(s"Requesting block ${contractBlock.hash}")
+    logger.trace(s"Requesting block ${contractBlock.hash}")
     engineApiClient.getBlockByHash(contractBlock.hash) match {
       case Right(Some(block)) => BlockRequestResult.BlockExists(block)
       case Right(None) =>
@@ -900,7 +895,7 @@ class ELUpdater(
   private def requestAndProcessBlock(hash: BlockHash): CancelableFuture[(Channel, NetworkL2Block)] = {
     requestBlockFromPeers(hash).andThen {
       case Success((ch, block)) => executionBlockReceived(block, ch)
-      case Failure(exception)   => logger.error(s"Error loading block $hash", exception)
+      case Failure(exception)   => logger.error(s"Error requesting block $hash from peers", exception)
     }(using globalScheduler)
   }
 
@@ -934,8 +929,7 @@ class ELUpdater(
         lastEcBlock: EcBlock,
         mainChainInfo: ChainInfo,
         fullValidationStatus: FullValidationStatus,
-        returnToMainChainInfo: Option[ReturnToMainChainInfo],
-        rollbackWasMade: Boolean
+        returnToMainChainInfo: Option[ReturnToMainChainInfo]
     ): Working[FollowingChain] = {
       val newState = Working(
         epochInfo,
@@ -945,8 +939,7 @@ class ELUpdater(
         fullValidationStatus,
         FollowingChain(nodeChainInfo, None),
         options,
-        returnToMainChainInfo.filter(rInfo => rInfo.chainId != prevChainId && mainChainInfo.id == rInfo.chainId),
-        rollbackFaked = rollbackWasMade
+        returnToMainChainInfo.filter(rInfo => rInfo.chainId != prevChainId && mainChainInfo.id == rInfo.chainId)
       )
       setState("followChain", newState)
       maybeRequestNextBlock(newState, finalizedContractBlock)
@@ -960,7 +953,7 @@ class ELUpdater(
     ): Option[Working[FollowingChain]] = {
       rollbackDryRun(prevState, target, finalizedContractBlock) match {
         case Right(updatedState) =>
-          Some(followChain(nodeChainInfo, updatedState.lastEcBlock, mainChainInfo, updatedState.fullValidationStatus, returnToMainChainInfo, true))
+          Some(followChain(nodeChainInfo, updatedState.lastEcBlock, mainChainInfo, updatedState.fullValidationStatus, returnToMainChainInfo))
         case Left(err) =>
           logger.error(s"Failed to rollback to ${target.hash}: ${err.message}")
           None
@@ -993,8 +986,7 @@ class ELUpdater(
               prevState.lastEcBlock,
               mainChainInfo,
               prevState.fullValidationStatus,
-              prevState.returnToMainChainInfo,
-              prevState.rollbackFaked
+              prevState.returnToMainChainInfo
             )
           )
         }
@@ -1013,7 +1005,7 @@ class ELUpdater(
 
   private def waitForSyncCompletion(target: ContractBlock): Unit = scheduler.scheduleOnceLabeled("sync", 5.seconds)(state match {
     case SyncingToFinalizedBlock(finalizedBlockHash) if finalizedBlockHash == target.hash =>
-      logger.debug(s"Checking if EL has synced to ${target.hash} on height ${target.height}")
+      logger.trace(s"Checking if EL has synced to ${target.hash} on height ${target.height}")
       engineApiClient.getLastExecutionBlock() match {
         case Left(error) =>
           logger.error(s"Sync to ${target.hash} was not completed, error=${error.message}")
@@ -1049,7 +1041,7 @@ class ELUpdater(
               }
           }
         case Right(lastBlock) =>
-          logger.debug(s"Sync to ${target.hash} is in progress: current last block is ${lastBlock.hash} at height ${lastBlock.height}")
+          logger.trace(s"Sync to ${target.hash} is in progress: current last block is ${lastBlock.hash} at height ${lastBlock.height}")
           waitForSyncCompletion(target)
       }
     case other =>
@@ -1243,7 +1235,7 @@ class ELUpdater(
         case Right(contractBlock) =>
           requestBlock(contractBlock) match {
             case BlockRequestResult.BlockExists(ecBlock) =>
-              logger.debug(s"Block ${contractBlock.hash} exists at EC chain, trying to confirm")
+              logger.trace(s"Block ${contractBlock.hash} exists at EC chain, trying to confirm")
               confirmBlock(ecBlock, finalizedBlock) match {
                 case Right(_) =>
                   val newState = prevState.copy(
@@ -1375,7 +1367,7 @@ class ELUpdater(
           blocksToValidate =>
             blocksToValidate.foldLeft[JobResult[Working[ChainStatus]]](Right(startState)) {
               case (Right(curState), block) =>
-                logger.debug(s"Trying to validate applied block ${block.hash}")
+                logger.trace(s"Trying to validate applied block ${block.hash}")
                 validateAppliedBlock(block.contractBlock, block.ecBlock, curState) match {
                   case Right(updatedState) =>
                     logger.debug(s"Block ${block.hash} was successfully validated")
@@ -1389,7 +1381,7 @@ class ELUpdater(
             }
         )
       case other =>
-        logger.debug(s"Skipping validation of applied blocks: $other")
+        logger.trace(s"Skipping validation of applied blocks: $other")
         Either.unit
     }
   }
@@ -1551,11 +1543,10 @@ class ELUpdater(
       parentBlock: EcBlock,
       prevState: Working[ChainStatus]
   ): JobResult[Working[ChainStatus]] = {
-    logger.debug(s"Trying to apply and do a full validation of block ${networkBlock.hash}")
+    logger.trace(s"Trying to apply and do a full validation of block ${networkBlock.hash}")
     for {
       _ <- applyBlock(networkBlock, parentBlock, epochInfo = None) // epochInfo is empty, because we don't need to validate a block signature
-      ecBlock = networkBlock.toEcBlock
-      updatedState <- validateAppliedBlock(contractBlock, ecBlock, prevState)
+      updatedState <- validateAppliedBlock(contractBlock, networkBlock.toEcBlock, prevState)
     } yield updatedState
   }
 
@@ -1729,12 +1720,11 @@ object ELUpdater {
         fullValidationStatus: FullValidationStatus,
         chainStatus: CS,
         options: ChainContractOptions,
-        returnToMainChainInfo: Option[ReturnToMainChainInfo],
-        rollbackFaked: Boolean = false
+        returnToMainChainInfo: Option[ReturnToMainChainInfo]
     ) extends State {
       def lastContractBlock: ContractBlock = chainStatus.lastContractBlock
       override def toString: String =
-        s"Working($epochInfo, l=${lastEcBlock.hash}, f=${finalizedBlock.hash}, $mainChainInfo, $fullValidationStatus, $chainStatus, $options, $returnToMainChainInfo, rb=$rollbackFaked)"
+        s"Working($epochInfo,l=${lastEcBlock.hash},f=${finalizedBlock.hash},$mainChainInfo,$fullValidationStatus,$chainStatus,$options,$returnToMainChainInfo)"
     }
 
     sealed trait ChainStatus {

@@ -37,7 +37,7 @@ class TestEcClients private (
   private val futureBlocks   = Atomic(List.empty[EcBlock])
   private val simulateBlocks = Atomic(List.empty[EcBlock])
 
-  // Also removes all blocks in sumulateBlocks, futureBlocks and pendingPayloads those have same parent
+  // Also removes all blocks in simulateBlocks, futureBlocks and pendingPayloads that have same parent
   private def appendBlock(b: EcBlock, simulated: Boolean): Unit = {
     if (simulated) {
       simulateBlocks.transform(bs => b :: bs.filterNot(_.parentHash == b.parentHash))
