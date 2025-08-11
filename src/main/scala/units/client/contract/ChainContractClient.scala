@@ -286,7 +286,7 @@ trait ChainContractClient {
 
       // Native transfer, after strict transfers activation
       // {epoch}_{destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}
-      case Array(rawEpoch, rawDestElAddress, _rawFromAddress, rawAmount) if EthAddress.from(rawEpoch).isLeft =>
+      case Array(rawEpoch, rawDestElAddress, _, rawAmount) if EthAddress.from(rawEpoch).isLeft =>
         ContractTransfer.Native(
           index = atIndex,
           epoch = rawEpoch.toIntOption.getOrElse(fail(s"Expected an integer epoch, got: ${rawEpoch}")),

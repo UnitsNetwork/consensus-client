@@ -15,32 +15,24 @@ import scala.util.{Failure, Success}
 
 @Sharable
 class HistoryReplier(engineApiClient: EngineApiClient)(implicit sc: Scheduler) extends ChannelInboundHandlerAdapter with ScorexLogging {
-  private def respondWith(ctx: ChannelHandlerContext, value: Future[Message]): Unit =
-    value.onComplete {
-      case Failure(e) => log.debug(s"${id(ctx)} Error processing request", e)
-      case Success(value) =>
-        if (ctx.channel().isOpen) {
-          ctx.writeAndFlush(value)
-        } else {
-          log.trace(s"${id(ctx)} Channel is closed")
-        }
-    }
-
   override def channelRead(ctx: ChannelHandlerContext, msg: AnyRef): Unit = msg match {
     case GetBlock(hash) =>
-      respondWith(
-        ctx,
-        loadBlockL2(hash)
-          .map {
-            case Right(blockL2) =>
-              RawBytes(BlockSpec.messageCode, BlockSpec.serializeData(blockL2))
-            case Left(err) => throw new NoSuchElementException(s"Error loading block $hash: $err")
+      loadBlockL2(hash).onComplete {
+        case Failure(e) => log.debug(s"${id(ctx)} Error retrieving block $hash", e)
+        case Success(Right(bs)) =>
+          if (ctx.channel().isOpen) {
+            ctx.writeAndFlush(bs)
+          } else {
+            log.trace(s"${id(ctx)} Channel is closed")
           }
-      )
+        case Success(Left(ClientError(msg))) =>
+          log.debug(s"Could not load block $hash: $msg")
+
+      }
     case _ => super.channelRead(ctx, msg)
   }
 
-  private def loadBlockL2(hash: BlockHash): Future[Either[ClientError, NetworkL2Block]] = Future {
+  private def loadBlockL2(hash: BlockHash): Future[Either[ClientError, RawBytes]] = Future {
     for {
       blockJsonOpt       <- engineApiClient.getBlockByHashJson(hash)
       blockJson          <- Either.fromOption(blockJsonOpt, ClientError("block not found"))
@@ -48,6 +40,6 @@ class HistoryReplier(engineApiClient: EngineApiClient)(implicit sc: Scheduler) e
       payloadBodyJson    <- Either.fromOption(payloadBodyJsonOpt, ClientError("payload body not found"))
       payload = BlockToPayloadMapper.toPayloadJson(blockJson, payloadBodyJson)
       blockL2 <- NetworkL2Block(payload)
-    } yield blockL2
+    } yield RawBytes(BlockSpec.messageCode, BlockSpec.serializeData(blockL2))
   }
 }
