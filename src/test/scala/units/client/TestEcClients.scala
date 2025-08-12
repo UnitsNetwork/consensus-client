@@ -225,8 +225,8 @@ class TestEcClients private (
       override def getBlockByHash(hash: BlockHash, requestId: Int): JobResult[Option[EcBlock]] =
         chain.get().find(_.hash == hash).asRight
 
-      override def getBlockByHashJson(hash: BlockHash, requestId: Int): JobResult[Option[JsObject]] =
-        notImplementedMethodJob("getBlockByHashJson")
+      override def getBlockByHashJson(hash: BlockHash, fullTransactionObjects: Boolean, requestId: Int): JobResult[Option[JsObject]] =
+        Some(Json.obj()).asRight // This could fail some tests
 
       override def getLastExecutionBlock(requestId: Int): JobResult[EcBlock] = chain.get().head.asRight
 
