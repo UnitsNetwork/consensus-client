@@ -39,6 +39,7 @@ import units.network.BlocksObserverImpl.BlockWithChannel
 import units.util.HexBytesConverter
 import units.util.HexBytesConverter.toHexNoPrefix
 
+import java.math.BigInteger
 import scala.annotation.tailrec
 import scala.concurrent.duration.*
 import scala.util.*
@@ -1358,8 +1359,29 @@ class ELUpdater(
       ecBlock: EcBlock,
       ecBlockLogs: List[GetLogsResponseEntry],
       fullValidationStatus: FullValidationStatus,
-      miningReward: Option[MiningReward]
+      miningReward: Option[MiningReward],
+      options: ChainContractOptions
   ): JobResult[Option[WithdrawalIndex]] = for {
+    blockJsonE <- engineApiClient.getBlockByHashJson(ecBlock.hash, fullTransactionObjects = true)
+    blockJson  <- blockJsonE.toRight(ClientError(s"Can't find EC block ${ecBlock.hash} transactions"))
+    _ <- (blockJson \ "transactions").asOpt[Seq[JsObject]].getOrElse(Seq.empty).traverse { txJson =>
+      DepositedTransaction
+        .parseValidDepositedTransaction(txJson)
+        .leftMap(ClientError(_))
+        .flatMap {
+          case None => Right(())
+          case Some(tx) =>
+            Either.raiseUnless(
+              options.elStandardBridgeAddress.isDefined &&
+                tx.to == options.elStandardBridgeAddress &&
+                tx.mint == BigInteger.ZERO &&
+                tx.value == BigInteger.ZERO
+            ) {
+              ClientError(s"Transaction not allowed, to: ${tx.to}, standard bridge address: ${options.elStandardBridgeAddress}")
+            }
+        }
+    }
+
     elWithdrawalIndexBefore <- fullValidationStatus.checkedLastElWithdrawalIndex(ecBlock.parentHash) match {
       case Some(r) => Right(r)
       case None =>
@@ -1533,7 +1555,14 @@ class ELUpdater(
         _ <- validateAssetRegistryUpdate(ecBlockLogs, contractBlock, parentContractBlock, prevState.options)
         _ <- validateRandao(ecBlock, contractBlock.epoch)
         miningReward = getMinerRewardAddress(contractBlock, parentContractBlock).map(MiningReward(_, prevState.options.miningReward))
-        updatedLastElWithdrawalIndex <- validateC2E(contractBlock, ecBlock, ecBlockLogs, prevState.fullValidationStatus, miningReward)
+        updatedLastElWithdrawalIndex <- validateC2E(
+          contractBlock,
+          ecBlock,
+          ecBlockLogs,
+          prevState.fullValidationStatus,
+          miningReward,
+          prevState.options
+        )
       } yield updatedLastElWithdrawalIndex
 
     validationResult.map { lastElWithdrawalIndex =>
