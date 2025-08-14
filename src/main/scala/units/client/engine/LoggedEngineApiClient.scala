@@ -60,8 +60,13 @@ class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient
   override def simulate(blockStateCalls: Seq[BlockStateCall], hash: BlockHash, requestId: Int): JobResult[Seq[JsObject]] =
     wrap(requestId, s"simulate($blockStateCalls,$hash)", underlying.simulate(blockStateCalls, hash, _))
 
-  override def getBlockByHashJson(hash: BlockHash, requestId: Int): JobResult[Option[JsObject]] =
-    wrap(requestId, s"getBlockByHashJson($hash)", underlying.getBlockByHashJson(hash, _), _.fold("None")(filteredJson))
+  override def getBlockByHashJson(hash: BlockHash, fullTransactionObjects: Boolean, requestId: Int): JobResult[Option[JsObject]] =
+    wrap(
+      requestId,
+      s"getBlockByHashJson($hash, $fullTransactionObjects)",
+      underlying.getBlockByHashJson(hash, fullTransactionObjects, _),
+      _.fold("None")(filteredJson)
+    )
 
   override def getLastExecutionBlock(requestId: Int): JobResult[EcBlock] =
     wrap(requestId, "getLastExecutionBlock", underlying.getLastExecutionBlock)

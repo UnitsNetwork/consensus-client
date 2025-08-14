@@ -35,7 +35,7 @@ trait EngineApiClient {
 
   def simulate(blockStateCalls: Seq[BlockStateCall], hash: BlockHash, requestId: Int = newRequestId): JobResult[Seq[JsObject]]
 
-  def getBlockByHashJson(hash: BlockHash, requestId: Int = newRequestId): JobResult[Option[JsObject]]
+  def getBlockByHashJson(hash: BlockHash, fullTransactionObjects: Boolean = false, requestId: Int = newRequestId): JobResult[Option[JsObject]]
 
   def getLastExecutionBlock(requestId: Int = newRequestId): JobResult[EcBlock]
 

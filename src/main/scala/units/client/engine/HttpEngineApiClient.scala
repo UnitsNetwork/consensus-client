@@ -7,12 +7,11 @@ import sttp.client3.*
 import units.client.JsonRpcClient
 import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.HttpEngineApiClient.*
-import units.client.engine.model.*
 import units.client.engine.model.ForkchoiceUpdatedRequest.ForkChoiceAttributes
 import units.client.engine.model.PayloadStatus.{Syncing, Valid}
+import units.client.engine.model.{*, given}
 import units.eth.EthAddress
 import units.{BlockHash, ClientError, JobResult}
-import units.client.engine.model.given
 
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 
@@ -91,13 +90,19 @@ class HttpEngineApiClient(val config: JsonRpcClient.Config, val backend: SttpBac
   }
 
   def getBlockByHash(hash: BlockHash, requestId: Int): JobResult[Option[EcBlock]] = {
-    sendRequest[GetBlockByHashRequest, EcBlock](GetBlockByHashRequest(hash, requestId), NonBlockExecutionTimeout, requestId)
-      .leftMap(err => ClientError(s"Error getting block by hash $hash: $err"))
+    sendRequest[GetBlockByHashRequest, EcBlock](
+      GetBlockByHashRequest(hash, fullTransactionObjects = false, requestId),
+      NonBlockExecutionTimeout,
+      requestId
+    ).leftMap(err => ClientError(s"Error getting block by hash $hash: $err"))
   }
 
-  def getBlockByHashJson(hash: BlockHash, requestId: Int): JobResult[Option[JsObject]] = {
-    sendRequest[GetBlockByHashRequest, JsObject](GetBlockByHashRequest(hash, requestId), NonBlockExecutionTimeout, requestId)
-      .leftMap(err => ClientError(s"Error getting block json by hash $hash: $err"))
+  def getBlockByHashJson(hash: BlockHash, fullTransactionObjects: Boolean, requestId: Int): JobResult[Option[JsObject]] = {
+    sendRequest[GetBlockByHashRequest, JsObject](
+      GetBlockByHashRequest(hash, fullTransactionObjects, requestId),
+      NonBlockExecutionTimeout,
+      requestId
+    ).leftMap(err => ClientError(s"Error getting block json by hash $hash: $err"))
   }
 
   def getLastExecutionBlock(requestId: Int): JobResult[EcBlock] = for {
