@@ -46,7 +46,6 @@ case class DepositedTransaction(
     data: String
 ) {
   def toHex: String = {
-    val transactionType = 0x7e.toByte
 
     val rlpList = new RlpList(
       RlpString.create(sourceHash),
@@ -60,12 +59,13 @@ case class DepositedTransaction(
     )
 
     val rlpEncoded       = RlpEncoder.encode(rlpList)
-    val transactionBytes = Array(transactionType) ++ rlpEncoded
+    val transactionBytes = Array(DepositedTransaction.Type) ++ rlpEncoded
     Numeric.toHexString(transactionBytes)
   }
 }
 
 object DepositedTransaction {
+  val Type = 0x7e.toByte
   def mkUserDepositedSourceHash(transferIndex: Long): Array[Byte] =
     mkUserDepositedSourceHash(Longs.toByteArray(transferIndex))
 
