@@ -1397,6 +1397,9 @@ class ELUpdater(
   ): JobResult[Option[WithdrawalIndex]] = for {
     blockJsonE <- engineApiClient.getBlockByHashJson(ecBlock.hash, fullTransactionObjects = true)
     blockJson  <- blockJsonE.toRight(ClientError(s"Can't find EC block ${ecBlock.hash} transactions"))
+
+    strictC2ETransfersActivated = contractBlock.epoch >= chainContractClient.getStrictC2ETransfersActivationEpoch
+
     _ <- (blockJson \ "transactions").asOpt[Seq[JsObject]].getOrElse(Seq.empty).traverse { txJson =>
       DepositedTransaction
         .parseValidDepositedTransaction(txJson)
@@ -1407,8 +1410,7 @@ class ELUpdater(
             Either.raiseUnless(
               options.elStandardBridgeAddress.isDefined &&
                 tx.to == options.elStandardBridgeAddress &&
-                tx.mint == BigInteger.ZERO &&
-                tx.value == BigInteger.ZERO
+                (if strictC2ETransfersActivated then true else tx.mint == BigInteger.ZERO && tx.value == BigInteger.ZERO)
             ) {
               ClientError(s"Transaction not allowed, to: ${tx.to}, standard bridge address: ${options.elStandardBridgeAddress}")
             }
@@ -1436,8 +1438,6 @@ class ELUpdater(
       else if (xs.size <= inBlock) (xs, None)
       else (xs.init, xs.lastOption)
     }
-
-    strictC2ETransfersActivated = contractBlock.epoch >= chainContractClient.getStrictC2ETransfersActivationEpoch
 
     expectedNativeTransfersNumber =
       if strictC2ETransfersActivated then 0
