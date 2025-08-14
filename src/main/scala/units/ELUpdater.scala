@@ -1521,12 +1521,30 @@ class ELUpdater(
               } else Left("Native transfers via deposits are unexpected before strict C2E transfers activation")
             case expectedTransfer: ContractTransfer.Asset =>
               actualTransferLogs match {
-                case Nil => s"$logPrefix Not found EL transfer log, expected $expectedTransfer transfer".asLeft
+                case Nil =>
+                  val canSkipFailedTransfer = chainContractClient.hasTransferFailed(expectedTransfer) && strictC2ETransfersActivated
+                  if canSkipFailedTransfer
+                  then {
+                    logger.debug(s"Transfer $expectedTransfer has failed, skipping")
+                    prevWithdrawalIndex.asRight
+                  } else s"$logPrefix Not found EL transfer log, expected $expectedTransfer transfer".asLeft
                 case actualTransferLog :: restActualTransferLogs =>
                   StandardBridge.ERC20BridgeFinalized
                     .decodeLog(actualTransferLog)
                     .flatMap(validateC2EAssetTransfer(actualTransferLog.logIndex, _, expectedTransfer, strictC2ETransfersActivated)) match {
-                    case Left(e) => e.asLeft
+                    case Left(e) =>
+                      val canSkipFailedTransfer = chainContractClient.hasTransferFailed(expectedTransfer) && strictC2ETransfersActivated
+                      if canSkipFailedTransfer
+                      then {
+                        logger.debug(s"Transfer $expectedTransfer has failed, skipping")
+                        loop(
+                          actualWithdrawals,
+                          actualTransferLog :: restActualTransferLogs,
+                          restExpectedTransfers,
+                          prevWithdrawalIndex,
+                          currTransferNumber + 1
+                        )
+                      } else e.asLeft
                     case _ => loop(actualWithdrawals, restActualTransferLogs, restExpectedTransfers, prevWithdrawalIndex, currTransferNumber + 1)
                   }
               }

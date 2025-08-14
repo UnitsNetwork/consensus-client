@@ -11,8 +11,8 @@ import com.wavesplatform.transaction.Asset
 import units.ELUpdater.EpochInfo
 import units.client.contract.ChainContractClient.*
 import units.eth.{EthAddress, Gwei}
-import units.util.HexBytesConverter
 import units.{BlockHash, EAmount, WAmount, scale}
+import units.util.HexBytesConverter
 
 import java.nio.ByteBuffer
 import scala.annotation.tailrec
@@ -327,6 +327,10 @@ trait ChainContractClient {
       case _ => fail(s"Expected one of ContractTransfer variants in a transfer key '$key', got: $raw")
     }
   }
+
+  def hasTransferFailed(transfer: ContractTransfer.Asset): Boolean =
+    // TODO: implement.
+    true
 
   def getRegisteredAssetData(asset: Asset): Registry.RegisteredAsset = {
     val key   = s"assetRegistry_${Registry.stringifyAsset(asset)}"
