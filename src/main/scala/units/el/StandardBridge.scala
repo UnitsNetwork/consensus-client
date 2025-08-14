@@ -19,11 +19,11 @@ import scala.util.Try
 import scala.util.control.NonFatal
 
 object StandardBridge {
-  val FinalizeBridgeErc20Function = "finalizeBridgeERC20"
-  val FinalizeBridgeErc20Gas      = BigInteger.valueOf(1_000_000L) // Should be enough to run this function
+  private val FinalizeBridgeErc20Function = "finalizeBridgeERC20"
+  private val FinalizeBridgeErc20Gas      = BigInteger.valueOf(1_000_000L) // Should be enough to run this function
 
-  val UpdateAssetRegistryFunction = "updateAssetRegistry"
-  val UpdateAssetRegistryGas      = BigInteger.valueOf(1_000_000L)
+  private val UpdateAssetRegistryFunction = "updateAssetRegistry"
+  private val UpdateAssetRegistryGas      = BigInteger.valueOf(1_000_000L)
 
   case class ERC20BridgeInitiated(localToken: EthAddress, clTo: Address, elFrom: EthAddress, clAmount: Long)
   object ERC20BridgeInitiated extends BridgeMerkleTree[ERC20BridgeInitiated] {
@@ -44,7 +44,7 @@ object StandardBridge {
       ).asJava
     )
 
-    val Topic = EventEncoder.encode(EventDef)
+    val Topic: String = EventEncoder.encode(EventDef)
 
     override def encodeArgsForMerkleTree(args: ERC20BridgeInitiated): Array[Byte] =
       HexBytesConverter.toBytes(
@@ -111,7 +111,7 @@ object StandardBridge {
       ).asJava
     )
 
-    val Topic = EventEncoder.encode(EventDef)
+    val Topic: String = EventEncoder.encode(EventDef)
 
     def decodeLog(log: GetLogsResponseEntry): Either[String, ERC20BridgeFinalized] =
       (try {
@@ -214,7 +214,7 @@ object StandardBridge {
   ): DepositedTransaction = DepositedTransaction(
     sourceHash = DepositedTransaction.mkUserDepositedSourceHash(transferIndex),
     from = EthereumConstants.ZeroAddress,
-    to = standardBridgeAddress,
+    to = Some(standardBridgeAddress),
     mint = BigInteger.ZERO,
     value = BigInteger.ZERO,
     gas = FinalizeBridgeErc20Gas,
@@ -244,7 +244,7 @@ object StandardBridge {
     DepositedTransaction(
       sourceHash = DepositedTransaction.mkUserDepositedSourceHash(HexBytesConverter.toBytes(addedTokens.last.hex)), // TODO
       from = EthereumConstants.ZeroAddress,
-      to = standardBridgeAddress,
+      to = Some(standardBridgeAddress),
       mint = BigInteger.ZERO,
       value = BigInteger.ZERO,
       gas = UpdateAssetRegistryGas,
