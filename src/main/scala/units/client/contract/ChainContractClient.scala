@@ -245,17 +245,18 @@ trait ChainContractClient {
     }
   }
 
-  def getTransfersForPayload(fromIndex: Long, maxNative: Long): Vector[ContractTransfer] = {
+  def getTransfersForPayload(fromIndex: Long, maxNative: Option[Long]): Vector[ContractTransfer] = {
     val maxIndex = getTransfersCount - 1
 
     @tailrec def loop(currIndex: Long, foundNative: Long, acc: Vector[ContractTransfer]): Vector[ContractTransfer] =
       if (currIndex > maxIndex) acc
       else
         requireTransfer(currIndex) match {
-          case x: ContractTransfer.Native =>
+          case x: (ContractTransfer.NativeViaWithdrawal | ContractTransfer.NativeViaDeposit) =>
             val updatedFoundNative = foundNative + 1
-            if (updatedFoundNative > maxNative) acc
-            else loop(currIndex + 1, updatedFoundNative, acc :+ x) // if equals - we still can collect asset transfers
+            maxNative match
+              case Some(maxNative) if (updatedFoundNative > maxNative) => acc
+              case _                                                   => loop(currIndex + 1, updatedFoundNative, acc :+ x)
 
           case x: ContractTransfer.Asset => loop(currIndex + 1, foundNative, acc :+ x)
         }
@@ -276,36 +277,26 @@ trait ChainContractClient {
     xs match {
       // Native transfer, before strict transfers activation
       // {destElAddressHex with 0x}_{amount}
-      case Array(rawDestElAddress, rawAmount) =>
-        ContractTransfer.Native(
-          index = atIndex,
-          epoch = 0,
-          to = EthAddress.unsafeFrom(rawDestElAddress),
-          amount = rawAmount.toLongOption.getOrElse(fail(s"Expected an integer amount of a native transfer, got: ${rawAmount}"))
-        )
+      case Array(EthAddress(destElAddress), NativeTransferAmount(amount)) =>
+        ContractTransfer.NativeViaWithdrawal(atIndex, 0, destElAddress, amount)
 
       // Native transfer, after strict transfers activation
       // {epoch}_{destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}
-      case Array(rawEpoch, rawDestElAddress, _, rawAmount) if EthAddress.from(rawEpoch).isLeft =>
-        ContractTransfer.Native(
-          index = atIndex,
-          epoch = rawEpoch.toIntOption.getOrElse(fail(s"Expected an integer epoch, got: ${rawEpoch}")),
-          to = EthAddress.unsafeFrom(rawDestElAddress),
-          amount = rawAmount.toLongOption.getOrElse(fail(s"Expected an integer amount of a native transfer, got: ${rawAmount}"))
-        )
+
+      case Array(Epoch(epoch), EthAddress(destElAddress), EthAddress(fromAddress), NativeTransferAmount(amount)) =>
+        ContractTransfer.NativeViaDeposit(atIndex, epoch, fromAddress, destElAddress, amount)
 
       // Asset transfer, before strict transfers activation
       // {destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex}
-      case Array(rawDestElAddress, rawFromAddress, rawAmount, rawAssetIndex) if EthAddress.from(rawDestElAddress).isRight => {
-        val assetIndex = rawAssetIndex.toIntOption.getOrElse(fail(s"Expected an asset index in asset transfer, got: ${rawAssetIndex}"))
-        val asset      = getRegisteredAsset(assetIndex)
-        val assetData  = getRegisteredAssetData(asset)
+      case Array(EthAddress(destElAddress), EthAddress(fromAddress), rawAmount, AssetIndex(assetIndex)) => {
+        val asset     = getRegisteredAsset(assetIndex)
+        val assetData = getRegisteredAssetData(asset)
 
         ContractTransfer.Asset(
           index = atIndex,
           epoch = 0,
-          from = EthAddress.unsafeFrom(rawFromAddress),
-          to = EthAddress.unsafeFrom(rawDestElAddress),
+          from = fromAddress,
+          to = destElAddress,
           amount =
             try WAmount(rawAmount).scale(assetData.exponent)
             catch { case e: ArithmeticException => fail(s"Expected an integer amount of a native transfer, got: ${rawAmount}", e) },
@@ -316,16 +307,15 @@ trait ChainContractClient {
 
       // Asset transfer, after strict transfers activation
       // {epoch}_{destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex}
-      case Array(rawEpoch, rawDestElAddress, rawFromAddress, rawAmount, rawAssetIndex) => {
-        val assetIndex = rawAssetIndex.toIntOption.getOrElse(fail(s"Expected an asset index in asset transfer, got: ${rawAssetIndex}"))
-        val asset      = getRegisteredAsset(assetIndex)
-        val assetData  = getRegisteredAssetData(asset)
+      case Array(Epoch(epoch), EthAddress(destElAddress), EthAddress(fromAddress), rawAmount, AssetIndex(assetIndex)) => {
+        val asset     = getRegisteredAsset(assetIndex)
+        val assetData = getRegisteredAssetData(asset)
 
         ContractTransfer.Asset(
           index = atIndex,
-          epoch = rawEpoch.toIntOption.getOrElse(fail(s"Expected an integer epoch, got: ${rawEpoch}")),
-          from = EthAddress.unsafeFrom(rawFromAddress),
-          to = EthAddress.unsafeFrom(rawDestElAddress),
+          epoch = epoch,
+          from = fromAddress,
+          to = destElAddress,
           amount =
             try WAmount(rawAmount).scale(assetData.exponent)
             catch { case e: ArithmeticException => fail(s"Expected an integer amount of a native transfer, got: ${rawAmount}", e) },
@@ -334,7 +324,7 @@ trait ChainContractClient {
         )
       }
 
-      case _ => fail(s"Unexpected number of elements in a transfer key '$key', got ${xs.length}: $raw")
+      case _ => fail(s"Expected one of ContractTransfer variants in a transfer key '$key', got: $raw")
     }
   }
 
@@ -456,7 +446,7 @@ object ChainContractClient {
   val Sep                        = ","
 
   private class InconsistentContractData(message: String, cause: Throwable = null)
-      extends IllegalStateException(s"Probably, your have to upgrade your client. $message", cause)
+      extends IllegalStateException(s"Probably, you have to upgrade your client. $message", cause)
 
   case class EpochContractMeta(miner: Address, prevEpoch: Int, lastBlockHash: BlockHash)
 
@@ -464,7 +454,8 @@ object ChainContractClient {
     val index: Long
     val epoch: Int
 
-    case Native(index: Long, epoch: Int, to: EthAddress, amount: Long)
+    case NativeViaWithdrawal(index: Long, epoch: Int, to: EthAddress, amount: Long)
+    case NativeViaDeposit(index: Long, epoch: Int, from: EthAddress, to: EthAddress, amount: Long)
     case Asset(
         index: Long,
         epoch: Int,
@@ -491,4 +482,16 @@ object ChainContractClient {
   }
 
   private def fail(reason: String, cause: Throwable = null): Nothing = throw new InconsistentContractData(reason, cause)
+
+  object Epoch {
+    def unapply(raw: String): Option[Int] = raw.toIntOption
+  }
+
+  object NativeTransferAmount {
+    def unapply(raw: String): Option[Long] = raw.toLongOption
+  }
+
+  object AssetIndex {
+    def unapply(raw: String): Option[Int] = raw.toIntOption
+  }
 }
