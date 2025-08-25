@@ -1436,8 +1436,8 @@ class ELUpdater(
               val startAssetRegistryIndex = parentContractBlock.lastAssetRegistryIndex + 1
 
               val addedAssets =
-                if (startAssetRegistryIndex == parentContractBlock.lastAssetRegistryIndex) Nil
-                else chainContractClient.getRegisteredAssets(startAssetRegistryIndex to contractBlock.lastAssetRegistryIndex)
+                if (startAssetRegistryIndex == contractBlock.lastAssetRegistryIndex + 1) Nil
+                else chainContractClient.getRegisteredAssets(startAssetRegistryIndex until contractBlock.lastAssetRegistryIndex + 1)
               if (addedAssets.isEmpty) None
               else
                 options.elStandardBridgeAddress.map { sba =>
