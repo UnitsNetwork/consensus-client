@@ -211,16 +211,11 @@ class ELUpdater(
 
     val withdrawals = rewardWithdrawal ++ nativeTransferWithdrawals
 
-    // logger.debug(s"=== updateHeadAndStartBuildingPayload")
-    // logger.debug(s"updateHeadAndStartBuildingPayload: parentBlock.hash: ${parentBlock.hash}")
-    // logger.debug(s"updateHeadAndStartBuildingPayload: epochInfo.number: ${epochInfo.number}")
-    // logger.debug(s"updateHeadAndStartBuildingPayload: height: ${parentBlock.height + 1}")
     val (addedAssets, updateAssetRegistryTransaction) =
       if (epochInfo.number < chainContractOptions.assetTransfersActivationEpoch) (Nil, None)
       else {
         val startAssetRegistryIndex = lastAssetRegistryIndex + 1
-        // logger.debug(s"updateHeadAndStartBuildingPayload: startAssetRegistryIndex: ${startAssetRegistryIndex}")
-        val assetRegistrySize = chainContractClient.getAssetRegistrySize
+        val assetRegistrySize       = chainContractClient.getAssetRegistrySize
         val addedAssets =
           if (startAssetRegistryIndex == assetRegistrySize) Nil
           else chainContractClient.getRegisteredAssets(startAssetRegistryIndex until assetRegistrySize)
@@ -239,9 +234,6 @@ class ELUpdater(
         (addedAssets, txn)
       }
 
-    // logger.debug(s"updateHeadAndStartBuildingPayload: lastAssetRegistryIndex: ${lastAssetRegistryIndex}")
-    // logger.debug(s"updateHeadAndStartBuildingPayload: addedAssets: ${addedAssets}")
-    // logger.debug(s"updateHeadAndStartBuildingPayload: updateAssetRegistryTransaction: ${updateAssetRegistryTransaction}")
     val nativeAndAssetTransfersViaDeposits = transfers.flatMap {
       case _: ContractTransfer.NativeViaWithdrawal                         => None
       case x: (ContractTransfer.NativeViaDeposit | ContractTransfer.Asset) => Some(x)
