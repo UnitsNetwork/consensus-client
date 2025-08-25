@@ -13,7 +13,7 @@ import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues, TryValues}
 import org.web3j.abi.TypeEncoder
 import org.web3j.abi.datatypes.Address as Web3JAddress
-import org.web3j.abi.datatypes.generated.Int64
+import org.web3j.abi.datatypes.generated.{Int64, Uint256}
 import units.client.engine.model.GetLogsResponseEntry
 import units.el.NativeBridge.ElSentNativeEvent
 import units.el.{NativeBridge, StandardBridge}
@@ -152,4 +152,17 @@ trait BaseTestSuite
       ""
     )
   }
+
+  protected def getLogsResponseEntryETH(event: StandardBridge.ETHBridgeFinalized, logIndex: Int = 0): GetLogsResponseEntry =
+    GetLogsResponseEntry(
+      EthNumber(logIndex),
+      StandardBridgeAddress,
+      TypeEncoder.encode(new Uint256(event.amount.raw)),
+      List(
+        StandardBridge.ETHBridgeFinalized.Topic,
+        TypeEncoder.encode(new Web3JAddress(event.from.hex)),
+        TypeEncoder.encode(new Web3JAddress(event.to.hex))
+      ),
+      ""
+    )
 }

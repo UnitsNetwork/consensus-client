@@ -34,6 +34,8 @@ object EthAddress {
     } yield new EthAddress(hex.toLowerCase())
   }.left.map(e => s"Can't decode address '$hex': $e")
 
+  def unapply(hex: String): Option[EthAddress] = from(hex).toOption
+
   def unsafeFrom(hex: String): EthAddress        = from(hex).left.map(new RuntimeException(_)).toTry.get
   def unsafeFrom(bytes: Array[Byte]): EthAddress = unsafeFrom(HexBytesConverter.toHex(bytes))
 }
