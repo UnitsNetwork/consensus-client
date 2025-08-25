@@ -1473,7 +1473,10 @@ class ELUpdater(
                 )
               )
           }
-        } yield expectedDepositedTransactions == actualDepositedTransactions
+          _ <- Either.raiseUnless(expectedDepositedTransactions == actualDepositedTransactions)(
+            ClientError(s"Transaction not allowed, expected and actual deposited transactions don't match.")
+          )
+        } yield ()
       else
         actualDepositedTransactions.traverse { tx =>
           Either.raiseUnless(
