@@ -211,11 +211,16 @@ class ELUpdater(
 
     val withdrawals = rewardWithdrawal ++ nativeTransferWithdrawals
 
+    // logger.debug(s"=== updateHeadAndStartBuildingPayload")
+    // logger.debug(s"updateHeadAndStartBuildingPayload: parentBlock.hash: ${parentBlock.hash}")
+    // logger.debug(s"updateHeadAndStartBuildingPayload: epochInfo.number: ${epochInfo.number}")
+    // logger.debug(s"updateHeadAndStartBuildingPayload: height: ${parentBlock.height + 1}")
     val (addedAssets, updateAssetRegistryTransaction) =
       if (epochInfo.number < chainContractOptions.assetTransfersActivationEpoch) (Nil, None)
       else {
         val startAssetRegistryIndex = lastAssetRegistryIndex + 1
-        val assetRegistrySize       = chainContractClient.getAssetRegistrySize
+        // logger.debug(s"updateHeadAndStartBuildingPayload: startAssetRegistryIndex: ${startAssetRegistryIndex}")
+        val assetRegistrySize = chainContractClient.getAssetRegistrySize
         val addedAssets =
           if (startAssetRegistryIndex == assetRegistrySize) Nil
           else chainContractClient.getRegisteredAssets(startAssetRegistryIndex until assetRegistrySize)
@@ -234,6 +239,9 @@ class ELUpdater(
         (addedAssets, txn)
       }
 
+    // logger.debug(s"updateHeadAndStartBuildingPayload: lastAssetRegistryIndex: ${lastAssetRegistryIndex}")
+    // logger.debug(s"updateHeadAndStartBuildingPayload: addedAssets: ${addedAssets}")
+    // logger.debug(s"updateHeadAndStartBuildingPayload: updateAssetRegistryTransaction: ${updateAssetRegistryTransaction}")
     val nativeAndAssetTransfersViaDeposits = transfers.flatMap {
       case _: ContractTransfer.NativeViaWithdrawal                         => None
       case x: (ContractTransfer.NativeViaDeposit | ContractTransfer.Asset) => Some(x)
@@ -1400,30 +1408,6 @@ class ELUpdater(
 
     strictC2ETransfersActivated = contractBlock.epoch >= chainContractClient.getStrictC2ETransfersActivationEpoch
 
-    _ <- (blockJson \ "transactions").asOpt[Seq[JsObject]].getOrElse(Seq.empty).traverse { txJson =>
-      DepositedTransaction
-        .parseValidDepositedTransaction(txJson)
-        .leftMap(ClientError(_))
-        .flatMap {
-          case None => Right(())
-          case Some(tx) =>
-            Either.raiseUnless(
-              options.elStandardBridgeAddress.isDefined &&
-                tx.to == options.elStandardBridgeAddress &&
-                (if strictC2ETransfersActivated then true else tx.mint == BigInteger.ZERO && tx.value == BigInteger.ZERO)
-            ) {
-              ClientError(s"Transaction not allowed, to: ${tx.to}, standard bridge address: ${options.elStandardBridgeAddress}")
-            }
-        }
-    }
-
-    elWithdrawalIndexBefore <- fullValidationStatus.checkedLastElWithdrawalIndex(ecBlock.parentHash) match {
-      case Some(r) => Right(r)
-      case None =>
-        if (ecBlock.height - 1 <= EthereumConstants.GenesisBlockHeight) Right(-1L)
-        else getLastWithdrawalIndex(ecBlock.parentHash)
-    }
-
     parentContractBlock = chainContractClient
       .getBlock(contractBlock.parentHash)
       .getOrElse(throw new RuntimeException(s"Can't find a parent block ${contractBlock.parentHash} of block ${contractBlock.hash}"))
@@ -1437,6 +1421,83 @@ class ELUpdater(
       if (xs.isEmpty) (Vector.empty, None)
       else if (xs.size <= inBlock) (xs, None)
       else (xs.init, xs.lastOption)
+    }
+
+    actualDepositedTransactions <- (blockJson \ "transactions")
+      .asOpt[Seq[JsObject]]
+      .getOrElse(Seq.empty)
+      .traverse { txJson =>
+        DepositedTransaction
+          .parseValidDepositedTransaction(txJson)
+          .leftMap(ClientError(_))
+      }
+      .map(_.flatten.toVector)
+
+    _ <-
+      if strictC2ETransfersActivated
+      then
+        for {
+          elStandardBridgeAddress <- options.elStandardBridgeAddress.toRight(ClientError("Standard bridge address is not defined"))
+          updateAssetRegistryTransaction =
+            if (contractBlock.epoch < options.assetTransfersActivationEpoch) None
+            else {
+              val startAssetRegistryIndex = parentContractBlock.lastAssetRegistryIndex + 1
+
+              val addedAssets =
+                if (startAssetRegistryIndex == parentContractBlock.lastAssetRegistryIndex) Nil
+                else chainContractClient.getRegisteredAssets(startAssetRegistryIndex to contractBlock.lastAssetRegistryIndex)
+              if (addedAssets.isEmpty) None
+              else
+                options.elStandardBridgeAddress.map { sba =>
+                  StandardBridge.mkUpdateAssetRegistryTransaction(
+                    standardBridgeAddress = sba,
+                    addedTokenExponents = addedAssets.map(_.exponent),
+                    addedTokens = addedAssets.map(_.erc20Address)
+                  )
+                }
+            }
+
+          expectedDepositedTransactions = updateAssetRegistryTransaction.toVector ++ expectedTransfers.flatMap {
+            case _: ContractTransfer.NativeViaWithdrawal => None
+            case t: ContractTransfer.NativeViaDeposit =>
+              Some(
+                StandardBridge.mkFinalizeBridgeETHTransaction(
+                  t.index,
+                  elStandardBridgeAddress,
+                  t.from,
+                  t.to,
+                  t.amount
+                )
+              )
+            case t: ContractTransfer.Asset =>
+              Some(
+                StandardBridge.mkFinalizeBridgeErc20Transaction(
+                  t.index,
+                  elStandardBridgeAddress,
+                  t.tokenAddress,
+                  t.from,
+                  t.to,
+                  t.amount
+                )
+              )
+          }
+        } yield expectedDepositedTransactions == actualDepositedTransactions
+      else
+        actualDepositedTransactions.traverse { tx =>
+          Either.raiseUnless(
+            options.elStandardBridgeAddress.isDefined &&
+              tx.to == options.elStandardBridgeAddress &&
+              tx.mint == BigInteger.ZERO && tx.value == BigInteger.ZERO
+          ) {
+            ClientError(s"Transaction not allowed, to: ${tx.to}, standard bridge address: ${options.elStandardBridgeAddress}")
+          }
+        }
+
+    elWithdrawalIndexBefore <- fullValidationStatus.checkedLastElWithdrawalIndex(ecBlock.parentHash) match {
+      case Some(r) => Right(r)
+      case None =>
+        if (ecBlock.height - 1 <= EthereumConstants.GenesisBlockHeight) Right(-1L)
+        else getLastWithdrawalIndex(ecBlock.parentHash)
     }
 
     expectedNativeTransfersNumber =
