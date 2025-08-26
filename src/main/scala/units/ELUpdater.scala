@@ -211,66 +211,10 @@ class ELUpdater(
 
     val withdrawals = rewardWithdrawal ++ nativeTransferWithdrawals
 
-    val (addedAssets, updateAssetRegistryTransaction) =
-      if (epochInfo.number < chainContractOptions.assetTransfersActivationEpoch) (Nil, None)
-      else {
-        val startAssetRegistryIndex = lastAssetRegistryIndex + 1
-        val assetRegistrySize       = chainContractClient.getAssetRegistrySize
-        val addedAssets =
-          if (startAssetRegistryIndex == assetRegistrySize) Nil
-          else chainContractClient.getRegisteredAssets(startAssetRegistryIndex until assetRegistrySize)
-
-        val txn =
-          if (addedAssets.isEmpty) None
-          else
-            chainContractOptions.elStandardBridgeAddress.map { sba =>
-              StandardBridge.mkUpdateAssetRegistryTransaction(
-                standardBridgeAddress = sba,
-                addedTokenExponents = addedAssets.map(_.exponent),
-                addedTokens = addedAssets.map(_.erc20Address)
-              )
-            }
-
-        (addedAssets, txn)
-      }
-
-    val nativeAndAssetTransfersViaDeposits = transfers.flatMap {
-      case _: ContractTransfer.NativeViaWithdrawal                         => None
-      case x: (ContractTransfer.NativeViaDeposit | ContractTransfer.Asset) => Some(x)
-    }
-
-    val depositedTransactions = updateAssetRegistryTransaction.toVector ++
-      (for {
-        sba      <- chainContractOptions.elStandardBridgeAddress.toVector
-        transfer <- nativeAndAssetTransfersViaDeposits
-      } yield {
-        transfer match {
-          case x: ContractTransfer.NativeViaDeposit =>
-            StandardBridge.mkFinalizeBridgeETHTransaction(
-              transferIndex = x.index,
-              standardBridgeAddress = sba,
-              from = x.from,
-              to = x.to,
-              amount = x.amount
-            )
-          case x: ContractTransfer.Asset =>
-            StandardBridge.mkFinalizeBridgeErc20Transaction(
-              transferIndex = x.index,
-              standardBridgeAddress = sba,
-              token = x.tokenAddress,
-              to = x.to,
-              from = x.from,
-              amount = x.amount
-            )
-        }
-      })
+    val (depositedTransactions, addedAssets, updateAssetRegistryTransaction, nativeTransfersViaDeposits, assetTransfers) =
+      prepareTransactions(epochInfo.number, chainContractOptions, lastAssetRegistryIndex + 1, chainContractClient.getAssetRegistrySize, transfers)
 
     val prevRandao = calculateRandao(epochInfo.hitSource, parentBlock.hash)
-
-    val (nativeTransfersViaDeposits, assetTransfers) = nativeAndAssetTransfersViaDeposits.partitionMap {
-      case x: ContractTransfer.NativeViaDeposit => Left(x)
-      case x: ContractTransfer.Asset            => Right(x)
-    }
 
     if (willSimulateBlock) {
       engineApiClient
@@ -1427,57 +1371,18 @@ class ELUpdater(
 
     _ <-
       if strictC2ETransfersActivated
-      then
-        for {
-          elStandardBridgeAddress <- options.elStandardBridgeAddress.toRight(ClientError("Standard bridge address is not defined"))
-          updateAssetRegistryTransaction =
-            if (contractBlock.epoch < options.assetTransfersActivationEpoch) None
-            else {
-              val startAssetRegistryIndex = parentContractBlock.lastAssetRegistryIndex + 1
-
-              val addedAssets =
-                if (startAssetRegistryIndex == contractBlock.lastAssetRegistryIndex + 1) Nil
-                else chainContractClient.getRegisteredAssets(startAssetRegistryIndex until contractBlock.lastAssetRegistryIndex + 1)
-              if (addedAssets.isEmpty) None
-              else
-                options.elStandardBridgeAddress.map { sba =>
-                  StandardBridge.mkUpdateAssetRegistryTransaction(
-                    standardBridgeAddress = sba,
-                    addedTokenExponents = addedAssets.map(_.exponent),
-                    addedTokens = addedAssets.map(_.erc20Address)
-                  )
-                }
-            }
-
-          expectedDepositedTransactions = updateAssetRegistryTransaction.toVector ++ expectedTransfers.flatMap {
-            case _: ContractTransfer.NativeViaWithdrawal => None
-            case t: ContractTransfer.NativeViaDeposit =>
-              Some(
-                StandardBridge.mkFinalizeBridgeETHTransaction(
-                  t.index,
-                  elStandardBridgeAddress,
-                  t.from,
-                  t.to,
-                  t.amount
-                )
-              )
-            case t: ContractTransfer.Asset =>
-              Some(
-                StandardBridge.mkFinalizeBridgeErc20Transaction(
-                  t.index,
-                  elStandardBridgeAddress,
-                  t.tokenAddress,
-                  t.from,
-                  t.to,
-                  t.amount
-                )
-              )
-          }
-          _ <- Either.raiseUnless(expectedDepositedTransactions == actualDepositedTransactions)(
-            ClientError(s"Transaction not allowed, expected and actual deposited transactions don't match.")
-          )
-        } yield ()
-      else
+      then {
+        val (expectedDepositedTransactions, _, _, _, _) = prepareTransactions(
+          contractBlock.epoch,
+          options,
+          parentContractBlock.lastAssetRegistryIndex + 1,
+          contractBlock.lastAssetRegistryIndex + 1,
+          expectedTransfers
+        )
+        Either.raiseUnless(expectedDepositedTransactions == actualDepositedTransactions)(
+          ClientError(s"Transaction not allowed, expected and actual deposited transactions don't match.")
+        )
+      } else
         actualDepositedTransactions.traverse { tx =>
           Either.raiseUnless(
             options.elStandardBridgeAddress.isDefined &&
@@ -1539,6 +1444,79 @@ class ELUpdater(
       )
     }
   } yield Some(lastElWithdrawalIndex)
+
+  private def prepareTransactions(
+      epochNumber: Int,
+      chainContractOptions: ChainContractOptions,
+      startAssetRegistryIndex: Int,
+      endAssetRegistryIndexExcl: Int,
+      transfers: Vector[ContractTransfer]
+  ): (
+      Vector[DepositedTransaction],
+      List[ChainContractClient.Registry.RegisteredAsset],
+      Option[DepositedTransaction],
+      Vector[ContractTransfer.NativeViaDeposit],
+      Vector[ContractTransfer.Asset]
+  ) = {
+    val (addedAssets, updateAssetRegistryTransaction) =
+      if (epochNumber < chainContractOptions.assetTransfersActivationEpoch) (Nil, None)
+      else {
+        val addedAssets =
+          if (startAssetRegistryIndex == endAssetRegistryIndexExcl) Nil
+          else chainContractClient.getRegisteredAssets(startAssetRegistryIndex until endAssetRegistryIndexExcl)
+
+        val txn =
+          if (addedAssets.isEmpty) None
+          else
+            chainContractOptions.elStandardBridgeAddress.map { sba =>
+              StandardBridge.mkUpdateAssetRegistryTransaction(
+                standardBridgeAddress = sba,
+                addedTokenExponents = addedAssets.map(_.exponent),
+                addedTokens = addedAssets.map(_.erc20Address)
+              )
+            }
+
+        (addedAssets, txn)
+      }
+
+    val nativeAndAssetTransfersViaDeposits = transfers.flatMap {
+      case _: ContractTransfer.NativeViaWithdrawal                         => None
+      case x: (ContractTransfer.NativeViaDeposit | ContractTransfer.Asset) => Some(x)
+    }
+
+    val (nativeTransfersViaDeposits, assetTransfers) = nativeAndAssetTransfersViaDeposits.partitionMap {
+      case x: ContractTransfer.NativeViaDeposit => Left(x)
+      case x: ContractTransfer.Asset            => Right(x)
+    }
+
+    val depositedTransactions = updateAssetRegistryTransaction.toVector ++
+      (for {
+        sba      <- chainContractOptions.elStandardBridgeAddress.toVector
+        transfer <- nativeAndAssetTransfersViaDeposits
+      } yield {
+        transfer match {
+          case x: ContractTransfer.NativeViaDeposit =>
+            StandardBridge.mkFinalizeBridgeETHTransaction(
+              transferIndex = x.index,
+              standardBridgeAddress = sba,
+              from = x.from,
+              to = x.to,
+              amount = x.amount
+            )
+          case x: ContractTransfer.Asset =>
+            StandardBridge.mkFinalizeBridgeErc20Transaction(
+              transferIndex = x.index,
+              standardBridgeAddress = sba,
+              token = x.tokenAddress,
+              to = x.to,
+              from = x.from,
+              amount = x.amount
+            )
+        }
+      })
+
+    (depositedTransactions, addedAssets, updateAssetRegistryTransaction, nativeTransfersViaDeposits, assetTransfers)
+  }
 
   private def validateC2ETransfers(
       actualWithdrawals: Seq[Withdrawal],
