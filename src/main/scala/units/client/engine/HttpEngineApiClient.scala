@@ -7,12 +7,11 @@ import sttp.client3.*
 import units.client.JsonRpcClient
 import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.HttpEngineApiClient.*
-import units.client.engine.model.*
 import units.client.engine.model.ForkchoiceUpdatedRequest.ForkChoiceAttributes
 import units.client.engine.model.PayloadStatus.{Syncing, Valid}
+import units.client.engine.model.{*, given}
 import units.eth.EthAddress
 import units.{BlockHash, ClientError, JobResult}
-import units.client.engine.model.given
 
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 
