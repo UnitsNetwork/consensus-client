@@ -6,41 +6,42 @@ import com.wavesplatform.utils.ScorexLogging
 import io.netty.channel.Channel
 import io.netty.channel.group.DefaultChannelGroup
 import monix.eval.Task
-import monix.execution.{Cancelable, CancelableFuture, CancelablePromise, Scheduler}
+import monix.execution.{Cancelable, Scheduler}
 import monix.reactive.subjects.ConcurrentSubject
 import units.network.BlocksObserverImpl.{BlockWithChannel, State}
 import units.{BlockHash, NetworkL2Block}
 
 import java.time.Duration
 import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.{Future, Promise}
 import scala.jdk.CollectionConverters.*
-import scala.util.{Failure, Success}
+import scala.util.Success
 
 class BlocksObserverImpl(allChannels: DefaultChannelGroup, blocks: ChannelObservable[NetworkL2Block], syncTimeout: FiniteDuration)(implicit
     sc: Scheduler
-) extends BlocksObserver
-    with ScorexLogging {
+) extends BlocksObserver,
+      ScorexLogging {
 
   private var state: State = State.Idle(None)
   private val blocksResult: ConcurrentSubject[BlockWithChannel, BlockWithChannel] =
     ConcurrentSubject.publish[BlockWithChannel]
 
-  def loadBlock(req: BlockHash): CancelableFuture[BlockWithChannel] = knownBlockCache.getIfPresent(req) match {
+  def requestBlockFromPeers(req: BlockHash): Future[BlockWithChannel] = knownBlockCache.getIfPresent(req) match {
     case null =>
-      val p = CancelablePromise[BlockWithChannel]()
+      val p = Promise[BlockWithChannel]()
       sc.execute { () =>
         val candidate = state match {
-          case State.LoadingBlock(_, nextAttempt, promise) =>
+          case State.RequestingBlock(prevReq, nextAttempt, _) =>
+            log.trace(s"No longer requesting block $prevReq, requesting $req instead")
             nextAttempt.cancel()
-            promise.complete(Failure(new NoSuchElementException("Loading was canceled")))
             None
           case State.Idle(candidate) => candidate
         }
-        state = State.LoadingBlock(req, requestFromNextChannel(req, candidate, Set.empty).runToFuture, p)
+        state = State.RequestingBlock(req, requestFromNextChannel(req, candidate, Set.empty).runToFuture, p)
       }
       p.future
     case (ch, block) =>
-      CancelablePromise.successful(ch -> block).future
+      Future.successful(ch -> block)
   }
 
   private val knownBlockCache = CacheBuilder
@@ -51,49 +52,23 @@ class BlocksObserverImpl(allChannels: DefaultChannelGroup, blocks: ChannelObserv
 
   blocks
     .foreach { case v @ (ch, block) =>
-      state = state match {
-        case State.LoadingBlock(expectedHash, nextAttempt, p) if expectedHash == block.hash =>
-          nextAttempt.cancel()
-          p.complete(Success(ch -> block))
-          State.Idle(Some(ch))
-        case other => other
-      }
-
       knownBlockCache.put(block.hash, v)
-      blocksResult.onNext(v)
-    }
-
-  def getBlockStream: ChannelObservable[NetworkL2Block] = blocksResult
-
-  def requestBlock(req: BlockHash): Task[BlockWithChannel] = Task
-    .defer {
-      log.info(s"Loading block $req")
-      knownBlockCache.getIfPresent(req) match {
-        case null =>
-          val p = CancelablePromise[BlockWithChannel]()
-
-          val candidate = state match {
-            case l: State.LoadingBlock =>
-              log.trace(s"No longer waiting for block ${l.blockHash}, will load $req instead")
-              l.nextAttempt.cancel()
-              l.promise.future.cancel()
-              None
-            case State.Idle(candidate) =>
-              candidate
+      state match {
+        case s @ State.RequestingBlock(expectedHash, nextAttempt, p) =>
+          if (expectedHash == block.hash) {
+            log.trace(s"Received block ${block.hash}, completing promise")
+            nextAttempt.cancel()
+            p.complete(Success(ch -> block))
+            state = State.Idle(Some(ch))
+          } else {
+            log.trace(s"Waiting for block ${s.blockHash}, got ${block.hash} instead")
+            blocksResult.onNext(v)
           }
-
-          state = State.LoadingBlock(
-            req,
-            requestFromNextChannel(req, candidate, Set.empty).runToFuture,
-            p
-          )
-
-          Task.fromCancelablePromise(p)
-        case (ch, block) =>
-          Task.pure(ch -> block)
+        case _ =>
       }
     }
-    .executeOn(sc)
+
+  def blockStream: ChannelObservable[NetworkL2Block] = blocksResult
 
   private def requestFromNextChannel(req: BlockHash, candidate: Option[Channel], excluded: Set[Channel]): Task[Unit] = Task {
     candidate.filterNot(excluded).orElse(nextOpenChannel(excluded)) match {
@@ -115,12 +90,8 @@ object BlocksObserverImpl {
 
   type BlockWithChannel = (Channel, NetworkL2Block)
 
-  sealed trait State
-
-  object State {
-    case class LoadingBlock(blockHash: BlockHash, nextAttempt: Cancelable, promise: CancelablePromise[BlockWithChannel]) extends State
-
-    case class Idle(pinnedChannel: Option[Channel]) extends State
+  enum State {
+    case RequestingBlock(blockHash: BlockHash, nextAttempt: Cancelable, result: Promise[BlockWithChannel])
+    case Idle(pinnedChannel: Option[Channel])
   }
-
 }

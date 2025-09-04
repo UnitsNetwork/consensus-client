@@ -1,15 +1,13 @@
 package units.network
 
-import units.network.BlocksObserverImpl.BlockWithChannel
 import com.wavesplatform.network.ChannelObservable
-import monix.eval.Task
-import monix.execution.CancelableFuture
+import units.network.BlocksObserverImpl.BlockWithChannel
 import units.{BlockHash, NetworkL2Block}
 
+import scala.concurrent.Future
+
 trait BlocksObserver {
-  def getBlockStream: ChannelObservable[NetworkL2Block]
+  def blockStream: ChannelObservable[NetworkL2Block]
 
-  def requestBlock(req: BlockHash): Task[BlockWithChannel]
-
-  def loadBlock(req: BlockHash): CancelableFuture[BlockWithChannel]
+  def requestBlockFromPeers(req: BlockHash): Future[BlockWithChannel]
 }
