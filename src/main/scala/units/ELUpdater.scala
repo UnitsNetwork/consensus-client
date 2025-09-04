@@ -21,8 +21,8 @@ import com.wavesplatform.wallet.Wallet
 import io.netty.channel.Channel
 import io.netty.channel.group.DefaultChannelGroup
 import kamon.Kamon
+import monix.execution.Scheduler
 import monix.execution.cancelables.SerialCancelable
-import monix.execution.{CancelableFuture, Scheduler}
 import play.api.libs.json.*
 import units.ELUpdater.State.*
 import units.ELUpdater.State.ChainStatus.{FollowingChain, Mining, WaitForNewChain}
@@ -41,6 +41,7 @@ import units.util.HexBytesConverter.toHexNoPrefix
 
 import java.math.BigInteger
 import scala.annotation.tailrec
+import scala.concurrent.Future
 import scala.concurrent.duration.*
 import scala.util.*
 
@@ -52,7 +53,7 @@ class ELUpdater(
     time: Time,
     wallet: Wallet,
     registryAddress: Option[Address],
-    requestBlockFromPeers: BlockHash => CancelableFuture[BlockWithChannel],
+    requestBlockFromPeers: BlockHash => Future[BlockWithChannel],
     broadcastTx: Transaction => TracedResult[ValidationError, Boolean],
     scheduler: Scheduler,
     globalScheduler: Scheduler
@@ -74,7 +75,7 @@ class ELUpdater(
     val now = time.correctedTime() / 1000
     if (block.timestamp - now <= MaxTimeDrift) {
       state match {
-        case WaitingForSyncHead(target, _) if block.hash == target.hash =>
+        case WaitingForSyncHead(target) if block.hash == target.hash =>
           val syncStarted = for {
             _         <- engineApiClient.newPayload(block.payload)
             fcuStatus <- confirmBlock(target, target)
@@ -534,7 +535,8 @@ class ELUpdater(
           )
         case Right(None) =>
           logger.trace(s"Finalized block ${finalizedBlock.hash} is not in EC, requesting from peers")
-          setState("updateStartingState", WaitingForSyncHead(finalizedBlock, requestAndProcessBlock(finalizedBlock.hash)))
+          requestAndProcessBlock(finalizedBlock.hash)
+          setState("updateStartingState", WaitingForSyncHead(finalizedBlock))
       }
     }
   }
@@ -767,7 +769,8 @@ class ELUpdater(
         requestMainChainBlock()
       case Right(None) =>
         logger.trace(s"Finalized block ${finalizedBlock.hash} is not in EC, requesting from peers")
-        setState("updateWorkingState, finalized", WaitingForSyncHead(finalizedBlock, requestAndProcessBlock(finalizedBlock.hash)))
+        requestAndProcessBlock(finalizedBlock.hash)
+        setState("updateWorkingState, finalized", WaitingForSyncHead(finalizedBlock))
     }
   }
 
@@ -837,12 +840,11 @@ class ELUpdater(
     }
   }
 
-  private def requestAndProcessBlock(hash: BlockHash): CancelableFuture[(Channel, NetworkL2Block)] = {
-    requestBlockFromPeers(hash).andThen {
+  private def requestAndProcessBlock(hash: BlockHash): Unit =
+    requestBlockFromPeers(hash).onComplete {
       case Success((ch, block)) => executionBlockReceived(block, ch)
       case Failure(exception)   => logger.error(s"Error requesting block $hash from peers", exception)
     }(using globalScheduler)
-  }
 
   private def updateToFollowChain(
       prevState: Working[ChainStatus],
@@ -1807,9 +1809,8 @@ object ELUpdater {
       }
     }
 
-    case class WaitingForSyncHead(target: ContractBlock, task: CancelableFuture[BlockWithChannel]) extends State {
-      override def toString: String = s"WaitingForSyncHead($target)"
-    }
+    case class WaitingForSyncHead(target: ContractBlock) extends State
+
     case class SyncingToFinalizedBlock(target: BlockHash) extends State
   }
 
