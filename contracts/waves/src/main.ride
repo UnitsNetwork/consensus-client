@@ -467,6 +467,44 @@ func normalizeEthAddress(hex: String) = {
   cut0x(hex).fromBase16String().toBase16String() # lowercase
 }
 
+func epochReportedEmpty(epoch: Int) = match getString(epochReportedEmptyKey(epoch)) {
+  case s: String =>
+    let fragments = s.split(SEP)
+    match size(fragments) {
+      case 1 => fragments[0]
+      case 2 => (fragments[0], fragments[1].addressFromStringValue())
+      case _ => throw("Invalid empty epoch record")
+    }
+  case _ => unit
+}
+
+let skippedEpochCountKey = minerSkippedEpochCountKey(computedGenerator)
+let skippedEpochCount = getInteger(skippedEpochCountKey).valueOrElse(0)
+
+let markEpochNonEmpty = match epochReportedEmpty(height) {
+  case u: Unit => # epoch was not marked empty, just decrement empty epoch counter
+    if skippedEpochCount > 0 then [IntegerEntry(skippedEpochCountKey, skippedEpochCount - 1)] else []
+  case idleMiner: String =>
+    # `String` case corresponds to an empty epoch, for which the reward has already been claimed by the reporter.
+    # But the reporter can't claim for current epoch, because an empty epoch can't be finalized. So this is an invalid case.
+    throw("Invalid state: an empty epoch report reward has been claimed for the current epoch")
+  case tuple: (String, Address) =>
+    # `(String, Address)` case corresponds to an empty epoch, for which the reward hasn't been claimed by the reporter
+    let (idleMiner, reporterAddress) = tuple
+    if idleMiner == computedGenerator
+    then {
+      [DeleteEntry(epochReportedEmptyKey(height))] ++ (
+        if skippedEpochCount == 0 then []
+        else if skippedEpochCount <= 2 then [IntegerEntry(skippedEpochCountKey, 0)]
+        else [IntegerEntry(skippedEpochCountKey, skippedEpochCount - 2)]
+      )
+    } else {
+      # An epoch was reported empty for the previous miner, which was already evicted (in this epoch).
+      # We do not delete the report and let the reporter have their reward, but decrement the generator's skipped epoch count.
+      if skippedEpochCount > 0 then [IntegerEntry(skippedEpochCountKey, skippedEpochCount - 1)] else []
+    }
+}
+
 func extendMainChain_base(
   originCaller: Address,
   blockHashHex: String,
@@ -499,7 +537,7 @@ func extendMainChain_base(
     IntegerEntry(minerChainIdKey(originCaller), mainChainId),
     IntegerEntry(chainLastHeightKey(mainChainId, originCaller), newChainHeight),
     thisEpochMeta
-  ] ++ updateFinalizedBlock
+  ] ++ updateFinalizedBlock ++ markEpochNonEmpty
 }
 
 func startAltChain_base(
@@ -542,7 +580,7 @@ func startAltChain_base(
     IntegerEntry(chainLastHeightKey(mainChainId, originCaller), newChainHeight),
     StringEntry(supportersKey(newChainId), originCaller.toString()),
     IntegerEntry(lastChainIdKey, newChainId)
-  ]
+  ] ++ markEpochNonEmpty
 }
 
 func extendAltChain_base(
@@ -600,7 +638,7 @@ func extendAltChain_base(
     thisEpochMeta,
     IntegerEntry(minerChainIdKey(originCaller), chainId),
     IntegerEntry(chainLastHeightKey(chainId, originCaller), newChainHeight)
-  ] ++ updateMainChainData ++ addSupporter(chainId, originCaller) ++ updateMainChainLastMinedBlock
+  ] ++ updateMainChainData ++ addSupporter(chainId, originCaller) ++ updateMainChainLastMinedBlock ++ markEpochNonEmpty
 }
 
 func appendBlock_base(
@@ -664,41 +702,6 @@ func commonWithdrawChecks(withdrawBlockHashHex: String, merkleProof: List[ByteVe
   isFinalized(withdrawBlockHashHex)
 }
 
-func epochReportedEmpty(epoch: Int) = match getString(epochReportedEmptyKey(epoch)) {
-  case s: String =>
-    let fragments = s.split(SEP)
-    match size(fragments) {
-      case 1 => fragments[0]
-      case 2 => (fragments[0], fragments[1].addressFromStringValue())
-      case _ => throw("Invalid empty epoch record")
-    }
-  case _ => unit
-}
-
-let markEpochNonEmpty = match epochReportedEmpty(height) {
-  case u: Unit => [] # epoch was not marked empty
-  case idleMiner: String =>
-    # `String` case corresponds to an empty epoch, for which the reward has already been claimed by the reporter.
-    # But the reporter can't claim for current epoch. So this is an invalid case.
-    throw("Invalid state: an empty epoch report reward has been claimed for the current epoch")
-  case tuple: (String, Address) =>
-    # `(String, Address)` case corresponds to an empty epoch, for which the reward hasn't been claimed by the reporter
-    let (idleMiner, reporterAddress) = tuple
-    if idleMiner == computedGenerator
-    then {
-      # An epoch was reported empty for the current miner, and we expect skipped epoch counter to be set.
-      let minerSkippedEpochCount = getIntegerValue(minerSkippedEpochCountKey(computedGenerator))
-      let decrementMinerSkippedEpochCountAction = if minerSkippedEpochCount == 1
-          then DeleteEntry(minerSkippedEpochCountKey(computedGenerator))
-          else IntegerEntry(minerSkippedEpochCountKey(computedGenerator), minerSkippedEpochCount - 1)
-        [DeleteEntry(epochReportedEmptyKey(height)), decrementMinerSkippedEpochCountAction]
-    } else {
-      # An epoch was reported empty for the previous miner, which was already evicted (in this epoch).
-      # We do nothing and let the reported have their reward.
-      []
-    }
-}
-
 func evictIdleCurrentMiner() = {
   let idleMiner = computedGenerator
 
@@ -708,7 +711,7 @@ func evictIdleCurrentMiner() = {
   [
     StringEntry(allMinersKey, remainingMiners.makeString_2C(SEP)),
     # Note: minerRewardAddressKey and minerPkKey are not removed or updated here, same as in `leave`
-    DeleteEntry(minerSkippedEpochCountKey(computedGenerator))
+    DeleteEntry(skippedEpochCountKey)
   ]
 }
 
@@ -721,7 +724,7 @@ func extendMainChain(
   lastC2ETransferIndex: Int
 ) = {
   strict check = requireAssetTransfersNotActivated()
-  extendMainChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, -1) ++ markEpochNonEmpty
+  extendMainChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, -1)
 }
 
 @Callable(i)
@@ -734,7 +737,7 @@ func extendMainChain_v2(
   lastAssetRegistryIndex: Int
 ) = {
   strict check = requireAssetTransfersActivated()
-  extendMainChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex) ++ markEpochNonEmpty
+  extendMainChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex)
 }
 
 @Callable(i)
@@ -746,7 +749,7 @@ func startAltChain(
   lastC2ETransferIndex: Int
 ) = {
   strict check = requireAssetTransfersNotActivated()
-  startAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, -1) ++ markEpochNonEmpty
+  startAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, -1)
 }
 
 @Callable(i)
@@ -759,7 +762,7 @@ func startAltChain_v2(
   lastAssetRegistryIndex: Int
 ) = {
   strict check = requireAssetTransfersActivated()
-  startAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex) ++ markEpochNonEmpty
+  startAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex)
 }
 
 @Callable(i)
@@ -772,7 +775,7 @@ func extendAltChain(
   lastC2ETransferIndex: Int
 ) = {
   strict check = requireAssetTransfersNotActivated()
-  extendAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, chainId, e2cTransfersRootHashHex, lastC2ETransferIndex, -1) ++ markEpochNonEmpty
+  extendAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, chainId, e2cTransfersRootHashHex, lastC2ETransferIndex, -1)
 }
 
 @Callable(i)
@@ -786,7 +789,7 @@ func extendAltChain_v2(
   lastAssetRegistryIndex: Int
 ) = {
   strict check = requireAssetTransfersActivated()
-  extendAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, chainId, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex) ++ markEpochNonEmpty
+  extendAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, chainId, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex)
 }
 
 @Callable(i)
@@ -1135,13 +1138,13 @@ func reportEmptyEpoch(vrf: ByteVector) = {
     case u: Unit => unit
     case _ => throw("Current epoch is already reported to be empty")
   }
-  let prevSkippedEpochCount = getInteger(minerSkippedEpochCountKey(computedGenerator)).valueOrElse(0)
-  let skippedEpochCount = prevSkippedEpochCount + 1
+
+  let newSkippedEpochCount = skippedEpochCount + 1
 
   StringEntry(epochReportedEmptyKey(height), computedGenerator + SEP + i.originCaller.toString())
-   :: (if skippedEpochCount >= maxSkippedEpochCount
+   :: (if newSkippedEpochCount >= maxSkippedEpochCount
       then evictIdleCurrentMiner()
-      else [IntegerEntry(minerSkippedEpochCountKey(computedGenerator), skippedEpochCount)])
+      else [IntegerEntry(skippedEpochCountKey, newSkippedEpochCount)])
 }
 
 @Callable(i)

@@ -242,7 +242,7 @@ class EmptyEpochTestSuite extends BaseTestSuite {
       d.accountsApi.data(d.chainContractAddress, epochReportedEmptyKey) shouldBe None
 
       // Assertion: miner has their skipped epoch count reset
-      d.accountsApi.data(d.chainContractAddress, minerSkippedEpochCountKey) shouldBe None
+      d.accountsApi.data(d.chainContractAddress, minerSkippedEpochCountKey).value shouldBe IntegerDataEntry(minerSkippedEpochCountKey, 0)
 
       // Start reporter1
       d.advanceNewBlocks(reporter1)
@@ -290,7 +290,7 @@ class EmptyEpochTestSuite extends BaseTestSuite {
     }
   }
 
-  "Miner started mining after 2 epochs, but skipped epoch count is preserved for the future measures" in {
+  "Miner started mining after 2 epochs, skipped epoch counter is decremented" in {
     withExtensionDomain(defaultSettings) { d =>
       // Start idleMiner
       d.advanceNewBlocks(idleMiner)
@@ -304,6 +304,10 @@ class EmptyEpochTestSuite extends BaseTestSuite {
       // Report empty epoch
       d.appendMicroBlock(d.ChainContract.reportEmptyEpoch(reporter1.account))
 
+      val minerSkippedEpochCountKey = s"miner_${idleMiner.address}_SkippedEpochCount"
+      d.accountsApi.data(d.chainContractAddress, minerSkippedEpochCountKey) shouldBe
+        Some(IntegerDataEntry(minerSkippedEpochCountKey, 2L))
+
       // Start idleMiner again
       d.advanceNewBlocks(idleMiner)
 
@@ -311,10 +315,9 @@ class EmptyEpochTestSuite extends BaseTestSuite {
       val ecBlock1 = d.createEcBlockBuilder("0", idleMiner).build()
       d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(idleMiner.account, ecBlock1))
 
-      // Assertion: skipped epoch count for miner is in state
-      val minerSkippedEpochCountKey = s"miner_${idleMiner.address}_SkippedEpochCount"
+      // Assertion: skipped epoch count for miner is decremented
       d.accountsApi.data(d.chainContractAddress, minerSkippedEpochCountKey) shouldBe
-        Some(IntegerDataEntry(minerSkippedEpochCountKey, 2L))
+        Some(IntegerDataEntry(minerSkippedEpochCountKey, 1L))
 
       // Start reporter1
       d.advanceNewBlocks(reporter1)
@@ -324,10 +327,22 @@ class EmptyEpochTestSuite extends BaseTestSuite {
 
       // Assertion: skipped epoch count remains in the state
       d.accountsApi.data(d.chainContractAddress, minerSkippedEpochCountKey) shouldBe
-        Some(IntegerDataEntry(minerSkippedEpochCountKey, 2L))
+        Some(IntegerDataEntry(minerSkippedEpochCountKey, 1L))
 
       // Assertion: a reporter reward is paid
       d.portfolio(reporter1.address) shouldBe Seq((d.nativeTokenId, 2 * emptyEpochReportReward))
+
+      d.advanceNewBlocks(idleMiner)
+      val ecBlock2 = d.createEcBlockBuilder("1", idleMiner, ecBlock1).build()
+      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(idleMiner.account, ecBlock2))
+      d.accountsApi.data(d.chainContractAddress, minerSkippedEpochCountKey) shouldBe
+        Some(IntegerDataEntry(minerSkippedEpochCountKey, 0L))
+
+      d.advanceNewBlocks(idleMiner)
+      val ecBlock3 = d.createEcBlockBuilder("2", idleMiner, ecBlock2).build()
+      d.appendMicroBlockAndVerify(d.ChainContract.extendMainChain(idleMiner.account, ecBlock3))
+      d.accountsApi.data(d.chainContractAddress, minerSkippedEpochCountKey) shouldBe
+        Some(IntegerDataEntry(minerSkippedEpochCountKey, 0L))
     }
   }
 
