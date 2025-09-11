@@ -46,8 +46,17 @@ trait BaseDockerTestSuite
 
   private implicit val httpClientBackend: SttpBackend[Identity, Any] = new LoggingBackend(HttpClientSyncBackend())
 
-  protected lazy val ec1: EcContainer =
-    new OpGethContainer(network, 1, Networks.ipForNode(2) /* ipForNode(1) is assigned to Ryuk */ )
+  /*
+   * ipForNode(1) -> Ryuk
+   * ipForNode(2) -> ec1
+   * ipForNode(3) -> waves1
+   * ipForNode(4) -> ec2
+   */
+
+  protected lazy val ec1: EcContainer = new OpGethContainer(network, 1, Networks.ipForNode(2))
+
+  // Note: ec2 is expected to be started and stopped in individual tests via beforeAll and afterAll
+  protected lazy val ec2: EcContainer = new OpGethContainer(network, 2, Networks.ipForNode(4))
 
   protected lazy val waves1: WavesNodeContainer = new WavesNodeContainer(
     network = network,
