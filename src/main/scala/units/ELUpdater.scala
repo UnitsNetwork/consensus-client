@@ -503,17 +503,15 @@ class ELUpdater(
     else if (chainContractClient.getAllActualMiners.isEmpty) logger.debug("Waiting for at least one miner to join")
     else {
       val finalizedBlock = chainContractClient.getFinalizedBlock
-      logger.debug(s"Finalized block is ${finalizedBlock.hash}")
       engineApiClient.getBlockByHash(finalizedBlock.hash) match {
-        case Left(error) => logger.error(s"Could not load finalized block", error)
+        case Left(error) => logger.error(s"Could not load finalized block $finalizedBlock", error)
         case Right(Some(finalizedEcBlock)) =>
-          logger.trace(s"Finalized block ${finalizedBlock.hash} is at height ${finalizedEcBlock.height}")
           (for {
             newEpochInfo  <- chainContractClient.calculateEpochInfo(blockchain)
             mainChainInfo <- chainContractClient.getMainChainInfo.toRight("Can't get main chain info")
             lastEcBlock   <- engineApiClient.getLastExecutionBlock().leftMap(_.message)
           } yield {
-            logger.trace(s"Following main chain ${mainChainInfo.id}")
+            logger.trace(s"Finalized block ${finalizedBlock.hash} is at height ${finalizedEcBlock.height}, following main chain ${mainChainInfo.id}")
             val fullValidationStatus = FullValidationStatus(
               lastValidatedBlock = finalizedBlock,
               lastElWithdrawalIndex = None
@@ -546,7 +544,7 @@ class ELUpdater(
       _ <- Either.raiseWhen(chainContractClient.isStopped)(s"Chain $contractAddress is stopped")
       _ <- registryAddress.toLeft(()).leftFlatMap { addr =>
         Either.raiseUnless(blockchain.accountData(addr, registryKey(contractAddress)).contains(BooleanDataEntry(registryKey(contractAddress), true)))(
-          s"Chain ${contractAddress} is not enabled in the registry $addr"
+          s"Chain $contractAddress is not enabled in the registry $addr"
         )
       }
     } yield ()) match {
@@ -1159,23 +1157,11 @@ class ELUpdater(
     confirmBlockAndFollowChain(networkBlock.toEcBlock, prevState, nodeChainInfo, returnToMainChainInfo)
   }
 
-  private def findBlockChild(parent: BlockHash, lastBlockHash: BlockHash): Either[String, ContractBlock] = {
-    @tailrec
-    def loop(b: BlockHash): Option[ContractBlock] = chainContractClient.getBlock(b) match {
-      case None => None
-      case Some(cb) =>
-        if (cb.parentHash == parent) Some(cb)
-        else loop(cb.parentHash)
-    }
-
-    loop(lastBlockHash).toRight(s"Could not find child of $parent")
-  }
-
   @tailrec
   private def maybeRequestNextBlock(prevState: Working[FollowingChain], finalizedBlock: ContractBlock): Working[FollowingChain] = {
     if (prevState.lastEcBlock.height < prevState.chainStatus.nodeChainInfo.lastBlock.height) {
       logger.debug(s"EC chain is not synced, trying to find next block to request")
-      findBlockChild(prevState.lastEcBlock.hash, prevState.chainStatus.nodeChainInfo.lastBlock.hash) match {
+      chainContractClient.findBlockChild(prevState.lastEcBlock.hash, prevState.chainStatus.nodeChainInfo.lastBlock) match {
         case Left(error) =>
           logger.error(s"Could not find child of ${prevState.lastEcBlock.hash} on contract: $error")
           prevState
