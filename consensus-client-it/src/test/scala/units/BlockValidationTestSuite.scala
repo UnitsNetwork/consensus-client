@@ -1,19 +1,32 @@
 package units
 
+import com.wavesplatform.api.LoggingBackend
+import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
-import play.api.libs.json.JsObject
+import com.wavesplatform.crypto
+import com.wavesplatform.lang.v1.compiler.Terms
+import com.wavesplatform.state.{Height, IntegerDataEntry}
+import com.wavesplatform.transaction.TxHelpers
+import play.api.libs.json.*
+import sttp.client3.{HttpClientSyncBackend, Identity, SttpBackend}
+import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
+import units.docker.{Networks, WavesNodeContainer}
+import units.el.{DepositedTransaction, StandardBridge}
 import units.eth.EmptyL2Block
 import units.util.{BlockToPayloadMapper, HexBytesConverter}
-import com.wavesplatform.common.state.ByteStr
-import play.api.libs.json.*
-import com.wavesplatform.state.{Height, IntegerDataEntry}
-import com.wavesplatform.crypto
-import com.wavesplatform.transaction.TxHelpers
-import com.wavesplatform.lang.v1.compiler.Terms
-import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
-import units.el.{DepositedTransaction, StandardBridge}
 
-class BlockValidationTestSuite extends BaseDockerTestSuiteNoMining {
+class BlockValidationTestSuite extends BaseDockerTestSuite {
+  private implicit val httpClientBackend: SttpBackend[Identity, Any] = new LoggingBackend(HttpClientSyncBackend())
+  override lazy val waves1: WavesNodeContainer = new WavesNodeContainer(
+    network = network,
+    number = 1,
+    ip = Networks.ipForNode(3),
+    baseSeed = "devnet-1",
+    chainContractAddress = chainContractAddress,
+    ecEngineApiUrl = ec1.engineApiDockerUrl,
+    genesisConfigPath = wavesGenesisConfigPath,
+    enableMining = false
+  )
 
   "Block validation example" in {
     step("Getting last EL block before")
