@@ -27,7 +27,8 @@ class WavesNodeContainer(
     baseSeed: String,
     chainContractAddress: Address,
     ecEngineApiUrl: String,
-    genesisConfigPath: Path
+    genesisConfigPath: Path,
+    enableMining: Boolean = true
 )(implicit httpClientBackend: SttpBackend[Identity, Any])
     extends BaseContainer(s"waves-node-$number") {
   private val logFile = new File(s"$DefaultLogsDir/waves-$number.log")
@@ -42,6 +43,7 @@ class WavesNodeContainer(
         "WAVES_WALLET_SEED" -> Base58.encode(baseSeed.getBytes(StandardCharsets.UTF_8)),
         "JAVA_OPTS" -> List(
           "-Dwaves.miner.quorum=0",
+          s"-Dunits.defaults.mining-enable=${enableMining}",
           s"-Dunits.defaults.chain-contract=$chainContractAddress",
           s"-Dunits.defaults.execution-client-address=$ecEngineApiUrl",
           s"-Dunits.defaults.jwt-secret-file=/etc/secrets/jwtsecret.hex",
