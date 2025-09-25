@@ -29,6 +29,25 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
   )
 
   "Block validation example" in {
+    step(s"EL miner 12 (${miner12Account.toAddress}) join")
+    waves1.api.broadcastAndWait(
+      ChainContract.join(
+        minerAccount = miner12Account,
+        elRewardAddress = miner12RewardAddress
+      )
+    )
+
+    step(s"EL miner 21 (${miner21Account.toAddress}) join")
+    waves1.api.broadcastAndWait(
+      ChainContract.join(
+        minerAccount = miner21Account,
+        elRewardAddress = miner21RewardAddress
+      )
+    )
+
+    step(s"Wait miner 11 (${miner11Account.toAddress}) epoch")
+    chainContract.waitForMinerEpoch(miner11Account)
+
     step("Getting last EL block before")
     val ecBlockBefore = ec1.engineApi.getLastExecutionBlock().explicitGet()
 
@@ -55,7 +74,7 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
 
     val withdrawals = Vector.empty
 
-    // val depositedTransactions = Vector.empty
+    // val depositedTransactions: Seq[DepositedTransaction] = Vector.empty
 
     val unexpectedDepositedTransaction = StandardBridge.mkFinalizeBridgeETHTransaction(
       transferIndex = 0L,
@@ -80,7 +99,6 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
     val payload = BlockToPayloadMapper.toPayloadJson(
       simulatedBlock,
       Json.obj(
-        // "transactions"          -> Json.arr(),
         "transactions" -> depositedTransactions.map(_.toHex),
         "withdrawals"  -> Json.arr()
       )
@@ -107,8 +125,8 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
 
     step("Getting last EL block after")
     val ecBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
-    ecBlockAfter.height.longValue shouldBe (ecBlockBefore.height.longValue + 1) // grows
-    // ecBlockAfter.height.longValue shouldBe ecBlockBefore.height.longValue // doesn't grow
+    // ecBlockAfter.height.longValue shouldBe (ecBlockBefore.height.longValue + 1) // grows
+    ecBlockAfter.height.longValue shouldBe ecBlockBefore.height.longValue // doesn't grow
   }
 
   override def beforeAll(): Unit = {
