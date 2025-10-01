@@ -1,19 +1,25 @@
 package units
 
+import com.wavesplatform.*
+import com.wavesplatform.account.*
 import com.wavesplatform.api.LoggingBackend
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
-import com.wavesplatform.crypto
 import com.wavesplatform.lang.v1.compiler.Terms
+import com.wavesplatform.network.Handshake
 import com.wavesplatform.state.{Height, IntegerDataEntry}
 import com.wavesplatform.transaction.TxHelpers
 import play.api.libs.json.*
 import sttp.client3.{HttpClientSyncBackend, Identity, SttpBackend}
+import units.TestNetworkClient
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.docker.{Networks, WavesNodeContainer}
 import units.el.{DepositedTransaction, StandardBridge}
 import units.eth.EmptyL2Block
+import units.network.BlockSpec
 import units.util.{BlockToPayloadMapper, HexBytesConverter}
+
+import scala.util.control.NonFatal
 
 class BlockValidationTestSuite extends BaseDockerTestSuite {
   private implicit val httpClientBackend: SttpBackend[Identity, Any] = new LoggingBackend(HttpClientSyncBackend())
@@ -74,8 +80,10 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
 
     val withdrawals = Vector.empty
 
+    // Transactions for valid empty block
     // val depositedTransactions: Seq[DepositedTransaction] = Vector.empty
 
+    // Transactions for invalid block
     val unexpectedDepositedTransaction = StandardBridge.mkFinalizeBridgeETHTransaction(
       transferIndex = 0L,
       standardBridgeAddress = StandardBridgeAddress,
@@ -103,7 +111,16 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
         "withdrawals"  -> Json.arr()
       )
     )
-    ec1.engineApi.newPayload(payload).explicitGet()
+
+    val applicationName: String = "wavesl2-" + chainContractAddress.toString.substring(0, 8)
+    val applicationVersion      = (1, 5, 7)
+    val nodeName                = "block-builder"
+    val newNetworkBlock         = NetworkL2Block.signed(payload, miner11Account.privateKey).explicitGet()
+    val handshake               = new Handshake(applicationName, applicationVersion, nodeName, 0L, None)
+
+    val targetNodeAddress           = "127.0.0.1"
+    val targetNodePorts: Array[Int] = Array(waves1.networkPort)
+    sendBlock(targetNodeAddress, targetNodePorts, handshake, newNetworkBlock)
 
     step("Registering the simulated block on the chain contract")
     val lastWavesBlock = waves1.api.blockHeader(waves1.api.height()).value
@@ -121,14 +138,35 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
       )
     )
 
-    waves1.api.broadcastAndWait(txn) // makes EL height grow
+    // waves1.api.broadcastAndWait(txn) // Note: not required for height growth
 
     step("Getting last EL block after")
-    val ecBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
-    // ecBlockAfter.height.longValue shouldBe (ecBlockBefore.height.longValue + 1) // grows
-    ecBlockAfter.height.longValue shouldBe ecBlockBefore.height.longValue // doesn't grow
+
+    eventually {
+      val ecBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
+      ecBlockAfter.height.longValue shouldBe (ecBlockBefore.height.longValue + 1) // grows
+    }
+
+    // eventually {
+    //   val ecBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
+    //   ecBlockAfter.height.longValue shouldBe ecBlockBefore.height.longValue // doesn't grow
+    // }
   }
 
+  private def sendBlock(address: String, ports: Array[Int], handshake: Handshake, block: NetworkL2Block) = {
+    val blockBytes = BlockSpec.serializeData(block)
+
+    ports.foreach { port =>
+      try {
+        val client = new TestNetworkClient(address, port, handshake, blockBytes)
+        log.info(s"Sending block to $address:$port")
+        client.send()
+      } catch {
+        case NonFatal(e) =>
+          log.error(s"Error sending block to $address:$port: ${e.getMessage}", e)
+      }
+    }
+  }
   override def beforeAll(): Unit = {
     super.beforeAll()
     deploySolidityContracts()

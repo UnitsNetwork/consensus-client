@@ -36,7 +36,7 @@ class WavesNodeContainer(
 
   protected override val container = new GenericContainer(DockerImages.WavesNode)
     .withNetwork(network)
-    .withExposedPorts(ApiPort)
+    .withExposedPorts(ApiPort, NetworkPort)
     .withEnv(
       Map(
         "NODE_NUMBER"       -> s"$number",
@@ -69,14 +69,16 @@ class WavesNodeContainer(
     }
 
   lazy val apiPort = container.getMappedPort(ApiPort)
+  lazy val networkPort = container.getMappedPort(NetworkPort)
 
   lazy val api = new NodeHttpApi(uri"http://${container.getHost}:$apiPort", httpClientBackend)
 
-  override def logPorts(): Unit = log.debug(s"External host: ${container.getHost}, api: $apiPort")
+  override def logPorts(): Unit = log.debug(s"External host: ${container.getHost}, api: $apiPort, network: $networkPort")
 }
 
 object WavesNodeContainer {
   val ApiPort = 6869
+  val NetworkPort = 6865
 
   val GenesisTemplateFile = new File(s"$ConfigsDir/wavesnode/genesis-template.conf")
   val GenesisTemplate     = ConfigFactory.parseFile(GenesisTemplateFile)
