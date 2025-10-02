@@ -93,6 +93,8 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
       to = depositedTxRecipient,
       amount = 1
     )
+
+    // Note: Change to `Vector.empty` for making the block valid.
     val depositedTransactions: Seq[DepositedTransaction] = Vector(unexpectedDepositedTransaction)
 
     val simulatedBlock: JsObject = ec1.engineApi
