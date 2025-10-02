@@ -2,11 +2,11 @@ package units
 
 import com.wavesplatform.lang.Global
 import com.wavesplatform.network.Handshake
+import io.netty.buffer.{ByteBufUtil, Unpooled}
 
-import java.io.{BufferedOutputStream, ByteArrayOutputStream, DataOutputStream}
+import java.io.BufferedOutputStream
 import java.net.{InetSocketAddress, Socket}
 import java.nio.ByteBuffer
-import java.nio.charset.StandardCharsets
 import java.util.Arrays
 
 final class TestNetworkClient(address: String, port: Int, handshake: Handshake, blockBytes: Array[Byte]) {
@@ -16,7 +16,7 @@ final class TestNetworkClient(address: String, port: Int, handshake: Handshake, 
       socket.connect(new InetSocketAddress(address, port))
       val out = new BufferedOutputStream(socket.getOutputStream)
 
-      val handshakeMessage = TestNetworkClient.encodeHandshake(handshake)
+      val handshakeMessage = TestNetworkClient.handshakeBytes(handshake)
       out.write(handshakeMessage)
       out.flush()
 
@@ -36,39 +36,14 @@ object TestNetworkClient {
   private val BLOCK_MESSAGE_TYPE: Byte = 4
   private val CHECKSUM_LENGTH: Int     = 4
 
-  def encodeHandshake(handshake: Handshake): Array[Byte] = {
-    val out  = new ByteArrayOutputStream()
-    val data = new DataOutputStream(out)
-
-    val appNameBytes = handshake.applicationName.getBytes(StandardCharsets.UTF_8)
-    data.writeByte(appNameBytes.length)
-    data.write(appNameBytes)
-
-    data.writeInt(handshake.applicationVersion._1)
-    data.writeInt(handshake.applicationVersion._2)
-    data.writeInt(handshake.applicationVersion._3)
-
-    val nodeNameBytes = handshake.nodeName.getBytes(StandardCharsets.UTF_8)
-    data.writeByte(nodeNameBytes.length)
-    data.write(nodeNameBytes)
-
-    data.writeLong(handshake.nodeNonce)
-
-    handshake.declaredAddress.flatMap(addr => Option(addr.getAddress).map(address => (address, addr.getPort))) match {
-      case Some((address, port)) =>
-        val addressBytes = address.getAddress
-        data.writeInt(addressBytes.length + Integer.BYTES)
-        data.write(addressBytes)
-        data.writeInt(port)
-      case None =>
-        data.writeInt(0)
+  def handshakeBytes(handshake: Handshake): Array[Byte] = {
+    val buffer = Unpooled.buffer()
+    try {
+      handshake.encode(buffer)
+      ByteBufUtil.getBytes(buffer)
+    } finally {
+      buffer.release()
     }
-
-    val timestampSeconds = System.currentTimeMillis() / 1000
-    data.writeLong(timestampSeconds)
-
-    data.flush()
-    out.toByteArray
   }
 
   def createBlockMessage(blockBytes: Array[Byte]): Array[Byte] = {
