@@ -6,19 +6,17 @@ import com.wavesplatform.api.LoggingBackend
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
-import com.wavesplatform.network.Handshake
 import com.wavesplatform.state.{Height, IntegerDataEntry}
 import com.wavesplatform.transaction.TxHelpers
 import org.web3j.protocol.core.DefaultBlockParameterName
 import play.api.libs.json.*
 import sttp.client3.{HttpClientSyncBackend, Identity, SttpBackend}
-import units.{BlockHash, TestNetworkClient}
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.docker.{Networks, WavesNodeContainer}
 import units.el.{DepositedTransaction, StandardBridge}
 import units.eth.EmptyL2Block
-import units.network.BlockSpec
 import units.util.{BlockToPayloadMapper, HexBytesConverter}
+import units.{BlockHash, TestNetworkClient}
 
 class BlockValidationTestSuite extends BaseDockerTestSuite {
   private implicit val httpClientBackend: SttpBackend[Identity, Any] = new LoggingBackend(HttpClientSyncBackend())
@@ -122,7 +120,7 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
 
     waves1.api.broadcastAndWait(txn) // Note: Required for full block validation
 
-    step("Submitting the simulated block as a new payload")
+    step("Sending the simulated block to waves1")
     val payload = BlockToPayloadMapper.toPayloadJson(
       simulatedBlock,
       Json.obj(
@@ -130,10 +128,8 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
         "withdrawals"  -> Json.arr()
       )
     )
-
     val newNetworkBlock = NetworkL2Block.signed(payload, miner11Account.privateKey).explicitGet()
-
-    sendBlock(newNetworkBlock)
+    TestNetworkClient.send("127.0.0.1", waves1.networkPort, chainContractAddress, newNetworkBlock)
 
     step("Assertion: Block exists on EC1")
     eventually {
@@ -152,16 +148,6 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
     ecBlockAfter.height.longValue shouldBe ecBlockBefore.height.longValue
   }
 
-  private def sendBlock(block: NetworkL2Block) = {
-    val applicationName: String = "wavesl2-" + chainContractAddress.toString.substring(0, 8)
-    val applicationVersion      = (1, 5, 7)
-    val nodeName                = "block-builder"
-    val blockBytes              = BlockSpec.serializeData(block)
-    val handshake               = new Handshake(applicationName, applicationVersion, nodeName, 0L, None)
-    val client                  = new TestNetworkClient("127.0.0.1", waves1.networkPort, handshake, blockBytes)
-    client.send()
-  }
-  
   override def beforeAll(): Unit = {
     super.beforeAll()
     deploySolidityContracts()
