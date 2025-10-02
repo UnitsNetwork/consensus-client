@@ -9,6 +9,7 @@ import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.network.Handshake
 import com.wavesplatform.state.{Height, IntegerDataEntry}
 import com.wavesplatform.transaction.TxHelpers
+import org.web3j.protocol.core.DefaultBlockParameterName
 import play.api.libs.json.*
 import sttp.client3.{HttpClientSyncBackend, Identity, SttpBackend}
 import units.TestNetworkClient
@@ -51,6 +52,9 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
       )
     )
 
+    val depositedTxRecipient = miner21RewardAddress
+    val ethBalanceBefore     = ec1.web3j.ethGetBalance(depositedTxRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
+
     step(s"Wait miner 11 (${miner11Account.toAddress}) epoch")
     chainContract.waitForMinerEpoch(miner11Account)
 
@@ -81,15 +85,12 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
 
     val withdrawals = Vector.empty
 
-    // Transactions for valid empty block
-    // val depositedTransactions: Seq[DepositedTransaction] = Vector.empty
-
     // Transactions for invalid block
     val unexpectedDepositedTransaction = StandardBridge.mkFinalizeBridgeETHTransaction(
       transferIndex = 0L,
       standardBridgeAddress = StandardBridgeAddress,
       from = miner11RewardAddress,
-      to = miner21RewardAddress,
+      to = depositedTxRecipient,
       amount = 1
     )
     val depositedTransactions: Seq[DepositedTransaction] = Vector(unexpectedDepositedTransaction)
@@ -142,15 +143,15 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
 
     step("Getting last EL block after")
 
-    eventually {
-      val ecBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
-      ecBlockAfter.height.longValue shouldBe (ecBlockBefore.height.longValue + 1) // grows
-    }
+    Thread.sleep(1_000) // TODO: figure out a proper way to wait.
 
-    // eventually {
-    //   val ecBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
-    //   ecBlockAfter.height.longValue shouldBe ecBlockBefore.height.longValue // doesn't grow
-    // }
+    // Assertion: Unexpected deposited transaction doesn't affect balances
+    val ethBalanceAfter = ec1.web3j.ethGetBalance(depositedTxRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
+    ethBalanceBefore shouldBe ethBalanceAfter
+
+    // Assertion: After timeout the height doesn't grow
+    val ecBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
+    ecBlockAfter.height.longValue shouldBe ecBlockBefore.height.longValue // doesn't grow
   }
 
   private def sendBlock(address: String, ports: Array[Int], handshake: Handshake, block: NetworkL2Block) = {
