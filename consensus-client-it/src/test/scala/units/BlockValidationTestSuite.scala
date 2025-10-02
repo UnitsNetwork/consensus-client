@@ -12,7 +12,7 @@ import com.wavesplatform.transaction.TxHelpers
 import org.web3j.protocol.core.DefaultBlockParameterName
 import play.api.libs.json.*
 import sttp.client3.{HttpClientSyncBackend, Identity, SttpBackend}
-import units.TestNetworkClient
+import units.{BlockHash, TestNetworkClient}
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.docker.{Networks, WavesNodeContainer}
 import units.el.{DepositedTransaction, StandardBridge}
@@ -115,7 +115,7 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
         Terms.CONST_STRING(ecBlockBefore.hash.drop(2)).explicitGet(),
         Terms.CONST_BYTESTR(hitSource).explicitGet(),
         Terms.CONST_STRING(EmptyE2CTransfersRootHashHex.drop(2)).explicitGet(),
-        Terms.CONST_LONG(0), // Note: still passes if left -1
+        Terms.CONST_LONG(0),
         Terms.CONST_LONG(-1)
       )
     )
@@ -141,17 +141,21 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
     val targetNodePorts: Array[Int] = Array(waves1.networkPort)
     sendBlock(targetNodeAddress, targetNodePorts, handshake, newNetworkBlock)
 
-    step("Getting last EL block after")
+    step("Assertion: Block exists on EC1")
+    eventually {
+      ec1.engineApi
+        .getBlockByHash(BlockHash(simulatedBlockHash))
+        .explicitGet()
+        .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
+    }
 
-    Thread.sleep(1_000) // TODO: figure out a proper way to wait.
-
-    // Assertion: Unexpected deposited transaction doesn't affect balances
+    step("Assertion: Unexpected deposited transaction doesn't affect balances")
     val ethBalanceAfter = ec1.web3j.ethGetBalance(depositedTxRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
     ethBalanceBefore shouldBe ethBalanceAfter
 
-    // Assertion: After timeout the height doesn't grow
+    step("Assertion: After timeout the height doesn't grow")
     val ecBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
-    ecBlockAfter.height.longValue shouldBe ecBlockBefore.height.longValue // doesn't grow
+    ecBlockAfter.height.longValue shouldBe ecBlockBefore.height.longValue
   }
 
   private def sendBlock(address: String, ports: Array[Int], handshake: Handshake, block: NetworkL2Block) = {
