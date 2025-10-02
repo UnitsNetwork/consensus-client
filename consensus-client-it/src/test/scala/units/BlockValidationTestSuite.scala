@@ -75,8 +75,9 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
       val msg = hitSource.arr ++ HexBytesConverter.toBytes(parentHash)
       HexBytesConverter.toHex(crypto.secureHash(msg))
     }
-    val hitSource  = currentHitSource
-    val prevRandao = calculateRandao(hitSource, ecBlockBefore.hash)
+    val currentEpochHeader = waves1.api.blockHeader(waves1.api.height()).value
+    val hitSource          = ByteStr.decodeBase58(currentEpochHeader.VRF).get
+    val prevRandao         = calculateRandao(hitSource, ecBlockBefore.hash)
 
     val withdrawals = Vector.empty
 
@@ -104,7 +105,6 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
     val simulatedBlockHash = (simulatedBlock \ "hash").as[String]
 
     step("Registering the simulated block on the chain contract")
-    val lastWavesBlock = waves1.api.blockHeader(waves1.api.height()).value
     val txn = TxHelpers.invoke(
       invoker = miner11Account,
       dApp = chainContractAddress,
@@ -112,7 +112,7 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
       args = List(
         Terms.CONST_STRING(simulatedBlockHash.drop(2)).explicitGet(),
         Terms.CONST_STRING(ecBlockBefore.hash.drop(2)).explicitGet(),
-        Terms.CONST_BYTESTR(ByteStr.decodeBase58(lastWavesBlock.VRF).get).explicitGet(),
+        Terms.CONST_BYTESTR(hitSource).explicitGet(),
         Terms.CONST_STRING(EmptyE2CTransfersRootHashHex.drop(2)).explicitGet(),
         Terms.CONST_LONG(0), // Note: still passes if left -1
         Terms.CONST_LONG(-1)
