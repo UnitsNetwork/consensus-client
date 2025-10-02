@@ -103,6 +103,24 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
 
     val simulatedBlockHash = (simulatedBlock \ "hash").as[String]
 
+    step("Registering the simulated block on the chain contract")
+    val lastWavesBlock = waves1.api.blockHeader(waves1.api.height()).value
+    val txn = TxHelpers.invoke(
+      invoker = miner11Account,
+      dApp = chainContractAddress,
+      func = Some("extendMainChain_v2"),
+      args = List(
+        Terms.CONST_STRING(simulatedBlockHash.drop(2)).explicitGet(),
+        Terms.CONST_STRING(ecBlockBefore.hash.drop(2)).explicitGet(),
+        Terms.CONST_BYTESTR(ByteStr.decodeBase58(lastWavesBlock.VRF).get).explicitGet(),
+        Terms.CONST_STRING(EmptyE2CTransfersRootHashHex.drop(2)).explicitGet(),
+        Terms.CONST_LONG(0), // Note: still passes if left -1
+        Terms.CONST_LONG(-1)
+      )
+    )
+
+    waves1.api.broadcastAndWait(txn) // Note: Required for full block validation
+
     step("Submitting the simulated block as a new payload")
     val payload = BlockToPayloadMapper.toPayloadJson(
       simulatedBlock,
@@ -121,24 +139,6 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
     val targetNodeAddress           = "127.0.0.1"
     val targetNodePorts: Array[Int] = Array(waves1.networkPort)
     sendBlock(targetNodeAddress, targetNodePorts, handshake, newNetworkBlock)
-
-    step("Registering the simulated block on the chain contract")
-    val lastWavesBlock = waves1.api.blockHeader(waves1.api.height()).value
-    val txn = TxHelpers.invoke(
-      invoker = miner11Account,
-      dApp = chainContractAddress,
-      func = Some("extendMainChain_v2"),
-      args = List(
-        Terms.CONST_STRING(simulatedBlockHash.drop(2)).explicitGet(),
-        Terms.CONST_STRING(ecBlockBefore.hash.drop(2)).explicitGet(),
-        Terms.CONST_BYTESTR(ByteStr.decodeBase58(lastWavesBlock.VRF).get).explicitGet(),
-        Terms.CONST_STRING(EmptyE2CTransfersRootHashHex.drop(2)).explicitGet(),
-        Terms.CONST_LONG(0), // Note: passes if left -1
-        Terms.CONST_LONG(-1)
-      )
-    )
-
-    // waves1.api.broadcastAndWait(txn) // Note: not required for height growth
 
     step("Getting last EL block after")
 
