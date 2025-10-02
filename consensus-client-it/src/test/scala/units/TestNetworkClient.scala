@@ -2,31 +2,55 @@ package units
 
 import com.wavesplatform.lang.Global
 import com.wavesplatform.network.Handshake
+import io.netty.bootstrap.Bootstrap
 import io.netty.buffer.{ByteBufUtil, Unpooled}
+import io.netty.channel.nio.NioIoHandler
+import io.netty.channel.socket.SocketChannel
+import io.netty.channel.socket.nio.NioSocketChannel
+import io.netty.channel.{ChannelHandlerContext, ChannelInboundHandlerAdapter, ChannelInitializer, MultiThreadIoEventLoopGroup}
 
-import java.io.BufferedOutputStream
-import java.net.{InetSocketAddress, Socket}
 import java.nio.ByteBuffer
 import java.util.Arrays
 
-final class TestNetworkClient(address: String, port: Int, handshake: Handshake, blockBytes: Array[Byte]) {
+final class TestNetworkClient(
+    address: String,
+    port: Int,
+    handshake: Handshake,
+    blockBytes: Array[Byte]
+) {
   def send(): Unit = {
-    val socket = new Socket()
+    val group = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory())
     try {
-      socket.connect(new InetSocketAddress(address, port))
-      val out = new BufferedOutputStream(socket.getOutputStream)
-
-      val handshakeMessage = TestNetworkClient.handshakeBytes(handshake)
-      out.write(handshakeMessage)
-      out.flush()
-
-      Thread.sleep(10)
-
-      val blockMessage = TestNetworkClient.createBlockMessage(blockBytes)
-      out.write(blockMessage)
-      out.flush()
+      val handshakeBytes = TestNetworkClient.handshakeBytes(handshake)
+      val bootstrap = new Bootstrap()
+        .group(group)
+        .channel(classOf[NioSocketChannel])
+        .handler(new ChannelInitializer[SocketChannel] {
+          override def initChannel(ch: SocketChannel): Unit = {
+            ch.pipeline().addLast(new ClientHandler(handshakeBytes, blockBytes))
+          }
+        })
+      val future = bootstrap.connect(address, port).sync()
+      future.channel().closeFuture().sync()
     } finally {
-      socket.close()
+      group.shutdownGracefully()
+    }
+  }
+
+  private final class ClientHandler(
+      handshake: Array[Byte],
+      block: Array[Byte]
+  ) extends ChannelInboundHandlerAdapter {
+    override def channelActive(ctx: ChannelHandlerContext): Unit = {
+      try {
+        val handshakeMessage = Unpooled.wrappedBuffer(handshake)
+        ctx.writeAndFlush(handshakeMessage)
+        Thread.sleep(10)
+        val blockMessage = Unpooled.wrappedBuffer(TestNetworkClient.createBlockMessage(block))
+        ctx.writeAndFlush(blockMessage)
+      } finally {
+        ctx.close()
+      }
     }
   }
 }
@@ -47,16 +71,10 @@ object TestNetworkClient {
   }
 
   def createBlockMessage(blockBytes: Array[Byte]): Array[Byte] = {
-    // 4 bytes of magic code
-    val magicBytes = ByteBuffer.allocate(4).putInt(MAGIC_CODE).array()
-
-    // Checksum (first 4 bytes of Blake2b)
-    val checksum = calculateChecksum(blockBytes)
-
-    // Block length (4 bytes)
+    val magicBytes  = ByteBuffer.allocate(4).putInt(MAGIC_CODE).array()
+    val checksum    = calculateChecksum(blockBytes)
     val lengthBytes = ByteBuffer.allocate(4).putInt(blockBytes.length).array()
 
-    // Block message body: magic(4) + type(1) + length(4) + checksum(4) + data(N)
     val blockMessageBuffer =
       ByteBuffer.allocate(4 + 1 + 4 + CHECKSUM_LENGTH + blockBytes.length)
     blockMessageBuffer.put(magicBytes)
@@ -67,7 +85,6 @@ object TestNetworkClient {
 
     val blockMessageBytes = blockMessageBuffer.array()
 
-    // Total length prefix + block message
     val totalLengthBytes =
       ByteBuffer.allocate(4).putInt(blockMessageBytes.length).array()
 
