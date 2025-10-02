@@ -20,8 +20,6 @@ import units.eth.EmptyL2Block
 import units.network.BlockSpec
 import units.util.{BlockToPayloadMapper, HexBytesConverter}
 
-import scala.util.control.NonFatal
-
 class BlockValidationTestSuite extends BaseDockerTestSuite {
   private implicit val httpClientBackend: SttpBackend[Identity, Any] = new LoggingBackend(HttpClientSyncBackend())
   override lazy val waves1: WavesNodeContainer = new WavesNodeContainer(
@@ -133,15 +131,9 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
       )
     )
 
-    val applicationName: String = "wavesl2-" + chainContractAddress.toString.substring(0, 8)
-    val applicationVersion      = (1, 5, 7)
-    val nodeName                = "block-builder"
-    val newNetworkBlock         = NetworkL2Block.signed(payload, miner11Account.privateKey).explicitGet()
-    val handshake               = new Handshake(applicationName, applicationVersion, nodeName, 0L, None)
+    val newNetworkBlock = NetworkL2Block.signed(payload, miner11Account.privateKey).explicitGet()
 
-    val targetNodeAddress           = "127.0.0.1"
-    val targetNodePorts: Array[Int] = Array(waves1.networkPort)
-    sendBlock(targetNodeAddress, targetNodePorts, handshake, newNetworkBlock)
+    sendBlock(newNetworkBlock)
 
     step("Assertion: Block exists on EC1")
     eventually {
@@ -160,20 +152,16 @@ class BlockValidationTestSuite extends BaseDockerTestSuite {
     ecBlockAfter.height.longValue shouldBe ecBlockBefore.height.longValue
   }
 
-  private def sendBlock(address: String, ports: Array[Int], handshake: Handshake, block: NetworkL2Block) = {
-    val blockBytes = BlockSpec.serializeData(block)
-
-    ports.foreach { port =>
-      try {
-        val client = new TestNetworkClient(address, port, handshake, blockBytes)
-        log.info(s"Sending block to $address:$port")
-        client.send()
-      } catch {
-        case NonFatal(e) =>
-          log.error(s"Error sending block to $address:$port: ${e.getMessage}", e)
-      }
-    }
+  private def sendBlock(block: NetworkL2Block) = {
+    val applicationName: String = "wavesl2-" + chainContractAddress.toString.substring(0, 8)
+    val applicationVersion      = (1, 5, 7)
+    val nodeName                = "block-builder"
+    val blockBytes              = BlockSpec.serializeData(block)
+    val handshake               = new Handshake(applicationName, applicationVersion, nodeName, 0L, None)
+    val client                  = new TestNetworkClient("127.0.0.1", waves1.networkPort, handshake, blockBytes)
+    client.send()
   }
+  
   override def beforeAll(): Unit = {
     super.beforeAll()
     deploySolidityContracts()
