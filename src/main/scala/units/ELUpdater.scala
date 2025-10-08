@@ -1380,7 +1380,7 @@ class ELUpdater(
           expectedTransfers
         )
         Either.raiseUnless(expectedDepositedTransactions == actualDepositedTransactions)(
-          ClientError(s"Transaction not allowed, expected and actual deposited transactions don't match.")
+          ClientError(s"Block is not valid, expected and actual deposited transactions don't match.")
         )
       } else
         actualDepositedTransactions.traverse { tx =>
