@@ -191,6 +191,7 @@ class BlockValidationTestSuite0 extends BaseDockerTestSuite {
     }
 
     val txHash = HexBytesConverter.toHex(Keccak256.hash(HexBytesConverter.toBytes(depositedTransaction.toHex)))
+    log.debug(s"txHash: $txHash")
     val trace = eventually(timeout(60 seconds), interval(500 millis)) {
       val res = traceTransaction(txHash).get
       if ((res \ "error").toOption.isDefined) throw new RuntimeException(s"Error in debug_traceTransaction response: $res")
