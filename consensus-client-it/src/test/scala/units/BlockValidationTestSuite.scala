@@ -16,14 +16,17 @@ import sttp.client3.*
 import sttp.client3.playJson.*
 import units.client.JsonRpcClient
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
+import units.client.engine.model.Withdrawal.WithdrawalIndex
+import units.client.engine.model.{EcBlock, Withdrawal}
 import units.docker.{Networks, OpGethContainer, WavesNodeContainer}
 import units.el.{DepositedTransaction, StandardBridge}
-import units.eth.{EmptyL2Block, EthAddress}
+import units.eth.{EmptyL2Block, EthAddress, EthereumConstants}
 import units.util.{BlockToPayloadMapper, HexBytesConverter}
 import units.{BlockHash, TestNetworkClient}
 
 import java.net.URI
 import java.time.Clock
+import scala.annotation.tailrec
 import scala.concurrent.duration.DurationInt
 import scala.util.Try
 
@@ -57,6 +60,11 @@ class BlockValidationTestSuite0 extends BaseDockerTestSuite {
     genesisConfigPath = wavesGenesisConfigPath,
     enableMining = true
   )
+
+  log.debug(s"setupMiner: ${setupMiner.toAddress}")
+  log.debug(s"actingMiner: ${actingMiner.toAddress}")
+  log.debug(s"additionalMiner1: ${additionalMiner1.toAddress}")
+  log.debug(s"additionalMiner2: ${additionalMiner2.toAddress}")
 
   "Native token: Successful transfer" in {
     step(s"additionalMiner1 join")
@@ -97,10 +105,10 @@ class BlockValidationTestSuite0 extends BaseDockerTestSuite {
     chainContract.waitForMinerEpoch(actingMiner)
 
     step("Getting last EL block before")
-    val ecBlockBefore = ec1.engineApi.getLastExecutionBlock().explicitGet()
+    val ecBlockBefore: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
 
     step("Building a simulated block")
-    val feeRecipient = miner11RewardAddress
+    val feeRecipient = actingMinerRewardAddress
 
     val ntpTimestamp = System.currentTimeMillis()
     val nanoTime     = System.nanoTime()
@@ -121,7 +129,17 @@ class BlockValidationTestSuite0 extends BaseDockerTestSuite {
     val hitSource          = ByteStr.decodeBase58(currentEpochHeader.VRF).get
     val prevRandao         = calculateRandao(hitSource, ecBlockBefore.hash)
 
-    val withdrawals = Vector.empty
+    val chainContractOptions = chainContract.getOptions
+
+    val elWithdrawalIndexBefore = (ecBlockBefore.withdrawals.lastOption.map(_.index) match {
+      case Some(r) => Right(r)
+      case None =>
+        if (ecBlockBefore.height - 1 <= EthereumConstants.GenesisBlockHeight) Right(-1L)
+        else getLastWithdrawalIndex(ecBlockBefore.parentHash)
+    }).explicitGet()
+    val withdrawalIndex = elWithdrawalIndexBefore + 1
+    val rewardAddress   = ecBlockBefore.minerRewardL2Address
+    val withdrawals     = Vector(Withdrawal(withdrawalIndex, rewardAddress, chainContractOptions.miningReward))
 
     val depositedTransaction = StandardBridge.mkFinalizeBridgeETHTransaction(
       transferIndex = 0L,
@@ -208,6 +226,20 @@ class BlockValidationTestSuite0 extends BaseDockerTestSuite {
     // ecBlockAfter.height.longValue shouldBe (ecBlockBefore.height.longValue + 1)
   }
 
+  @tailrec
+  private def getLastWithdrawalIndex(hash: BlockHash): JobResult[WithdrawalIndex] =
+    ec1.engineApi.getBlockByHash(hash) match {
+      case Left(e)     => Left(e)
+      case Right(None) => Left(ClientError(s"Can't find $hash block on EC during withdrawal search"))
+      case Right(Some(ecBlock)) =>
+        ecBlock.withdrawals.lastOption match {
+          case Some(lastWithdrawal) => Right(lastWithdrawal.index)
+          case None =>
+            if (ecBlock.height == 0) Right(-1L)
+            else getLastWithdrawalIndex(ecBlock.parentHash)
+        }
+    }
+
   private def traceTransaction(txHash: String): Try[JsValue] = Try {
     val engineUri = URI(ec1.engineApiConfig.apiUrl)
     val rpcUri    = URI(s"${engineUri.getScheme}://${engineUri.getHost}:${ec1.rpcPort}")
@@ -292,20 +324,6 @@ class BlockValidationTestSuite0 extends BaseDockerTestSuite {
     }
   }
 }
-
-// -----------------------------------------------------------------------------------------
-// -----------------------------------------------------------------------------------------
-// -----------------------------------------------------------------------------------------
-// -----------------------------------------------------------------------------------------
-// -----------------------------------------------------------------------------------------
-// -----------------------------------------------------------------------------------------
-// -----------------------------------------------------------------------------------------
-// -----------------------------------------------------------------------------------------
-// -----------------------------------------------------------------------------------------
-// -----------------------------------------------------------------------------------------
-// -----------------------------------------------------------------------------------------
-// -----------------------------------------------------------------------------------------
-// -----------------------------------------------------------------------------------------
 
 class BlockValidationTestSuite1 extends BaseDockerTestSuite {
   private implicit val httpClientBackend: SttpBackend[Identity, Any] = new LoggingBackend(HttpClientSyncBackend())
