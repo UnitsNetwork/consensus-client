@@ -205,7 +205,7 @@ trait BaseBlockValidationSuite extends BaseDockerTestSuite {
 }
 
 class BlockValidationTestSuite1 extends BaseBlockValidationSuite {
-  "Valid block: a correct native token transfer" in {
+  "Valid block: native token, correct transfer" in {
     val ethBalanceBefore       = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
     val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
 
@@ -372,6 +372,334 @@ class BlockValidationTestSuite3 extends BaseBlockValidationSuite {
       chainContractAddress,
       NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
     )
+
+    step("Assertion: Block exists on EC1")
+    eventually {
+      ec1.engineApi
+        .getBlockByHash(BlockHash(simulatedBlockHash))
+        .explicitGet()
+        .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
+    }
+
+    step("Assertion: Unexpected deposited transaction doesn't affect balances")
+    val ethBalanceAfter = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
+    ethBalanceBefore shouldBe ethBalanceAfter
+
+    step("Assertion: While the block exists on EC1, the height doesn't grow")
+    val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
+    elBlockAfter.height.longValue shouldBe elParentBlock.height.longValue
+  }
+}
+
+class BlockValidationTestSuite4 extends BaseBlockValidationSuite {
+  "Invalid block: native token, invalid amount" in {
+    val ethBalanceBefore       = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
+    val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
+
+    val withdrawals = Vector(mkRewardWithdrawal(elParentBlock))
+
+    val invalidAmount = clNativeTokenAmount.longValue - 1L
+
+    val depositedTransactions = Vector(
+      StandardBridge.mkFinalizeBridgeETHTransaction(
+        transferIndex = 0L,
+        standardBridgeAddress = StandardBridgeAddress,
+        from = EthAddress.unsafeFrom(clSender.toAddress.bytes.drop(2).take(20)),
+        to = elRecipient,
+        amount = invalidAmount
+      )
+    )
+
+    val (payload, simulatedBlockHash, hitSource) = mkSimulatedBlock(elParentBlock, withdrawals, depositedTransactions)
+
+    step("Transfer on the chain contract")
+    waves1.api.broadcastAndWait(
+      ChainContract.transfer(
+        clSender,
+        elRecipient,
+        chainContract.nativeTokenId,
+        clNativeTokenAmount
+      )
+    )
+
+    step("Register the simulated block on the chain contract")
+    waves1.api.broadcastAndWait(
+      TxHelpers.invoke(
+        invoker = actingMiner,
+        dApp = chainContractAddress,
+        func = Some("extendMainChain_v2"),
+        args = List(
+          Terms.CONST_STRING(simulatedBlockHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(elParentBlock.hash.drop(2)).explicitGet(),
+          Terms.CONST_BYTESTR(hitSource).explicitGet(),
+          Terms.CONST_STRING(EmptyE2CTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(0),
+          Terms.CONST_LONG(-1)
+        )
+      )
+    )
+
+    step("Send the simulated block to waves1")
+    TestNetworkClient.send(
+      "127.0.0.1",
+      waves1.networkPort,
+      chainContractAddress,
+      NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
+    )
+
+    step("Assertion: Block exists on EC1")
+    eventually {
+      ec1.engineApi
+        .getBlockByHash(BlockHash(simulatedBlockHash))
+        .explicitGet()
+        .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
+    }
+
+    step("Assertion: Block exists on EC1")
+    eventually {
+      ec1.engineApi
+        .getBlockByHash(BlockHash(simulatedBlockHash))
+        .explicitGet()
+        .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
+    }
+
+    step("Assertion: Unexpected deposited transaction doesn't affect balances")
+    val ethBalanceAfter = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
+    ethBalanceBefore shouldBe ethBalanceAfter
+
+    step("Assertion: While the block exists on EC1, the height doesn't grow")
+    val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
+    elBlockAfter.height.longValue shouldBe elParentBlock.height.longValue
+  }
+}
+
+class BlockValidationTestSuite5 extends BaseBlockValidationSuite {
+  "Invalid block: native token, invalid recipient" in {
+    val invalidRecipient = additionalMiner1RewardAddress
+
+    val ethBalanceBefore       = ec1.web3j.ethGetBalance(invalidRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
+    val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
+
+    val withdrawals = Vector(mkRewardWithdrawal(elParentBlock))
+
+    val depositedTransactions = Vector(
+      StandardBridge.mkFinalizeBridgeETHTransaction(
+        transferIndex = 0L,
+        standardBridgeAddress = StandardBridgeAddress,
+        from = EthAddress.unsafeFrom(clSender.toAddress.bytes.drop(2).take(20)),
+        to = invalidRecipient,
+        amount = clNativeTokenAmount.longValue
+      )
+    )
+
+    val (payload, simulatedBlockHash, hitSource) = mkSimulatedBlock(elParentBlock, withdrawals, depositedTransactions)
+
+    step("Transfer on the chain contract")
+    waves1.api.broadcastAndWait(
+      ChainContract.transfer(
+        clSender,
+        elRecipient, // Valid recipient, while the deposited transaction has invalid one
+        chainContract.nativeTokenId,
+        clNativeTokenAmount
+      )
+    )
+
+    step("Register the simulated block on the chain contract")
+    waves1.api.broadcastAndWait(
+      TxHelpers.invoke(
+        invoker = actingMiner,
+        dApp = chainContractAddress,
+        func = Some("extendMainChain_v2"),
+        args = List(
+          Terms.CONST_STRING(simulatedBlockHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(elParentBlock.hash.drop(2)).explicitGet(),
+          Terms.CONST_BYTESTR(hitSource).explicitGet(),
+          Terms.CONST_STRING(EmptyE2CTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(0),
+          Terms.CONST_LONG(-1)
+        )
+      )
+    )
+
+    step("Send the simulated block to waves1")
+    TestNetworkClient.send(
+      "127.0.0.1",
+      waves1.networkPort,
+      chainContractAddress,
+      NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
+    )
+
+    step("Assertion: Block exists on EC1")
+    eventually {
+      ec1.engineApi
+        .getBlockByHash(BlockHash(simulatedBlockHash))
+        .explicitGet()
+        .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
+    }
+
+    step("Assertion: Block exists on EC1")
+    eventually {
+      ec1.engineApi
+        .getBlockByHash(BlockHash(simulatedBlockHash))
+        .explicitGet()
+        .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
+    }
+
+    step("Assertion: Unexpected deposited transaction doesn't affect balances")
+    val ethBalanceAfter = ec1.web3j.ethGetBalance(invalidRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
+    ethBalanceBefore shouldBe ethBalanceAfter
+
+    step("Assertion: While the block exists on EC1, the height doesn't grow")
+    val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
+    elBlockAfter.height.longValue shouldBe elParentBlock.height.longValue
+  }
+}
+
+class BlockValidationTestSuite6 extends BaseBlockValidationSuite {
+  "Invalid block: native token, invalid sender" in {
+    val invalidSender = additionalMiner1RewardAddress
+
+    val ethBalanceBefore       = ec1.web3j.ethGetBalance(invalidSender.toString, DefaultBlockParameterName.LATEST).send().getBalance
+    val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
+
+    val withdrawals = Vector(mkRewardWithdrawal(elParentBlock))
+
+    val depositedTransactions = Vector(
+      StandardBridge.mkFinalizeBridgeETHTransaction(
+        transferIndex = 0L,
+        standardBridgeAddress = StandardBridgeAddress,
+        from = invalidSender,
+        to = elRecipient,
+        amount = clNativeTokenAmount.longValue
+      )
+    )
+
+    val (payload, simulatedBlockHash, hitSource) = mkSimulatedBlock(elParentBlock, withdrawals, depositedTransactions)
+
+    step("Transfer on the chain contract")
+    waves1.api.broadcastAndWait(
+      ChainContract.transfer(
+        clSender,
+        elRecipient,
+        chainContract.nativeTokenId,
+        clNativeTokenAmount
+      )
+    )
+
+    step("Register the simulated block on the chain contract")
+    waves1.api.broadcastAndWait(
+      TxHelpers.invoke(
+        invoker = actingMiner,
+        dApp = chainContractAddress,
+        func = Some("extendMainChain_v2"),
+        args = List(
+          Terms.CONST_STRING(simulatedBlockHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(elParentBlock.hash.drop(2)).explicitGet(),
+          Terms.CONST_BYTESTR(hitSource).explicitGet(),
+          Terms.CONST_STRING(EmptyE2CTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(0),
+          Terms.CONST_LONG(-1)
+        )
+      )
+    )
+
+    step("Send the simulated block to waves1")
+    TestNetworkClient.send(
+      "127.0.0.1",
+      waves1.networkPort,
+      chainContractAddress,
+      NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
+    )
+
+    step("Assertion: Block exists on EC1")
+    eventually {
+      ec1.engineApi
+        .getBlockByHash(BlockHash(simulatedBlockHash))
+        .explicitGet()
+        .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
+    }
+
+    step("Assertion: Block exists on EC1")
+    eventually {
+      ec1.engineApi
+        .getBlockByHash(BlockHash(simulatedBlockHash))
+        .explicitGet()
+        .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
+    }
+
+    step("Assertion: Unexpected deposited transaction doesn't affect balances")
+    val ethBalanceAfter = ec1.web3j.ethGetBalance(invalidSender.toString, DefaultBlockParameterName.LATEST).send().getBalance
+    ethBalanceBefore shouldBe ethBalanceAfter
+
+    step("Assertion: While the block exists on EC1, the height doesn't grow")
+    val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
+    elBlockAfter.height.longValue shouldBe elParentBlock.height.longValue
+  }
+}
+
+class BlockValidationTestSuite7 extends BaseBlockValidationSuite {
+  "Invalid block: native token, invalid standard bridge address" in {
+    val ethBalanceBefore       = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
+    val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
+
+    val withdrawals = Vector(mkRewardWithdrawal(elParentBlock))
+
+    val invalidStandardBridgeAddress = additionalMiner1RewardAddress
+
+    val depositedTransactions = Vector(
+      StandardBridge.mkFinalizeBridgeETHTransaction(
+        transferIndex = 0L,
+        standardBridgeAddress = invalidStandardBridgeAddress,
+        from = EthAddress.unsafeFrom(clSender.toAddress.bytes.drop(2).take(20)),
+        to = elRecipient,
+        amount = clNativeTokenAmount.longValue
+      )
+    )
+
+    val (payload, simulatedBlockHash, hitSource) = mkSimulatedBlock(elParentBlock, withdrawals, depositedTransactions)
+
+    step("Transfer on the chain contract")
+    waves1.api.broadcastAndWait(
+      ChainContract.transfer(
+        clSender,
+        elRecipient,
+        chainContract.nativeTokenId,
+        clNativeTokenAmount
+      )
+    )
+
+    step("Register the simulated block on the chain contract")
+    waves1.api.broadcastAndWait(
+      TxHelpers.invoke(
+        invoker = actingMiner,
+        dApp = chainContractAddress,
+        func = Some("extendMainChain_v2"),
+        args = List(
+          Terms.CONST_STRING(simulatedBlockHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(elParentBlock.hash.drop(2)).explicitGet(),
+          Terms.CONST_BYTESTR(hitSource).explicitGet(),
+          Terms.CONST_STRING(EmptyE2CTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(0),
+          Terms.CONST_LONG(-1)
+        )
+      )
+    )
+
+    step("Send the simulated block to waves1")
+    TestNetworkClient.send(
+      "127.0.0.1",
+      waves1.networkPort,
+      chainContractAddress,
+      NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
+    )
+
+    step("Assertion: Block exists on EC1")
+    eventually {
+      ec1.engineApi
+        .getBlockByHash(BlockHash(simulatedBlockHash))
+        .explicitGet()
+        .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
+    }
 
     step("Assertion: Block exists on EC1")
     eventually {
