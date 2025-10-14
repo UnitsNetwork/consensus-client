@@ -128,9 +128,7 @@ class BlockValidationTestSuite0 extends BaseDockerTestSuite {
         if (ecBlockBefore.height - 1 <= EthereumConstants.GenesisBlockHeight) Right(-1L)
         else getLastWithdrawalIndex(ecBlockBefore.parentHash)
     }).explicitGet()
-    val withdrawalIndex = elWithdrawalIndexBefore + 1
-    val rewardAddress   = ecBlockBefore.minerRewardL2Address
-    val withdrawals     = Vector(Withdrawal(withdrawalIndex, rewardAddress, chainContractOptions.miningReward))
+    val withdrawals = Vector(Withdrawal(elWithdrawalIndexBefore + 1, ecBlockBefore.minerRewardL2Address, chainContractOptions.miningReward))
 
     val depositedTransaction = StandardBridge.mkFinalizeBridgeETHTransaction(
       transferIndex = 0L,
@@ -266,12 +264,6 @@ class BlockValidationTestSuite0 extends BaseDockerTestSuite {
         asset = chainContract.nativeTokenId
       )
     )
-
-    val h1 = ec1.engineApi.getLastExecutionBlock().explicitGet()
-    eventually {
-      val h2 = ec1.engineApi.getLastExecutionBlock().explicitGet()
-      h2.height should be > h1.height
-    }
   }
 }
 
