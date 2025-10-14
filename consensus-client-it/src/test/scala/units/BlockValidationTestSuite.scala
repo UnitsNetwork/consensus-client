@@ -10,25 +10,18 @@ import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.state.{Height, IntegerDataEntry}
 import com.wavesplatform.transaction.TxHelpers
 import org.web3j.protocol.core.DefaultBlockParameterName
-import pdi.jwt.{JwtAlgorithm, JwtClaim, JwtJson}
 import play.api.libs.json.*
 import sttp.client3.*
-import sttp.client3.playJson.*
-import units.client.JsonRpcClient
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.client.engine.model.Withdrawal.WithdrawalIndex
 import units.client.engine.model.{EcBlock, Withdrawal}
-import units.docker.{Networks, OpGethContainer, WavesNodeContainer}
+import units.docker.{Networks, WavesNodeContainer}
 import units.el.{DepositedTransaction, StandardBridge}
 import units.eth.{EmptyL2Block, EthAddress, EthereumConstants}
 import units.util.{BlockToPayloadMapper, HexBytesConverter}
 import units.{BlockHash, TestNetworkClient}
 
-import java.net.URI
-import java.time.Clock
 import scala.annotation.tailrec
-import scala.concurrent.duration.DurationInt
-import scala.util.Try
 
 class BlockValidationTestSuite0 extends BaseDockerTestSuite {
 
@@ -97,8 +90,6 @@ class BlockValidationTestSuite0 extends BaseDockerTestSuite {
     step(s"EL setupMiner leave")
     waves1.api.broadcastAndWait(ChainContract.leave(setupMiner))
 
-    // --------
-
     val ethBalanceBefore = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
 
     step(s"Wait actingMiner epoch")
@@ -149,6 +140,9 @@ class BlockValidationTestSuite0 extends BaseDockerTestSuite {
       amount = clAmount.longValue
     )
 
+    val txHash = HexBytesConverter.toHex(Keccak256.hash(HexBytesConverter.toBytes(depositedTransaction.toHex)))
+    log.debug(s"txHash: $txHash")
+
     val depositedTransactions: Seq[DepositedTransaction] = Vector(depositedTransaction)
 
     val simulatedBlock: JsObject = ec1.engineApi
@@ -193,10 +187,10 @@ class BlockValidationTestSuite0 extends BaseDockerTestSuite {
       simulatedBlock,
       Json.obj(
         "transactions" -> depositedTransactions.map(_.toHex),
-        "withdrawals"  -> Json.arr()
+        "withdrawals"  -> Json.toJson(withdrawals)
       )
     )
-    log.debug(s"Payload: $payload")
+
     val newNetworkBlock = NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
     TestNetworkClient.send("127.0.0.1", waves1.networkPort, chainContractAddress, newNetworkBlock)
 
@@ -208,22 +202,13 @@ class BlockValidationTestSuite0 extends BaseDockerTestSuite {
         .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
     }
 
-    val txHash = HexBytesConverter.toHex(Keccak256.hash(HexBytesConverter.toBytes(depositedTransaction.toHex)))
-    log.debug(s"txHash: $txHash")
-    val trace = eventually(timeout(60 seconds), interval(500 millis)) {
-      val res = traceTransaction(txHash).get
-      if ((res \ "error").toOption.isDefined) throw new RuntimeException(s"Error in debug_traceTransaction response: $res")
-      else res
-    }
-    log.debug(s"debug_traceTransaction($txHash): ${Json.prettyPrint(trace)}")
+    step("Assertion: Deposited transaction changes balances")
+    val ethBalanceAfter = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
+    ethBalanceBefore.longValue shouldBe ethBalanceAfter.longValue - elAmount.longValue
 
-    // step("Assertion: Deposited transaction changes balances")
-    // val ethBalanceAfter = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
-    // ethBalanceBefore.longValue shouldBe ethBalanceAfter.longValue - elAmount.longValue
-
-    // step("Assertion: EL height grows")
-    // val ecBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
-    // ecBlockAfter.height.longValue shouldBe (ecBlockBefore.height.longValue + 1)
+    step("Assertion: EL height grows")
+    val ecBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
+    ecBlockAfter.height.longValue shouldBe (ecBlockBefore.height.longValue + 1)
   }
 
   @tailrec
@@ -239,41 +224,6 @@ class BlockValidationTestSuite0 extends BaseDockerTestSuite {
             else getLastWithdrawalIndex(ecBlock.parentHash)
         }
     }
-
-  private def traceTransaction(txHash: String): Try[JsValue] = Try {
-    val engineUri = URI(ec1.engineApiConfig.apiUrl)
-    val rpcUri    = URI(s"${engineUri.getScheme}://${engineUri.getHost}:${ec1.rpcPort}")
-
-    val secret = ec1 match {
-      case op: OpGethContainer => op.jwtSecretKey
-      case _                   => throw new IllegalStateException("Unexpected EC container type for debug_traceTransaction call")
-    }
-
-    val jwtToken  = JwtJson.encode(JwtClaim().issuedNow(using Clock.systemUTC), secret, JwtAlgorithm.HS256)
-    val requestId = JsonRpcClient.newRequestId
-    val requestBody = Json.obj(
-      "jsonrpc" -> "2.0",
-      "method"  -> "debug_traceTransaction",
-      "params" -> Json.arr(
-        txHash,
-        Json.obj("tracer" -> "callTracer")
-      ),
-      "id" -> requestId
-    )
-
-    val response = basicRequest
-      .post(uri"${rpcUri.toString}")
-      .contentType("application/json")
-      .header("Authorization", s"Bearer $jwtToken")
-      .body(requestBody)
-      .response(asJson[JsValue])
-      .send(httpClientBackend)
-
-    response.body match {
-      case Right(value: JsValue) => value
-      case _                     => throw new RuntimeException(s"Unable to decode debug trace response: ${response.body}")
-    }
-  }
 
   override def beforeAll(): Unit = {
     super.beforeAll()
