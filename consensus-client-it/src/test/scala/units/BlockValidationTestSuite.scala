@@ -24,43 +24,69 @@ import units.{BlockHash, TestNetworkClient}
 import scala.annotation.tailrec
 import scala.concurrent.duration.DurationInt
 
-class BlockValidationTestSuite0 extends BaseDockerTestSuite {
-
-  private val setupMiner               = miner11Account // Leaves after setting up the contracts
-  private val actingMiner              = miner12Account
-  private val actingMinerRewardAddress = miner12RewardAddress
+trait BaseBlockValidationSuite extends BaseDockerTestSuite {
+  protected val setupMiner               = miner11Account // Leaves after setting up the contracts
+  protected val actingMiner              = miner12Account
+  protected val actingMinerRewardAddress = miner12RewardAddress
 
   // Note: additional miners are needed to avoid the actingMiner having majority of the stake
-  private val additionalMiner1              = miner21Account
-  private val additionalMiner1RewardAddress = miner21RewardAddress
-  private val additionalMiner2              = miner31Account
-  private val additionalMiner2RewardAddress = miner31RewardAddress
+  protected val additionalMiner1              = miner21Account
+  protected val additionalMiner1RewardAddress = miner21RewardAddress
+  protected val additionalMiner2              = miner31Account
+  protected val additionalMiner2RewardAddress = miner31RewardAddress
 
-  private val clSender    = clRichAccount1
-  private val elRecipient = elRichAddress1
+  protected val clSender    = clRichAccount1
+  protected val elRecipient = elRichAddress1
 
-  private val userAmount = 1
-  private val clAmount   = UnitsConvert.toUnitsInWaves(userAmount)
-  private val elAmount   = UnitsConvert.toWei(userAmount)
+  protected val userAmount = 1
+  protected val clAmount   = UnitsConvert.toUnitsInWaves(userAmount)
+  protected val elAmount   = UnitsConvert.toWei(userAmount)
 
-  private implicit val httpClientBackend: SttpBackend[Identity, Any] = new LoggingBackend(HttpClientSyncBackend())
-  override lazy val waves1: WavesNodeContainer = new WavesNodeContainer(
-    network = network,
-    number = 1,
-    ip = Networks.ipForNode(3),
-    baseSeed = "devnet-1",
-    chainContractAddress = chainContractAddress,
-    ecEngineApiUrl = ec1.engineApiDockerUrl,
-    genesisConfigPath = wavesGenesisConfigPath,
-    enableMining = true
-  )
+  @tailrec
+  protected final def getLastWithdrawalIndex(hash: BlockHash): JobResult[WithdrawalIndex] =
+    ec1.engineApi.getBlockByHash(hash) match {
+      case Left(e)     => Left(e)
+      case Right(None) => Left(ClientError(s"Can't find $hash block on EC during withdrawal search"))
+      case Right(Some(ecBlock)) =>
+        ecBlock.withdrawals.lastOption match {
+          case Some(lastWithdrawal) => Right(lastWithdrawal.index)
+          case None =>
+            if (ecBlock.height == 0) Right(-1L)
+            else getLastWithdrawalIndex(ecBlock.parentHash)
+        }
+    }
 
-  log.debug(s"setupMiner: ${setupMiner.toAddress}")
-  log.debug(s"actingMiner: ${actingMiner.toAddress}")
-  log.debug(s"additionalMiner1: ${additionalMiner1.toAddress}")
-  log.debug(s"additionalMiner2: ${additionalMiner2.toAddress}")
+  override def beforeAll(): Unit = {
+    super.beforeAll()
 
-  "Native token: Successful transfer" in {
+    log.debug(s"setupMiner: ${setupMiner.toAddress}")
+    log.debug(s"actingMiner: ${actingMiner.toAddress}")
+    log.debug(s"additionalMiner1: ${additionalMiner1.toAddress}")
+    log.debug(s"additionalMiner2: ${additionalMiner2.toAddress}")
+
+    deploySolidityContracts()
+
+    step("Enable token transfers")
+    val activationEpoch = waves1.api.height() + 1
+    waves1.api.broadcastAndWait(
+      ChainContract.enableTokenTransfersWithWaves(
+        StandardBridgeAddress,
+        WWavesAddress,
+        activationEpoch = activationEpoch
+      )
+    )
+
+    step("Set strict C2E transfers feature activation epoch")
+    waves1.api.broadcastAndWait(
+      TxHelpers.dataEntry(
+        chainContractAccount,
+        IntegerDataEntry("strictC2ETransfersActivationEpoch", activationEpoch)
+      )
+    )
+
+    step("Wait for features activation")
+    waves1.api.waitForHeight(activationEpoch)
+
     step(s"additionalMiner1 join")
     waves1.api.broadcastAndWait(
       ChainContract.join(
@@ -93,10 +119,31 @@ class BlockValidationTestSuite0 extends BaseDockerTestSuite {
       )
     )
 
-    val ethBalanceBefore = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
+    step("Prepare: issue tokens on chain contract and transfer to a user")
+    waves1.api.broadcastAndWait(
+      TxHelpers.reissue(
+        asset = chainContract.nativeTokenId,
+        sender = chainContractAccount,
+        amount = clAmount
+      )
+    )
+    waves1.api.broadcastAndWait(
+      TxHelpers.transfer(
+        from = chainContractAccount,
+        to = clSender.toAddress,
+        amount = clAmount,
+        asset = chainContract.nativeTokenId
+      )
+    )
 
     step(s"Wait actingMiner epoch")
     chainContract.waitForMinerEpoch(actingMiner)
+  }
+}
+
+class BlockValidationTestSuite0 extends BaseBlockValidationSuite {
+  "Native token: Successful transfer" in {
+    val ethBalanceBefore = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
 
     step("Getting last EL block before")
     val ecBlockBefore: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
@@ -212,62 +259,6 @@ class BlockValidationTestSuite0 extends BaseDockerTestSuite {
     ecBlockAfter.height.longValue shouldBe (ecBlockBefore.height.longValue + 1)
   }
 
-  @tailrec
-  private def getLastWithdrawalIndex(hash: BlockHash): JobResult[WithdrawalIndex] =
-    ec1.engineApi.getBlockByHash(hash) match {
-      case Left(e)     => Left(e)
-      case Right(None) => Left(ClientError(s"Can't find $hash block on EC during withdrawal search"))
-      case Right(Some(ecBlock)) =>
-        ecBlock.withdrawals.lastOption match {
-          case Some(lastWithdrawal) => Right(lastWithdrawal.index)
-          case None =>
-            if (ecBlock.height == 0) Right(-1L)
-            else getLastWithdrawalIndex(ecBlock.parentHash)
-        }
-    }
-
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    deploySolidityContracts()
-
-    step("Enable token transfers")
-    val activationEpoch = waves1.api.height() + 1
-    waves1.api.broadcastAndWait(
-      ChainContract.enableTokenTransfersWithWaves(
-        StandardBridgeAddress,
-        WWavesAddress,
-        activationEpoch = activationEpoch
-      )
-    )
-
-    step("Set strict C2E transfers feature activation epoch")
-    waves1.api.broadcastAndWait(
-      TxHelpers.dataEntry(
-        chainContractAccount,
-        IntegerDataEntry("strictC2ETransfersActivationEpoch", activationEpoch)
-      )
-    )
-
-    step("Wait for features activation")
-    waves1.api.waitForHeight(activationEpoch)
-
-    step("Prepare: issue tokens on chain contract and transfer to a user")
-    waves1.api.broadcastAndWait(
-      TxHelpers.reissue(
-        asset = chainContract.nativeTokenId,
-        sender = chainContractAccount,
-        amount = clAmount
-      )
-    )
-    waves1.api.broadcastAndWait(
-      TxHelpers.transfer(
-        from = chainContractAccount,
-        to = clSender.toAddress,
-        amount = clAmount,
-        asset = chainContract.nativeTokenId
-      )
-    )
-  }
 }
 
 class BlockValidationTestSuite1 extends BaseDockerTestSuite {
