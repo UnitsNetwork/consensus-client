@@ -22,6 +22,7 @@ import units.util.{BlockToPayloadMapper, HexBytesConverter}
 import units.{BlockHash, TestNetworkClient}
 
 import scala.annotation.tailrec
+import scala.concurrent.duration.DurationInt
 
 class BlockValidationTestSuite0 extends BaseDockerTestSuite {
 
@@ -68,6 +69,14 @@ class BlockValidationTestSuite0 extends BaseDockerTestSuite {
       )
     )
 
+    step(s"Wait additionalMiner1 epoch")
+    chainContract.waitForMinerEpoch(additionalMiner1)
+
+    step(s"setupMiner leave")
+    eventually(interval(500 millis)) {
+      waves1.api.broadcastAndWait(ChainContract.leave(setupMiner))
+    }
+
     step(s"additionalMiner2 join")
     waves1.api.broadcastAndWait(
       ChainContract.join(
@@ -83,12 +92,6 @@ class BlockValidationTestSuite0 extends BaseDockerTestSuite {
         elRewardAddress = actingMinerRewardAddress
       )
     )
-
-    step(s"Wait additionalMiner1 epoch")
-    chainContract.waitForMinerEpoch(additionalMiner2)
-
-    step(s"EL setupMiner leave")
-    waves1.api.broadcastAndWait(ChainContract.leave(setupMiner))
 
     val ethBalanceBefore = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
 
