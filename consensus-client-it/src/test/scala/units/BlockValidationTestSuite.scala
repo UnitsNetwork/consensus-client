@@ -284,6 +284,20 @@ trait BaseBlockValidationSuite extends BaseDockerTestSuite {
     step(s"Wait actingMiner epoch")
     chainContract.waitForMinerEpoch(actingMiner)
   }
+
+  protected def setupForNativeTokenTransfer(): Unit = {
+    super.beforeAll()
+    deployContractsAndActivateTransferFeatures()
+    transferNativeTokenToClSender()
+    leaveSetupMinerAndJoinOthers()
+  }
+
+  protected def setupForAssetTokenTransfer(): Unit = {
+    super.beforeAll()
+    deployContractsAndActivateTransferFeatures()
+    transferAssetTokenToClSender()
+    leaveSetupMinerAndJoinOthers()
+  }
 }
 
 class BlockValidationTestSuite1 extends BaseBlockValidationSuite {
@@ -357,12 +371,7 @@ class BlockValidationTestSuite1 extends BaseBlockValidationSuite {
     elBlockAfter.height.longValue shouldBe (elParentBlock.height.longValue + 1)
   }
 
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    deployContractsAndActivateTransferFeatures()
-    transferNativeTokenToClSender()
-    leaveSetupMinerAndJoinOthers()
-  }
+  override def beforeAll(): Unit = setupForNativeTokenTransfer()
 }
 
 class BlockValidationTestSuite2 extends BaseBlockValidationSuite {
@@ -415,12 +424,7 @@ class BlockValidationTestSuite2 extends BaseBlockValidationSuite {
     elBlockAfter.height.longValue shouldBe (elParentBlock.height.longValue + 1)
   }
 
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    deployContractsAndActivateTransferFeatures()
-    transferNativeTokenToClSender()
-    leaveSetupMinerAndJoinOthers()
-  }
+  override def beforeAll(): Unit = setupForNativeTokenTransfer()
 }
 
 class BlockValidationTestSuite3 extends BaseBlockValidationSuite {
@@ -486,12 +490,7 @@ class BlockValidationTestSuite3 extends BaseBlockValidationSuite {
     elBlockAfter.height.longValue shouldBe elParentBlock.height.longValue
   }
 
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    deployContractsAndActivateTransferFeatures()
-    transferNativeTokenToClSender()
-    leaveSetupMinerAndJoinOthers()
-  }
+  override def beforeAll(): Unit = setupForNativeTokenTransfer()
 }
 
 class BlockValidationTestSuite4 extends BaseBlockValidationSuite {
@@ -565,12 +564,7 @@ class BlockValidationTestSuite4 extends BaseBlockValidationSuite {
     elBlockAfter.height.longValue shouldBe elParentBlock.height.longValue
   }
 
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    deployContractsAndActivateTransferFeatures()
-    transferNativeTokenToClSender()
-    leaveSetupMinerAndJoinOthers()
-  }
+  override def beforeAll(): Unit = setupForNativeTokenTransfer()
 }
 
 class BlockValidationTestSuite5 extends BaseBlockValidationSuite {
@@ -654,12 +648,7 @@ class BlockValidationTestSuite5 extends BaseBlockValidationSuite {
     elBlockAfter.height.longValue shouldBe elParentBlock.height.longValue
   }
 
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    deployContractsAndActivateTransferFeatures()
-    transferNativeTokenToClSender()
-    leaveSetupMinerAndJoinOthers()
-  }
+  override def beforeAll(): Unit = setupForNativeTokenTransfer()
 }
 
 class BlockValidationTestSuite6 extends BaseBlockValidationSuite {
@@ -743,12 +732,7 @@ class BlockValidationTestSuite6 extends BaseBlockValidationSuite {
     elBlockAfter.height.longValue shouldBe elParentBlock.height.longValue
   }
 
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    deployContractsAndActivateTransferFeatures()
-    transferNativeTokenToClSender()
-    leaveSetupMinerAndJoinOthers()
-  }
+  override def beforeAll(): Unit = setupForNativeTokenTransfer()
 }
 
 class BlockValidationTestSuite7 extends BaseBlockValidationSuite {
@@ -832,12 +816,7 @@ class BlockValidationTestSuite7 extends BaseBlockValidationSuite {
     elBlockAfter.height.longValue shouldBe elParentBlock.height.longValue
   }
 
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    deployContractsAndActivateTransferFeatures()
-    transferNativeTokenToClSender()
-    leaveSetupMinerAndJoinOthers()
-  }
+  override def beforeAll(): Unit = setupForNativeTokenTransfer()
 }
 
 class BlockValidationTestSuite8 extends BaseBlockValidationSuite {
@@ -921,12 +900,7 @@ class BlockValidationTestSuite8 extends BaseBlockValidationSuite {
     elBlockAfter.height.longValue shouldBe elParentBlock.height.longValue
   }
 
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    deployContractsAndActivateTransferFeatures()
-    transferNativeTokenToClSender()
-    leaveSetupMinerAndJoinOthers()
-  }
+  override def beforeAll(): Unit = setupForNativeTokenTransfer()
 }
 
 class BlockValidationTestSuite9 extends BaseBlockValidationSuite {
@@ -1010,12 +984,7 @@ class BlockValidationTestSuite9 extends BaseBlockValidationSuite {
     elBlockAfter.height.longValue shouldBe elParentBlock.height.longValue
   }
 
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    deployContractsAndActivateTransferFeatures()
-    transferNativeTokenToClSender()
-    leaveSetupMinerAndJoinOthers()
-  }
+  override def beforeAll(): Unit = setupForNativeTokenTransfer()
 }
 
 class BlockValidationTestSuite10 extends BaseBlockValidationSuite {
@@ -1090,10 +1059,390 @@ class BlockValidationTestSuite10 extends BaseBlockValidationSuite {
     elBlockAfter.height.longValue shouldBe (elParentBlock.height.longValue + 1)
   }
 
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    deployContractsAndActivateTransferFeatures()
-    transferAssetTokenToClSender()
-    leaveSetupMinerAndJoinOthers()
+  override def beforeAll(): Unit = setupForAssetTokenTransfer()
+}
+
+class BlockValidationTestSuite11 extends BaseBlockValidationSuite {
+  "Invalid block: asset token, invalid standardBridgeAddress" in {
+    val balanceBefore          = terc20.getBalance(elRecipient)
+    val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
+
+    val withdrawals = Vector(mkRewardWithdrawal(elParentBlock))
+
+    val invalidStandardBridgeAddress = additionalMiner1RewardAddress
+
+    val depositedTransactions = Vector(
+      StandardBridge.mkFinalizeBridgeErc20Transaction(
+        transferIndex = 0L,
+        standardBridgeAddress = invalidStandardBridgeAddress,
+        token = TErc20Address,
+        from = EthAddress.unsafeFrom(clSender.toAddress.bytes.drop(2).take(20)),
+        to = elRecipient,
+        amount = EAmount(elAssetTokenAmount.bigInteger)
+      )
+    )
+
+    val (payload, simulatedBlockHash, hitSource) = mkSimulatedBlock(elParentBlock, withdrawals, depositedTransactions)
+
+    step("Transfer on the chain contract")
+    waves1.api.broadcastAndWait(
+      ChainContract.transfer(
+        clSender,
+        elRecipient,
+        issueAsset,
+        clAssetTokenAmount
+      )
+    )
+
+    step("Register the simulated block on the chain contract")
+    waves1.api.broadcastAndWait(
+      TxHelpers.invoke(
+        invoker = actingMiner,
+        dApp = chainContractAddress,
+        func = Some("extendMainChain_v2"),
+        args = List(
+          Terms.CONST_STRING(simulatedBlockHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(elParentBlock.hash.drop(2)).explicitGet(),
+          Terms.CONST_BYTESTR(hitSource).explicitGet(),
+          Terms.CONST_STRING(EmptyE2CTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(0),
+          Terms.CONST_LONG(-1)
+        )
+      )
+    )
+
+    step("Send the simulated block to waves1")
+    TestNetworkClient.send(
+      "127.0.0.1",
+      waves1.networkPort,
+      chainContractAddress,
+      NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
+    )
+
+    step("Assertion: Block exists on EC1")
+    eventually {
+      ec1.engineApi
+        .getBlockByHash(BlockHash(simulatedBlockHash))
+        .explicitGet()
+        .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
+    }
+
+    step("Assertion: Deposited transaction doesn't change balance")
+    val balanceAfter = terc20.getBalance(elRecipient)
+    balanceAfter.longValue shouldBe balanceBefore.longValue
+
+    step("Assertion: EL height doesn't grow")
+    val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
+    elBlockAfter.height.longValue shouldBe elParentBlock.height.longValue
   }
+
+  override def beforeAll(): Unit = setupForAssetTokenTransfer()
+}
+
+class BlockValidationTestSuite12 extends BaseBlockValidationSuite {
+  "Invalid block: asset token, invalid token address" in {
+    val balanceBefore          = terc20.getBalance(elRecipient)
+    val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
+
+    val withdrawals = Vector(mkRewardWithdrawal(elParentBlock))
+
+    val invalidTokenAddress = WWavesAddress
+
+    val depositedTransactions = Vector(
+      StandardBridge.mkFinalizeBridgeErc20Transaction(
+        transferIndex = 0L,
+        standardBridgeAddress = StandardBridgeAddress,
+        token = invalidTokenAddress,
+        from = EthAddress.unsafeFrom(clSender.toAddress.bytes.drop(2).take(20)),
+        to = elRecipient,
+        amount = EAmount(elAssetTokenAmount.bigInteger)
+      )
+    )
+
+    val (payload, simulatedBlockHash, hitSource) = mkSimulatedBlock(elParentBlock, withdrawals, depositedTransactions)
+
+    step("Transfer on the chain contract")
+    waves1.api.broadcastAndWait(
+      ChainContract.transfer(
+        clSender,
+        elRecipient,
+        issueAsset,
+        clAssetTokenAmount
+      )
+    )
+
+    step("Register the simulated block on the chain contract")
+    waves1.api.broadcastAndWait(
+      TxHelpers.invoke(
+        invoker = actingMiner,
+        dApp = chainContractAddress,
+        func = Some("extendMainChain_v2"),
+        args = List(
+          Terms.CONST_STRING(simulatedBlockHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(elParentBlock.hash.drop(2)).explicitGet(),
+          Terms.CONST_BYTESTR(hitSource).explicitGet(),
+          Terms.CONST_STRING(EmptyE2CTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(0),
+          Terms.CONST_LONG(-1)
+        )
+      )
+    )
+
+    step("Send the simulated block to waves1")
+    TestNetworkClient.send(
+      "127.0.0.1",
+      waves1.networkPort,
+      chainContractAddress,
+      NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
+    )
+
+    step("Assertion: Block exists on EC1")
+    eventually {
+      ec1.engineApi
+        .getBlockByHash(BlockHash(simulatedBlockHash))
+        .explicitGet()
+        .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
+    }
+
+    step("Assertion: Deposited transaction doesn't change balance")
+    val balanceAfter = terc20.getBalance(elRecipient)
+    balanceAfter.longValue shouldBe balanceBefore.longValue
+
+    step("Assertion: EL height doesn't grow")
+    val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
+    elBlockAfter.height.longValue shouldBe elParentBlock.height.longValue
+  }
+
+  override def beforeAll(): Unit = setupForAssetTokenTransfer()
+}
+
+class BlockValidationTestSuite13 extends BaseBlockValidationSuite {
+  "Invalid block: asset token, invalid sender address" in {
+    val balanceBefore          = terc20.getBalance(elRecipient)
+    val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
+
+    val withdrawals = Vector(mkRewardWithdrawal(elParentBlock))
+
+    val invalidSenderAddress = additionalMiner1RewardAddress
+
+    val depositedTransactions = Vector(
+      StandardBridge.mkFinalizeBridgeErc20Transaction(
+        transferIndex = 0L,
+        standardBridgeAddress = StandardBridgeAddress,
+        token = TErc20Address,
+        from = invalidSenderAddress,
+        to = elRecipient,
+        amount = EAmount(elAssetTokenAmount.bigInteger)
+      )
+    )
+
+    val (payload, simulatedBlockHash, hitSource) = mkSimulatedBlock(elParentBlock, withdrawals, depositedTransactions)
+
+    step("Transfer on the chain contract")
+    waves1.api.broadcastAndWait(
+      ChainContract.transfer(
+        clSender,
+        elRecipient,
+        issueAsset,
+        clAssetTokenAmount
+      )
+    )
+
+    step("Register the simulated block on the chain contract")
+    waves1.api.broadcastAndWait(
+      TxHelpers.invoke(
+        invoker = actingMiner,
+        dApp = chainContractAddress,
+        func = Some("extendMainChain_v2"),
+        args = List(
+          Terms.CONST_STRING(simulatedBlockHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(elParentBlock.hash.drop(2)).explicitGet(),
+          Terms.CONST_BYTESTR(hitSource).explicitGet(),
+          Terms.CONST_STRING(EmptyE2CTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(0),
+          Terms.CONST_LONG(-1)
+        )
+      )
+    )
+
+    step("Send the simulated block to waves1")
+    TestNetworkClient.send(
+      "127.0.0.1",
+      waves1.networkPort,
+      chainContractAddress,
+      NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
+    )
+
+    step("Assertion: Block exists on EC1")
+    eventually {
+      ec1.engineApi
+        .getBlockByHash(BlockHash(simulatedBlockHash))
+        .explicitGet()
+        .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
+    }
+
+    step("Assertion: Deposited transaction doesn't change balance")
+    val balanceAfter = terc20.getBalance(elRecipient)
+    balanceAfter.longValue shouldBe balanceBefore.longValue
+
+    step("Assertion: EL height doesn't grow")
+    val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
+    elBlockAfter.height.longValue shouldBe elParentBlock.height.longValue
+  }
+
+  override def beforeAll(): Unit = setupForAssetTokenTransfer()
+}
+
+class BlockValidationTestSuite14 extends BaseBlockValidationSuite {
+  "Invalid block: asset token, invalid recipient address" in {
+    val balanceBefore          = terc20.getBalance(elRecipient)
+    val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
+
+    val withdrawals = Vector(mkRewardWithdrawal(elParentBlock))
+
+    val invalidRecipientAddress = additionalMiner1RewardAddress
+
+    val depositedTransactions = Vector(
+      StandardBridge.mkFinalizeBridgeErc20Transaction(
+        transferIndex = 0L,
+        standardBridgeAddress = StandardBridgeAddress,
+        token = TErc20Address,
+        from = EthAddress.unsafeFrom(clSender.toAddress.bytes.drop(2).take(20)),
+        to = invalidRecipientAddress,
+        amount = EAmount(elAssetTokenAmount.bigInteger)
+      )
+    )
+
+    val (payload, simulatedBlockHash, hitSource) = mkSimulatedBlock(elParentBlock, withdrawals, depositedTransactions)
+
+    step("Transfer on the chain contract")
+    waves1.api.broadcastAndWait(
+      ChainContract.transfer(
+        clSender,
+        elRecipient,
+        issueAsset,
+        clAssetTokenAmount
+      )
+    )
+
+    step("Register the simulated block on the chain contract")
+    waves1.api.broadcastAndWait(
+      TxHelpers.invoke(
+        invoker = actingMiner,
+        dApp = chainContractAddress,
+        func = Some("extendMainChain_v2"),
+        args = List(
+          Terms.CONST_STRING(simulatedBlockHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(elParentBlock.hash.drop(2)).explicitGet(),
+          Terms.CONST_BYTESTR(hitSource).explicitGet(),
+          Terms.CONST_STRING(EmptyE2CTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(0),
+          Terms.CONST_LONG(-1)
+        )
+      )
+    )
+
+    step("Send the simulated block to waves1")
+    TestNetworkClient.send(
+      "127.0.0.1",
+      waves1.networkPort,
+      chainContractAddress,
+      NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
+    )
+
+    step("Assertion: Block exists on EC1")
+    eventually {
+      ec1.engineApi
+        .getBlockByHash(BlockHash(simulatedBlockHash))
+        .explicitGet()
+        .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
+    }
+
+    step("Assertion: Deposited transaction doesn't change balance")
+    val balanceAfter = terc20.getBalance(elRecipient)
+    balanceAfter.longValue shouldBe balanceBefore.longValue
+
+    step("Assertion: EL height doesn't grow")
+    val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
+    elBlockAfter.height.longValue shouldBe elParentBlock.height.longValue
+  }
+
+  override def beforeAll(): Unit = setupForAssetTokenTransfer()
+}
+
+class BlockValidationTestSuite15 extends BaseBlockValidationSuite {
+  "Invalid block: asset token, invalid amount" in {
+    val balanceBefore          = terc20.getBalance(elRecipient)
+    val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
+
+    val withdrawals = Vector(mkRewardWithdrawal(elParentBlock))
+
+    val invalidAmount = EAmount((elAssetTokenAmount - 1).bigInteger)
+
+    val depositedTransactions = Vector(
+      StandardBridge.mkFinalizeBridgeErc20Transaction(
+        transferIndex = 0L,
+        standardBridgeAddress = StandardBridgeAddress,
+        token = TErc20Address,
+        from = EthAddress.unsafeFrom(clSender.toAddress.bytes.drop(2).take(20)),
+        to = elRecipient,
+        amount = invalidAmount
+      )
+    )
+
+    val (payload, simulatedBlockHash, hitSource) = mkSimulatedBlock(elParentBlock, withdrawals, depositedTransactions)
+
+    step("Transfer on the chain contract")
+    waves1.api.broadcastAndWait(
+      ChainContract.transfer(
+        clSender,
+        elRecipient,
+        issueAsset,
+        clAssetTokenAmount
+      )
+    )
+
+    step("Register the simulated block on the chain contract")
+    waves1.api.broadcastAndWait(
+      TxHelpers.invoke(
+        invoker = actingMiner,
+        dApp = chainContractAddress,
+        func = Some("extendMainChain_v2"),
+        args = List(
+          Terms.CONST_STRING(simulatedBlockHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(elParentBlock.hash.drop(2)).explicitGet(),
+          Terms.CONST_BYTESTR(hitSource).explicitGet(),
+          Terms.CONST_STRING(EmptyE2CTransfersRootHashHex.drop(2)).explicitGet(),
+          Terms.CONST_LONG(0),
+          Terms.CONST_LONG(-1)
+        )
+      )
+    )
+
+    step("Send the simulated block to waves1")
+    TestNetworkClient.send(
+      "127.0.0.1",
+      waves1.networkPort,
+      chainContractAddress,
+      NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
+    )
+
+    step("Assertion: Block exists on EC1")
+    eventually {
+      ec1.engineApi
+        .getBlockByHash(BlockHash(simulatedBlockHash))
+        .explicitGet()
+        .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
+    }
+
+    step("Assertion: Deposited transaction doesn't change balance")
+    val balanceAfter = terc20.getBalance(elRecipient)
+    balanceAfter.longValue shouldBe balanceBefore.longValue
+
+    step("Assertion: EL height doesn't grow")
+    val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
+    elBlockAfter.height.longValue shouldBe elParentBlock.height.longValue
+  }
+
+  override def beforeAll(): Unit = setupForAssetTokenTransfer()
 }
