@@ -1379,9 +1379,6 @@ class ELUpdater(
           contractBlock.lastAssetRegistryIndex + 1,
           expectedTransfers
         )
-        logger.debug(s"------------=========-----------")
-        logger.debug(s"$expectedDepositedTransactions")
-        logger.debug(s"$actualDepositedTransactions")
         Either.raiseUnless(expectedDepositedTransactions == actualDepositedTransactions)(
           ClientError(s"Block is not valid, expected and actual deposited transactions don't match.")
         )
