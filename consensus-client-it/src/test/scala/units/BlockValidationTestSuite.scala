@@ -749,16 +749,16 @@ trait BaseBlockValidationSuite2 extends BaseDockerTestSuite {
   protected lazy val txnManager = new RawTransactionManager(ec1.web3j, elRichAccount1, EcContainer.ChainId, 20, 2000)
   protected lazy val terc20     = new Erc20Client(ec1.web3j, TErc20Address, txnManager, gasProvider)
 
-  protected val issueAssetDecimals = 8.toByte
+  protected val issueAssetDecimals: Byte = 8.toByte
 
-  protected lazy val issueAsset = chainContract.getRegisteredAsset(1) match {
+  protected lazy val issueAsset: IssuedAsset = chainContract.getRegisteredAsset(1) match {
     case ia: IssuedAsset => ia
     case _               => fail("Expected issued asset")
   }
 
-  protected val userAssetTokenAmount = 1
-  protected val clAssetTokenAmount   = UnitsConvert.toWavesAtomic(userAssetTokenAmount, issueAssetDecimals)
-  protected val elAssetTokenAmount   = UnitsConvert.toAtomic(userAssetTokenAmount, TErc20Decimals)
+  protected val userAssetTokenAmount       = 1
+  protected val clAssetTokenAmount: Long   = UnitsConvert.toWavesAtomic(userAssetTokenAmount, issueAssetDecimals)
+  protected val elAssetTokenAmount: BigInt = UnitsConvert.toAtomic(userAssetTokenAmount, TErc20Decimals)
 
   private def correctedTime(): Long = {
     val ntpTimestamp = System.currentTimeMillis()
@@ -962,7 +962,7 @@ class BlockValidationTestSuite8 extends BaseBlockValidationSuite2 {
         token = TErc20Address,
         from = EthAddress.unsafeFrom(clSender.toAddress.bytes.drop(2).take(20)),
         to = elRecipient,
-        amount = EAmount(BigInteger.valueOf(clAssetTokenAmount))
+        amount = EAmount(elAssetTokenAmount.bigInteger)
       )
     )
 
