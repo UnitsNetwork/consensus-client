@@ -7,7 +7,10 @@ import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.crypto.Keccak256
 import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.state.{Height, IntegerDataEntry}
-import com.wavesplatform.transaction.TxHelpers
+import com.wavesplatform.transaction.Asset.IssuedAsset
+import com.wavesplatform.transaction.{Asset, TxHelpers}
+import com.wavesplatform.transaction.smart.InvokeScriptTransaction
+import monix.execution.atomic.AtomicInt
 import org.web3j.protocol.core.DefaultBlockParameterName
 import org.web3j.tx.RawTransactionManager
 import org.web3j.tx.gas.DefaultGasProvider
@@ -15,16 +18,15 @@ import play.api.libs.json.*
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.client.engine.model.Withdrawal.WithdrawalIndex
 import units.client.engine.model.{EcBlock, Withdrawal}
-import com.wavesplatform.transaction.Asset.IssuedAsset
 import units.docker.EcContainer
-import units.el.{DepositedTransaction, Erc20Client, StandardBridge}
+import units.el.*
 import units.eth.{EmptyL2Block, EthAddress, EthereumConstants}
 import units.util.{BlockToPayloadMapper, HexBytesConverter}
 import units.{BlockHash, TestNetworkClient}
-import java.math.BigInteger
 
 import scala.annotation.tailrec
 import scala.concurrent.duration.DurationInt
+import scala.jdk.OptionConverters.RichOptional
 
 trait BaseBlockValidationSuite extends BaseDockerTestSuite {
   protected val setupMiner: SeedKeyPair              = miner11Account // Leaves after setting up the contracts
@@ -874,25 +876,58 @@ trait BaseBlockValidationSuite2 extends BaseDockerTestSuite {
     step("Register asset")
     waves1.api.broadcastAndWait(ChainContract.issueAndRegister(TErc20Address, TErc20Decimals, "TERC20", "Test ERC20 token", issueAssetDecimals))
 
-    waves1.api.broadcastAndWait(
-      TxHelpers.reissue(
-        asset = issueAsset,
-        sender = chainContractAccount,
-        amount = clAssetTokenAmount
-      )
-    )
-
-    waves1.api.broadcastAndWait(
-      TxHelpers.transfer(
-        from = chainContractAccount,
-        to = clSender.toAddress,
-        amount = clAssetTokenAmount,
-        asset = issueAsset
-      )
-    )
     eventually {
       standardBridge.isRegistered(TErc20Address, ignoreExceptions = true) shouldBe true
     }
+
+    step("Transfer asset from EL to CL")
+
+    val currNonce =
+      AtomicInt(ec1.web3j.ethGetTransactionCount(elRichAddress1.hex, DefaultBlockParameterName.PENDING).send().getTransactionCount.intValueExact())
+    def nextNonce: Int = currNonce.getAndIncrement()
+
+    waitFor(terc20.sendApprove(StandardBridgeAddress, elAssetTokenAmount, nextNonce))
+
+    val e2cIssuedTxn = standardBridge.sendBridgeErc20(elRichAccount1, TErc20Address, clSender.toAddress, elAssetTokenAmount, nextNonce)
+
+    chainContract.waitForEpoch(waves1.api.height() + 1)
+    val e2cReceipt =
+      eventually {
+        val hash = e2cIssuedTxn.getTransactionHash
+        withClue(s"$hash: ") {
+          ec1.web3j.ethGetTransactionReceipt(hash).send().getTransactionReceipt.toScala.value
+        }
+      }
+
+    val e2cBlockHash = BlockHash(e2cReceipt.getBlockHash)
+
+    val e2cLogsInBlock = ec1.engineApi
+      .getLogs(e2cBlockHash, List(NativeBridgeAddress, StandardBridgeAddress), Nil)
+      .explicitGet()
+      .filter(_.topics.intersect(E2CTopics).nonEmpty)
+
+    val e2cBlockConfirmationHeight = eventually {
+      chainContract.getBlock(e2cBlockHash).value.height
+    }
+
+    step(s"Wait for block $e2cBlockHash ($e2cBlockConfirmationHeight) finalization")
+    eventually {
+      val currFinalizedHeight = chainContract.getFinalizedBlock.height
+      step(s"Current finalized height: $currFinalizedHeight")
+      currFinalizedHeight should be >= e2cBlockConfirmationHeight
+    }
+
+    step("Broadcast withdrawAsset transactions")
+    waves1.api.broadcastAndWait(
+      ChainContract.withdrawAsset(
+        sender = clSender,
+        blockHash = e2cBlockHash,
+        merkleProof = BridgeMerkleTree.mkTransferProofs(e2cLogsInBlock, 0).explicitGet().reverse,
+        transferIndexInBlock = 0,
+        amount = UnitsConvert.toWavesAtomic(userAssetTokenAmount, issueAssetDecimals),
+        asset = issueAsset
+      )
+    )
 
     step(s"additionalMiner1 join")
     waves1.api.broadcastAndWait(
@@ -950,7 +985,7 @@ trait BaseBlockValidationSuite2 extends BaseDockerTestSuite {
 
 class BlockValidationTestSuite8 extends BaseBlockValidationSuite2 {
   "Valid block: asset token, correct transfer" in {
-    // val balanceBefore          = terc20.getBalance(elRecipient)
+    val balanceBefore          = terc20.getBalance(elRecipient)
     val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
 
     val withdrawals = Vector(mkRewardWithdrawal(elParentBlock))
@@ -1011,13 +1046,12 @@ class BlockValidationTestSuite8 extends BaseBlockValidationSuite2 {
         .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
     }
 
-    // step("Assertion: Deposited transaction changes balances")
-    // val balanceAfter = terc20.getBalance(elRecipient)
-    // balanceAfter.longValue shouldBe balanceBefore.longValue + elAssetTokenAmount.longValue
+    step("Assertion: Deposited transaction changes balances")
+    val balanceAfter = terc20.getBalance(elRecipient)
+    balanceAfter.longValue shouldBe (balanceBefore.longValue + elAssetTokenAmount.longValue)
 
     step("Assertion: EL height grows")
     val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
     elBlockAfter.height.longValue shouldBe (elParentBlock.height.longValue + 1)
   }
-
 }
