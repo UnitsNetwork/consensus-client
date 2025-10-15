@@ -9,35 +9,41 @@ import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.state.{Height, IntegerDataEntry}
 import com.wavesplatform.transaction.TxHelpers
 import org.web3j.protocol.core.DefaultBlockParameterName
+import org.web3j.tx.RawTransactionManager
+import org.web3j.tx.gas.DefaultGasProvider
 import play.api.libs.json.*
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.client.engine.model.Withdrawal.WithdrawalIndex
 import units.client.engine.model.{EcBlock, Withdrawal}
-import units.el.{DepositedTransaction, StandardBridge}
+import com.wavesplatform.transaction.Asset.IssuedAsset
+import units.docker.EcContainer
+import units.el.{DepositedTransaction, Erc20Client, StandardBridge}
 import units.eth.{EmptyL2Block, EthAddress, EthereumConstants}
 import units.util.{BlockToPayloadMapper, HexBytesConverter}
 import units.{BlockHash, TestNetworkClient}
+import java.math.BigInteger
 
 import scala.annotation.tailrec
 import scala.concurrent.duration.DurationInt
 
 trait BaseBlockValidationSuite extends BaseDockerTestSuite {
-  protected val setupMiner               = miner11Account // Leaves after setting up the contracts
-  protected val actingMiner              = miner12Account
-  protected val actingMinerRewardAddress = miner12RewardAddress
+  protected val setupMiner: SeedKeyPair              = miner11Account // Leaves after setting up the contracts
+  protected val actingMiner: SeedKeyPair             = miner12Account
+  protected val actingMinerRewardAddress: EthAddress = miner12RewardAddress
 
   // Note: additional miners are needed to avoid the actingMiner having majority of the stake
-  protected val additionalMiner1              = miner21Account
-  protected val additionalMiner1RewardAddress = miner21RewardAddress
-  protected val additionalMiner2              = miner31Account
-  protected val additionalMiner2RewardAddress = miner31RewardAddress
+  protected val additionalMiner1: SeedKeyPair             = miner21Account
+  protected val additionalMiner1RewardAddress: EthAddress = miner21RewardAddress
+  protected val additionalMiner2: SeedKeyPair             = miner31Account
+  protected val additionalMiner2RewardAddress: EthAddress = miner31RewardAddress
 
-  protected val clSender    = clRichAccount1
-  protected val elRecipient = elRichAddress1
+  protected val clSender: SeedKeyPair = clRichAccount1
 
-  protected val userNativeTokenAmount = 1
-  protected val clNativeTokenAmount   = UnitsConvert.toUnitsInWaves(userNativeTokenAmount)
-  protected val elNativeTokenAmount   = UnitsConvert.toWei(userNativeTokenAmount)
+  protected val elRecipient: EthAddress = elRichAddress1
+
+  protected val userNativeTokenAmount       = 1
+  protected val clNativeTokenAmount: Long   = UnitsConvert.toUnitsInWaves(userNativeTokenAmount)
+  protected val elNativeTokenAmount: BigInt = UnitsConvert.toWei(userNativeTokenAmount)
 
   private def correctedTime(): Long = {
     val ntpTimestamp = System.currentTimeMillis()
