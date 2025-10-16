@@ -18,7 +18,7 @@ object TestNetworkClient {
     val blockMessage            = RawBytes(BlockSpec.messageCode, BlockSpec.serializeData(block))
 
     val f = client
-      .connect(new InetSocketAddress(node.hostName, node.unitsNetworkPort))
+      .connect(new InetSocketAddress("localhost", node.unitsNetworkPort))
       .map { _.writeAndFlush(blockMessage) }
       .andThen { case _ =>
         client.shutdown()
