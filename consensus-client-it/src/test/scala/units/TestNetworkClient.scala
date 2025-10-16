@@ -11,7 +11,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.*
 
 object TestNetworkClient {
-  def send(address: String, port: Int, chainContractAddress: Address, block: NetworkL2Block): Unit = {
+  def send(node: WavesNodeContainer, chainContractAddress: Address, block: NetworkL2Block): Unit = {
     val applicationName: String = "wavesl2-" + chainContractAddress.toString.substring(0, 8)
     val client                  = NetworkClient(applicationName, frameCodec = new LegacyFrameCodec(PeerDatabase.NoOp))
     val blockMessage            = RawBytes(BlockSpec.messageCode, BlockSpec.serializeData(block))
