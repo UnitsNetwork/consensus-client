@@ -71,7 +71,7 @@ class WavesNodeContainer(
 
   lazy val api = new NodeHttpApi(uri"http://${container.getHost}:$apiPort", httpClientBackend)
 
-  override def logPorts(): Unit = log.debug(s"External host: ${container.getHost}, api: $apiPort, network: $networkPort")
+  override def logPorts(): Unit = log.debug(s"External host: ${container.getHost}, api: $apiPort, units network: $unitsNetworkPort")
 }
 
 object WavesNodeContainer {
