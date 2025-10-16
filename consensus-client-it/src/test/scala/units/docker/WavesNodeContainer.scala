@@ -76,7 +76,7 @@ class WavesNodeContainer(
 
 object WavesNodeContainer {
   val ApiPort = 6869
-  val NetworkPort = 6865
+  val UnitsNetworkPort = 6865
 
   val GenesisTemplateFile = new File(s"$ConfigsDir/wavesnode/genesis-template.conf")
   val GenesisTemplate     = ConfigFactory.parseFile(GenesisTemplateFile)
