@@ -35,7 +35,7 @@ class WavesNodeContainer(
 
   protected override val container = new GenericContainer(DockerImages.WavesNode)
     .withNetwork(network)
-    .withExposedPorts(ApiPort, NetworkPort)
+    .withExposedPorts(ApiPort, UnitsNetworkPort)
     .withEnv(
       Map(
         "NODE_NUMBER"       -> s"$number",
