@@ -67,7 +67,7 @@ class WavesNodeContainer(
     }
 
   lazy val apiPort = container.getMappedPort(ApiPort)
-  lazy val unitsNetworkPort = container.getMappedPort(NetworkPort)
+  lazy val unitsNetworkPort = container.getMappedPort(UnitsNetworkPort)
 
   lazy val api = new NodeHttpApi(uri"http://${container.getHost}:$apiPort", httpClientBackend)
 
