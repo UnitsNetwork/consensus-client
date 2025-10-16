@@ -3,6 +3,8 @@ import sbt.Def
 import sbt.internal.RelayAppender
 import sbt.util.Level
 
+import scala.collection.mutable.ArrayBuffer
+
 enablePlugins(UniversalDeployPlugin, GitVersioning, sbtdocker.DockerPlugin, VersionObject)
 
 extraAppenders := {
@@ -10,14 +12,15 @@ extraAppenders := {
 
   (s: Def.ScopedKey[?]) =>
     new RelayAppender("RELAY") {
+      private val events = ArrayBuffer[(Level.Value, String)]()
+      override def close(): Unit = {
+
+        super.close()
+      }
+
       override def appendLog(level: Level.Value, message: => String): Unit = {
         if (level >= Level.Warn) {
-          println(s)
-          val lines = message.split("\n")
-          if (lines.length > 1)
-            println(s"::$level file=,title=${lines(0)}::${lines.tail.mkString("%0A")}")
-          else
-            println(s"::$level::$message")
+          events += level -> message
         }
         super.appendLog(level, message)
       }
