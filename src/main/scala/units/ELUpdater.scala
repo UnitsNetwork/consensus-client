@@ -1389,7 +1389,9 @@ class ELUpdater(
               tx.to == options.elStandardBridgeAddress &&
               tx.mint == BigInteger.ZERO && tx.value == BigInteger.ZERO
           ) {
-            ClientError(s"Transaction not allowed, to: ${tx.to}, mint: ${tx.mint}, value: ${tx.value}, standard bridge address: ${options.elStandardBridgeAddress}")
+            ClientError(
+              s"Transaction not allowed, to: ${tx.to}, mint: ${tx.mint}, value: ${tx.value}, standard bridge address: ${options.elStandardBridgeAddress}"
+            )
           }
         }
 
