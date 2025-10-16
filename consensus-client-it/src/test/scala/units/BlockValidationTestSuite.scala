@@ -8,8 +8,8 @@ import com.wavesplatform.crypto.Keccak256
 import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.state.{Height, IntegerDataEntry}
 import com.wavesplatform.transaction.Asset.IssuedAsset
-import com.wavesplatform.transaction.{Asset, TxHelpers}
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
+import com.wavesplatform.transaction.{Asset, TxHelpers}
 import monix.execution.atomic.AtomicInt
 import org.web3j.protocol.core.DefaultBlockParameterName
 import org.web3j.tx.RawTransactionManager
@@ -348,8 +348,7 @@ class BlockValidationTestSuite1 extends BaseBlockValidationSuite {
 
     step("Send the simulated block to waves1")
     TestNetworkClient.send(
-      "127.0.0.1",
-      waves1.unitsNetworkPort,
+      waves1,
       chainContractAddress,
       NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
     )
@@ -405,8 +404,7 @@ class BlockValidationTestSuite2 extends BaseBlockValidationSuite {
 
     step("Send the simulated block to waves1")
     TestNetworkClient.send(
-      "127.0.0.1",
-      waves1.unitsNetworkPort,
+      waves1,
       chainContractAddress,
       NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
     )
@@ -467,8 +465,7 @@ class BlockValidationTestSuite3 extends BaseBlockValidationSuite {
 
     step("Send the simulated block to waves1")
     TestNetworkClient.send(
-      "127.0.0.1",
-      waves1.unitsNetworkPort,
+      waves1,
       chainContractAddress,
       NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
     )
@@ -533,8 +530,7 @@ class BlockValidationTestSuite4 extends BaseBlockValidationSuite {
 
     step("Send the simulated block to waves1")
     TestNetworkClient.send(
-      "127.0.0.1",
-      waves1.unitsNetworkPort,
+      waves1,
       chainContractAddress,
       NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
     )
@@ -617,8 +613,7 @@ class BlockValidationTestSuite5 extends BaseBlockValidationSuite {
 
     step("Send the simulated block to waves1")
     TestNetworkClient.send(
-      "127.0.0.1",
-      waves1.unitsNetworkPort,
+      waves1,
       chainContractAddress,
       NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
     )
@@ -701,8 +696,7 @@ class BlockValidationTestSuite6 extends BaseBlockValidationSuite {
 
     step("Send the simulated block to waves1")
     TestNetworkClient.send(
-      "127.0.0.1",
-      waves1.unitsNetworkPort,
+      waves1,
       chainContractAddress,
       NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
     )
@@ -785,8 +779,7 @@ class BlockValidationTestSuite7 extends BaseBlockValidationSuite {
 
     step("Send the simulated block to waves1")
     TestNetworkClient.send(
-      "127.0.0.1",
-      waves1.unitsNetworkPort,
+      waves1,
       chainContractAddress,
       NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
     )
@@ -869,8 +862,7 @@ class BlockValidationTestSuite8 extends BaseBlockValidationSuite {
 
     step("Send the simulated block to waves1")
     TestNetworkClient.send(
-      "127.0.0.1",
-      waves1.unitsNetworkPort,
+      waves1,
       chainContractAddress,
       NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
     )
@@ -953,8 +945,7 @@ class BlockValidationTestSuite9 extends BaseBlockValidationSuite {
 
     step("Send the simulated block to waves1")
     TestNetworkClient.send(
-      "127.0.0.1",
-      waves1.unitsNetworkPort,
+      waves1,
       chainContractAddress,
       NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
     )
@@ -1036,8 +1027,7 @@ class BlockValidationTestSuite10 extends BaseBlockValidationSuite {
 
     step("Send the simulated block to waves1")
     TestNetworkClient.send(
-      "127.0.0.1",
-      waves1.unitsNetworkPort,
+      waves1,
       chainContractAddress,
       NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
     )
@@ -1113,8 +1103,7 @@ class BlockValidationTestSuite11 extends BaseBlockValidationSuite {
 
     step("Send the simulated block to waves1")
     TestNetworkClient.send(
-      "127.0.0.1",
-      waves1.unitsNetworkPort,
+      waves1,
       chainContractAddress,
       NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
     )
@@ -1190,8 +1179,7 @@ class BlockValidationTestSuite12 extends BaseBlockValidationSuite {
 
     step("Send the simulated block to waves1")
     TestNetworkClient.send(
-      "127.0.0.1",
-      waves1.unitsNetworkPort,
+      waves1,
       chainContractAddress,
       NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
     )
@@ -1267,8 +1255,7 @@ class BlockValidationTestSuite13 extends BaseBlockValidationSuite {
 
     step("Send the simulated block to waves1")
     TestNetworkClient.send(
-      "127.0.0.1",
-      waves1.unitsNetworkPort,
+      waves1,
       chainContractAddress,
       NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
     )
@@ -1344,8 +1331,7 @@ class BlockValidationTestSuite14 extends BaseBlockValidationSuite {
 
     step("Send the simulated block to waves1")
     TestNetworkClient.send(
-      "127.0.0.1",
-      waves1.unitsNetworkPort,
+      waves1,
       chainContractAddress,
       NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
     )
@@ -1421,8 +1407,7 @@ class BlockValidationTestSuite15 extends BaseBlockValidationSuite {
 
     step("Send the simulated block to waves1")
     TestNetworkClient.send(
-      "127.0.0.1",
-      waves1.unitsNetworkPort,
+      waves1,
       chainContractAddress,
       NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
     )

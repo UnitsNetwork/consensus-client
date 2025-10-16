@@ -3,6 +3,7 @@ package units
 import com.wavesplatform.account.Address
 import com.wavesplatform.network.PeerDatabase
 import com.wavesplatform.network.client.NetworkClient
+import units.docker.WavesNodeContainer
 import units.network.{BlockSpec, LegacyFrameCodec, RawBytes}
 
 import java.net.InetSocketAddress
@@ -17,7 +18,7 @@ object TestNetworkClient {
     val blockMessage            = RawBytes(BlockSpec.messageCode, BlockSpec.serializeData(block))
 
     val f = client
-      .connect(new InetSocketAddress(address, port))
+      .connect(new InetSocketAddress(node.hostName, node.unitsNetworkPort))
       .map { _.writeAndFlush(blockMessage) }
       .andThen { case _ =>
         client.shutdown()
