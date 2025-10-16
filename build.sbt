@@ -1,6 +1,28 @@
 import com.github.sbt.git.SbtGit.GitKeys.gitCurrentBranch
+import sbt.Def
+import sbt.internal.RelayAppender
+import sbt.util.Level
 
 enablePlugins(UniversalDeployPlugin, GitVersioning, sbtdocker.DockerPlugin, VersionObject)
+
+extraAppenders := {
+  extraAppenders.value
+
+  (s: Def.ScopedKey[?]) =>
+    new RelayAppender("RELAY") {
+      override def appendLog(level: Level.Value, message: => String): Unit = {
+        if (level >= Level.Warn) {
+          println(s)
+          val lines = message.split("\n")
+          if (lines.length > 1)
+            println(s"::$level file=,title=${lines(0)}::${lines.tail.mkString("%0A")}")
+          else
+            println(s"::$level::$message")
+        }
+        super.appendLog(level, message)
+      }
+    } +: extraAppenders.value(s)
+}
 
 git.useGitDescribe       := true
 git.baseVersion          := "1.1.0"

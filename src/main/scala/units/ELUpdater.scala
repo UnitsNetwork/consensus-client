@@ -71,7 +71,7 @@ class ELUpdater(
   def executionBlockReceived(block: NetworkL2Block, ch: Channel): Unit = scheduler.execute { () =>
     logger.debug(s"New block ${block.hash}->${block.parentHash} (timestamp=${block.timestamp}, height=${block.height}) appeared")
 
-    val now = time.correctedTime() / 1000
+    val now = time.correctedTime() /\ 1000
     if (block.timestamp - now <= MaxTimeDrift) {
       state match {
         case WaitingForSyncHead(target, _) if block.hash == target.hash =>
