@@ -60,13 +60,7 @@ trait BaseBlockValidationSuite extends BaseDockerTestSuite {
   protected val clAssetTokenAmount: Long   = UnitsConvert.toWavesAtomic(userAssetTokenAmount, issueAssetDecimals)
   protected val elAssetTokenAmount: BigInt = UnitsConvert.toAtomic(userAssetTokenAmount, TErc20Decimals)
 
-  private def correctedTime(): Long = {
-    val ntpTimestamp = System.currentTimeMillis()
-    val nanoTime     = System.nanoTime()
-    val timestamp    = ntpTimestamp
-    val offset       = (System.nanoTime() - nanoTime) / 1000000
-    timestamp + offset
-  }
+
 
   @tailrec
   private def getLastWithdrawalIndex(hash: BlockHash): JobResult[WithdrawalIndex] =
@@ -99,11 +93,10 @@ trait BaseBlockValidationSuite extends BaseDockerTestSuite {
       withdrawals: Seq[Withdrawal],
       depositedTransactions: Seq[DepositedTransaction]
   ): (JsObject, String, ByteStr) = {
-
     step("Building a simulated block")
     val feeRecipient = actingMinerRewardAddress
 
-    val currentUnixTs   = correctedTime() / 1000
+    val currentUnixTs   = System.currentTimeMillis() / 1000
     val blockDelay      = 6
     val nextBlockUnixTs = (elParentBlock.timestamp + blockDelay).max(currentUnixTs)
 
