@@ -14,16 +14,13 @@ import org.web3j.protocol.core.DefaultBlockParameterName
 import org.web3j.tx.RawTransactionManager
 import org.web3j.tx.gas.DefaultGasProvider
 import play.api.libs.json.*
-import units.BlockHash
-import units.client.engine.model.Withdrawal.WithdrawalIndex
+import units.{BlockHash, ELUpdater}
 import units.client.engine.model.{EcBlock, Withdrawal}
 import units.docker.EcContainer
-import units.ELUpdater
 import units.el.*
 import units.eth.{EmptyL2Block, EthAddress, EthereumConstants}
 import units.util.{BlockToPayloadMapper, HexBytesConverter}
 
-import scala.annotation.tailrec
 import scala.concurrent.duration.DurationInt
 import scala.jdk.OptionConverters.RichOptional
 
@@ -60,22 +57,6 @@ trait BaseBlockValidationSuite extends BaseDockerTestSuite {
   protected val clAssetTokenAmount: Long   = UnitsConvert.toWavesAtomic(userAssetTokenAmount, issueAssetDecimals)
   protected val elAssetTokenAmount: BigInt = UnitsConvert.toAtomic(userAssetTokenAmount, TErc20Decimals)
 
-
-
-  @tailrec
-  private def getLastWithdrawalIndex(hash: BlockHash): JobResult[WithdrawalIndex] =
-    ec1.engineApi.getBlockByHash(hash) match {
-      case Left(e)     => Left(e)
-      case Right(None) => Left(ClientError(s"Can't find $hash block on EC during withdrawal search"))
-      case Right(Some(ecBlock)) =>
-        ecBlock.withdrawals.lastOption match {
-          case Some(lastWithdrawal) => Right(lastWithdrawal.index)
-          case None =>
-            if (ecBlock.height == 0) Right(-1L)
-            else getLastWithdrawalIndex(ecBlock.parentHash)
-        }
-    }
-
   protected final def mkRewardWithdrawal(elParentBlock: EcBlock): Withdrawal = {
     val chainContractOptions = chainContract.getOptions
 
@@ -83,7 +64,7 @@ trait BaseBlockValidationSuite extends BaseDockerTestSuite {
       case Some(r) => Right(r)
       case None =>
         if (elParentBlock.height - 1 <= EthereumConstants.GenesisBlockHeight) Right(-1L)
-        else getLastWithdrawalIndex(elParentBlock.parentHash)
+        else ec1.engineApi.getLastWithdrawalIndex(elParentBlock.parentHash)
     }).explicitGet()
     Withdrawal(elWithdrawalIndexBefore + 1, elParentBlock.minerRewardL2Address, chainContractOptions.miningReward)
   }

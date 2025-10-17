@@ -15,7 +15,7 @@ import com.wavesplatform.state.{Blockchain, BooleanDataEntry}
 import com.wavesplatform.transaction.TxValidationError.InvokeRejectError
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import com.wavesplatform.transaction.smart.script.trace.TracedResult
-import com.wavesplatform.transaction.{Asset, Proofs, Transaction, TransactionSignOps, TransactionType, TxPositiveAmount, TxVersion}
+import com.wavesplatform.transaction.*
 import com.wavesplatform.utils.{Time, UnsupportedFeature, forceStopApplication}
 import com.wavesplatform.wallet.Wallet
 import io.netty.channel.Channel
@@ -295,7 +295,7 @@ class ELUpdater(
             case Some(r) => Right(r)
             case None =>
               if (parentBlock.height - 1 <= EthereumConstants.GenesisBlockHeight) Right(-1L)
-              else getLastWithdrawalIndex(parentBlock.parentHash)
+              else engineApiClient.getLastWithdrawalIndex(parentBlock.parentHash)
           }
           lastEcBlock <- engineApiClient.getLastExecutionBlock()
           willSimulateBlock = lastEcBlock.hash != parentBlock.hash
@@ -1214,20 +1214,6 @@ class ELUpdater(
   private def toWithdrawal(transfer: ContractTransfer.NativeViaWithdrawal, ecBlockWithdrawalIndex: Long): Withdrawal =
     Withdrawal(ecBlockWithdrawalIndex, transfer.to, NativeBridge.clToGweiNativeTokenAmount(transfer.amount))
 
-  @tailrec
-  private def getLastWithdrawalIndex(hash: BlockHash): JobResult[WithdrawalIndex] =
-    engineApiClient.getBlockByHash(hash) match {
-      case Left(e)     => Left(e)
-      case Right(None) => Left(ClientError(s"Can't find $hash block on EC during withdrawal search"))
-      case Right(Some(ecBlock)) =>
-        ecBlock.withdrawals.lastOption match {
-          case Some(lastWithdrawal) => Right(lastWithdrawal.index)
-          case None =>
-            if (ecBlock.height == 0) Right(-1L)
-            else getLastWithdrawalIndex(ecBlock.parentHash)
-        }
-    }
-
   private def validateAssetRegistryUpdate(
       ecBlockLogs: List[GetLogsResponseEntry],
       contractBlock: ContractBlock,
@@ -1399,7 +1385,7 @@ class ELUpdater(
       case Some(r) => Right(r)
       case None =>
         if (ecBlock.height - 1 <= EthereumConstants.GenesisBlockHeight) Right(-1L)
-        else getLastWithdrawalIndex(ecBlock.parentHash)
+        else engineApiClient.getLastWithdrawalIndex(ecBlock.parentHash)
     }
 
     expectedNativeTransfersNumber =
