@@ -18,6 +18,7 @@ import units.BlockHash
 import units.client.engine.model.Withdrawal.WithdrawalIndex
 import units.client.engine.model.{EcBlock, Withdrawal}
 import units.docker.EcContainer
+import units.ELUpdater
 import units.el.*
 import units.eth.{EmptyL2Block, EthAddress, EthereumConstants}
 import units.util.{BlockToPayloadMapper, HexBytesConverter}
@@ -67,11 +68,6 @@ trait BaseBlockValidationSuite extends BaseDockerTestSuite {
     timestamp + offset
   }
 
-  private def calculateRandao(hitSource: ByteStr, parentHash: BlockHash): String = {
-    val msg = hitSource.arr ++ HexBytesConverter.toBytes(parentHash)
-    HexBytesConverter.toHex(crypto.secureHash(msg))
-  }
-
   @tailrec
   private def getLastWithdrawalIndex(hash: BlockHash): JobResult[WithdrawalIndex] =
     ec1.engineApi.getBlockByHash(hash) match {
@@ -113,7 +109,7 @@ trait BaseBlockValidationSuite extends BaseDockerTestSuite {
 
     val currentEpochHeader = waves1.api.blockHeader(waves1.api.height()).value
     val hitSource          = ByteStr.decodeBase58(currentEpochHeader.VRF).get
-    val prevRandao         = calculateRandao(hitSource, elParentBlock.hash)
+    val prevRandao         = ELUpdater.calculateRandao(hitSource, elParentBlock.hash)
 
     val txHashes = depositedTransactions.map(t => HexBytesConverter.toHex(Keccak256.hash(HexBytesConverter.toBytes(t.toHex)))).mkString(", ")
     log.debug(s"Deposited transactions hashes: $txHashes")
