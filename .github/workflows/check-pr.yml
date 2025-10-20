@@ -60,7 +60,7 @@ jobs:
         if: always()
         with:
           report_paths: '**/target/test-reports/*.xml'
-          create_check: true
+          create_check: false
           check_name: 'Check PR'
       - name: Archive logs
         uses: actions/upload-artifact@v4
