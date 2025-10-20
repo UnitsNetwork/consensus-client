@@ -1,31 +1,6 @@
 import com.github.sbt.git.SbtGit.GitKeys.gitCurrentBranch
-import sbt.Def
-import sbt.internal.RelayAppender
-import sbt.util.Level
-
-import scala.collection.mutable.ArrayBuffer
 
 enablePlugins(UniversalDeployPlugin, GitVersioning, sbtdocker.DockerPlugin, VersionObject)
-
-extraAppenders := {
-  extraAppenders.value
-
-  (s: Def.ScopedKey[?]) =>
-    new RelayAppender("RELAY") {
-      private val events = ArrayBuffer[(Level.Value, String)]()
-      override def close(): Unit = {
-
-        super.close()
-      }
-
-      override def appendLog(level: Level.Value, message: => String): Unit = {
-        if (level >= Level.Warn) {
-          events += level -> message
-        }
-        super.appendLog(level, message)
-      }
-    } +: extraAppenders.value(s)
-}
 
 git.useGitDescribe       := true
 git.baseVersion          := "1.1.0"
@@ -65,7 +40,7 @@ libraryDependencies ++= {
     "com.wavesplatform"              % "node"          % node % Provided,
     "com.softwaremill.sttp.client3" %% "core"          % sttpVersion,
     "com.softwaremill.sttp.client3" %% "play-json"     % sttpVersion,
-    "com.github.jwt-scala"          %% "jwt-play-json" % "11.0.2",
+    "com.github.jwt-scala"          %% "jwt-play-json" % "11.0.3",
     "org.web3j"                      % "core"          % "4.9.8"
   )
 }
