@@ -8,7 +8,7 @@ import io.netty.channel.{ChannelHandlerContext, ChannelInboundHandlerAdapter}
 import monix.execution.Scheduler
 import units.client.engine.EngineApiClient
 import units.util.BlockToPayloadMapper
-import units.{BlockHash, ClientError, NetworkL2Block}
+import units.{BlockHash, NetworkL2Block}
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
@@ -25,19 +25,19 @@ class HistoryReplier(engineApiClient: EngineApiClient)(implicit sc: Scheduler) e
           } else {
             log.trace(s"${id(ctx)} Channel is closed")
           }
-        case Success(Left(ClientError(msg))) =>
+        case Success(Left(msg)) =>
           log.debug(s"Could not load block $hash: $msg")
 
       }
     case _ => super.channelRead(ctx, msg)
   }
 
-  private def loadBlockL2(hash: BlockHash): Future[Either[ClientError, RawBytes]] = Future {
+  private def loadBlockL2(hash: BlockHash): Future[Either[String, RawBytes]] = Future {
     for {
       blockJsonOpt       <- engineApiClient.getBlockByHashJson(hash)
-      blockJson          <- Either.fromOption(blockJsonOpt, ClientError("block not found"))
+      blockJson          <- Either.fromOption(blockJsonOpt, "block not found")
       payloadBodyJsonOpt <- engineApiClient.getPayloadBodyByHash(hash)
-      payloadBodyJson    <- Either.fromOption(payloadBodyJsonOpt, ClientError("payload body not found"))
+      payloadBodyJson    <- Either.fromOption(payloadBodyJsonOpt, "payload body not found")
       payload = BlockToPayloadMapper.toPayloadJson(blockJson, payloadBodyJson)
       blockL2 <- NetworkL2Block(payload)
     } yield RawBytes(BlockSpec.messageCode, BlockSpec.serializeData(blockL2))

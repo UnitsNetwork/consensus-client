@@ -10,7 +10,7 @@ import java.math.BigInteger
 object HexBytesConverter {
 
   def toByteStr(hash: BlockHash): ByteStr =
-    ByteStr(toBytes(hash))
+    ByteStr(toBytes(hash.str))
 
   def toInt(intHex: String): Int =
     Numeric.toBigInt(intHex).intValueExact()

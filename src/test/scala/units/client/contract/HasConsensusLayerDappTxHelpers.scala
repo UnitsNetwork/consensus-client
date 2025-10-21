@@ -16,7 +16,7 @@ import units.client.L2BlockLike
 import units.client.contract.HasConsensusLayerDappTxHelpers.*
 import units.client.contract.HasConsensusLayerDappTxHelpers.DefaultFees.ChainContract.*
 import units.eth.{EthAddress, EthereumConstants}
-import units.{BlockHash, ELUpdater}
+import units.{BlockHash, ELUpdater, drop}
 
 trait HasConsensusLayerDappTxHelpers {
   def currentHitSource: ByteStr

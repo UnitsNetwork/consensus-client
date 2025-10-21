@@ -49,7 +49,7 @@ class NetworkL2Block private (
 }
 
 object NetworkL2Block {
-  private def apply(payload: JsObject, payloadBytes: Array[Byte], signature: Option[ByteStr]): Either[ClientError, NetworkL2Block] = {
+  private def apply(payload: JsObject, payloadBytes: Array[Byte], signature: Option[ByteStr]): Either[String, NetworkL2Block] = {
     // See BlockToPayloadMapper for all available fields
     (for {
       hash                 <- (payload \ "blockHash").asOpt[BlockHash].toRight("hash not defined")
@@ -79,20 +79,20 @@ object NetworkL2Block {
       payloadBytes,
       payload,
       signature
-    )).leftMap(err => ClientError(s"Error creating BlockL2 from payload ${new String(payloadBytes)}: $err at payload"))
+    )).leftMap(err => s"Error creating BlockL2 from payload ${new String(payloadBytes)}: $err at payload")
   }
 
-  def apply(payloadBytes: Array[Byte], signature: Option[ByteStr]): Either[ClientError, NetworkL2Block] = for {
-    payload <- Json.parse(payloadBytes).asOpt[JsObject].toRight(ClientError("Payload is not a valid JSON object"))
+  def apply(payloadBytes: Array[Byte], signature: Option[ByteStr]): Either[String, NetworkL2Block] = for {
+    payload <- Json.parse(payloadBytes).asOpt[JsObject].toRight("Payload is not a valid JSON object")
     block   <- apply(payload, payloadBytes, signature)
   } yield block
 
-  def signed(payload: JsObject, signer: PrivateKey): Either[ClientError, NetworkL2Block] = {
+  def signed(payload: JsObject, signer: PrivateKey): Either[String, NetworkL2Block] = {
     val payloadBytes = Json.toBytes(payload)
     NetworkL2Block(payload, payloadBytes, Some(crypto.sign(signer, payloadBytes)))
   }
 
-  def apply(payload: JsObject): Either[ClientError, NetworkL2Block] = apply(payload, Json.toBytes(payload), None)
+  def apply(payload: JsObject): Either[String, NetworkL2Block] = apply(payload, Json.toBytes(payload), None)
 
   def validateReferenceLength(length: Int): Boolean =
     length == DigestLength
