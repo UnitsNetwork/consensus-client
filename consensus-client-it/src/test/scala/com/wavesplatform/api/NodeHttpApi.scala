@@ -11,9 +11,8 @@ import com.wavesplatform.api.http.`X-Api-Key`
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.state.DataEntry.Format
 import com.wavesplatform.state.{DataEntry, EmptyDataEntry, Height}
-import com.wavesplatform.transaction.Asset
 import com.wavesplatform.transaction.Asset.IssuedAsset
-import com.wavesplatform.transaction.Transaction
+import com.wavesplatform.transaction.{Asset, Transaction}
 import com.wavesplatform.utils.ScorexLogging
 import org.scalatest.matchers.should.Matchers
 import play.api.libs.json.*
@@ -159,12 +158,12 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
         }
     }
   }
-  
+
   def balance(address: Address, asset: Asset)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Long = {
     if (loggingOptions.logCall) log.debug(s"${loggingOptions.prefix} balance($address, $asset)")
     basicRequest
       .get(asset match {
-        case Asset.Waves => uri"$apiUri/addresses/balance/$address"
+        case Asset.Waves     => uri"$apiUri/addresses/balance/$address"
         case IssuedAsset(id) => uri"$apiUri/assets/balance/$address/$id"
       })
       .response(asJson[BalanceResponse])

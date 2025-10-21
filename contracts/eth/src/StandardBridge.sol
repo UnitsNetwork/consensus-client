@@ -7,6 +7,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IUnitsMintableERC20} from "@units/IUnitsMintableERC20.sol";
+import {SafeCall} from "@units/SafeCall.sol";
 
 contract StandardBridge {
     using SafeERC20 for IERC20;
@@ -14,6 +15,12 @@ contract StandardBridge {
     /// @notice Mapping that stores deposits for a given local token. Deletion breaks StageNet
     mapping(address => uint256) public _unusedDeposits;
     mapping(address => uint256) public tokenRatios;
+
+    event ETHBridgeFinalized(
+        address indexed from,
+        address indexed elTo,
+        uint256 amount
+    );
 
     event ERC20BridgeInitiated(
         address indexed localToken,
@@ -28,6 +35,7 @@ contract StandardBridge {
         address indexed elTo,
         uint256 amount
     );
+
 
     event RegistryUpdated(address[] addedTokens, uint8[] addedTokenExponents, address[] removedTokens);
 
@@ -63,23 +71,56 @@ contract StandardBridge {
         return ERC165Checker.supportsInterface(_token, type(IUnitsMintableERC20).interfaceId);
     }
 
-    /// @notice Emits the ERC20BridgeInitiated event and if necessary the appropriate legacy
-    ///         event when an ERC20 bridge is initiated to the other chain.
+
+    /// @notice Finalizes a native token bridge on this chain. Can only be triggered by the
+    ///         Chain contract on the remote chain.
+    /// @param _from        Address of the sender.
+    /// @param _to          Address of the receiver.
+    /// @param _amount      Amount of the native token being bridged.
+    function finalizeBridgeETH(
+        address _from,
+        address _to,
+        uint256 _amount
+    ) public payable onlyMiner {
+        require(
+            msg.value == _amount,
+            "StandardBridge: amount sent does not match amount required"
+        );
+        require(_to != address(this), "StandardBridge: cannot send to self");
+
+        _emitETHBridgeFinalized(_from, _to, _amount);
+
+        bool success = SafeCall.call(_to, gasleft(), _amount, hex"");
+        require(success, "StandardBridge: ETH transfer failed");
+    }
+
+    /// @notice Finalizes an ERC20 bridge on this chain. Can only be triggered by the other
+    ///         StandardBridge contract on the remote chain.
     /// @param _localToken  Address of the ERC20 on this chain.
     /// @param _from        Address of the sender.
     /// @param _to          Address of the receiver.
-    /// @param _amount      Amount of the ERC20 sent.
-    function _emitERC20BridgeInitiated(
+    /// @param _amount      Amount of the ERC20 being bridged.
+    function finalizeBridgeERC20(
         address _localToken,
         address _from,
         address _to,
         uint256 _amount
     )
-    internal
-    virtual
+    public
+    onlyMiner
     {
-        emit ERC20BridgeInitiated(_localToken, _from, _to, int64(uint64(_amount)));
+        if (_isUnitsMintableERC20(_localToken)) {
+            IUnitsMintableERC20(_localToken).mint(_to, _amount);
+        } else {
+            // deposits[_localToken] -= _amount;
+            IERC20(_localToken).safeTransfer(_to, _amount);
+        }
+
+        // Emit the correct events. By default this will be ERC20BridgeFinalized, but child
+        // contracts may override this function in order to emit legacy events as well.
+        _emitERC20BridgeFinalized(_localToken, _from, _to, _amount);
     }
+
 
     /// @notice Sends ERC20 tokens to a receiver's address on the other chain.
     /// @param _localToken  Address of the ERC20 on this chain.
@@ -118,31 +159,37 @@ contract StandardBridge {
         _emitERC20BridgeInitiated(_localToken, _from, _to, clAmount);
     }
 
-    /// @notice Finalizes an ERC20 bridge on this chain. Can only be triggered by the other
-    ///         StandardBridge contract on the remote chain.
+    /// @notice Emits the ETHBridgeFinalized event.
+    /// @param _from        Address of the sender.
+    /// @param _to          Address of the receiver.
+    /// @param _amount      Amount of the ETH sent.
+    function _emitETHBridgeFinalized(
+        address _from,
+        address _to,
+        uint256 _amount
+    )
+    internal
+    virtual
+    {
+        emit ETHBridgeFinalized(_from, _to, _amount);
+    }
+
+    /// @notice Emits the ERC20BridgeInitiated event and if necessary the appropriate legacy
+    ///         event when an ERC20 bridge is initiated to the other chain.
     /// @param _localToken  Address of the ERC20 on this chain.
     /// @param _from        Address of the sender.
     /// @param _to          Address of the receiver.
-    /// @param _amount      Amount of the ERC20 being bridged.
-    function finalizeBridgeERC20(
+    /// @param _amount      Amount of the ERC20 sent.
+    function _emitERC20BridgeInitiated(
         address _localToken,
         address _from,
         address _to,
         uint256 _amount
     )
-    public
-    onlyMiner
+    internal
+    virtual
     {
-        if (_isUnitsMintableERC20(_localToken)) {
-            IUnitsMintableERC20(_localToken).mint(_to, _amount);
-        } else {
-            // deposits[_localToken] -= _amount;
-            IERC20(_localToken).safeTransfer(_to, _amount);
-        }
-
-        // Emit the correct events. By default this will be ERC20BridgeFinalized, but child
-        // contracts may override this function in order to emit legacy events as well.
-        _emitERC20BridgeFinalized(_localToken, _from, _to, _amount);
+        emit ERC20BridgeInitiated(_localToken, _from, _to, int64(uint64(_amount)));
     }
 
     /// @notice Emits the ERC20BridgeFinalized event and if necessary the appropriate legacy

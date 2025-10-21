@@ -4,10 +4,13 @@ import play.api.libs.json.*
 import units.client.JsonRpcClient.newRequestId
 import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.model.*
+import units.client.engine.model.Withdrawal.WithdrawalIndex
 import units.el.DepositedTransaction
 import units.eth.{EmptyL2Block, EthAddress}
 import units.util.BlockToPayloadMapper
 import units.{BlockHash, ClientError, JobResult}
+
+import scala.annotation.tailrec
 
 trait EngineApiClient {
   def forkchoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int = newRequestId): JobResult[PayloadStatus]
@@ -70,5 +73,19 @@ object EngineApiClient {
         targetBlock.hash
       )
     } yield BlockToPayloadMapper.toPayloadJson(simulatedBlockJson.head, Json.obj("transactions" -> Json.arr(), "withdrawals" -> withdrawals))
+
+    @tailrec
+    def getLastWithdrawalIndex(hash: BlockHash): JobResult[WithdrawalIndex] =
+      c.getBlockByHash(hash) match {
+        case Left(e)     => Left(e)
+        case Right(None) => Left(ClientError(s"Can't find $hash block on EC during withdrawal search"))
+        case Right(Some(ecBlock)) =>
+          ecBlock.withdrawals.lastOption match {
+            case Some(lastWithdrawal) => Right(lastWithdrawal.index)
+            case None =>
+              if (ecBlock.height == 0) Right(-1L)
+              else getLastWithdrawalIndex(ecBlock.parentHash)
+          }
+      }
   }
 }

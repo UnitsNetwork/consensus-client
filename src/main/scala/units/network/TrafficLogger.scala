@@ -1,12 +1,13 @@
 package units.network
 
+import com.typesafe.scalalogging.LazyLogging
 import com.wavesplatform.network.{Handshake, HandshakeSpec, TrafficLogger as TL}
 import io.netty.channel.ChannelHandler.Sharable
 import units.NetworkL2Block
 import units.network.BasicMessagesRepo.specsByCodes
 
 @Sharable
-class TrafficLogger(settings: TL.Settings) extends TL(settings) {
+class TrafficLogger(settings: TL.Settings) extends TL(settings), LazyLogging {
 
   import BasicMessagesRepo.specsByClasses
 
