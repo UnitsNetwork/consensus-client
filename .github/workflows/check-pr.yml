@@ -2,6 +2,13 @@ name: Check PR
 on:
   pull_request:
 
+concurrency:
+  group: check-pr-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  checks: write
+
 jobs:
   check-pr:
     name: Check PR
@@ -46,7 +53,15 @@ jobs:
       - name: Run tests
         run: |
           forge --version
-          sbt --batch "scalafmtCheck;test;docker;consensus-client-it/test"
+          sbt --no-colors --color=never --batch "scalafmtCheck;test;docker;consensus-client-it/test"
+        env:
+          RUN_ID: ${{ github.head_ref }}-${{ github.run_number }}-${{ github.run_attempt }}
+      - uses: scacap/action-surefire-report@5609ce4db72c09db044803b344a8968fd1f315da
+        if: always()
+        with:
+          report_paths: '**/target/test-reports/*.xml'
+          create_check: false
+          check_name: 'Check PR'
       - name: Archive logs
         uses: actions/upload-artifact@v4
         if: always()

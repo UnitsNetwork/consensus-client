@@ -6,9 +6,11 @@ import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.utils.ScorexLogging
 import monix.execution.atomic.AtomicBoolean
+import org.scalactic.source.Position
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.{BeforeAndAfterAll, EitherValues, OptionValues}
+import org.web3j.protocol.core.DefaultBlockParameterName
 import sttp.client3.{HttpClientSyncBackend, Identity, SttpBackend}
 import units.client.HttpChainContractClient
 import units.client.contract.HasConsensusLayerDappTxHelpers
@@ -16,7 +18,7 @@ import units.client.engine.model.BlockNumber
 import units.docker.*
 import units.docker.WavesNodeContainer.generateWavesGenesisConfig
 import units.el.{NativeBridgeClient, StandardBridgeClient}
-import units.eth.Gwei
+import units.eth.{EthAddress, Gwei}
 import units.test.{CustomMatchers, IntegrationTestEventually, TestEnvironment}
 
 import scala.sys.process.{Process, ProcessLogger}
@@ -115,6 +117,10 @@ trait BaseDockerTestSuite
     waves1.api.waitForHeight(epoch1Number)
   }
 
+  private def waitForContract(address: EthAddress)(implicit pos: Position): Unit = eventually {
+    ec1.web3j.ethGetCode(address.toString, DefaultBlockParameterName.LATEST).send().getCode shouldNot be("0x")
+  }
+
   protected def deploySolidityContracts(): Unit = {
     step("Deploy contracts on EL")
     Process(
@@ -122,6 +128,10 @@ trait BaseDockerTestSuite
       TestEnvironment.ContractsDir,
       "CHAIN_ID" -> EcContainer.ChainId.toString
     ).!(ProcessLogger(out => log.info(out), err => log.error(err)))
+
+    waitForContract(StandardBridgeAddress)
+    waitForContract(WWavesAddress)
+    waitForContract(TErc20Address)
   }
 
   override protected def step(text: String): Unit = {
