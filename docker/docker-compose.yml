@@ -20,14 +20,16 @@ services:
 
   waves-node:
     container_name: waves-node
-    image: ghcr.io/unitsnetwork/consensus-client:${WAVES_NODE_TAG:-${NETWORK:-snapshot}}
+    image: ghcr.io/unitsnetwork/consensus-client:${UNITS_IMAGE_TAG:-$NETWORK}
     stop_grace_period: 5m
     pull_policy: always
     restart: unless-stopped
     environment:
-      JAVA_OPTS: $JAVA_OPTS -Dwaves.blockchain.type=$NETWORK -Dlogback.file.level=TRACE
-      WAVES_WALLET_PASSWORD: $WAVES_WALLET_PASSWORD
-      WAVES_WALLET_SEED: $WAVES_WALLET_SEED
+      JAVA_OPTS: ${JAVA_OPTS:-} -Dwaves.blockchain.type=${NETWORK:?NETWORK must be set} -Dlogback.file.level=TRACE
+      UNITS_CHAIN_CONTRACT:
+      UNITS_KNOWN_PEERS:
+    env_file:
+      - local.env
     ports:
       - 127.0.0.1:6869:6869
       - 6868:6868
@@ -35,6 +37,6 @@ services:
     volumes:
       - ./data/secrets:/etc/secrets:ro
       - ./data/waves:/var/lib/waves/data
-      - ./waves-${NETWORK}.conf:/etc/waves/waves.conf:ro
+      - ./waves.conf:/etc/waves/waves.conf:ro
       - ./logback.xml:/etc/waves/logback.xml
       - ./logs/waves:/var/log/waves
