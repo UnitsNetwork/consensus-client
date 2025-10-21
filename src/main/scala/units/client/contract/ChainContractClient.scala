@@ -33,7 +33,7 @@ trait ChainContractClient {
       blockMeta <- getBlock(hash)
     } yield blockMeta
 
-  def getFirstBlockMeta(chainId: Long): Option[ContractBlock] =
+  private def getFirstBlockMeta(chainId: Long): Option[ContractBlock] =
     for {
       hash      <- getFirstBlockHash(chainId)
       blockMeta <- getBlock(hash)
@@ -55,7 +55,7 @@ trait ChainContractClient {
         }
       }
 
-  def getElRewardAddress(miner: Address): Option[EthAddress] = getElRewardAddress(ByteStr(miner.bytes))
+  private def getElRewardAddress(miner: Address): Option[EthAddress] = getElRewardAddress(ByteStr(miner.bytes))
   private def getElRewardAddress(minerAddress: ByteStr): Option[EthAddress] =
     extractData(s"miner_${minerAddress}_RewardAddress")
       .orElse(extractData(s"miner${minerAddress}RewardAddress"))
@@ -111,13 +111,13 @@ trait ChainContractClient {
       }
     }
 
-  def getLastChainId: Long =
+  private def getLastChainId: Long =
     getLongData("lastChainId").getOrElse(DefaultMainChainId)
 
-  def getFirstValidAltChainId: Long =
+  private def getFirstValidAltChainId: Long =
     getLongData("firstValidAltChainId").getOrElse(DefaultMainChainId)
 
-  def getMainChainIdOpt: Option[Long] =
+  private def getMainChainIdOpt: Option[Long] =
     getLongData(MainChainIdKey)
 
   def getMainChainId: Long =
@@ -153,7 +153,7 @@ trait ChainContractClient {
     else fail(s"Can't get chain $chainId info, one of fields is empty, first block: $firstBlock, last block: $lastBlock")
   }
 
-  def getFinalizedBlockHash: BlockHash =
+  private def getFinalizedBlockHash: BlockHash =
     getStringData("finalizedBlock")
       .map(hash => BlockHash(s"0x$hash"))
       .getOrElse(throw new IllegalStateException("Can't get finalized block hash: not found at contract"))
@@ -288,7 +288,7 @@ trait ChainContractClient {
 
       // Asset transfer, before strict transfers activation
       // {destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex}
-      case Array(EthAddress(destElAddress), EthAddress(fromAddress), rawAmount, AssetIndex(assetIndex)) => {
+      case Array(EthAddress(destElAddress), EthAddress(fromAddress), rawAmount, AssetIndex(assetIndex)) =>
         val asset     = getRegisteredAsset(assetIndex)
         val assetData = getRegisteredAssetData(asset)
 
@@ -299,15 +299,14 @@ trait ChainContractClient {
           to = destElAddress,
           amount =
             try WAmount(rawAmount).scale(assetData.exponent)
-            catch { case e: ArithmeticException => fail(s"Expected an integer amount of a native transfer, got: ${rawAmount}", e) },
+            catch { case e: ArithmeticException => fail(s"Expected an integer amount of a native transfer, got: $rawAmount", e) },
           tokenAddress = assetData.erc20Address,
           asset
         )
-      }
 
       // Asset transfer, after strict transfers activation
       // {epoch}_{destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex}
-      case Array(Epoch(epoch), EthAddress(destElAddress), EthAddress(fromAddress), rawAmount, AssetIndex(assetIndex)) => {
+      case Array(Epoch(epoch), EthAddress(destElAddress), EthAddress(fromAddress), rawAmount, AssetIndex(assetIndex)) =>
         val asset     = getRegisteredAsset(assetIndex)
         val assetData = getRegisteredAssetData(asset)
 
@@ -318,17 +317,16 @@ trait ChainContractClient {
           to = destElAddress,
           amount =
             try WAmount(rawAmount).scale(assetData.exponent)
-            catch { case e: ArithmeticException => fail(s"Expected an integer amount of a native transfer, got: ${rawAmount}", e) },
+            catch { case e: ArithmeticException => fail(s"Expected an integer amount of a native transfer, got: $rawAmount", e) },
           tokenAddress = assetData.erc20Address,
           asset
         )
-      }
 
       case _ => fail(s"Expected one of ContractTransfer variants in a transfer key '$key', got: $raw")
     }
   }
 
-  def getRegisteredAssetData(asset: Asset): Registry.RegisteredAsset = {
+  private def getRegisteredAssetData(asset: Asset): Registry.RegisteredAsset = {
     val key   = s"assetRegistry_${Registry.stringifyAsset(asset)}"
     val raw   = getStringData(key).getOrElse(fail(s"Can't find a registered asset $asset at $key"))
     val parts = raw.split(Sep)
@@ -351,7 +349,7 @@ trait ChainContractClient {
       .map(getRegisteredAssetData)
       .toList
 
-  def getPrevEpochLastBlockHash(thisEpoch: Int): Either[String, Option[BlockHash]] = {
+  private def getPrevEpochLastBlockHash(thisEpoch: Int): Either[String, Option[BlockHash]] = {
     @tailrec
     def loop(curEpochNumber: Int): Either[String, Option[BlockHash]] = {
       if (curEpochNumber <= 0) {
@@ -397,21 +395,36 @@ trait ChainContractClient {
     }
   }
 
+  def findBlockChild(lastExecutionBlockHash: BlockHash, lastBlock: ContractBlock): Either[String, ContractBlock] = {
+    @tailrec
+    def loop(b: BlockHash): Option[ContractBlock] = this.getBlock(b) match {
+      case None => None
+      case Some(cb) =>
+        if (cb.parentHash == lastExecutionBlockHash) Some(cb)
+        else loop(cb.parentHash)
+    }
+
+    this
+      .getBlock(lastExecutionBlockHash)
+      .toRight(s"Last EC block $lastExecutionBlockHash not found on contract")
+      .flatMap(_ => loop(lastBlock.hash).toRight(s"Could not find child of $lastExecutionBlockHash"))
+  }
+
   private def getLastBlockHash(chainId: Long): Option[BlockHash] = getChainMeta(chainId).map(_._2)
 
   protected def getFirstBlockHash(chainId: Long): Option[BlockHash] =
     getBlockHash(s"chain${chainId}FirstBlock")
 
-  protected def getBinaryData(key: String): Option[ByteStr] =
+  private def getBinaryData(key: String): Option[ByteStr] =
     extractBinaryValue(key, extractData(key))
 
   protected def getStringData(key: String): Option[String] =
     extractStringValue(key, extractData(key))
 
-  protected def getLongData(key: String): Option[Long] =
+  private def getLongData(key: String): Option[Long] =
     extractLongValue(key, extractData(key))
 
-  protected def getBooleanData(key: String): Option[Boolean] =
+  private def getBooleanData(key: String): Option[Boolean] =
     extractBooleanValue(key, extractData(key))
 
   private def extractLongValue(context: String, extractedDataEntry: Option[DataEntry[?]]): Option[Long] =
@@ -437,13 +450,13 @@ trait ChainContractClient {
 }
 
 object ChainContractClient {
-  val MinMinerBalance: Long = 20000_00000000L
-  val DefaultMainChainId    = 0L
+  private val MinMinerBalance: Long = 20000_00000000L
+  val DefaultMainChainId            = 0L
 
   private val AllMinersKey       = "allMiners"
   private val MainChainIdKey     = "mainChainId"
   private val BlockHashBytesSize = 32
-  val Sep                        = ","
+  private val Sep                = ","
 
   private class InconsistentContractData(message: String, cause: Throwable = null)
       extends IllegalStateException(s"Probably, you have to upgrade your client. $message", cause)

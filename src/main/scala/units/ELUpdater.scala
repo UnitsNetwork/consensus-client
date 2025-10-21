@@ -21,8 +21,8 @@ import com.wavesplatform.wallet.Wallet
 import io.netty.channel.Channel
 import io.netty.channel.group.DefaultChannelGroup
 import kamon.Kamon
+import monix.execution.Scheduler
 import monix.execution.cancelables.SerialCancelable
-import monix.execution.{CancelableFuture, Scheduler}
 import play.api.libs.json.*
 import units.ELUpdater.State.*
 import units.ELUpdater.State.ChainStatus.{FollowingChain, Mining, WaitForNewChain}
@@ -41,6 +41,7 @@ import units.util.HexBytesConverter.toHexNoPrefix
 
 import java.math.BigInteger
 import scala.annotation.tailrec
+import scala.concurrent.Future
 import scala.concurrent.duration.*
 import scala.util.*
 
@@ -52,7 +53,7 @@ class ELUpdater(
     time: Time,
     wallet: Wallet,
     registryAddress: Option[Address],
-    requestBlockFromPeers: BlockHash => CancelableFuture[BlockWithChannel],
+    requestBlockFromPeers: BlockHash => Future[BlockWithChannel],
     broadcastTx: Transaction => TracedResult[ValidationError, Boolean],
     scheduler: Scheduler,
     globalScheduler: Scheduler
@@ -74,7 +75,7 @@ class ELUpdater(
     val now = time.correctedTime() / 1000
     if (block.timestamp - now <= MaxTimeDrift) {
       state match {
-        case WaitingForSyncHead(target, _) if block.hash == target.hash =>
+        case WaitingForSyncHead(target) if block.hash == target.hash =>
           val syncStarted = for {
             _         <- engineApiClient.newPayload(block.payload)
             fcuStatus <- confirmBlock(target, target)
@@ -502,17 +503,15 @@ class ELUpdater(
     else if (chainContractClient.getAllActualMiners.isEmpty) logger.debug("Waiting for at least one miner to join")
     else {
       val finalizedBlock = chainContractClient.getFinalizedBlock
-      logger.debug(s"Finalized block is ${finalizedBlock.hash}")
       engineApiClient.getBlockByHash(finalizedBlock.hash) match {
-        case Left(error) => logger.error(s"Could not load finalized block", error)
+        case Left(error) => logger.error(s"Could not load finalized block $finalizedBlock", error)
         case Right(Some(finalizedEcBlock)) =>
-          logger.trace(s"Finalized block ${finalizedBlock.hash} is at height ${finalizedEcBlock.height}")
           (for {
             newEpochInfo  <- chainContractClient.calculateEpochInfo(blockchain)
             mainChainInfo <- chainContractClient.getMainChainInfo.toRight("Can't get main chain info")
             lastEcBlock   <- engineApiClient.getLastExecutionBlock().leftMap(_.message)
           } yield {
-            logger.trace(s"Following main chain ${mainChainInfo.id}")
+            logger.trace(s"Finalized block ${finalizedBlock.hash} is at height ${finalizedEcBlock.height}, following main chain ${mainChainInfo.id}")
             val fullValidationStatus = FullValidationStatus(
               lastValidatedBlock = finalizedBlock,
               lastElWithdrawalIndex = None
@@ -534,7 +533,8 @@ class ELUpdater(
           )
         case Right(None) =>
           logger.trace(s"Finalized block ${finalizedBlock.hash} is not in EC, requesting from peers")
-          setState("updateStartingState", WaitingForSyncHead(finalizedBlock, requestAndProcessBlock(finalizedBlock.hash)))
+          requestAndProcessBlock(finalizedBlock.hash)
+          setState("updateStartingState", WaitingForSyncHead(finalizedBlock))
       }
     }
   }
@@ -544,7 +544,7 @@ class ELUpdater(
       _ <- Either.raiseWhen(chainContractClient.isStopped)(s"Chain $contractAddress is stopped")
       _ <- registryAddress.toLeft(()).leftFlatMap { addr =>
         Either.raiseUnless(blockchain.accountData(addr, registryKey(contractAddress)).contains(BooleanDataEntry(registryKey(contractAddress), true)))(
-          s"Chain ${contractAddress} is not enabled in the registry $addr"
+          s"Chain $contractAddress is not enabled in the registry $addr"
         )
       }
     } yield ()) match {
@@ -767,7 +767,8 @@ class ELUpdater(
         requestMainChainBlock()
       case Right(None) =>
         logger.trace(s"Finalized block ${finalizedBlock.hash} is not in EC, requesting from peers")
-        setState("updateWorkingState, finalized", WaitingForSyncHead(finalizedBlock, requestAndProcessBlock(finalizedBlock.hash)))
+        requestAndProcessBlock(finalizedBlock.hash)
+        setState("updateWorkingState, finalized", WaitingForSyncHead(finalizedBlock))
     }
   }
 
@@ -837,12 +838,11 @@ class ELUpdater(
     }
   }
 
-  private def requestAndProcessBlock(hash: BlockHash): CancelableFuture[(Channel, NetworkL2Block)] = {
-    requestBlockFromPeers(hash).andThen {
+  private def requestAndProcessBlock(hash: BlockHash): Unit =
+    requestBlockFromPeers(hash).onComplete {
       case Success((ch, block)) => executionBlockReceived(block, ch)
       case Failure(exception)   => logger.error(s"Error requesting block $hash from peers", exception)
     }(using globalScheduler)
-  }
 
   private def updateToFollowChain(
       prevState: Working[ChainStatus],
@@ -1157,23 +1157,11 @@ class ELUpdater(
     confirmBlockAndFollowChain(networkBlock.toEcBlock, prevState, nodeChainInfo, returnToMainChainInfo)
   }
 
-  private def findBlockChild(parent: BlockHash, lastBlockHash: BlockHash): Either[String, ContractBlock] = {
-    @tailrec
-    def loop(b: BlockHash): Option[ContractBlock] = chainContractClient.getBlock(b) match {
-      case None => None
-      case Some(cb) =>
-        if (cb.parentHash == parent) Some(cb)
-        else loop(cb.parentHash)
-    }
-
-    loop(lastBlockHash).toRight(s"Could not find child of $parent")
-  }
-
   @tailrec
   private def maybeRequestNextBlock(prevState: Working[FollowingChain], finalizedBlock: ContractBlock): Working[FollowingChain] = {
     if (prevState.lastEcBlock.height < prevState.chainStatus.nodeChainInfo.lastBlock.height) {
       logger.debug(s"EC chain is not synced, trying to find next block to request")
-      findBlockChild(prevState.lastEcBlock.hash, prevState.chainStatus.nodeChainInfo.lastBlock.hash) match {
+      chainContractClient.findBlockChild(prevState.lastEcBlock.hash, prevState.chainStatus.nodeChainInfo.lastBlock) match {
         case Left(error) =>
           logger.error(s"Could not find child of ${prevState.lastEcBlock.hash} on contract: $error")
           prevState
@@ -1807,9 +1795,8 @@ object ELUpdater {
       }
     }
 
-    case class WaitingForSyncHead(target: ContractBlock, task: CancelableFuture[BlockWithChannel]) extends State {
-      override def toString: String = s"WaitingForSyncHead($target)"
-    }
+    case class WaitingForSyncHead(target: ContractBlock) extends State
+
     case class SyncingToFinalizedBlock(target: BlockHash) extends State
   }
 

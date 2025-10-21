@@ -98,14 +98,14 @@ object ConsensusClient {
       context.time,
       context.wallet,
       context.settings.blockchainSettings.functionalitySettings.unitsRegistryAddressParsed.explicitGet(),
-      blockObserver.loadBlock,
+      blockObserver.requestBlockFromPeers,
       context.broadcastTransaction,
       eluScheduler,
       globalScheduler
     )
 
     private val blocksStreamCancelable: CancelableFuture[Unit] =
-      blockObserver.getBlockStream.foreach { case (ch, block) => elu.executionBlockReceived(block, ch) }(using globalScheduler)
+      blockObserver.blockStream.foreach { case (ch, block) => elu.executionBlockReceived(block, ch) }(using globalScheduler)
 
     override def close(): Unit = {
       blocksStreamCancelable.cancel()
