@@ -433,7 +433,7 @@ trait ChainContractClient {
     case None                    => None
   }
 
-  private def clean(hash: BlockHash): String = hash.drop(2) // Drop "0x"
+  private def clean(hash: BlockHash): String = hash.toString.drop(2) // Drop "0x"
 }
 
 object ChainContractClient {

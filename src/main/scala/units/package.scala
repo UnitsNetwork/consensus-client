@@ -7,8 +7,7 @@ package object units {
   val NativeTokenElDecimals: Byte = 18.toByte
   val NativeTokenClDecimals: Byte = 8.toByte
 
-  type BlockHash    = BlockHash.Type
-  type JobResult[A] = Either[ClientError, A]
+  type JobResult[A] = Either[String, A]
 
   opaque type EAmount = BigInteger
   object EAmount:
@@ -33,4 +32,9 @@ package object units {
           override def toString: String = label
         }
       )
+
+  extension (bh: BlockHash) {
+    def take(n: Int): String = bh.str.take(n)
+    def drop(n: Int): String = bh.str.drop(n)
+  }
 }

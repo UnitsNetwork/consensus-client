@@ -39,7 +39,7 @@ object GetBlockL2Spec extends MessageSpec[GetBlock] {
 
   override val maxLength: Int = SignatureLength
 
-  override def serializeData(msg: GetBlock): Array[Byte] = toBytes(msg.hash)
+  override def serializeData(msg: GetBlock): Array[Byte] = toBytes(msg.hash.toString)
 
   override def deserializeData(bytes: Array[Byte]): Try[GetBlock] = Try {
     require(
@@ -67,7 +67,7 @@ object BlockSpec extends MessageSpec[NetworkL2Block] {
     val payloadOffset   = if (isWithSignature) SignatureLength + 1 else 1
     for {
       _     <- Either.cond(signature.forall(_.size == SignatureLength), (), new RuntimeException("Invalid block signature size")).toTry
-      block <- NetworkL2Block(bytes.drop(payloadOffset), signature).leftMap(err => new RuntimeException(err.message)).toTry
+      block <- NetworkL2Block(bytes.drop(payloadOffset), signature).leftMap(err => new RuntimeException(err)).toTry
     } yield block
   }
 }

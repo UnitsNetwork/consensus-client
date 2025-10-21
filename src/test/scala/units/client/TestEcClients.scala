@@ -10,7 +10,7 @@ import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.model.*
 import units.client.engine.{EngineApiClient, LoggedEngineApiClient}
 import units.eth.{EthAddress, EthereumConstants}
-import units.{BlockHash, JobResult, NetworkL2Block}
+import units.{BlockHash, JobResult, NetworkL2Block, take}
 
 /** Life of a block:
   *   1. User calls willForge - goes to futureBlocks, willSimulate - to sumulatedBlocks.

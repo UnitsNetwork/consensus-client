@@ -12,7 +12,7 @@ trait HasJobLogging extends ScorexLogging {
     log.debug(s"[$currRequestId] $method")
 
     f.tap {
-      case Left(e)  => log.debug(s"[$currRequestId] Error: ${e.message}")
+      case Left(e)  => log.debug(s"[$currRequestId] Error: $e")
       case Right(r) => log.debug(s"[$currRequestId] Result: ${toMsg(r)}")
     }
   }

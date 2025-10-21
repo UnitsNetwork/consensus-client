@@ -8,7 +8,7 @@ import units.client.engine.model.Withdrawal.WithdrawalIndex
 import units.el.DepositedTransaction
 import units.eth.{EmptyL2Block, EthAddress}
 import units.util.BlockToPayloadMapper
-import units.{BlockHash, ClientError, JobResult}
+import units.{BlockHash, JobResult}
 
 import scala.annotation.tailrec
 
@@ -67,7 +67,7 @@ object EngineApiClient {
         depositedTransactions: Seq[DepositedTransaction]
     ): JobResult[JsObject] = for {
       targetBlockOpt <- c.getBlockByHash(rollbackTargetBlockId)
-      targetBlock    <- targetBlockOpt.toRight(ClientError(s"Target block $rollbackTargetBlockId is not in EC"))
+      targetBlock    <- targetBlockOpt.toRight(s"Target block $rollbackTargetBlockId is not in EC")
       simulatedBlockJson <- c.simulate(
         EmptyL2Block.mkSimulateCall(targetBlock, feeRecipient, time, prevRandao, withdrawals, depositedTransactions),
         targetBlock.hash
@@ -78,7 +78,7 @@ object EngineApiClient {
     def getLastWithdrawalIndex(hash: BlockHash): JobResult[WithdrawalIndex] =
       c.getBlockByHash(hash) match {
         case Left(e)     => Left(e)
-        case Right(None) => Left(ClientError(s"Can't find $hash block on EC during withdrawal search"))
+        case Right(None) => Left(s"Can't find $hash block on EC during withdrawal search")
         case Right(Some(ecBlock)) =>
           ecBlock.withdrawals.lastOption match {
             case Some(lastWithdrawal) => Right(lastWithdrawal.index)

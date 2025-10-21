@@ -91,7 +91,7 @@ class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient
     logDebug(requestId, method)
 
     f(requestId).tap {
-      case Left(e)  => logDebug(requestId, s"Error: ${e.message}")
+      case Left(e)  => logDebug(requestId, s"Error: $e")
       case Right(r) => logDebug(requestId, s"Success: ${toMsg(r)}")
     }
   }

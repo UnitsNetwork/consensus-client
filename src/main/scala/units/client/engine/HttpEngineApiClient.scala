@@ -11,7 +11,7 @@ import units.client.engine.model.ForkchoiceUpdatedRequest.ForkChoiceAttributes
 import units.client.engine.model.PayloadStatus.{Syncing, Valid}
 import units.client.engine.model.{*, given}
 import units.eth.EthAddress
-import units.{BlockHash, ClientError, JobResult}
+import units.{BlockHash, JobResult}
 
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 
@@ -25,8 +25,8 @@ class HttpEngineApiClient(val config: JsonRpcClient.Config, val backend: SttpBac
       .flatMap {
         case ForkChoiceUpdatedResponse(ps @ PayloadState(Valid | Syncing, _, _), None) => Right(ps.status)
         case ForkChoiceUpdatedResponse(PayloadState(_, _, Some(validationError)), _) =>
-          Left(ClientError(s"Payload validation error: $validationError"))
-        case ForkChoiceUpdatedResponse(payloadState, _) => Left(ClientError(s"Unexpected payload status ${payloadState.status}"))
+          Left(s"Payload validation error: $validationError")
+        case ForkChoiceUpdatedResponse(payloadState, _) => Left(s"Unexpected payload status ${payloadState.status}")
       }
   }
 
@@ -53,11 +53,11 @@ class HttpEngineApiClient(val config: JsonRpcClient.Config, val backend: SttpBac
       case ForkChoiceUpdatedResponse(PayloadState(Valid, _, _), Some(payloadId)) =>
         Right(payloadId)
       case ForkChoiceUpdatedResponse(_, None) =>
-        Left(ClientError(s"Payload id for $lastBlockHash is not defined"))
+        Left(s"Payload id for $lastBlockHash is not defined")
       case ForkChoiceUpdatedResponse(PayloadState(_, _, Some(validationError)), _) =>
-        Left(ClientError(s"Payload validation error for $lastBlockHash: $validationError"))
+        Left(s"Payload validation error for $lastBlockHash: $validationError")
       case ForkChoiceUpdatedResponse(payloadState, _) =>
-        Left(ClientError(s"Unexpected payload status for $lastBlockHash: ${payloadState.status}"))
+        Left(s"Unexpected payload status for $lastBlockHash: ${payloadState.status}")
     }
   }
 
@@ -69,11 +69,11 @@ class HttpEngineApiClient(val config: JsonRpcClient.Config, val backend: SttpBac
 
   def newPayload(payload: JsObject, requestId: Int): JobResult[Option[BlockHash]] = {
     sendEngineRequest[NewPayloadRequest, PayloadState](NewPayloadRequest(payload, requestId), BlockExecutionTimeout, requestId).flatMap {
-      case PayloadState(_, _, Some(validationError))     => Left(ClientError(s"Payload validation error: $validationError"))
+      case PayloadState(_, _, Some(validationError))     => Left(s"Payload validation error: $validationError")
       case PayloadState(Valid, Some(latestValidHash), _) => Right(Some(latestValidHash))
       case PayloadState(Syncing, latestValidHash, _)     => Right(latestValidHash)
-      case PayloadState(status, None, _)                 => Left(ClientError(s"Latest valid hash is not defined at status $status"))
-      case PayloadState(status, _, _)                    => Left(ClientError(s"Unexpected payload status: $status"))
+      case PayloadState(status, None, _)                 => Left(s"Latest valid hash is not defined at status $status")
+      case PayloadState(status, _, _)                    => Left(s"Unexpected payload status: $status")
     }
   }
 
@@ -94,7 +94,7 @@ class HttpEngineApiClient(val config: JsonRpcClient.Config, val backend: SttpBac
       GetBlockByHashRequest(hash, fullTransactionObjects = false, requestId),
       NonBlockExecutionTimeout,
       requestId
-    ).leftMap(err => ClientError(s"Error getting block by hash $hash: $err"))
+    ).leftMap(err => s"Error getting block by hash $hash: $err")
   }
 
   def getBlockByHashJson(hash: BlockHash, fullTransactionObjects: Boolean, requestId: Int): JobResult[Option[JsObject]] = {
@@ -102,12 +102,12 @@ class HttpEngineApiClient(val config: JsonRpcClient.Config, val backend: SttpBac
       GetBlockByHashRequest(hash, fullTransactionObjects, requestId),
       NonBlockExecutionTimeout,
       requestId
-    ).leftMap(err => ClientError(s"Error getting block json by hash $hash: $err"))
+    ).leftMap(err => s"Error getting block json by hash $hash: $err")
   }
 
   def getLastExecutionBlock(requestId: Int): JobResult[EcBlock] = for {
     lastEcBlockOpt <- getBlockByNumber(BlockNumber.Latest, requestId)
-    lastEcBlock    <- Either.fromOption(lastEcBlockOpt, ClientError("Impossible: EC doesn't have blocks"))
+    lastEcBlock    <- Either.fromOption(lastEcBlockOpt, "Impossible: EC doesn't have blocks")
   } yield lastEcBlock
 
   def blockExists(hash: BlockHash, requestId: Int): JobResult[Boolean] =
@@ -116,11 +116,11 @@ class HttpEngineApiClient(val config: JsonRpcClient.Config, val backend: SttpBac
   override def simulate(blockStateCalls: Seq[BlockStateCall], hash: BlockHash, requestId: Int): JobResult[Seq[JsObject]] =
     sendRequest[SimulateRequest, Seq[JsObject]](SimulateRequest(blockStateCalls, hash, requestId), NonBlockExecutionTimeout, requestId)
       .flatMap(_.toRight("Simulated block was empty"))
-      .leftMap(err => ClientError(s"Error simulating block: $err"))
+      .leftMap(err => s"Error simulating block: $err")
 
   private def getBlockByNumberJson(number: String, requestId: Int): JobResult[Option[JsObject]] = {
     sendRequest[GetBlockByNumberRequest, JsObject](GetBlockByNumberRequest(number, requestId), NonBlockExecutionTimeout, requestId)
-      .leftMap(err => ClientError(s"Error getting block by number $number: $err"))
+      .leftMap(err => s"Error getting block by number $number: $err")
   }
 
   override def getLogs(hash: BlockHash, addresses: List[EthAddress], topics: List[String], requestId: Int): JobResult[List[GetLogsResponseEntry]] =
@@ -129,13 +129,13 @@ class HttpEngineApiClient(val config: JsonRpcClient.Config, val backend: SttpBac
       NonBlockExecutionTimeout,
       requestId
     )
-      .leftMap(err => ClientError(s"Error getting block logs by hash $hash: $err"))
+      .leftMap(err => s"Error getting block logs by hash $hash: $err")
       .map(_.getOrElse(List.empty))
 
   private def sendEngineRequest[A: Writes, B: Reads](request: A, timeout: FiniteDuration, requestId: Int): JobResult[B] = {
     sendRequest(request, timeout, requestId) match {
-      case Right(response) => response.toRight(ClientError(s"Unexpected engine API empty response"))
-      case Left(err)       => Left(ClientError(s"Engine API request error: $err"))
+      case Right(response) => response.toRight(s"Unexpected engine API empty response")
+      case Left(err)       => Left(s"Engine API request error: $err")
     }
   }
 }

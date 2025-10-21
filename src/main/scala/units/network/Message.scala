@@ -21,6 +21,8 @@ case class RawBytes(code: Byte, data: Array[Byte]) extends Message {
     case o: RawBytes => o.code == code && util.Arrays.equals(o.data, data)
     case _           => false
   }
+
+  override def hashCode(): Int = util.Arrays.hashCode(data)
 }
 
 object RawBytes {
