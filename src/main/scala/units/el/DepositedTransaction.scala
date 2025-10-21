@@ -62,6 +62,19 @@ case class DepositedTransaction(
     val transactionBytes = Array(DepositedTransaction.Type) ++ rlpEncoded
     Numeric.toHexString(transactionBytes)
   }
+
+  override def equals(obj: Any): Boolean = obj match {
+    case that: DepositedTransaction =>
+      this.sourceHash.sameElements(that.sourceHash) &&
+      this.from == that.from &&
+      this.to == that.to &&
+      this.mint == that.mint &&
+      this.value == that.value &&
+      this.gas == that.gas &&
+      this.isSystemTx == that.isSystemTx &&
+      this.data == that.data
+    case _ => false
+  }
 }
 
 object DepositedTransaction {

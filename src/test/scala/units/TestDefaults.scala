@@ -9,9 +9,6 @@ trait TestDefaults {
   val NativeBridgeAddress   = EthAddress.unsafeFrom("0x0000000000000000000000000000000000006a7e")
   val StandardBridgeAddress = EthAddress.unsafeFrom("0xa50a51c09a5c451C52BB714527E1974b686D8e77")
 
-  val NativeTokenElDecimals = 18.toByte
-  val NativeTokenClDecimals = 8.toByte
-
   val WWavesAddress  = EthAddress.unsafeFrom("0x9a3DBCa554e9f6b9257aAa24010DA8377C57c17e")
   val WwavesDecimals = 8.toByte
   val WavesDecimals  = 8.toByte

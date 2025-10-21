@@ -9,7 +9,7 @@ git.uncommittedSignifier := Some("DIRTY")
 inScope(Global)(
   Seq(
     onChangedBuildSource := ReloadOnSourceChanges,
-    scalaVersion         := "3.7.2",
+    scalaVersion         := "3.7.3",
     organization         := "network.units",
     organizationName     := "Units Network",
     resolvers ++= Seq(Resolver.sonatypeCentralSnapshots, Resolver.mavenLocal),
@@ -33,7 +33,7 @@ name       := "consensus-client"
 maintainer := "Units Network Team"
 
 libraryDependencies ++= {
-  val node        = "1.5.11"
+  val node        = "1.5.12-SNAPSHOT"
   val sttpVersion = "3.11.0"
   Seq(
     "com.wavesplatform"              % "node-testkit"  % node % Test,

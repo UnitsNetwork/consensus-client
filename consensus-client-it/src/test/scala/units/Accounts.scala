@@ -21,6 +21,9 @@ trait Accounts {
   val miner21Account       = mkKeyPair("devnet-2", 0)
   val miner21RewardAddress = EthAddress.unsafeFrom("0xcf0b9e13fdd593f4ca26d36afcaa44dd3fdccbed")
 
+  val miner31Account       = mkKeyPair("devnet-3", 0)
+  val miner31RewardAddress = EthAddress.unsafeFrom("0xf1FE6d7bfebead68A8C06cCcee97B61d7DAA0338")
+
   val clRichAccount1 = mkKeyPair("devnet rich", 0)
   val clRichAccount2 = mkKeyPair("devnet rich", 1)
 
