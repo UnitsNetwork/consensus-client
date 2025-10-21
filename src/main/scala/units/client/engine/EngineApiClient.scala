@@ -8,12 +8,12 @@ import units.client.engine.model.Withdrawal.WithdrawalIndex
 import units.el.DepositedTransaction
 import units.eth.{EmptyL2Block, EthAddress}
 import units.util.BlockToPayloadMapper
-import units.{BlockHash, JobResult}
+import units.{BlockHash, Result}
 
 import scala.annotation.tailrec
 
 trait EngineApiClient {
-  def forkchoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int = newRequestId): JobResult[PayloadStatus]
+  def forkchoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int = newRequestId): Result[PayloadStatus]
 
   def forkchoiceUpdatedWithPayload(
       lastBlockHash: BlockHash,
@@ -24,32 +24,32 @@ trait EngineApiClient {
       withdrawals: Vector[Withdrawal] = Vector.empty,
       transactions: Vector[String] = Vector.empty,
       requestId: Int = newRequestId
-  ): JobResult[PayloadId]
+  ): Result[PayloadId]
 
-  def getPayload(payloadId: PayloadId, requestId: Int = newRequestId): JobResult[JsObject]
+  def getPayload(payloadId: PayloadId, requestId: Int = newRequestId): Result[JsObject]
 
-  def newPayload(payload: JsObject, requestId: Int = newRequestId): JobResult[Option[BlockHash]]
+  def newPayload(payload: JsObject, requestId: Int = newRequestId): Result[Option[BlockHash]]
 
-  def getPayloadBodyByHash(hash: BlockHash, requestId: Int = newRequestId): JobResult[Option[JsObject]]
+  def getPayloadBodyByHash(hash: BlockHash, requestId: Int = newRequestId): Result[Option[JsObject]]
 
-  def getBlockByNumber(number: BlockNumber, requestId: Int = newRequestId): JobResult[Option[EcBlock]]
+  def getBlockByNumber(number: BlockNumber, requestId: Int = newRequestId): Result[Option[EcBlock]]
 
-  def getBlockByHash(hash: BlockHash, requestId: Int = newRequestId): JobResult[Option[EcBlock]]
+  def getBlockByHash(hash: BlockHash, requestId: Int = newRequestId): Result[Option[EcBlock]]
 
-  def simulate(blockStateCalls: Seq[BlockStateCall], hash: BlockHash, requestId: Int = newRequestId): JobResult[Seq[JsObject]]
+  def simulate(blockStateCalls: Seq[BlockStateCall], hash: BlockHash, requestId: Int = newRequestId): Result[Seq[JsObject]]
 
-  def getBlockByHashJson(hash: BlockHash, fullTransactionObjects: Boolean = false, requestId: Int = newRequestId): JobResult[Option[JsObject]]
+  def getBlockByHashJson(hash: BlockHash, fullTransactionObjects: Boolean = false, requestId: Int = newRequestId): Result[Option[JsObject]]
 
-  def getLastExecutionBlock(requestId: Int = newRequestId): JobResult[EcBlock]
+  def getLastExecutionBlock(requestId: Int = newRequestId): Result[EcBlock]
 
-  def blockExists(hash: BlockHash, requestId: Int = newRequestId): JobResult[Boolean]
+  def blockExists(hash: BlockHash, requestId: Int = newRequestId): Result[Boolean]
 
   def getLogs(
       hash: BlockHash,
       addresses: List[EthAddress] = Nil,
       topics: List[String] = Nil,
       requestId: Int = newRequestId
-  ): JobResult[List[GetLogsResponseEntry]]
+  ): Result[List[GetLogsResponseEntry]]
 
   def onRetry(requestId: Int): Unit = {}
 }
@@ -65,7 +65,7 @@ object EngineApiClient {
         prevRandao: String,
         withdrawals: Seq[Withdrawal],
         depositedTransactions: Seq[DepositedTransaction]
-    ): JobResult[JsObject] = for {
+    ): Result[JsObject] = for {
       targetBlockOpt <- c.getBlockByHash(rollbackTargetBlockId)
       targetBlock    <- targetBlockOpt.toRight(s"Target block $rollbackTargetBlockId is not in EC")
       simulatedBlockJson <- c.simulate(
@@ -75,7 +75,7 @@ object EngineApiClient {
     } yield BlockToPayloadMapper.toPayloadJson(simulatedBlockJson.head, Json.obj("transactions" -> Json.arr(), "withdrawals" -> withdrawals))
 
     @tailrec
-    def getLastWithdrawalIndex(hash: BlockHash): JobResult[WithdrawalIndex] =
+    def getLastWithdrawalIndex(hash: BlockHash): Result[WithdrawalIndex] =
       c.getBlockByHash(hash) match {
         case Left(e)     => Left(e)
         case Right(None) => Left(s"Can't find $hash block on EC during withdrawal search")

@@ -8,7 +8,7 @@ import com.wavesplatform.lang.v1.FunctionHeader
 import com.wavesplatform.lang.v1.compiler.Terms.{CONST_BYTESTR, CONST_LONG, CONST_STRING, EVALUATED, FUNCTION_CALL}
 import org.web3j.utils.Numeric.cleanHexPrefix
 import units.util.HexBytesConverter.toHexNoPrefix
-import units.{BlockHash, JobResult}
+import units.{BlockHash, Result}
 
 abstract class ContractFunction(baseName: String, extraArgs: Either[CommonError, List[EVALUATED]]) {
   def reference: BlockHash
@@ -20,9 +20,9 @@ abstract class ContractFunction(baseName: String, extraArgs: Either[CommonError,
       transfersRootHash: Digest,
       lastC2ETransferIndex: Long,
       lastAssetRegistrySyncedIndex: Long
-  ): JobResult[FUNCTION_CALL] = (for {
-    hash <- CONST_STRING(cleanHexPrefix(blockHash.toString))
-    ref  <- CONST_STRING(cleanHexPrefix(reference.toString))
+  ): Result[FUNCTION_CALL] = (for {
+    hash <- CONST_STRING(cleanHexPrefix(blockHash.str))
+    ref  <- CONST_STRING(cleanHexPrefix(reference.str))
     ntrh <- CONST_STRING(toHexNoPrefix(transfersRootHash))
     xtra <- extraArgs
   } yield FUNCTION_CALL(

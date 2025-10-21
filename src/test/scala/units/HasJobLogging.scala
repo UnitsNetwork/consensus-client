@@ -7,7 +7,7 @@ import java.util.concurrent.ThreadLocalRandom
 import scala.util.chaining.scalaUtilChainingOps
 
 trait HasJobLogging extends ScorexLogging {
-  protected def wrap[A](method: String, f: => JobResult[A], toMsg: A => String = (_: A).toString): JobResult[A] = {
+  protected def wrap[A](method: String, f: => Result[A], toMsg: A => String = (_: A).toString): Result[A] = {
     val currRequestId = ThreadLocalRandom.current().nextInt(10000, 100000).toString
     log.debug(s"[$currRequestId] $method")
 
@@ -17,5 +17,5 @@ trait HasJobLogging extends ScorexLogging {
     }
   }
 
-  protected def l(text: String): JobResult[Unit] = log.debug(text).asRight
+  protected def l(text: String): Result[Unit] = log.debug(text).asRight
 }

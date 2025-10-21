@@ -10,7 +10,7 @@ import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.model.*
 import units.client.engine.{EngineApiClient, LoggedEngineApiClient}
 import units.eth.{EthAddress, EthereumConstants}
-import units.{BlockHash, JobResult, NetworkL2Block, take}
+import units.{BlockHash, Result, NetworkL2Block, take}
 
 /** Life of a block:
   *   1. User calls willForge - goes to futureBlocks, willSimulate - to sumulatedBlocks.
@@ -68,7 +68,7 @@ class TestEcClients private (
 
   val engineApi = new LoggedEngineApiClient(
     new EngineApiClient {
-      override def simulate(blockStateCalls: Seq[BlockStateCall], hash: BlockHash, requestId: Int): JobResult[Seq[JsObject]] = {
+      override def simulate(blockStateCalls: Seq[BlockStateCall], hash: BlockHash, requestId: Int): Result[Seq[JsObject]] = {
         val stateCall = blockStateCalls.headOption.getOrElse(fail("Multiple blockStateCalls"))
         require(stateCall.calls.isEmpty, s"Not implemented for nonempty calls, because of logs: ${stateCall.calls}")
 
@@ -127,7 +127,7 @@ class TestEcClients private (
         Seq(json).asRight
       }
 
-      override def forkchoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int): JobResult[PayloadStatus] = {
+      override def forkchoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int): Result[PayloadStatus] = {
         val readyBlock = readyBlocks.transformAndExtract { xs =>
           val (found, rest) = xs.partition { case (h, _) => h == blockHash } // Remove from future blocks, it's going to chain
           require(found.size <= 1, s"Found multiple blocks: ${found.keys.mkString(", ")}")
@@ -155,7 +155,7 @@ class TestEcClients private (
           withdrawals: Vector[Withdrawal],
           transactions: Vector[String],
           requestId: Int
-      ): JobResult[PayloadId] = {
+      ): Result[PayloadId] = {
         forkChoiceUpdateWithPayloadIdCalls.increment()
         forkchoiceUpdated(lastBlockHash, finalizedBlockHash, requestId)
 
@@ -179,7 +179,7 @@ class TestEcClients private (
         payloadId.asRight
       }
 
-      override def getPayload(payloadId: PayloadId, requestId: Int): JobResult[JsObject] = {
+      override def getPayload(payloadId: PayloadId, requestId: Int): Result[JsObject] = {
         log.debug(s"Pending payloads: ${pendingPayloads.get().values.map(b => s"${b.hash}->${b.parentHash}")}")
         pendingPayloads.get().get(payloadId) match {
           case Some(b) => TestEcBlocks.toPayload(b, b.prevRandao).asRight
@@ -189,7 +189,7 @@ class TestEcClients private (
         }
       }
 
-      override def newPayload(payload: JsObject, requestId: Int): JobResult[Option[BlockHash]] = {
+      override def newPayload(payload: JsObject, requestId: Int): Result[Option[BlockHash]] = {
         val blockHash = (payload \ "blockHash").as[BlockHash]
         val payloadId = getPayloadId(blockHash)
         val forgedBlock = pendingPayloads.transformAndExtract { xs =>
@@ -213,31 +213,31 @@ class TestEcClients private (
         Some(blockHash).asRight
       }
 
-      override def getPayloadBodyByHash(hash: BlockHash, requestId: Int): JobResult[Option[JsObject]] =
+      override def getPayloadBodyByHash(hash: BlockHash, requestId: Int): Result[Option[JsObject]] =
         getBlockByHashJson(hash)
 
-      override def getBlockByNumber(number: BlockNumber, requestId: Int): JobResult[Option[EcBlock]] =
+      override def getBlockByNumber(number: BlockNumber, requestId: Int): Result[Option[EcBlock]] =
         number match {
           case BlockNumber.Latest    => chain.get().headOption.asRight
           case BlockNumber.Number(n) => chain.get().find(_.height == n).asRight
         }
 
-      override def getBlockByHash(hash: BlockHash, requestId: Int): JobResult[Option[EcBlock]] =
+      override def getBlockByHash(hash: BlockHash, requestId: Int): Result[Option[EcBlock]] =
         chain.get().find(_.hash == hash).asRight
 
-      override def getBlockByHashJson(hash: BlockHash, fullTransactionObjects: Boolean, requestId: Int): JobResult[Option[JsObject]] =
+      override def getBlockByHashJson(hash: BlockHash, fullTransactionObjects: Boolean, requestId: Int): Result[Option[JsObject]] =
         Some(Json.obj()).asRight // This could fail some tests
 
-      override def getLastExecutionBlock(requestId: Int): JobResult[EcBlock] = chain.get().head.asRight
+      override def getLastExecutionBlock(requestId: Int): Result[EcBlock] = chain.get().head.asRight
 
-      override def blockExists(hash: BlockHash, requestId: Int): JobResult[Boolean] = notImplementedMethodJob("blockExists")
+      override def blockExists(hash: BlockHash, requestId: Int): Result[Boolean] = notImplementedMethodJob("blockExists")
 
       override def getLogs(
           hash: BlockHash,
           addresses: List[EthAddress],
           topics: List[String],
           requestId: Int
-      ): JobResult[List[GetLogsResponseEntry]] = {
+      ): Result[List[GetLogsResponseEntry]] = {
         val request = GetLogsRequest(hash, addresses, topics, 0) // requestId is ignored, see setBlockLogs
         getLogsCalls.transform(_ + hash)
         logs.get().getOrElse(request, notImplementedCase(s"call setBlockLogs with $request"))
@@ -245,7 +245,7 @@ class TestEcClients private (
     }
   )
 
-  protected def notImplementedMethodJob[A](text: String): JobResult[A] = {
+  protected def notImplementedMethodJob[A](text: String): Result[A] = {
     log.warn(s"notImplementedMethodJob($text)")
     throw new NotImplementedMethod(text)
   }

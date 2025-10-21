@@ -39,7 +39,7 @@ object GetBlockL2Spec extends MessageSpec[GetBlock] {
 
   override val maxLength: Int = SignatureLength
 
-  override def serializeData(msg: GetBlock): Array[Byte] = toBytes(msg.hash.toString)
+  override def serializeData(msg: GetBlock): Array[Byte] = toBytes(msg.hash.str)
 
   override def deserializeData(bytes: Array[Byte]): Try[GetBlock] = Try {
     require(

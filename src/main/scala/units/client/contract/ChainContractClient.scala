@@ -8,6 +8,7 @@ import com.wavesplatform.lang.Global
 import com.wavesplatform.serialization.ByteBufferOps
 import com.wavesplatform.state.{BinaryDataEntry, Blockchain, BooleanDataEntry, DataEntry, EmptyDataEntry, IntegerDataEntry, StringDataEntry}
 import com.wavesplatform.transaction.Asset
+import org.web3j.utils.Numeric.cleanHexPrefix
 import units.ELUpdater.EpochInfo
 import units.client.contract.ChainContractClient.*
 import units.eth.{EthAddress, Gwei}
@@ -65,7 +66,7 @@ trait ChainContractClient {
       }
 
   def getBlock(hash: BlockHash): Option[ContractBlock] =
-    getBinaryData(s"block_$hash").orElse(getBinaryData(s"blockMeta${clean(hash)}")).map { blockMeta =>
+    getBinaryData(s"block_$hash").orElse(getBinaryData(s"blockMeta${cleanHexPrefix(hash.str)}")).map { blockMeta =>
       val bb = ByteBuffer.wrap(blockMeta.arr)
       try {
         val chainHeight = bb.getLong()
@@ -432,8 +433,6 @@ trait ChainContractClient {
     case Some(x)                 => fail(s"$context: expected ${ct.runtimeClass.getSimpleName}, got: $x")
     case None                    => None
   }
-
-  private def clean(hash: BlockHash): String = hash.toString.drop(2) // Drop "0x"
 }
 
 object ChainContractClient {

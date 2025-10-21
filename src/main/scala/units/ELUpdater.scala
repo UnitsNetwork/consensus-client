@@ -112,7 +112,7 @@ class ELUpdater(
     }
   }
 
-  private def callContract(fc: FUNCTION_CALL, invoker: KeyPair): JobResult[Unit] = {
+  private def callContract(fc: FUNCTION_CALL, invoker: KeyPair): Result[Unit] = {
     val extraFee = if (blockchain.hasPaidVerifier(invoker.toAddress)) ScriptExtraFee else 0
 
     val tx = InvokeScriptTransaction(
@@ -150,7 +150,7 @@ class ELUpdater(
     }
   }
 
-  private def rollbackDryRun(prevState: Working[ChainStatus], target: L2BlockLike, finalizedBlock: ContractBlock): JobResult[Working[ChainStatus]] = {
+  private def rollbackDryRun(prevState: Working[ChainStatus], target: L2BlockLike, finalizedBlock: ContractBlock): Result[Working[ChainStatus]] = {
     val targetHash = target.hash
     for {
       lastEcBlock <- engineApiClient.getBlockByHash(targetHash).flatMap(_.toRight(s"Block $targetHash was not found"))
@@ -183,7 +183,7 @@ class ELUpdater(
       chainContractOptions: ChainContractOptions,
       prevEpochMinerRewardAddress: Option[EthAddress],
       willSimulateBlock: Boolean
-  ): JobResult[MiningData] = {
+  ): Result[MiningData] = {
     val startElWithdrawalIndex = lastElWithdrawalIndex + 1
     val startC2ETransferIndex  = lastC2ETransferIndex + 1
 
@@ -993,7 +993,7 @@ class ELUpdater(
       logger.debug(s"Unexpected state on sync: $other")
   })
 
-  private def validateRandao(block: EcBlock, epochNumber: Int): JobResult[Unit] =
+  private def validateRandao(block: EcBlock, epochNumber: Int): Result[Unit] =
     blockchain.vrf(epochNumber) match {
       case None => s"VRF of $epochNumber epoch is empty".asLeft
       case Some(vrf) =>
@@ -1004,7 +1004,7 @@ class ELUpdater(
     }
 
   // Of a current epoch miner
-  private def validateBlockSignature(block: NetworkL2Block, epochInfo: Option[EpochInfo]): JobResult[Unit] = {
+  private def validateBlockSignature(block: NetworkL2Block, epochInfo: Option[EpochInfo]): Result[Unit] = {
     epochInfo match {
       case Some(epochMeta) =>
         for {
@@ -1024,19 +1024,19 @@ class ELUpdater(
     }
   }
 
-  private def validateTimestamp(newNetworkBlock: NetworkL2Block, parentEcBlock: EcBlock): JobResult[Unit] = {
+  private def validateTimestamp(newNetworkBlock: NetworkL2Block, parentEcBlock: EcBlock): Result[Unit] = {
     val minAppendTs = parentEcBlock.timestamp + config.blockDelay.toSeconds
     Either.raiseUnless(newNetworkBlock.timestamp >= minAppendTs) {
       s"timestamp (${newNetworkBlock.timestamp}) of appended block must be greater or equal $minAppendTs, Δ${minAppendTs - newNetworkBlock.timestamp}s"
     }
   }
 
-  private def preValidateBlock(networkBlock: NetworkL2Block, parentBlock: EcBlock, epochInfo: Option[EpochInfo]): JobResult[Unit] = for {
+  private def preValidateBlock(networkBlock: NetworkL2Block, parentBlock: EcBlock, epochInfo: Option[EpochInfo]): Result[Unit] = for {
     _ <- validateTimestamp(networkBlock, parentBlock)
     _ <- validateBlockSignature(networkBlock, epochInfo)
   } yield ()
 
-  private def getAltChainReferenceBlock(nodeChainInfo: ChainInfo, lastContractBlock: ContractBlock): JobResult[ContractBlock] = {
+  private def getAltChainReferenceBlock(nodeChainInfo: ChainInfo, lastContractBlock: ContractBlock): Result[ContractBlock] = {
     if (nodeChainInfo.isMain) {
       for {
         lastEpoch <- chainContractClient
@@ -1212,7 +1212,7 @@ class ELUpdater(
       contractBlock: ContractBlock,
       parentContractBlock: ContractBlock,
       chainContractOptions: ChainContractOptions
-  ): JobResult[Unit] = {
+  ): Result[Unit] = {
     val expectedAddedAssets =
       if (
         contractBlock.epoch < chainContractOptions.assetTransfersActivationEpoch ||
@@ -1287,7 +1287,7 @@ class ELUpdater(
         getContractBlocksForValidation(startState).fold[Unit](
           err => logger.error(s"Validation of applied blocks error: $err"),
           blocksToValidate =>
-            blocksToValidate.foldLeft[JobResult[Working[ChainStatus]]](Right(startState)) {
+            blocksToValidate.foldLeft[Result[Working[ChainStatus]]](Right(startState)) {
               case (Right(curState), block) =>
                 logger.trace(s"Trying to validate applied block ${block.hash}")
                 validateAppliedBlock(block.contractBlock, block.ecBlock, curState) match {
@@ -1315,7 +1315,7 @@ class ELUpdater(
       fullValidationStatus: FullValidationStatus,
       miningReward: Option[MiningReward],
       options: ChainContractOptions
-  ): JobResult[Option[WithdrawalIndex]] = for {
+  ): Result[Option[WithdrawalIndex]] = for {
     blockJsonE <- engineApiClient.getBlockByHashJson(ecBlock.hash, fullTransactionObjects = true)
     blockJson  <- blockJsonE.toRight(s"Can't find EC block ${ecBlock.hash} transactions")
 
@@ -1569,7 +1569,7 @@ class ELUpdater(
       contractBlock: ContractBlock,
       parentBlock: EcBlock,
       prevState: Working[ChainStatus]
-  ): JobResult[Working[ChainStatus]] = {
+  ): Result[Working[ChainStatus]] = {
     logger.trace(s"Trying to apply and do a full validation of block ${networkBlock.hash}")
     for {
       _ <- applyBlock(networkBlock, parentBlock, epochInfo = None) // epochInfo is empty, because we don't need to validate a block signature
@@ -1577,7 +1577,7 @@ class ELUpdater(
     } yield updatedState
   }
 
-  private def applyBlock(networkBlock: NetworkL2Block, parentBlock: EcBlock, epochInfo: Option[EpochInfo]): JobResult[Unit] = for {
+  private def applyBlock(networkBlock: NetworkL2Block, parentBlock: EcBlock, epochInfo: Option[EpochInfo]): Result[Unit] = for {
     _ <- preValidateBlock(networkBlock, parentBlock, epochInfo)
     _ <- engineApiClient.newPayload(networkBlock.payload)
   } yield ()
@@ -1588,7 +1588,7 @@ class ELUpdater(
       prevState: Working[ChainStatus],
       ecBlockLogs: Option[List[GetLogsResponseEntry]] = None,
       updateState: Boolean = true
-  ): JobResult[Working[ChainStatus]] = {
+  ): Result[Working[ChainStatus]] = {
     val validationResult =
       for {
         _ <- Either.raiseUnless(contractBlock.minerRewardL2Address == ecBlock.minerRewardL2Address) {
@@ -1673,9 +1673,9 @@ class ELUpdater(
     }
   }
 
-  private def getContractBlocksForValidation(curState: Working[ChainStatus]): JobResult[List[BlockForValidation]] = {
+  private def getContractBlocksForValidation(curState: Working[ChainStatus]): Result[List[BlockForValidation]] = {
     @tailrec
-    def loop(curBlock: ContractBlock, acc: List[BlockForValidation]): JobResult[List[BlockForValidation]] = {
+    def loop(curBlock: ContractBlock, acc: List[BlockForValidation]): Result[List[BlockForValidation]] = {
       if (curBlock.height <= curState.fullValidationStatus.lastValidatedBlock.height || curBlock.height <= curState.finalizedBlock.height) {
         Right(acc)
       } else {
@@ -1702,7 +1702,7 @@ class ELUpdater(
     loop(curState.lastContractBlock, List.empty)
   }
 
-  private def confirmBlock(block: L2BlockLike, finalizedBlock: L2BlockLike): JobResult[PayloadStatus] = {
+  private def confirmBlock(block: L2BlockLike, finalizedBlock: L2BlockLike): Result[PayloadStatus] = {
     val finalizedBlockHash = if (finalizedBlock.height > block.height) block.hash else finalizedBlock.hash
     engineApiClient.forkchoiceUpdated(block.hash, finalizedBlockHash)
   }
@@ -1835,13 +1835,13 @@ object ELUpdater {
   private case class MiningReward(recipient: EthAddress, amount: Gwei)
 
   def calculateRandao(hitSource: ByteStr, parentHash: BlockHash): String = {
-    val msg = hitSource.arr ++ HexBytesConverter.toBytes(parentHash.toString)
+    val msg = hitSource.arr ++ HexBytesConverter.toBytes(parentHash.str)
     HexBytesConverter.toHex(crypto.secureHash(msg))
   }
 
   def registryKey(chainContract: Address): String = s"unit_${chainContract}_approved"
 
-  private def validateE2CTransfers(contractBlock: ContractBlock, ecBlockLogs: List[GetLogsResponseEntry]): JobResult[Unit] =
+  private def validateE2CTransfers(contractBlock: ContractBlock, ecBlockLogs: List[GetLogsResponseEntry]): Result[Unit] =
     for {
       elRootHash <- BridgeMerkleTree.getE2CTransfersRootHash(ecBlockLogs)
       _ <- Either.raiseUnless(java.util.Arrays.equals(contractBlock.e2cTransfersRootHash, elRootHash)) { // elRootHash is the source of true
