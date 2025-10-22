@@ -1346,7 +1346,7 @@ class ELUpdater(
     _ <-
       if strictC2ETransfersActivated
       then {
-        val (expectedDepositedTransactions, _, _, _, _) = prepareTransactions(
+        val (depositedTransactions = expectedDepositedTransactions) = prepareTransactions(
           contractBlock.epoch,
           options,
           parentContractBlock.lastAssetRegistryIndex + 1,
@@ -1436,11 +1436,11 @@ class ELUpdater(
       endAssetRegistryIndexExcl: Int,
       transfers: Vector[ContractTransfer]
   ): (
-      Vector[DepositedTransaction],
-      List[ChainContractClient.Registry.RegisteredAsset],
-      Option[DepositedTransaction],
-      Vector[ContractTransfer.NativeViaDeposit],
-      Vector[ContractTransfer.Asset]
+      depositedTransactions: Vector[DepositedTransaction],
+      addedAssets: List[ChainContractClient.Registry.RegisteredAsset],
+      updateAssetRegistryTransaction: Option[DepositedTransaction],
+      nativeTransfersViaDeposits: Vector[ContractTransfer.NativeViaDeposit],
+      assetTransfers: Vector[ContractTransfer.Asset]
   ) = {
     val (addedAssets, updateAssetRegistryTransaction) =
       if (epochNumber < chainContractOptions.assetTransfersActivationEpoch) (Nil, None)
