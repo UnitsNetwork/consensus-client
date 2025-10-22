@@ -1421,9 +1421,7 @@ class ELUpdater(
         actualTransferWithdrawals,
         c2eLogs,
         expectedTransfers,
-        actualDepositedTransactions,
         transferTransactions,
-        options,
         prevWithdrawalIndex,
         strictC2ETransfersActivated
       ).leftMap(
@@ -1523,9 +1521,7 @@ class ELUpdater(
       actualWithdrawals: Seq[Withdrawal],
       actualTransferLogs: List[GetLogsResponseEntry],
       expectedTransfers: Seq[ContractTransfer],
-      depositedTransactions: Seq[DepositedTransaction],
       transferTransactions: Seq[DepositedTransaction],
-      options: ChainContractOptions,
       prevWithdrawalIndex: Long,
       strictC2ETransfersActivated: Boolean
   ): Either[String, Long] = {
@@ -1570,12 +1566,28 @@ class ELUpdater(
             case expectedTransfer: ContractTransfer.NativeViaDeposit =>
               if strictC2ETransfersActivated then {
                 actualTransferLogs match {
-                  case Nil => s"$logPrefix Not found EL transfer log, expected $expectedTransfer transfer".asLeft
+                  case Nil =>
+                    val canSkipFailedTransfer = strictC2ETransfersActivated && failedTransfers.contains(expectedTransfer)
+                    if canSkipFailedTransfer then {
+                      logger.debug(s"Transfer $expectedTransfer has failed, skipping")
+                      prevWithdrawalIndex.asRight
+                    } else s"$logPrefix Not found EL transfer log, expected $expectedTransfer transfer".asLeft
                   case actualTransferLog :: restActualTransferLogs =>
                     StandardBridge.ETHBridgeFinalized
                       .decodeLog(actualTransferLog)
                       .flatMap(validateC2ENativeTransfer(actualTransferLog.logIndex, _, expectedTransfer)) match {
-                      case Left(e) => e.asLeft
+                      case Left(e) =>
+                        val canSkipFailedTransfer = strictC2ETransfersActivated && failedTransfers.contains(expectedTransfer)
+                        if canSkipFailedTransfer then {
+                          logger.debug(s"Transfer $expectedTransfer has failed, skipping")
+                          loop(
+                            actualWithdrawals,
+                            actualTransferLog :: restActualTransferLogs,
+                            restExpectedTransfers,
+                            prevWithdrawalIndex,
+                            currTransferNumber + 1
+                          )
+                        } else e.asLeft
                       case _ => loop(actualWithdrawals, restActualTransferLogs, restExpectedTransfers, prevWithdrawalIndex, currTransferNumber + 1)
                     }
                 }
