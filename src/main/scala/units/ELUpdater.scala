@@ -1343,16 +1343,18 @@ class ELUpdater(
       }
       .map(_.flatten.toVector)
 
+    (depositedTransactions = expectedDepositedTransactions, transferTransactions = transferTransactions) = prepareTransactions(
+      contractBlock.epoch,
+      options,
+      parentContractBlock.lastAssetRegistryIndex + 1,
+      contractBlock.lastAssetRegistryIndex + 1,
+      expectedTransfers
+    )
+
     _ <-
       if strictC2ETransfersActivated
       then {
-        val (depositedTransactions = expectedDepositedTransactions) = prepareTransactions(
-          contractBlock.epoch,
-          options,
-          parentContractBlock.lastAssetRegistryIndex + 1,
-          contractBlock.lastAssetRegistryIndex + 1,
-          expectedTransfers
-        )
+
         Either.raiseUnless(expectedDepositedTransactions == actualDepositedTransactions)(
           ClientError(s"Block is not valid, expected and actual deposited transactions don't match.")
         )
@@ -1420,6 +1422,7 @@ class ELUpdater(
         c2eLogs,
         expectedTransfers,
         actualDepositedTransactions,
+        transferTransactions,
         options,
         prevWithdrawalIndex,
         strictC2ETransfersActivated
@@ -1505,32 +1508,29 @@ class ELUpdater(
     (depositedTransactions, addedAssets, updateAssetRegistryTransaction, transferTransactions, nativeTransfersViaDeposits, assetTransfers)
   }
 
+  private def getFailedTransfers(
+      c2eTransferLogs: List[GetLogsResponseEntry],
+      transfersWithTransactions: Seq[(ContractTransfer, DepositedTransaction)]
+  ): Seq[ContractTransfer.Asset | ContractTransfer.NativeViaDeposit] = {
+    val successfulTransferHashes = c2eTransferLogs.map(_.transactionHash).toSet
+    transfersWithTransactions.collect {
+      case (transfer: (ContractTransfer.Asset | ContractTransfer.NativeViaDeposit), dt) if !successfulTransferHashes.contains(dt.hash) =>
+        transfer
+    }
+  }
+
   private def validateC2ETransfers(
       actualWithdrawals: Seq[Withdrawal],
       actualTransferLogs: List[GetLogsResponseEntry],
       expectedTransfers: Seq[ContractTransfer],
       depositedTransactions: Seq[DepositedTransaction],
+      transferTransactions: Seq[DepositedTransaction],
       options: ChainContractOptions,
       prevWithdrawalIndex: Long,
       strictC2ETransfersActivated: Boolean
   ): Either[String, Long] = {
-    val totalTransfers = expectedTransfers.size
-    val dtHashes       = depositedTransactions.map(_.hash).toSet
-
-    def hasExpectedTransferFailed(transfer: ContractTransfer.Asset) =
-      options.elStandardBridgeAddress match {
-        case None => false
-        case Some(sba) =>
-          val txFromTransfer = StandardBridge.mkFinalizeBridgeErc20Transaction(
-            transferIndex = transfer.index,
-            standardBridgeAddress = sba,
-            token = transfer.tokenAddress,
-            to = transfer.to,
-            from = transfer.from,
-            amount = transfer.amount
-          )
-          dtHashes.contains(txFromTransfer.hash)
-      }
+    val totalTransfers  = expectedTransfers.size
+    val failedTransfers = getFailedTransfers(actualTransferLogs, expectedTransfers.zip(transferTransactions)).toSet
 
     @tailrec
     def loop(
@@ -1583,7 +1583,7 @@ class ELUpdater(
             case expectedTransfer: ContractTransfer.Asset =>
               actualTransferLogs match {
                 case Nil =>
-                  val canSkipFailedTransfer = strictC2ETransfersActivated && hasExpectedTransferFailed(expectedTransfer)
+                  val canSkipFailedTransfer = strictC2ETransfersActivated && failedTransfers.contains(expectedTransfer)
                   if canSkipFailedTransfer
                   then {
                     logger.debug(s"Transfer $expectedTransfer has failed, skipping")
@@ -1594,7 +1594,7 @@ class ELUpdater(
                     .decodeLog(actualTransferLog)
                     .flatMap(validateC2EAssetTransfer(actualTransferLog.logIndex, _, expectedTransfer, strictC2ETransfersActivated)) match {
                     case Left(e) =>
-                      val canSkipFailedTransfer = strictC2ETransfersActivated && hasExpectedTransferFailed(expectedTransfer)
+                      val canSkipFailedTransfer = strictC2ETransfersActivated && failedTransfers.contains(expectedTransfer)
                       if canSkipFailedTransfer
                       then {
                         logger.debug(s"Transfer $expectedTransfer has failed, skipping")
