@@ -212,7 +212,7 @@ class ELUpdater(
 
     val withdrawals = rewardWithdrawal ++ nativeTransferWithdrawals
 
-    val (depositedTransactions, addedAssets, updateAssetRegistryTransaction, nativeTransfersViaDeposits, assetTransfers) =
+    val (depositedTransactions, addedAssets, updateAssetRegistryTransaction, _, nativeTransfersViaDeposits, assetTransfers) =
       prepareTransactions(epochInfo.number, chainContractOptions, lastAssetRegistryIndex + 1, chainContractClient.getAssetRegistrySize, transfers)
 
     val prevRandao = calculateRandao(epochInfo.hitSource, parentBlock.hash)
@@ -1439,6 +1439,7 @@ class ELUpdater(
       depositedTransactions: Vector[DepositedTransaction],
       addedAssets: List[ChainContractClient.Registry.RegisteredAsset],
       updateAssetRegistryTransaction: Option[DepositedTransaction],
+      transferTransactions: Vector[DepositedTransaction],
       nativeTransfersViaDeposits: Vector[ContractTransfer.NativeViaDeposit],
       assetTransfers: Vector[ContractTransfer.Asset]
   ) = {
@@ -1473,7 +1474,7 @@ class ELUpdater(
       case x: ContractTransfer.Asset            => Right(x)
     }
 
-    val depositedTransactions = updateAssetRegistryTransaction.toVector ++
+    val transferTransactions =
       (for {
         sba      <- chainContractOptions.elStandardBridgeAddress.toVector
         transfer <- nativeAndAssetTransfersViaDeposits
@@ -1499,7 +1500,9 @@ class ELUpdater(
         }
       })
 
-    (depositedTransactions, addedAssets, updateAssetRegistryTransaction, nativeTransfersViaDeposits, assetTransfers)
+    val depositedTransactions = updateAssetRegistryTransaction.toVector ++ transferTransactions
+
+    (depositedTransactions, addedAssets, updateAssetRegistryTransaction, transferTransactions, nativeTransfersViaDeposits, assetTransfers)
   }
 
   private def validateC2ETransfers(
