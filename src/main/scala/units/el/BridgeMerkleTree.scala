@@ -48,4 +48,18 @@ object BridgeMerkleTree {
 
       case _ => List.empty[Array[Byte]].asRight
     }
+
+  def getFailedTransfersRootHash(transferIndexes: Seq[Long]): Digest =
+    mkFailedTransfersHash(getFailedTransferData(transferIndexes))
+
+  def mkFailedTransfersHash(data: Seq[Array[Byte]]): Digest =
+    if (data.isEmpty) Array.emptyByteArray
+    else {
+      val levels   = Merkle.mkLevels(padData(data, MinC2EFailedTransfers))
+      val rootHash = levels.head.head
+      rootHash
+    }
+
+  def getFailedTransferData(indexes: Seq[Long]): Seq[Array[Byte]] =
+    indexes.map(index => BigInt(index).toByteArray)
 }

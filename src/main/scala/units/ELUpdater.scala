@@ -212,7 +212,7 @@ class ELUpdater(
 
     val withdrawals = rewardWithdrawal ++ nativeTransferWithdrawals
 
-    val (depositedTransactions, addedAssets, updateAssetRegistryTransaction, _, nativeTransfersViaDeposits, assetTransfers) =
+    val (depositedTransactions, addedAssets, updateAssetRegistryTransaction, transferTransactions, nativeTransfersViaDeposits, assetTransfers) =
       prepareTransactions(epochInfo.number, chainContractOptions, lastAssetRegistryIndex + 1, chainContractClient.getAssetRegistrySize, transfers)
 
     val prevRandao = calculateRandao(epochInfo.hitSource, parentBlock.hash)
@@ -237,7 +237,9 @@ class ELUpdater(
             nextBlockUnixTs = nextBlockUnixTs,
             lastC2ETransferIndex = transfers.lastOption.fold(lastC2ETransferIndex)(_.index),
             lastElWithdrawalIndex = lastElWithdrawalIndex + withdrawals.size,
-            lastAssetRegistryIndex = addedAssets.lastOption.fold(lastAssetRegistryIndex)(_.index)
+            lastAssetRegistryIndex = addedAssets.lastOption.fold(lastAssetRegistryIndex)(_.index),
+            transfers = transfers,
+            transferTransactions = transferTransactions
           )
         }
     } else {
@@ -268,7 +270,9 @@ class ELUpdater(
             nextBlockUnixTs = nextBlockUnixTs,
             lastC2ETransferIndex = transfers.lastOption.fold(lastC2ETransferIndex)(_.index),
             lastElWithdrawalIndex = lastElWithdrawalIndex + withdrawals.size,
-            lastAssetRegistryIndex = addedAssets.lastOption.fold(lastAssetRegistryIndex)(_.index)
+            lastAssetRegistryIndex = addedAssets.lastOption.fold(lastAssetRegistryIndex)(_.index),
+            transfers = transfers,
+            transferTransactions = transferTransactions
           )
         }
     }
@@ -336,6 +340,8 @@ class ELUpdater(
           scheduler.scheduleOnceLabeled("tryToForgeNextBlock", (miningData.nextBlockUnixTs - currentUnixTs).seconds)(
             tryToForgeNextBlock(
               miningData.payload,
+              miningData.transfers,
+              miningData.transferTransactions,
               parentBlock.hash,
               miningData.nextBlockUnixTs,
               newState.options.startEpochChainFunction(epochInfo.number, parentBlock.hash, epochInfo.hitSource, nodeChainInfo.toOption),
@@ -353,6 +359,8 @@ class ELUpdater(
 
   private def tryToForgeNextBlock(
       payloadOrId: PayloadId | JsObject,
+      transfers: Seq[ContractTransfer],
+      transferTransactions: Seq[DepositedTransaction],
       referenceHash: BlockHash,
       timestamp: Long,
       contractFunction: ContractFunction,
@@ -373,7 +381,15 @@ class ELUpdater(
         waitForRefApprovalOnCl match {
           case Some(waitingTime) =>
             scheduler.scheduleOnceLabeled("waitForApproval", waitingTime) {
-              tryToForgeNextBlock(payloadOrId, referenceHash, timestamp, contractFunction, chainContractOptions)
+              tryToForgeNextBlock(
+                payloadOrId,
+                transfers,
+                transferTransactions,
+                referenceHash,
+                timestamp,
+                contractFunction,
+                chainContractOptions
+              )
             }
           case _ =>
             val getAndApplyPayloadResult = for {
@@ -414,6 +430,11 @@ class ELUpdater(
                         hash = ecBlock.hash,
                         addresses = chainContractOptions.bridgeAddresses(epochInfo.number)
                       )
+
+                      failedTransfers = getFailedTransfers(ecBlockLogs, transfers.zip(transferTransactions))
+
+                      failedTransferIndexes   = failedTransfers.map(_.index)
+                      failedTransfersRootHash = BridgeMerkleTree.getFailedTransfersRootHash(failedTransferIndexes)
                       transfersRootHash <- BridgeMerkleTree.getE2CTransfersRootHash(ecBlockLogs)
                       // A forged block can be invalid for some reason. In this case we won't send it and its confirmation transaction to the network.
                       expectedContractBlock = ContractBlock(
@@ -478,6 +499,8 @@ class ELUpdater(
                             scheduler.scheduleOnceLabeled("forgeSecond", (nextBlockUnixTs - time.correctedTime() / 1000).min(1).seconds)(
                               tryToForgeNextBlock(
                                 payloadOrId = nextMiningData.payload,
+                                nextMiningData.transfers,            // TODO: nextMiningData.transfers or transfers
+                                nextMiningData.transferTransactions, // TODO: nextMiningData.transferTransactions or transferTransactions
                                 referenceHash = ecBlock.hash,
                                 timestamp = nextBlockUnixTs,
                                 contractFunction = chainContractOptions.appendFunction(epochInfo.number, ecBlock.hash),
@@ -1880,7 +1903,9 @@ object ELUpdater {
       nextBlockUnixTs: Long,
       lastC2ETransferIndex: WithdrawalIndex,
       lastElWithdrawalIndex: WithdrawalIndex,
-      lastAssetRegistryIndex: Int
+      lastAssetRegistryIndex: Int,
+      transfers: Seq[ContractTransfer],
+      transferTransactions: Seq[DepositedTransaction]
   )
 
   private case class BlockForValidation(contractBlock: ContractBlock, ecBlock: EcBlock) {
