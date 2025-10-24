@@ -17,7 +17,7 @@ libraryDependencies ++= Seq(
 ).map(_ % Test)
 
 Test / sourceGenerators += Def.task {
-  val generateSourcesFromContracts = Seq("Bridge", "StandardBridge", "ERC20")
+  val generateSourcesFromContracts = Seq("Bridge", "StandardBridge", "ERC20", "TERC20")
   val contractSources              = baseDirectory.value / ".." / "contracts" / "eth"
   val compiledDir                  = contractSources / "target"
   // --silent to bypass garbage "Counting objects" git logs

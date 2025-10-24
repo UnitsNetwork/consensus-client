@@ -10,6 +10,7 @@ package object el {
 
   val MaxWithdrawals  = 16
   val MinE2CTransfers = 1024
+  val MinC2EFailedTransfers = 1024
 
   val C2ETopics: Seq[String] = List(StandardBridge.ERC20BridgeFinalized.Topic, StandardBridge.ETHBridgeFinalized.Topic)
   val E2CTopics: Seq[String] = List(NativeBridge.ElSentNativeEventTopic, StandardBridge.ERC20BridgeInitiated.Topic)
