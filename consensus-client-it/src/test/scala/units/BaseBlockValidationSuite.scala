@@ -66,7 +66,7 @@ trait BaseBlockValidationSuite extends BaseDockerTestSuite {
         if (elParentBlock.height - 1 <= EthereumConstants.GenesisBlockHeight) Right(-1L)
         else ec1.engineApi.getLastWithdrawalIndex(elParentBlock.parentHash)
     }).explicitGet()
-    Withdrawal(elWithdrawalIndexBefore + 1, elParentBlock.minerRewardL2Address, chainContractOptions.miningReward)
+    Withdrawal(elWithdrawalIndexBefore + 1, elParentBlock.minerRewardL2Address, chainContractOptions.miningReward.newValue)
   }
 
   protected final def mkSimulatedBlock(

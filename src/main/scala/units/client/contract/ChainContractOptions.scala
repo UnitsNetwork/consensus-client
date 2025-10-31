@@ -5,14 +5,12 @@ import units.BlockHash
 import units.client.contract.ContractFunction.*
 import units.eth.{EthAddress, Gwei}
 
-/** @note
-  *   Make sure you have an activation gap: a new feature should not be activated suddenly during nearest blocks.
-  */
 case class ChainContractOptions(
-    miningReward: Gwei,
+    miningReward: ValueAtEpoch[Gwei],
     elNativeBridgeAddress: EthAddress,
     elStandardBridgeAddress: Option[EthAddress],
-    assetTransfersActivationEpoch: Long
+    assetTransfersActivationEpoch: Long,
+    blockDelayInSeconds: ValueAtEpoch[Int]
 ) {
   def bridgeAddresses(epoch: Int): List[EthAddress] = {
     val before = List(elNativeBridgeAddress)
@@ -34,4 +32,8 @@ case class ChainContractOptions(
     AppendBlock(reference, versionOf(epoch))
 
   private def versionOf(epoch: Int): Int = if (epoch < assetTransfersActivationEpoch) 1 else 2
+}
+
+case class ValueAtEpoch[A](oldValue: A, newValue: A, changeAtEpoch: Int) {
+  def valueAtEpoch(epoch: Int): A = if epoch < changeAtEpoch then oldValue else newValue
 }

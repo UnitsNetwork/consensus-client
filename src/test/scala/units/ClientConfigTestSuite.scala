@@ -60,7 +60,6 @@ class ClientConfigTestSuite extends FlatSpec {
          |    api-request-retries = 2
          |    api-request-retry-wait-time = 2s
          |
-         |    block-delay = 6s
          |    first-block-min-delay = 1s
          |    block-sync-request-timeout = 500ms
          |
@@ -82,7 +81,6 @@ class ClientConfigTestSuite extends FlatSpec {
     clientConfig.executionClientAddress shouldBe "http://ec-1:8551"
     clientConfig.apiRequestRetries shouldBe 2
     clientConfig.apiRequestRetryWaitTime shouldBe 2.seconds
-    clientConfig.blockDelay shouldBe 6.seconds
     clientConfig.firstBlockMinDelay shouldBe 1.second
     clientConfig.blockSyncRequestTimeout shouldBe 500.millis
     clientConfig.miningEnable shouldBe true
@@ -124,7 +122,6 @@ class ClientConfigTestSuite extends FlatSpec {
     clientConfig.executionClientAddress shouldBe "http://ec-1:8551"
     clientConfig.apiRequestRetries shouldBe 2
     clientConfig.apiRequestRetryWaitTime shouldBe 2.seconds
-    clientConfig.blockDelay shouldBe 6.seconds
     clientConfig.blockSyncRequestTimeout shouldBe 500.millis
     clientConfig.miningEnable shouldBe true
     clientConfig.privateKeys shouldBe Seq.empty

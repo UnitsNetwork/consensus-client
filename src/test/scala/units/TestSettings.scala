@@ -15,6 +15,7 @@ case class TestSettings(
     additionalBalances: List[AddrWithBalance] = Nil,
     daoRewardAccount: Option[KeyPair] = None,
     daoRewardAmount: Long = 0,
+    blockDelayInSeconds: Int = 2,
     enableTokenTransfersEpoch: Int = 0,
     registerWwavesToken: Boolean = false // Almost never needed in unit tests, see TestEcClients, simulate
 ) {

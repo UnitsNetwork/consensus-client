@@ -57,7 +57,8 @@ trait HasConsensusLayerDappTxHelpers {
         elMinerReward: Long,
         daoAddress: Option[Address],
         daoReward: Long,
-        invoker: KeyPair = chainContractAccount
+        blockDelayInSeconds: Int,
+        invoker: KeyPair = chainContractAccount,
     ): InvokeScriptTransaction = TxHelpers.invoke(
       dApp = chainContractAddress,
       func = "setup".some,
@@ -65,7 +66,8 @@ trait HasConsensusLayerDappTxHelpers {
         Terms.CONST_STRING(genesisBlock.hash.hexNoPrefix).explicitGet(),
         Terms.CONST_LONG(elMinerReward),
         Terms.CONST_STRING(daoAddress.fold("")(_.toString)).explicitGet(),
-        Terms.CONST_LONG(daoReward)
+        Terms.CONST_LONG(daoReward),
+        Terms.CONST_LONG(blockDelayInSeconds)
       ),
       fee = setupFee,
       invoker = invoker

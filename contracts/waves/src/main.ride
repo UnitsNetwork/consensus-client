@@ -1082,7 +1082,7 @@ func enableTokenTransfers(standardBridgeAddress: String, wavesERC20AddressHex: S
 
 # genesisBlockHashHex without 0x
 @Callable(i)
-func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: String, daoReward: Int) = {
+func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: String, daoReward: Int, blockDelayInSeconds: Int) = {
   if (isContractSetup()) then throw("The contract has been already set up")
   else if (i.originCaller != this) then throw("Only owner of chain contract can do this")
   else if (minerRewardInGwei < 0) then throw("The miner reward must be nonnegative")
@@ -1122,7 +1122,8 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: Stri
       StringEntry(finalizedBlockKey, genesisBlockHashHex),
       issue,
       StringEntry(tokenIdKey, tokenId.toBase58String()),
-      StringEntry(elNativeBridgeAddressKey, "0x0000000000000000000000000000000000006a7e")
+      StringEntry(elNativeBridgeAddressKey, "0x0000000000000000000000000000000000006a7e"),
+      IntegerEntry("blockDelay", blockDelayInSeconds)
     ] ++ daoEntries
   }
 }

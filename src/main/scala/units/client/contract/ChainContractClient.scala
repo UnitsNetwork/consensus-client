@@ -213,17 +213,34 @@ trait ChainContractClient {
       .orElse(getBinaryData(s"miner${rewardAddress.hexNoPrefix}PK"))
       .map(PublicKey(_))
 
-  def getOptions: ChainContractOptions = ChainContractOptions(
-    miningReward = getLongData("minerReward")
-      .map(Gwei.ofRawGwei)
-      .getOrElse(throw new IllegalStateException("minerReward is empty on contract")),
-    elNativeBridgeAddress = getStringData("elBridgeAddress")
-      .map(EthAddress.unsafeFrom)
-      .getOrElse(throw new IllegalStateException("elBridgeAddress is empty on contract")),
-    elStandardBridgeAddress = getStringData("elStandardBridgeAddress")
-      .map(EthAddress.unsafeFrom),
-    assetTransfersActivationEpoch = getAssetTransfersActivationEpoch
-  )
+  def getOptions: ChainContractOptions = {
+    val minerReward = extractData("minerReward") match {
+      case Some(IntegerDataEntry(value = reward)) => ValueAtEpoch(Gwei.ofRawGwei(0), Gwei.ofRawGwei(reward), 1)
+      case Some(StringDataEntry(value = rewards)) =>
+        val Array(oldReward, newReward, changeEpoch) = rewards.split(Sep)
+        ValueAtEpoch(Gwei.ofRawGwei(oldReward.toLong), Gwei.ofRawGwei(newReward.toLong), changeEpoch.toInt)
+      case _ => throw new IllegalStateException("minerReward is empty on contract")
+    }
+    
+    val blockDelay = extractData("blockDelay") match {
+      case Some(IntegerDataEntry(value = delay)) => ValueAtEpoch(0, BigInt(delay).bigInteger.intValueExact(), 1)
+      case Some(StringDataEntry(value = delays)) =>
+        val Array(oldDelay, newDelay, changeEpoch) = delays.split(Sep)
+        ValueAtEpoch(oldDelay.toInt, newDelay.toInt, changeEpoch.toInt)
+      case _ => throw new IllegalStateException("blockDelay is empty on contract")
+    }
+    
+    ChainContractOptions(
+      minerReward,
+      getStringData("elBridgeAddress")
+        .map(EthAddress.unsafeFrom)
+        .getOrElse(throw new IllegalStateException("elBridgeAddress is empty on contract")),
+      getStringData("elStandardBridgeAddress")
+        .map(EthAddress.unsafeFrom),
+      getAssetTransfersActivationEpoch,
+      blockDelay
+    )
+  }
 
   private def getAssetTransfersActivationEpoch: Long = getLongData("assetTransfersActivationEpoch").getOrElse(Long.MaxValue)
 

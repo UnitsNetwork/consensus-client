@@ -61,7 +61,8 @@ class ExtensionDomain(
     override val chainRegistryAccount: KeyPair,
     nativeBridgeAddress: EthAddress,
     standardBridgeAddress: EthAddress,
-    elMinerDefaultReward: Gwei
+    elMinerDefaultReward: Gwei,
+    blockDelay: FiniteDuration
 ) extends Domain(rdb, blockchainUpdater, rocksDBWriter, settings)
     with HasConsensusLayerDappTxHelpers
     with CustomMatchers
@@ -77,7 +78,7 @@ class ExtensionDomain(
     parentHash = BlockHash(EthereumConstants.EmptyBlockHashHex), // see main.ride
     stateRoot = EthereumConstants.EmptyRootHashHex,
     height = 0,
-    timestamp = testTime.getTimestamp() / 1000 - l2Config.blockDelay.toSeconds,
+    timestamp = testTime.getTimestamp() / 1000 - blockDelay.toSeconds,
     minerRewardL2Address = EthAddress.empty,
     baseFeePerGas = Uint256.DEFAULT,
     gasLimit = 0,
@@ -233,7 +234,7 @@ class ExtensionDomain(
     else {
       appendBlock()
       val generator = evaluatedComputedGenerator
-      if (generator == expectedElGenerator) testTime.advance(l2Config.blockDelay)
+      if (generator == expectedElGenerator) testTime.advance(blockDelay)
       else {
         log.debug(s"advanceNewBlocks: unexpected computed generator $generator")
         advanceNewBlocks(expectedElGenerator, attempts - 1)
@@ -324,7 +325,7 @@ class ExtensionDomain(
 
   def advanceMiningRetry(): Unit = advanceElu(ELUpdater.MiningRetryInterval, "advanceMiningRetry")
 
-  def advanceMining(): Unit = advanceElu(l2Config.blockDelay, "advanceMining")
+  def advanceMining(): Unit = advanceElu(blockDelay, "advanceMining")
 
   def advanceElu(x: FiniteDuration, name: String = "advanceElu"): Unit = {
     log.trace(s"$name($x)")
@@ -386,7 +387,7 @@ class ExtensionDomain(
     createEcBlockBuilder(hashPath, miner.elRewardAddress, parent)
 
   def createEcBlockBuilder(hashPath: String, minerRewardL2Address: EthAddress, parent: EcBlock): TestEcBlockBuilder = {
-    TestEcBlockBuilder(hashPath, ecClients, nativeBridgeAddress, standardBridgeAddress, elMinerDefaultReward, l2Config.blockDelay, parent = parent)
+    TestEcBlockBuilder(hashPath, ecClients, nativeBridgeAddress, standardBridgeAddress, elMinerDefaultReward, blockDelay, parent = parent)
       .updateBlock(
         _.copy(
           minerRewardL2Address = minerRewardL2Address,

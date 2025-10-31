@@ -94,13 +94,7 @@ trait BaseDockerTestSuite
     step("Setup chain contract")
     val genesisBlock = ec1.engineApi.getBlockByNumber(BlockNumber.Number(0)).explicitGet().getOrElse(fail("No EL genesis block"))
     waves1.api.broadcastAndWait(
-      ChainContract.setup(
-        genesisBlock = genesisBlock,
-        elMinerReward = rewardAmount.amount.longValue(),
-        daoAddress = None,
-        daoReward = 0,
-        invoker = chainContractAccount
-      )
+      ChainContract.setup(genesisBlock, rewardAmount.amount.longValue(), None, 0, 2, invoker = chainContractAccount)
     )
     log.info(s"Native token id: ${chainContract.nativeTokenId}")
 
