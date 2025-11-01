@@ -1,4 +1,4 @@
-package units
+package units.block.validation
 
 import com.wavesplatform.*
 import com.wavesplatform.account.*
@@ -10,16 +10,14 @@ import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRoo
 import units.client.engine.model.EcBlock
 import units.el.*
 import units.eth.EthAddress
-import units.{BlockHash, TestNetworkClient}
+import units.*
 
-class BlockValidationAssetInvalidAmountTestSuite extends BaseBlockValidationSuite {
-  "Invalid block: asset token, invalid amount" in {
+class AssetValidTestSuite extends BaseBlockValidationSuite {
+  "Valid block: asset token, correct transfer" in {
     val balanceBefore          = terc20.getBalance(elRecipient)
     val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
 
     val withdrawals = Vector(mkRewardWithdrawal(elParentBlock))
-
-    val invalidAmount = EAmount((elAssetTokenAmount - 1).bigInteger)
 
     val depositedTransactions = Vector(
       StandardBridge.mkFinalizeBridgeErc20Transaction(
@@ -28,7 +26,7 @@ class BlockValidationAssetInvalidAmountTestSuite extends BaseBlockValidationSuit
         token = TErc20Address,
         from = EthAddress.unsafeFrom(clSender.toAddress.bytes.drop(2).take(20)),
         to = elRecipient,
-        amount = invalidAmount
+        amount = EAmount(elAssetTokenAmount.bigInteger)
       )
     )
 
@@ -76,13 +74,13 @@ class BlockValidationAssetInvalidAmountTestSuite extends BaseBlockValidationSuit
         .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
     }
 
-    step("Assertion: Deposited transaction doesn't change balance")
+    step("Assertion: Deposited transaction changes balances")
     val balanceAfter = terc20.getBalance(elRecipient)
-    balanceAfter.longValue shouldBe balanceBefore.longValue
+    balanceAfter.longValue shouldBe (balanceBefore.longValue + elAssetTokenAmount.longValue)
 
-    step("Assertion: EL height doesn't grow")
+    step("Assertion: EL height grows")
     val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
-    elBlockAfter.height.longValue shouldBe elParentBlock.height.longValue
+    elBlockAfter.height.longValue shouldBe (elParentBlock.height.longValue + 1)
   }
 
   override def beforeAll(): Unit = setupForAssetTokenTransfer()

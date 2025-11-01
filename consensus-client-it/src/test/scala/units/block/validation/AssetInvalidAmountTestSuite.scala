@@ -1,23 +1,36 @@
-package units
+package units.block.validation
 
+import com.wavesplatform.*
 import com.wavesplatform.account.*
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
-import org.web3j.protocol.core.DefaultBlockParameterName
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.client.engine.model.EcBlock
-import units.{BlockHash, TestNetworkClient}
+import units.el.*
+import units.eth.EthAddress
+import units.*
 
-class BlockValidationNativeMissingDepositTestSuite extends BaseBlockValidationSuite {
-  "Invalid block: native token, missing deposited transaction" in {
-    val ethBalanceBefore       = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
+class AssetInvalidAmountTestSuite extends BaseBlockValidationSuite {
+  "Invalid block: asset token, invalid amount" in {
+    val balanceBefore          = terc20.getBalance(elRecipient)
     val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
 
     val withdrawals = Vector(mkRewardWithdrawal(elParentBlock))
 
-    val depositedTransactions = Vector()
+    val invalidAmount = EAmount((elAssetTokenAmount - 1).bigInteger)
+
+    val depositedTransactions = Vector(
+      StandardBridge.mkFinalizeBridgeErc20Transaction(
+        transferIndex = 0L,
+        standardBridgeAddress = StandardBridgeAddress,
+        token = TErc20Address,
+        from = EthAddress.unsafeFrom(clSender.toAddress.bytes.drop(2).take(20)),
+        to = elRecipient,
+        amount = invalidAmount
+      )
+    )
 
     val (payload, simulatedBlockHash, hitSource) = mkSimulatedBlock(elParentBlock, withdrawals, depositedTransactions)
 
@@ -26,8 +39,8 @@ class BlockValidationNativeMissingDepositTestSuite extends BaseBlockValidationSu
       ChainContract.transfer(
         clSender,
         elRecipient,
-        chainContract.nativeTokenId,
-        clNativeTokenAmount
+        issueAsset,
+        clAssetTokenAmount
       )
     )
 
@@ -63,22 +76,14 @@ class BlockValidationNativeMissingDepositTestSuite extends BaseBlockValidationSu
         .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
     }
 
-    step("Assertion: Block exists on EC1")
-    eventually {
-      ec1.engineApi
-        .getBlockByHash(BlockHash(simulatedBlockHash))
-        .explicitGet()
-        .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
-    }
+    step("Assertion: Deposited transaction doesn't change balance")
+    val balanceAfter = terc20.getBalance(elRecipient)
+    balanceAfter.longValue shouldBe balanceBefore.longValue
 
-    step("Assertion: Doesn't affect balances")
-    val ethBalanceAfter = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
-    ethBalanceBefore shouldBe ethBalanceAfter
-
-    step("Assertion: While the block exists on EC1, the height doesn't grow")
+    step("Assertion: EL height doesn't grow")
     val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
     elBlockAfter.height.longValue shouldBe elParentBlock.height.longValue
   }
 
-  override def beforeAll(): Unit = setupForNativeTokenTransfer()
+  override def beforeAll(): Unit = setupForAssetTokenTransfer()
 }

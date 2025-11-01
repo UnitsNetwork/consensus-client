@@ -1,5 +1,6 @@
-package units
+package units.block.validation
 
+import com.wavesplatform.*
 import com.wavesplatform.account.*
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
@@ -7,19 +8,41 @@ import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.client.engine.model.EcBlock
-import units.{BlockHash, TestNetworkClient}
+import units.el.*
+import units.eth.EthAddress
+import units.*
 
-class BlockValidationNoTransfersTestSuite extends BaseBlockValidationSuite {
-  "Valid block: no transfers" in {
+class AssetInvalidTokenTestSuite extends BaseBlockValidationSuite {
+  "Invalid block: asset token, invalid token address" in {
+    val balanceBefore          = terc20.getBalance(elRecipient)
     val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
 
     val withdrawals = Vector(mkRewardWithdrawal(elParentBlock))
 
-    val depositedTransactions = Vector.empty
+    val invalidTokenAddress = WWavesAddress
+
+    val depositedTransactions = Vector(
+      StandardBridge.mkFinalizeBridgeErc20Transaction(
+        transferIndex = 0L,
+        standardBridgeAddress = StandardBridgeAddress,
+        token = invalidTokenAddress,
+        from = EthAddress.unsafeFrom(clSender.toAddress.bytes.drop(2).take(20)),
+        to = elRecipient,
+        amount = EAmount(elAssetTokenAmount.bigInteger)
+      )
+    )
 
     val (payload, simulatedBlockHash, hitSource) = mkSimulatedBlock(elParentBlock, withdrawals, depositedTransactions)
 
-    // Note: No transfers on the chain contract in this test case
+    step("Transfer on the chain contract")
+    waves1.api.broadcastAndWait(
+      ChainContract.transfer(
+        clSender,
+        elRecipient,
+        issueAsset,
+        clAssetTokenAmount
+      )
+    )
 
     step("Register the simulated block on the chain contract")
     waves1.api.broadcastAndWait(
@@ -53,10 +76,14 @@ class BlockValidationNoTransfersTestSuite extends BaseBlockValidationSuite {
         .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
     }
 
-    step("Assertion: EL height grows")
+    step("Assertion: Deposited transaction doesn't change balance")
+    val balanceAfter = terc20.getBalance(elRecipient)
+    balanceAfter.longValue shouldBe balanceBefore.longValue
+
+    step("Assertion: EL height doesn't grow")
     val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
-    elBlockAfter.height.longValue shouldBe (elParentBlock.height.longValue + 1)
+    elBlockAfter.height.longValue shouldBe elParentBlock.height.longValue
   }
 
-  override def beforeAll(): Unit = setupForNativeTokenTransfer()
+  override def beforeAll(): Unit = setupForAssetTokenTransfer()
 }

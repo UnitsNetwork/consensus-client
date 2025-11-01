@@ -1,46 +1,25 @@
-package units
+package units.block.validation
 
-import com.wavesplatform.*
 import com.wavesplatform.account.*
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
-import org.web3j.protocol.core.DefaultBlockParameterName
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.client.engine.model.EcBlock
-import units.el.*
-import units.eth.EthAddress
-import units.{BlockHash, TestNetworkClient}
+import units.{BlockHash, NetworkL2Block, TestNetworkClient}
 
-class BlockValidationNativeValidTestSuite extends BaseBlockValidationSuite {
-  "Valid block: native token, correct transfer" in {
-    val ethBalanceBefore       = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
+class NoTransfersTestSuite extends BaseBlockValidationSuite {
+  "Valid block: no transfers" in {
     val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
 
     val withdrawals = Vector(mkRewardWithdrawal(elParentBlock))
 
-    val depositedTransactions = Vector(
-      StandardBridge.mkFinalizeBridgeETHTransaction(
-        transferIndex = 0L,
-        standardBridgeAddress = StandardBridgeAddress,
-        from = EthAddress.unsafeFrom(clSender.toAddress.bytes.drop(2).take(20)),
-        to = elRecipient,
-        amount = clNativeTokenAmount.longValue
-      )
-    )
+    val depositedTransactions = Vector.empty
 
     val (payload, simulatedBlockHash, hitSource) = mkSimulatedBlock(elParentBlock, withdrawals, depositedTransactions)
 
-    step("Transfer on the chain contract")
-    waves1.api.broadcastAndWait(
-      ChainContract.transfer(
-        clSender,
-        elRecipient,
-        chainContract.nativeTokenId,
-        clNativeTokenAmount
-      )
-    )
+    // Note: No transfers on the chain contract in this test case
 
     step("Register the simulated block on the chain contract")
     waves1.api.broadcastAndWait(
@@ -73,10 +52,6 @@ class BlockValidationNativeValidTestSuite extends BaseBlockValidationSuite {
         .explicitGet()
         .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
     }
-
-    step("Assertion: Deposited transaction changes balances")
-    val ethBalanceAfter = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
-    ethBalanceBefore.longValue shouldBe ethBalanceAfter.longValue - elNativeTokenAmount.longValue
 
     step("Assertion: EL height grows")
     val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()

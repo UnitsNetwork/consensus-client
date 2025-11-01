@@ -18,6 +18,8 @@ import units.client.contract.HasConsensusLayerDappTxHelpers.DefaultFees.ChainCon
 import units.eth.{EthAddress, EthereumConstants}
 import units.{BlockHash, ELUpdater}
 
+import scala.annotation.targetName
+
 trait HasConsensusLayerDappTxHelpers {
   def currentHitSource: ByteStr
 
@@ -122,6 +124,7 @@ trait HasConsensusLayerDappTxHelpers {
     ): InvokeScriptTransaction =
       registerAsset(asset, erc20Address.hexNoPrefix, elDecimals, invoker)
 
+    @targetName("registerAssetHexString")
     def registerAsset(asset: IssuedAsset, erc20AddressHex: String, elDecimals: Int, invoker: KeyPair): InvokeScriptTransaction =
       registerAssets(List(asset), List(erc20AddressHex), List(elDecimals), invoker)
 
@@ -162,6 +165,7 @@ trait HasConsensusLayerDappTxHelpers {
         invoker: KeyPair = chainContractAccount
     ): InvokeScriptTransaction = issueAndRegister(erc20Address.hexNoPrefix, elDecimals, name, description, clDecimals, invoker)
 
+    @targetName("issueAndRegisterHexString")
     def issueAndRegister(
         erc20AddressHex: String,
         elDecimals: Int,

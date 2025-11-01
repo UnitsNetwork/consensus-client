@@ -1,4 +1,4 @@
-package units
+package units.block.validation
 
 import com.wavesplatform.*
 import com.wavesplatform.account.*
@@ -11,23 +11,23 @@ import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRoo
 import units.client.engine.model.EcBlock
 import units.el.*
 import units.eth.EthAddress
-import units.{BlockHash, TestNetworkClient}
+import units.{BlockHash, NetworkL2Block, TestNetworkClient}
 
-class BlockValidationNativeInvalidBridgeTestSuite extends BaseBlockValidationSuite {
-  "Invalid block: native token, invalid standard bridge address" in {
-    val ethBalanceBefore       = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
+class NativeInvalidRecipientTestSuite extends BaseBlockValidationSuite {
+  "Invalid block: native token, invalid recipient" in {
+    val invalidRecipient = additionalMiner1RewardAddress
+
+    val ethBalanceBefore       = ec1.web3j.ethGetBalance(invalidRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
     val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
 
     val withdrawals = Vector(mkRewardWithdrawal(elParentBlock))
 
-    val invalidStandardBridgeAddress = additionalMiner1RewardAddress
-
     val depositedTransactions = Vector(
       StandardBridge.mkFinalizeBridgeETHTransaction(
         transferIndex = 0L,
-        standardBridgeAddress = invalidStandardBridgeAddress,
+        standardBridgeAddress = StandardBridgeAddress,
         from = EthAddress.unsafeFrom(clSender.toAddress.bytes.drop(2).take(20)),
-        to = elRecipient,
+        to = invalidRecipient,
         amount = clNativeTokenAmount.longValue
       )
     )
@@ -38,7 +38,7 @@ class BlockValidationNativeInvalidBridgeTestSuite extends BaseBlockValidationSui
     waves1.api.broadcastAndWait(
       ChainContract.transfer(
         clSender,
-        elRecipient,
+        elRecipient, // Valid recipient, while the deposited transaction has invalid one
         chainContract.nativeTokenId,
         clNativeTokenAmount
       )
@@ -85,7 +85,7 @@ class BlockValidationNativeInvalidBridgeTestSuite extends BaseBlockValidationSui
     }
 
     step("Assertion: Unexpected deposited transaction doesn't affect balances")
-    val ethBalanceAfter = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
+    val ethBalanceAfter = ec1.web3j.ethGetBalance(invalidRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
     ethBalanceBefore shouldBe ethBalanceAfter
 
     step("Assertion: While the block exists on EC1, the height doesn't grow")

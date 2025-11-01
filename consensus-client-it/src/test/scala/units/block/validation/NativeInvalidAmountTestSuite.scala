@@ -1,4 +1,4 @@
-package units
+package units.block.validation
 
 import com.wavesplatform.*
 import com.wavesplatform.account.*
@@ -11,9 +11,9 @@ import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRoo
 import units.client.engine.model.EcBlock
 import units.el.*
 import units.eth.EthAddress
-import units.{BlockHash, TestNetworkClient}
+import units.{BlockHash, NetworkL2Block, TestNetworkClient}
 
-class BlockValidationNativeInvalidAmountTestSuite extends BaseBlockValidationSuite {
+class NativeInvalidAmountTestSuite extends BaseBlockValidationSuite {
   "Invalid block: native token, invalid amount" in {
     val ethBalanceBefore       = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
     val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()

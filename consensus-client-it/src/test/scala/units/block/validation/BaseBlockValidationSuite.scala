@@ -1,4 +1,4 @@
-package units
+package units.block.validation
 
 import com.wavesplatform.*
 import com.wavesplatform.account.*
@@ -14,12 +14,12 @@ import org.web3j.protocol.core.DefaultBlockParameterName
 import org.web3j.tx.RawTransactionManager
 import org.web3j.tx.gas.DefaultGasProvider
 import play.api.libs.json.*
-import units.{BlockHash, ELUpdater}
 import units.client.engine.model.{EcBlock, Withdrawal}
 import units.docker.EcContainer
 import units.el.*
 import units.eth.{EmptyL2Block, EthAddress, EthereumConstants}
 import units.util.{BlockToPayloadMapper, HexBytesConverter}
+import units.{BaseDockerTestSuite, BlockHash, ELUpdater, UnitsConvert}
 
 import scala.concurrent.duration.DurationInt
 import scala.jdk.OptionConverters.RichOptional

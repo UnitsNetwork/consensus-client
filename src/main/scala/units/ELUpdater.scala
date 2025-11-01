@@ -1088,7 +1088,7 @@ class ELUpdater(
             processInvalidBlock(contractBlock, prevState, Some(nodeChainInfo))
         }
       case contractBlock =>
-        (if (contractBlock.isEmpty) validateBlockSignature(networkBlock, prevState.epochInfo) else ().asRight[ClientError])
+        (if (contractBlock.isEmpty) validateBlockSignature(networkBlock, prevState.epochInfo) else ().asRight[String])
           .flatMap(_ => applyBlock(networkBlock, parentBlock, prevState.epochInfo)) match {
           case Right(_) =>
             logger.debug(s"Block ${networkBlock.hash} successfully applied")
@@ -1857,7 +1857,7 @@ object ELUpdater {
       )
       expectedAmount = WAmount(expectedTransfer.amount).scale(NativeTokenElDecimals - NativeTokenClDecimals)
       _ <- Either.raiseUnless(elTransferEvent.amount == expectedAmount)(
-        s"$errorPrefix: got amount: ${elTransferEvent.amount}, expected ${expectedAmount}"
+        s"$errorPrefix: got amount: ${elTransferEvent.amount}, expected $expectedAmount"
       )
     } yield ()
   }
