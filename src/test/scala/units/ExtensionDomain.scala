@@ -271,8 +271,8 @@ class ExtensionDomain(
         "extendAltChain",
         List[Terms.EVALUATED](
           Terms.CONST_LONG(chainId),
-          Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
-          Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(block.hash.hexNoPrefix).explicitGet(),
+          Terms.CONST_STRING(block.parentHash.hexNoPrefix).explicitGet(),
           Terms.CONST_LONG(epoch),
           Terms.CONST_STRING(e2CTransfersRootHashHex.drop(2)).explicitGet()
         )

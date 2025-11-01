@@ -20,7 +20,10 @@ object BlockHash {
     HexBytesConverter.toHex(xs)
   }
 
-  extension (bh: BlockHash) def str: String = bh
+  extension (bh: BlockHash) {
+    def str: String         = bh
+    def hexNoPrefix: String = bh.drop(2)
+  }
 
   given Format[BlockHash] = Format(
     Reads.StringReads.map(apply),

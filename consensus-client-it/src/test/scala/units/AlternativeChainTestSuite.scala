@@ -51,7 +51,7 @@ class AlternativeChainTestSuite extends BaseDockerTestSuite {
       func = Some("extendMainChain"),
       args = List(
         Terms.CONST_STRING("0000000000000000000000000000000000000000000000000000000000000001").explicitGet(),
-        Terms.CONST_STRING(lastContractBlock.hash.drop(2)).explicitGet(),
+        Terms.CONST_STRING(lastContractBlock.hash.hexNoPrefix).explicitGet(),
         Terms.CONST_BYTESTR(ByteStr.decodeBase58(lastWavesBlock.VRF).get).explicitGet(),
         Terms.CONST_STRING(EmptyE2CTransfersRootHashHex.drop(2)).explicitGet(),
         Terms.CONST_LONG(-1)
