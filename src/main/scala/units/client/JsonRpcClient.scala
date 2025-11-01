@@ -7,7 +7,6 @@ import pureconfig.*
 import pureconfig.generic.semiauto.*
 import sttp.client3.*
 import sttp.client3.playJson.*
-import units.ClientError
 import units.client.JsonRpcClient.*
 
 import java.util.concurrent.ThreadLocalRandom
@@ -27,8 +26,8 @@ trait JsonRpcClient {
   ): Either[String, Option[RP]] =
     sendRequest(requestId, mkRequest(requestBody, timeout), config.apiRequestRetries)
 
-  protected def parseJson[A: Reads](jsValue: JsValue): Either[ClientError, A] =
-    Try(jsValue.as[A]).toEither.leftMap(err => ClientError(s"Response parse error: ${err.getMessage}"))
+  protected def parseJson[A: Reads](jsValue: JsValue): Either[String, A] =
+    Try(jsValue.as[A]).toEither.leftMap(err => s"Response parse error: ${err.getMessage}")
 
   private def mkRequest[A: Writes, B: Reads](requestBody: A, timeout: FiniteDuration): RpcRequest[B] =
     basicRequest

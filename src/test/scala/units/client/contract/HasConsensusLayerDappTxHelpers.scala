@@ -62,7 +62,7 @@ trait HasConsensusLayerDappTxHelpers {
       dApp = chainContractAddress,
       func = "setup".some,
       args = List(
-        Terms.CONST_STRING(genesisBlock.hash.drop(2)).explicitGet(),
+        Terms.CONST_STRING(genesisBlock.hash.hexNoPrefix).explicitGet(),
         Terms.CONST_LONG(elMinerReward),
         Terms.CONST_STRING(daoAddress.fold("")(_.toString)).explicitGet(),
         Terms.CONST_LONG(daoReward)
@@ -75,7 +75,7 @@ trait HasConsensusLayerDappTxHelpers {
       TxHelpers.invoke(
         chainContractAddress,
         Some("enableTokenTransfers"),
-        Seq(CONST_STRING(standardBridge.hex.drop(2)).explicitGet(), CONST_STRING(wwaves.hex.drop(2)).explicitGet(), CONST_LONG(activationEpoch)),
+        Seq(CONST_STRING(standardBridge.hexNoPrefix).explicitGet(), CONST_STRING(wwaves.hexNoPrefix).explicitGet(), CONST_LONG(activationEpoch)),
         invoker = chainContractAccount,
         fee = 0.009.waves
       )
@@ -206,8 +206,8 @@ trait HasConsensusLayerDappTxHelpers {
         dApp = chainContractAddress,
         func = "extendMainChain_v2".some,
         args = List(
-          Terms.CONST_STRING(blockHash.drop(2)).explicitGet(),
-          Terms.CONST_STRING(parentBlockHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(blockHash.hexNoPrefix).explicitGet(),
+          Terms.CONST_STRING(parentBlockHash.hexNoPrefix).explicitGet(),
           Terms.CONST_BYTESTR(vrf).explicitGet(),
           Terms.CONST_STRING(e2cTransfersRootHashHex.drop(2)).explicitGet(),
           Terms.CONST_LONG(lastC2ETransferIndex),
@@ -228,8 +228,8 @@ trait HasConsensusLayerDappTxHelpers {
         dApp = chainContractAddress,
         func = "appendBlock_v2".some,
         args = List(
-          Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
-          Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(block.hash.hexNoPrefix).explicitGet(),
+          Terms.CONST_STRING(block.parentHash.hexNoPrefix).explicitGet(),
           Terms.CONST_STRING(e2cTransfersRootHashHex.drop(2)).explicitGet(),
           Terms.CONST_LONG(lastC2ETransferIndex),
           Terms.CONST_LONG(lastAssetRegistryIndex)
@@ -250,8 +250,8 @@ trait HasConsensusLayerDappTxHelpers {
         dApp = chainContractAddress,
         func = "startAltChain_v2".some,
         args = List(
-          Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
-          Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(block.hash.hexNoPrefix).explicitGet(),
+          Terms.CONST_STRING(block.parentHash.hexNoPrefix).explicitGet(),
           Terms.CONST_BYTESTR(vrf).explicitGet(),
           Terms.CONST_STRING(e2cTransfersRootHashHex.drop(2)).explicitGet(),
           Terms.CONST_LONG(lastC2ETransferIndex),
@@ -274,8 +274,8 @@ trait HasConsensusLayerDappTxHelpers {
         dApp = chainContractAddress,
         func = "extendAltChain_v2".some,
         args = List(
-          Terms.CONST_STRING(block.hash.drop(2)).explicitGet(),
-          Terms.CONST_STRING(block.parentHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(block.hash.hexNoPrefix).explicitGet(),
+          Terms.CONST_STRING(block.parentHash.hexNoPrefix).explicitGet(),
           Terms.CONST_BYTESTR(vrf).explicitGet(),
           Terms.CONST_LONG(chainId),
           Terms.CONST_STRING(e2cTransfersRootHashHex.drop(2)).explicitGet(),
@@ -340,7 +340,7 @@ trait HasConsensusLayerDappTxHelpers {
         dApp = chainContractAddress,
         func = "withdraw".some,
         args = List(
-          Terms.CONST_STRING(blockHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(blockHash.hexNoPrefix).explicitGet(),
           Terms.ARR(merkleProof.map[Terms.EVALUATED](x => Terms.CONST_BYTESTR(ByteStr(x)).explicitGet()).toVector, limited = false).explicitGet(),
           Terms.CONST_LONG(transferIndexInBlock),
           Terms.CONST_LONG(amount)
@@ -361,7 +361,7 @@ trait HasConsensusLayerDappTxHelpers {
         dApp = chainContractAddress,
         func = "withdrawAsset".some,
         args = List(
-          Terms.CONST_STRING(blockHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(blockHash.hexNoPrefix).explicitGet(),
           Terms.ARR(merkleProof.map[Terms.EVALUATED](x => Terms.CONST_BYTESTR(ByteStr(x)).explicitGet()).toVector, limited = false).explicitGet(),
           Terms.CONST_LONG(transferIndexInBlock),
           Terms.CONST_LONG(amount),

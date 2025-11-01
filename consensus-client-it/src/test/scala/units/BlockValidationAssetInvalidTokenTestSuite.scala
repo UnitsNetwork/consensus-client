@@ -52,7 +52,7 @@ class BlockValidationAssetInvalidTokenTestSuite extends BaseBlockValidationSuite
         func = Some("extendMainChain_v2"),
         args = List(
           Terms.CONST_STRING(simulatedBlockHash.drop(2)).explicitGet(),
-          Terms.CONST_STRING(elParentBlock.hash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(elParentBlock.hash.hexNoPrefix).explicitGet(),
           Terms.CONST_BYTESTR(hitSource).explicitGet(),
           Terms.CONST_STRING(EmptyE2CTransfersRootHashHex.drop(2)).explicitGet(),
           Terms.CONST_LONG(0),

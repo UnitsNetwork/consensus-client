@@ -7,8 +7,7 @@ package object units {
   val NativeTokenElDecimals: Byte = 18.toByte
   val NativeTokenClDecimals: Byte = 8.toByte
 
-  type BlockHash    = BlockHash.Type
-  type JobResult[A] = Either[ClientError, A]
+  type Result[A] = Either[String, A]
 
   opaque type EAmount = BigInteger
   object EAmount:

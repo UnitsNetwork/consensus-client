@@ -8,7 +8,7 @@ import com.wavesplatform.lang.v1.FunctionHeader
 import com.wavesplatform.lang.v1.compiler.Terms.{CONST_BYTESTR, CONST_LONG, CONST_STRING, EVALUATED, FUNCTION_CALL}
 import org.web3j.utils.Numeric.cleanHexPrefix
 import units.util.HexBytesConverter.toHexNoPrefix
-import units.{BlockHash, ClientError, JobResult}
+import units.{BlockHash, Result}
 
 abstract class ContractFunction(baseName: String, extraArgs: Either[CommonError, List[EVALUATED]]) {
   def reference: BlockHash
@@ -20,16 +20,16 @@ abstract class ContractFunction(baseName: String, extraArgs: Either[CommonError,
       transfersRootHash: Digest,
       lastC2ETransferIndex: Long,
       lastAssetRegistrySyncedIndex: Long
-  ): JobResult[FUNCTION_CALL] = (for {
-    hash <- CONST_STRING(cleanHexPrefix(blockHash))
-    ref  <- CONST_STRING(cleanHexPrefix(reference))
+  ): Result[FUNCTION_CALL] = (for {
+    hash <- CONST_STRING(cleanHexPrefix(blockHash.str))
+    ref  <- CONST_STRING(cleanHexPrefix(reference.str))
     ntrh <- CONST_STRING(toHexNoPrefix(transfersRootHash))
     xtra <- extraArgs
   } yield FUNCTION_CALL(
     FunctionHeader.User(name),
     List(hash, ref) ++ xtra ++ List(ntrh, CONST_LONG(lastC2ETransferIndex)) ++
       (if (version >= 2) List(CONST_LONG(lastAssetRegistrySyncedIndex)) else Nil)
-  )).leftMap(e => ClientError(s"Error building function call for $name: $e"))
+  )).leftMap(e => s"Error building function call for $name: $e")
 }
 
 object ContractFunction {
