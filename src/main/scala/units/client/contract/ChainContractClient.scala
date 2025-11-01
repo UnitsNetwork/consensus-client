@@ -221,7 +221,7 @@ trait ChainContractClient {
         ValueAtEpoch(Gwei.ofRawGwei(oldReward.toLong), Gwei.ofRawGwei(newReward.toLong), changeEpoch.toInt)
       case _ => throw new IllegalStateException("minerReward is empty on contract")
     }
-    
+
     val blockDelay = extractData("blockDelay") match {
       case Some(IntegerDataEntry(value = delay)) => ValueAtEpoch(0, BigInt(delay).bigInteger.intValueExact(), 1)
       case Some(StringDataEntry(value = delays)) =>
@@ -229,7 +229,7 @@ trait ChainContractClient {
         ValueAtEpoch(oldDelay.toInt, newDelay.toInt, changeEpoch.toInt)
       case _ => throw new IllegalStateException("blockDelay is empty on contract")
     }
-    
+
     ChainContractOptions(
       minerReward,
       getStringData("elBridgeAddress")

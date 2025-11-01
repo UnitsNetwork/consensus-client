@@ -100,7 +100,6 @@ class ClientConfigTestSuite extends FlatSpec {
          |    api-request-retries = 2
          |    api-request-retry-wait-time = 2s
          |
-         |    block-delay = 6s
          |    first-block-min-delay = 1s
          |    block-sync-request-timeout = 500ms
          |
