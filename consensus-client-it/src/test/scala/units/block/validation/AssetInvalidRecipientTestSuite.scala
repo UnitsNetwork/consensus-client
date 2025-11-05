@@ -15,7 +15,7 @@ import units.*
 class AssetInvalidRecipientTestSuite extends BaseBlockValidationSuite {
   "Invalid block: asset token, invalid recipient address" in {
     val balanceBefore          = terc20.getBalance(elRecipient)
-    val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
+    val elParentBlock: EcBlock = getMainChainLastBlock
 
     val withdrawals = Vector(mkRewardWithdrawal(elParentBlock))
 

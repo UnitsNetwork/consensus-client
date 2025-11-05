@@ -5,7 +5,7 @@ import com.wavesplatform.account.*
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.crypto.Keccak256
-import com.wavesplatform.state.{Height, IntegerDataEntry}
+import com.wavesplatform.state.{Height, IntegerDataEntry, StringDataEntry}
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import com.wavesplatform.transaction.{Asset, TxHelpers}
@@ -238,5 +238,14 @@ trait BaseBlockValidationSuite extends BaseDockerTestSuite {
     deployContractsAndActivateTransferFeatures()
     transferAssetTokenToClSender()
     leaveSetupMinerAndJoinOthers()
+  }
+  
+  protected def getMainChainLastBlock: EcBlock = {
+    val mainChainId = waves1.api.dataByKey(chainContractAddress, "mainChainId").collect { case i: IntegerDataEntry => i.value }.get
+    val elParentBlockId = waves1.api.dataByKey(chainContractAddress, f"chain_$mainChainId%08d").collect {
+      case s: StringDataEntry => BlockHash("0x" + s.value.split(",")(1))
+    }.get
+    
+    ec1.engineApi.getBlockByHash(elParentBlockId).explicitGet().get
   }
 }

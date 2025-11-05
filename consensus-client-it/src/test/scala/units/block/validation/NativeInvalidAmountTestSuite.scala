@@ -16,7 +16,7 @@ import units.{BlockHash, NetworkL2Block, TestNetworkClient}
 class NativeInvalidAmountTestSuite extends BaseBlockValidationSuite {
   "Invalid block: native token, invalid amount" in {
     val ethBalanceBefore       = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
-    val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
+    val elParentBlock: EcBlock = getMainChainLastBlock
 
     val withdrawals = Vector(mkRewardWithdrawal(elParentBlock))
 

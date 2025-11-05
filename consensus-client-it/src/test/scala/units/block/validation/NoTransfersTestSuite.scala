@@ -11,7 +11,7 @@ import units.{BlockHash, NetworkL2Block, TestNetworkClient}
 
 class NoTransfersTestSuite extends BaseBlockValidationSuite {
   "Valid block: no transfers" in {
-    val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
+    val elParentBlock: EcBlock = getMainChainLastBlock
 
     val withdrawals = Vector(mkRewardWithdrawal(elParentBlock))
 

@@ -18,7 +18,7 @@ class NativeInvalidRecipientTestSuite extends BaseBlockValidationSuite {
     val invalidRecipient = additionalMiner1RewardAddress
 
     val ethBalanceBefore       = ec1.web3j.ethGetBalance(invalidRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
-    val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
+    val elParentBlock: EcBlock = getMainChainLastBlock
 
     val withdrawals = Vector(mkRewardWithdrawal(elParentBlock))
 

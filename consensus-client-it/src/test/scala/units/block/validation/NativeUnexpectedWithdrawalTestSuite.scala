@@ -16,7 +16,7 @@ import units.{BlockHash, NetworkL2Block, TestNetworkClient}
 class NativeUnexpectedWithdrawalTestSuite extends BaseBlockValidationSuite {
   "Invalid block: native token, unexpected extra withdrawal" in {
     val ethBalanceBefore       = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
-    val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
+    val elParentBlock: EcBlock = getMainChainLastBlock
 
     val rewardWithdrawal     = mkRewardWithdrawal(elParentBlock)
     val unexpectedWithdrawal = Withdrawal(rewardWithdrawal.index + 1, elRecipient, Gwei.ofRawGwei(3_000_000_000L))
