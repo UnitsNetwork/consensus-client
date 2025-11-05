@@ -4,6 +4,7 @@ import com.wavesplatform.*
 import com.wavesplatform.account.*
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
+import com.wavesplatform.state.StringDataEntry
 import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
@@ -15,7 +16,10 @@ import units.*
 class AssetValidTestSuite extends BaseBlockValidationSuite {
   "Valid block: asset token, correct transfer" in {
     val balanceBefore          = terc20.getBalance(elRecipient)
-    val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
+    val elParentBlockId = waves1.api.dataByKey(chainContractAddress, "chain_00000000").collect {
+      case s: StringDataEntry => BlockHash("0x" + s.value.split(",")(1))
+    }.get
+    val elParentBlock: EcBlock = ec1.engineApi.getBlockByHash(elParentBlockId).explicitGet().get
 
     val withdrawals = Vector(mkRewardWithdrawal(elParentBlock))
 

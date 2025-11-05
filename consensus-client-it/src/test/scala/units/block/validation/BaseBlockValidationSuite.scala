@@ -26,14 +26,12 @@ import scala.jdk.OptionConverters.RichOptional
 
 trait BaseBlockValidationSuite extends BaseDockerTestSuite {
   protected val setupMiner: SeedKeyPair              = miner11Account // Leaves after setting up the contracts
-  protected val actingMiner: SeedKeyPair             = miner12Account
-  protected val actingMinerRewardAddress: EthAddress = miner12RewardAddress
+  protected val actingMiner: SeedKeyPair             = miner21Account
+  protected val actingMinerRewardAddress: EthAddress = miner21RewardAddress
 
   // Note: additional miners are needed to avoid the actingMiner having majority of the stake
-  protected val additionalMiner1: SeedKeyPair             = miner21Account
-  protected val additionalMiner1RewardAddress: EthAddress = miner21RewardAddress
-  protected val additionalMiner2: SeedKeyPair             = miner31Account
-  protected val additionalMiner2RewardAddress: EthAddress = miner31RewardAddress
+  protected val additionalMiner1: SeedKeyPair             = miner12Account
+  protected val additionalMiner1RewardAddress: EthAddress = miner12RewardAddress
 
   // transfers
   protected val clSender: SeedKeyPair   = clRichAccount1
@@ -215,39 +213,14 @@ trait BaseBlockValidationSuite extends BaseDockerTestSuite {
     log.debug(s"setupMiner: ${setupMiner.toAddress}")
     log.debug(s"actingMiner: ${actingMiner.toAddress}")
     log.debug(s"additionalMiner1: ${additionalMiner1.toAddress}")
-    log.debug(s"additionalMiner2: ${additionalMiner2.toAddress}")
 
-    step(s"additionalMiner1 join")
-    waves1.api.broadcastAndWait(
-      ChainContract.join(
-        minerAccount = additionalMiner1,
-        elRewardAddress = additionalMiner1RewardAddress
-      )
-    )
-
-    step(s"Wait additionalMiner1 epoch")
-    chainContract.waitForMinerEpoch(additionalMiner1)
+    waves1.api.broadcastAndWait(ChainContract.join(additionalMiner1, additionalMiner1RewardAddress))
+    waves1.api.broadcastAndWait(ChainContract.join(actingMiner, actingMinerRewardAddress))
 
     step(s"setupMiner leave")
     eventually(interval(500 millis)) {
       waves1.api.broadcastAndWait(ChainContract.leave(setupMiner))
     }
-
-    step(s"additionalMiner2 join")
-    waves1.api.broadcastAndWait(
-      ChainContract.join(
-        minerAccount = additionalMiner2,
-        elRewardAddress = additionalMiner2RewardAddress
-      )
-    )
-
-    step(s"actingMiner join")
-    waves1.api.broadcastAndWait(
-      ChainContract.join(
-        minerAccount = actingMiner,
-        elRewardAddress = actingMinerRewardAddress
-      )
-    )
 
     step(s"Wait actingMiner epoch")
     chainContract.waitForMinerEpoch(actingMiner)

@@ -58,7 +58,7 @@ Test / sourceGenerators += Def.task {
 val logsDirectory = taskKey[File]("The directory for logs") // Task to evaluate and recreate the logs directory every time
 
 Global / concurrentRestrictions := {
-  val threadNumber = Option(System.getenv("SBT_IT_TEST_THREADS")).fold(1)(_.toInt)
+  val threadNumber = Option(System.getenv("MAX_PARALLEL_SUITES")).fold(1)(_.toInt)
   Seq(Tags.limit(Tags.ForkedTestGroup, threadNumber))
 }
 
