@@ -17,7 +17,6 @@ jobs:
     env:
       JAVA_OPTS: -Dfile.encoding=UTF-8
       BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
-      SBT_IT_TEST_THREADS: 2
     services:
       docker:
         image: docker:latest
@@ -53,10 +52,9 @@ jobs:
       - name: Run tests
         run: |
           forge --version
-          sbt -Dcc.it.max-parallel-suites=4 --batch "scalafmtCheck;test;docker;consensus-client-it/test"
+          sbt -Dcc.it.max-parallel-suites=2 --batch "scalafmtCheck;test;docker;consensus-client-it/test"
         env:
           RUN_ID: ${{ github.head_ref }}-${{ github.run_number }}-${{ github.run_attempt }}
-          MAX_PARALLEL_SUITES: 4
       - uses: scacap/action-surefire-report@5609ce4db72c09db044803b344a8968fd1f315da
         if: always()
         with:
