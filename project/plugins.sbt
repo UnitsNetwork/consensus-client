@@ -4,8 +4,9 @@ resolvers ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "org.web3j"          % "codegen"   % "4.9.8",
-  "com.typesafe.play" %% "play-json" % "2.10.6"
+  "org.web3j"          % "codegen"       % "4.9.8",
+  "com.typesafe.play" %% "play-json"     % "2.10.8",
+  "com.spotify"        % "docker-client" % "8.16.0"
 )
 
 Seq(

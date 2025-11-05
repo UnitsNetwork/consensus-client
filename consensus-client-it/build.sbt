@@ -1,4 +1,5 @@
 import com.github.sbt.git.SbtGit.git.gitCurrentBranch
+import com.spotify.docker.client.DefaultDockerClient
 import org.web3j.codegen.SolidityFunctionWrapperGenerator
 import org.web3j.tx.Contract
 import play.api.libs.json.Json
@@ -8,11 +9,12 @@ import java.io.FileInputStream
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import scala.sys.process.*
+import scala.util.control.NonFatal
 
 description := "Consensus client integration tests"
 
 libraryDependencies ++= Seq(
-  "org.testcontainers" % "testcontainers" % "1.20.4",
+  "org.testcontainers" % "testcontainers" % "2.0.1",
   "org.web3j"          % "core"           % "4.9.8"
 ).map(_ % Test)
 
@@ -57,10 +59,27 @@ Test / sourceGenerators += Def.task {
 
 val logsDirectory = taskKey[File]("The directory for logs") // Task to evaluate and recreate the logs directory every time
 
-Global / concurrentRestrictions := {
-  val threadNumber = Option(System.getenv("MAX_PARALLEL_SUITES")).fold(1)(_.toInt)
-  Seq(Tags.limit(Tags.ForkedTestGroup, threadNumber))
-}
+Global / concurrentRestrictions := Seq(
+  Tags.limit(
+    Tags.ForkedTestGroup,
+    Option(Integer.getInteger("cc.it.max-parallel-suites"))
+      .getOrElse[Integer] {
+        try {
+          val docker = DefaultDockerClient.fromEnv().build()
+          try {
+            val dockerCpu: Int = docker.info().cpus()
+            sLog.value.info(s"Docker CPU count: $dockerCpu")
+            dockerCpu * 2
+          } finally docker.close()
+        } catch {
+          case NonFatal(_) =>
+            sLog.value.warn(s"Could not connect to Docker, is the daemon running?")
+            sLog.value.info(s"System CPU count: ${EvaluateTask.SystemProcessors}")
+            EvaluateTask.SystemProcessors
+        }
+      }
+  )
+)
 
 inConfig(Test)(
   Seq(
