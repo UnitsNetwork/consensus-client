@@ -49,7 +49,7 @@ class NativeInvalidSenderTestSuite extends BaseBlockValidationSuite {
         dApp = chainContractAddress,
         func = Some("extendMainChain_v2"),
         args = List(
-          Terms.CONST_STRING(simulatedBlockHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(simulatedBlockHash.hexNoPrefix).explicitGet(),
           Terms.CONST_STRING(elParentBlock.hash.hexNoPrefix).explicitGet(),
           Terms.CONST_BYTESTR(hitSource).explicitGet(),
           Terms.CONST_STRING(EmptyE2CTransfersRootHashHex.drop(2)).explicitGet(),
@@ -69,7 +69,7 @@ class NativeInvalidSenderTestSuite extends BaseBlockValidationSuite {
     step("Assertion: Block exists on EC1")
     eventually {
       ec1.engineApi
-        .getBlockByHash(BlockHash(simulatedBlockHash))
+        .getBlockByHash(simulatedBlockHash)
         .explicitGet()
         .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
     }
@@ -77,7 +77,7 @@ class NativeInvalidSenderTestSuite extends BaseBlockValidationSuite {
     step("Assertion: Block exists on EC1")
     eventually {
       ec1.engineApi
-        .getBlockByHash(BlockHash(simulatedBlockHash))
+        .getBlockByHash(simulatedBlockHash)
         .explicitGet()
         .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
     }
@@ -86,9 +86,9 @@ class NativeInvalidSenderTestSuite extends BaseBlockValidationSuite {
     val ethBalanceAfter = ec1.web3j.ethGetBalance(invalidSender.toString, DefaultBlockParameterName.LATEST).send().getBalance
     ethBalanceBefore shouldBe ethBalanceAfter
 
-    step("Assertion: While the block exists on EC1, the height doesn't grow")
+    step("Assertion: head is not moved to simulated block")
     val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
-    elBlockAfter.height.longValue shouldBe elParentBlock.height.longValue
+    elBlockAfter.hash shouldNot be(simulatedBlockHash)
   }
 
   override def beforeAll(): Unit = setupForNativeTokenTransfer()

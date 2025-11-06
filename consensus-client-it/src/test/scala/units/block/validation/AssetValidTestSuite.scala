@@ -49,7 +49,7 @@ class AssetValidTestSuite extends BaseBlockValidationSuite {
         dApp = chainContractAddress,
         func = Some("extendMainChain_v2"),
         args = List(
-          Terms.CONST_STRING(simulatedBlockHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(simulatedBlockHash.hexNoPrefix).explicitGet(),
           Terms.CONST_STRING(elParentBlock.hash.hexNoPrefix).explicitGet(),
           Terms.CONST_BYTESTR(hitSource).explicitGet(),
           Terms.CONST_STRING(EmptyE2CTransfersRootHashHex.drop(2)).explicitGet(),
@@ -69,7 +69,7 @@ class AssetValidTestSuite extends BaseBlockValidationSuite {
     step("Assertion: Block exists on EC1")
     eventually {
       ec1.engineApi
-        .getBlockByHash(BlockHash(simulatedBlockHash))
+        .getBlockByHash(simulatedBlockHash)
         .explicitGet()
         .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
     }

@@ -71,7 +71,7 @@ trait BaseBlockValidationSuite extends BaseDockerTestSuite {
       elParentBlock: EcBlock,
       withdrawals: Seq[Withdrawal],
       depositedTransactions: Seq[DepositedTransaction]
-  ): (JsObject, String, ByteStr) = {
+  ): (JsObject, BlockHash, ByteStr) = {
     step("Building a simulated block")
     val feeRecipient = actingMinerRewardAddress
 
@@ -102,9 +102,7 @@ trait BaseBlockValidationSuite extends BaseDockerTestSuite {
       )
     )
 
-    val simulatedBlockHash: String = (simulatedBlock \ "hash").as[String]
-
-    (payload, simulatedBlockHash, hitSource)
+    (payload, (simulatedBlock \ "hash").as[BlockHash], hitSource)
   }
 
   protected def deployContractsAndActivateTransferFeatures(): Unit = {
