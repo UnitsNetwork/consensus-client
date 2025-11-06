@@ -4,7 +4,6 @@ import com.wavesplatform.*
 import com.wavesplatform.account.*
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
-import com.wavesplatform.state.StringDataEntry
 import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import units.*
@@ -25,7 +24,7 @@ class AssetValidTestSuite extends BaseBlockValidationSuite {
         transferIndex = 0L,
         standardBridgeAddress = StandardBridgeAddress,
         token = TErc20Address,
-        from = EthAddress.unsafeFrom(clSender.toAddress.bytes.drop(2).take(20)),
+        from = EthAddress.unsafeFrom(clSender.toAddress),
         to = elRecipient,
         amount = EAmount(elAssetTokenAmount.bigInteger)
       )

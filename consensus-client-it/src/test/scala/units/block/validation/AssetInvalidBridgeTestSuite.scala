@@ -26,7 +26,7 @@ class AssetInvalidBridgeTestSuite extends BaseBlockValidationSuite {
         transferIndex = 0L,
         standardBridgeAddress = invalidStandardBridgeAddress,
         token = TErc20Address,
-        from = EthAddress.unsafeFrom(clSender.toAddress.bytes.drop(2).take(20)),
+        from = EthAddress.unsafeFrom(clSender.toAddress),
         to = elRecipient,
         amount = EAmount(elAssetTokenAmount.bigInteger)
       )

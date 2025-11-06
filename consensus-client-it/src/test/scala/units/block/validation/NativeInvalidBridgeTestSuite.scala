@@ -26,7 +26,7 @@ class NativeInvalidBridgeTestSuite extends BaseBlockValidationSuite {
       StandardBridge.mkFinalizeBridgeETHTransaction(
         transferIndex = 0L,
         standardBridgeAddress = invalidStandardBridgeAddress,
-        from = EthAddress.unsafeFrom(clSender.toAddress.bytes.drop(2).take(20)),
+        from = EthAddress.unsafeFrom(clSender.toAddress),
         to = elRecipient,
         amount = clNativeTokenAmount.longValue
       )

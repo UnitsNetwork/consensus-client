@@ -1,5 +1,6 @@
 package units.eth
 
+import com.wavesplatform.account.Address
 import play.api.libs.json.*
 import units.util.HexBytesConverter
 
@@ -34,4 +35,5 @@ object EthAddress {
 
   def unsafeFrom(hex: String): EthAddress        = from(hex).left.map(new RuntimeException(_)).toTry.get
   def unsafeFrom(bytes: Array[Byte]): EthAddress = unsafeFrom(HexBytesConverter.toHex(bytes))
+  def unsafeFrom(address: Address): EthAddress   = unsafeFrom(address.bytes.slice(2, 22))
 }
