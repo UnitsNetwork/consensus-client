@@ -36,6 +36,7 @@ let transfersCountKey          = "nativeTransfersCount"
 let daoAddressKey              = "daoAddress"
 let daoRewardKey               = "daoReward"
 let maxSkippedEpochCountKey    = "maxSkippedEpochCount"
+let failedC2ETransfersKey      = "failedC2ETransfersForBlock_0x"
 
 let emergencyStopKey = "stopped"
 func requireNotStopped() = getBoolean(emergencyStopKey).valueOrElse(false) && throw("The network has been stopped. Please contact the administrator.")
@@ -74,19 +75,21 @@ func minerPkKey(rewardAddress: String)            = "miner_0x" + rewardAddress +
 func minerChainIdKey(miner: Address)              = "miner_" + miner.toString() + "_ChainId"
 func minerSkippedEpochCountKey(minerAddr: String) = "miner_" + minerAddr + "_SkippedEpochCount"
 
+func refundedFailedC2ETransfersKey(blockHashHex: String, transferIndex: Int) = "refundedFailedC2ETransfers_0x" + blockHashHex + "_" + transferIndex.toString() # any boolean value (true)
+
 let transfersCount       = this.getInteger(transfersCountKey).valueOrElse(0)
 let maxSkippedEpochCount = getInteger(maxSkippedEpochCountKey).valueOrElse(200)
 
 # transferKey value variants:
 # - Native transfer, before strict transfers activation
 #   {destElAddressHex with 0x}_{amount}
-# 
+#
 # - Native transfer, after strict transfers activation
 #   {epoch}_{destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}
-# 
+#
 # - Asset transfer, before strict transfers activation
 #   {destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex}
-# 
+#
 # - Asset transfer, after strict transfers activation
 #   {epoch}_{destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex}
 func transferKey(index: Int) = "nativeTransfer_" + index.toString()
@@ -94,6 +97,8 @@ func transferKey(index: Int) = "nativeTransfer_" + index.toString()
 let strictC2ETransfersActivationEpochKey = "strictC2ETransfersActivationEpoch"
 let strictC2ETransfersActivationEpoch    = getInteger(strictC2ETransfersActivationEpochKey).valueOrElse(INT_MAX)
 let strictC2ETransfersActivated          = height >= strictC2ETransfersActivationEpoch
+func requireStrictC2ETransfersActivated()    = strictC2ETransfersActivated || throw("Strict C2E transfers must be activated")
+func requireStrictC2ETransfersNotActivated() = strictC2ETransfersActivated && throw("Strict C2E transfers must not be activated")
 
 # destElAddressHex - without 0x
 func mkNativeTransferViaWithdrawalEntries(destElAddressHex: String, amount: Int) = {
@@ -263,12 +268,25 @@ func mkBlockMetaEntry(
   let blockMetaBytes = blockHeight.toBytes() + epoch.toBytes() + blockParentHex.fromBase16String() + chainId.toBytes() +
     e2cTransfersRootHashBytes + lastC2ETransferIndex.toBytes()
 
-  let updatedBlockMetaBytes = if (assetTransfersActivated)
+  let blockMetaWithAssets = if (assetTransfersActivated)
     then blockMetaBytes + lastAssetRegistryIndex.toBytes()
     else blockMetaBytes
 
-  BinaryEntry(blockMetaK + blockHashHex, updatedBlockMetaBytes)
+  BinaryEntry(blockMetaK + blockHashHex, blockMetaWithAssets)
 }
+
+func mkFailedC2ETransfersEntry(blockHashHex: String, failedC2ETransfersRootHashHex: String) =
+  if (strictC2ETransfersActivated)
+    then {
+      let bytes = failedC2ETransfersRootHashHex.fromBase16String()
+      let bytesSize = bytes.size()
+      if (bytesSize == 0) then []
+      else {
+        strict failedRootHashIsValid = bytesSize == ROOT_HASH_SIZE ||
+          throw("Failed transfers root hash should have " + ROOT_HASH_SIZE.toString() + " bytes, got " + bytesSize.toString())
+        [BinaryEntry(failedC2ETransfersKey + blockHashHex, bytes)]
+      }
+    } else []
 
 func lastHeightBy(miner: Address, chainId: Int) = match getInteger(chainLastHeightKey(chainId, miner)) {
   case h: Int => h
@@ -512,7 +530,8 @@ func extendMainChain_base(
   vrf: ByteVector,
   e2cTransfersRootHashHex: String,
   lastC2ETransferIndex: Int,
-  lastAssetRegistryIndex: Int
+  lastAssetRegistryIndex: Int,
+  failedC2ETransfersRootHashHex: String
 ) = {
   strict notStopped     = requireNotStopped()
   strict checkBlockHash = validateBlockHash(blockHashHex)
@@ -529,6 +548,7 @@ func extendMainChain_base(
   strict checkGenerator = ensureMiningEpoch(originCaller)
 
   let updateFinalizedBlock = getUpdateFinalizedBlockAction(originCaller, blockHashHex, mainChainEpoch)
+  let failedC2ETransfersEntry = mkFailedC2ETransfersEntry(blockHashHex, failedC2ETransfersRootHashHex)
 
   let newChainHeight = mainChainHeight + 1
   [
@@ -537,7 +557,7 @@ func extendMainChain_base(
     IntegerEntry(minerChainIdKey(originCaller), mainChainId),
     IntegerEntry(chainLastHeightKey(mainChainId, originCaller), newChainHeight),
     thisEpochMeta
-  ] ++ updateFinalizedBlock ++ markEpochNonEmpty
+  ] ++ failedC2ETransfersEntry ++ updateFinalizedBlock ++ markEpochNonEmpty
 }
 
 func startAltChain_base(
@@ -547,7 +567,8 @@ func startAltChain_base(
   vrf: ByteVector,
   e2cTransfersRootHashHex: String,
   lastC2ETransferIndex: Int,
-  lastAssetRegistryIndex: Int
+  lastAssetRegistryIndex: Int,
+  failedC2ETransfersRootHashHex: String
 ) = {
   strict notStopped     = requireNotStopped()
   strict checkBlockHash = validateBlockHash(blockHashHex)
@@ -570,6 +591,8 @@ func startAltChain_base(
 
   strict checkGenerator = ensureMiningEpoch(originCaller)
 
+  let failedC2ETransfersEntry = mkFailedC2ETransfersEntry(blockHashHex, failedC2ETransfersRootHashHex)
+
   [
     thisEpochMeta,
     mkBlockMetaEntry(blockHashHex, newChainHeight, referenceHex, newChainId, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex),
@@ -580,7 +603,7 @@ func startAltChain_base(
     IntegerEntry(chainLastHeightKey(mainChainId, originCaller), newChainHeight),
     StringEntry(supportersKey(newChainId), originCaller.toString()),
     IntegerEntry(lastChainIdKey, newChainId)
-  ] ++ markEpochNonEmpty
+  ] ++ failedC2ETransfersEntry ++ markEpochNonEmpty
 }
 
 func extendAltChain_base(
@@ -591,7 +614,8 @@ func extendAltChain_base(
   chainId: Int,
   e2cTransfersRootHashHex: String,
   lastC2ETransferIndex: Int,
-  lastAssetRegistryIndex: Int
+  lastAssetRegistryIndex: Int,
+  failedC2ETransfersRootHashHex: String
 ) = {
   # 1. if this is the first block of a new epoch in a fork, store total supporting balance of a fork.
   # 2. if this fork's total supporting balance is >= 1/2 of the total balance, make this the new main chain.
@@ -632,13 +656,16 @@ func extendAltChain_base(
   let updateMainChainLastMinedBlock = if (updateMainChainData == [] && minerChainId(originCaller).valueOrElse(0) != chainId) then {
     [IntegerEntry(chainLastHeightKey(mainChainId, originCaller), chainFirstBlockMeta._1)]
   } else []
+
+  let failedC2ETransfersEntry = mkFailedC2ETransfersEntry(blockHashHex, failedC2ETransfersRootHashHex)
+
   [
     mkBlockMetaEntry(blockHashHex, newChainHeight, referenceHex, chainId, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex),
     mkChainMetaEntry(chainId, newChainHeight, blockHashHex),
     thisEpochMeta,
     IntegerEntry(minerChainIdKey(originCaller), chainId),
     IntegerEntry(chainLastHeightKey(chainId, originCaller), newChainHeight)
-  ] ++ updateMainChainData ++ addSupporter(chainId, originCaller) ++ updateMainChainLastMinedBlock ++ markEpochNonEmpty
+  ] ++ failedC2ETransfersEntry ++ updateMainChainData ++ addSupporter(chainId, originCaller) ++ updateMainChainLastMinedBlock ++ markEpochNonEmpty
 }
 
 func appendBlock_base(
@@ -647,7 +674,8 @@ func appendBlock_base(
   referenceHex: String,
   e2cTransfersRootHashHex: String,
   lastC2ETransferIndex: Int,
-  lastAssetRegistryIndex: Int
+  lastAssetRegistryIndex: Int,
+  failedC2ETransfersRootHashHex: String
 ) = {
   strict notStopped  = requireNotStopped()
   strict checkCaller = if (thisEpochMiner == originCaller)
@@ -665,12 +693,15 @@ func appendBlock_base(
 
   let newChainHeight    = chainHeight + 1
   strict checkBlockHash = validateBlockHash(blockHashHex)
+
+  let failedC2ETransfersEntry = mkFailedC2ETransfersEntry(blockHashHex, failedC2ETransfersRootHashHex)
+
   [
     mkBlockMetaEntry(blockHashHex, newChainHeight, lastBlockId, chainId, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex),
     IntegerEntry(chainLastHeightKey(chainId, originCaller), newChainHeight),
     mkChainMetaEntry(chainId, newChainHeight, blockHashHex),
     StringEntry(epochMetaKey(height), thisEpochMiner.value().toString() + SEP + thisEpochRef.toString() + SEP + blockHashHex)
-  ]
+  ] ++ failedC2ETransfersEntry
 }
 
 func isFinalized(blockHashHex: String) = {
@@ -724,7 +755,8 @@ func extendMainChain(
   lastC2ETransferIndex: Int
 ) = {
   strict check = requireAssetTransfersNotActivated()
-  extendMainChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, -1)
+  strict checkStrictTransfers = requireStrictC2ETransfersNotActivated()
+  extendMainChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, -1, base16''.toBase16String())
 }
 
 @Callable(i)
@@ -737,7 +769,23 @@ func extendMainChain_v2(
   lastAssetRegistryIndex: Int
 ) = {
   strict check = requireAssetTransfersActivated()
-  extendMainChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex)
+  strict checkStrictTransfers = requireStrictC2ETransfersNotActivated()
+  extendMainChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex, base16''.toBase16String())
+}
+
+@Callable(i)
+func extendMainChain_v3(
+  blockHashHex: String,
+  referenceHex: String,
+  vrf: ByteVector,
+  e2cTransfersRootHashHex: String,
+  lastC2ETransferIndex: Int,
+  lastAssetRegistryIndex: Int,
+  failedC2ETransfersRootHashHex: String
+) = {
+  strict check = requireAssetTransfersActivated()
+  strict checkStrictTransfers = requireStrictC2ETransfersActivated()
+  extendMainChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex, failedC2ETransfersRootHashHex)
 }
 
 @Callable(i)
@@ -749,7 +797,8 @@ func startAltChain(
   lastC2ETransferIndex: Int
 ) = {
   strict check = requireAssetTransfersNotActivated()
-  startAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, -1)
+  strict checkStrictTransfers = requireStrictC2ETransfersNotActivated()
+  startAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, -1, base16''.toBase16String())
 }
 
 @Callable(i)
@@ -762,7 +811,23 @@ func startAltChain_v2(
   lastAssetRegistryIndex: Int
 ) = {
   strict check = requireAssetTransfersActivated()
-  startAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex)
+  strict checkStrictTransfers = requireStrictC2ETransfersNotActivated()
+  startAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex, base16''.toBase16String())
+}
+
+@Callable(i)
+func startAltChain_v3(
+  blockHashHex: String,
+  referenceHex: String,
+  vrf: ByteVector,
+  e2cTransfersRootHashHex: String,
+  lastC2ETransferIndex: Int,
+  lastAssetRegistryIndex: Int,
+  failedC2ETransfersRootHashHex: String
+) = {
+  strict check = requireAssetTransfersActivated()
+  strict checkStrictTransfers = requireStrictC2ETransfersActivated()
+  startAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex, failedC2ETransfersRootHashHex)
 }
 
 @Callable(i)
@@ -775,7 +840,8 @@ func extendAltChain(
   lastC2ETransferIndex: Int
 ) = {
   strict check = requireAssetTransfersNotActivated()
-  extendAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, chainId, e2cTransfersRootHashHex, lastC2ETransferIndex, -1)
+  strict checkStrictTransfers = requireStrictC2ETransfersNotActivated()
+  extendAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, chainId, e2cTransfersRootHashHex, lastC2ETransferIndex, -1, base16''.toBase16String())
 }
 
 @Callable(i)
@@ -789,7 +855,24 @@ func extendAltChain_v2(
   lastAssetRegistryIndex: Int
 ) = {
   strict check = requireAssetTransfersActivated()
-  extendAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, chainId, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex)
+  strict checkStrictTransfers = requireStrictC2ETransfersNotActivated()
+  extendAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, chainId, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex, base16''.toBase16String())
+}
+
+@Callable(i)
+func extendAltChain_v3(
+  blockHashHex: String,
+  referenceHex: String,
+  vrf: ByteVector,
+  chainId: Int,
+  e2cTransfersRootHashHex: String,
+  lastC2ETransferIndex: Int,
+  lastAssetRegistryIndex: Int,
+  failedC2ETransfersRootHashHex: String
+) = {
+  strict check = requireAssetTransfersActivated()
+  strict checkStrictTransfers = requireStrictC2ETransfersActivated()
+  extendAltChain_base(i.originCaller, blockHashHex, referenceHex, vrf, chainId, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex, failedC2ETransfersRootHashHex)
 }
 
 @Callable(i)
@@ -800,7 +883,8 @@ func appendBlock(
   lastC2ETransferIndex: Int
 ) = {
   strict check = requireAssetTransfersNotActivated()
-  appendBlock_base(i.originCaller, blockHashHex, referenceHex, e2cTransfersRootHashHex, lastC2ETransferIndex, -1)
+  strict checkStrictTransfers = requireStrictC2ETransfersNotActivated()
+  appendBlock_base(i.originCaller, blockHashHex, referenceHex, e2cTransfersRootHashHex, lastC2ETransferIndex, -1, base16''.toBase16String())
 }
 
 @Callable(i)
@@ -812,7 +896,22 @@ func appendBlock_v2(
   lastAssetRegistryIndex: Int
 ) = {
   strict check = requireAssetTransfersActivated()
-  appendBlock_base(i.originCaller, blockHashHex, referenceHex, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex)
+  strict checkStrictTransfers = requireStrictC2ETransfersNotActivated()
+  appendBlock_base(i.originCaller, blockHashHex, referenceHex, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex, base16''.toBase16String())
+}
+
+@Callable(i)
+func appendBlock_v3(
+  blockHashHex: String,
+  referenceHex: String,
+  e2cTransfersRootHashHex: String,
+  lastC2ETransferIndex: Int,
+  lastAssetRegistryIndex: Int,
+  failedC2ETransfersRootHashHex: String
+) = {
+  strict check = requireAssetTransfersActivated()
+  strict checkStrictTransfers = requireStrictC2ETransfersActivated()
+  appendBlock_base(i.originCaller, blockHashHex, referenceHex, e2cTransfersRootHashHex, lastC2ETransferIndex, lastAssetRegistryIndex, failedC2ETransfersRootHashHex)
 }
 
 @Callable(i)
@@ -904,7 +1003,7 @@ func transfer(destElAddressHex: String) = {
     #   else if (queueSize < 3200) then amountGtEq(t,   100_000_000, queueSize)
     #   else if (queueSize < 6400) then amountGtEq(t, 1_000_000_000, queueSize)
     #   else throw("Transfers denied for queue size of " + queueSize.toString() + ". Wait until current transfers processed")
-    let nativeTransferEntries = 
+    let nativeTransferEntries =
       if (strictC2ETransfersActivated)
       then mkNativeTransferViaDepositEntries(normalizedDestElAddressHex, fromAddressHex, t.amount)
       else mkNativeTransferViaWithdrawalEntries(normalizedDestElAddressHex, t.amount)
@@ -957,6 +1056,89 @@ func withdraw(blockHashHex: String, merkleProof: List[ByteVector], transferIndex
     ScriptTransfer(recipient, amount, tokenId),
     StringEntry(transfersKey, setOrFail(getString(transfersKey).valueOrElse(""), transferIndexInBlock))
   ]
+}
+
+# blockHashHex without 0x
+@Callable(i)
+func refundFailedC2ETransfer(blockHashHex: String, merkleProof: List[ByteVector], failedC2ETransferIndex: Int, transferIndexInBlock: Int) = {
+  strict check = requireStrictC2ETransfersActivated()
+  strict normalizedBlockHashHex = validateBlockHash(cut0x(blockHashHex))
+  let expectedFailedC2ETransfersRootHash = getBinaryValue(failedC2ETransfersKey + normalizedBlockHashHex)
+  strict rootExists = expectedFailedC2ETransfersRootHash.size() > 0 || throw("No failed transfers recorded for block " + normalizedBlockHashHex)
+  let valueBytes = blake2b256(failedC2ETransferIndex.toBytes())
+  let actualRootHash = createMerkleRoot(merkleProof, valueBytes, transferIndexInBlock)
+  strict hashesMatch = actualRootHash == expectedFailedC2ETransfersRootHash || throw(
+    "Expected failed transfers root hash: " + expectedFailedC2ETransfersRootHash.toBase16String() +
+    ", got: " + actualRootHash.toBase16String()
+  )
+
+  let transferOpt = getString(transferKey(failedC2ETransferIndex))
+  let transferStr = match transferOpt {
+    case s: String => s
+    case _         => throw("Transfer #" + failedC2ETransferIndex.toString() + " not found")
+  }
+  let parts = transferStr.split(SEP)
+
+  strict nativeTransferBeforeStrictGuard =
+    if (parts.size() == 2) then {
+      # - Native transfer, before strict transfers activation
+      #   {destElAddressHex with 0x}_{amount}
+      throw("Refund is supported only for strict C2E transfers")
+    } else true
+
+  strict assetTransferBeforeStrictGuard =
+    if (parts.size() == 4 && parts[0].take(2) == "0x" && parts[1].take(2) == "0x") then {
+      # - Asset transfer, before strict transfers activation
+      #   {destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex}
+      throw("Refund is supported only for strict C2E transfers")
+    } else true
+
+  # - Native transfer, after strict transfers activation
+  #   {epoch}_{destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}
+  let isNativeStrict = parts.size() == 4 && parts[0].take(2) != "0x" && parts[1].take(2) == "0x" && parts[2].take(2) == "0x"
+
+  # - Asset transfer, after strict transfers activation
+  #   {epoch}_{destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex}
+  let isAssetStrict  = parts.size() == 5 && parts[0].take(2) != "0x" && parts[1].take(2) == "0x" && parts[2].take(2) == "0x"
+
+  strict supportedTransfer = (isNativeStrict || isAssetStrict) || throw("Refund is supported only for strict C2E transfers")
+
+  let storedFrom = cut0x(parts[2]).fromBase16String()
+  let callerPkHash = i.caller.bytes.drop(2).take(PUBLIC_KEY_HASH_SIZE)
+  strict senderMatches = storedFrom == callerPkHash || throw("Only original sender can refund this transfer")
+
+  let refundsKey = refundedFailedC2ETransfersKey(normalizedBlockHashHex, transferIndexInBlock)
+  strict noPreviousRefunds = match getBoolean(refundsKey) {
+    case _: Boolean => throw("The funds for this transfer have already been refunded")
+    case _         => true
+  }
+
+  if (isNativeStrict) then {
+    let amount  = parts[3].parseIntValue()
+    let tokenId = getStringValue(tokenIdKey).fromBase58String()
+    [
+      Reissue(tokenId, amount, true),
+      ScriptTransfer(i.caller, amount, tokenId),
+      BooleanEntry(refundsKey, true)
+    ]
+  } else {
+    let amount        = parts[3].parseIntValue()
+    let assetIndexStr = parts[4]
+    let assetRegistryKey = assetRegistryIndexK + assetIndexStr
+    let assetIdBase58OrWaves = getString(assetRegistryKey)
+      .valueOrErrorMessage("Can't find asset index " + assetIndexStr)
+    let assetId = parseAssetId(assetIdBase58OrWaves)
+    let reissueActions = match assetId {
+      case assetId: ByteVector =>
+        let asset = assetInfo(assetId).valueOrErrorMessage("Unknown asset " + assetIdBase58OrWaves)
+        if (asset.issuer == this) then [Reissue(assetId, amount, true)] else []
+      case _ => []
+    }
+    reissueActions ++ [
+      ScriptTransfer(i.caller, amount, assetId),
+      BooleanEntry(refundsKey, true)
+    ]
+  }
 }
 
 # assetIdBase58OrWaves - "Asset ID in Base58" | WAVES_ASSET_NAME

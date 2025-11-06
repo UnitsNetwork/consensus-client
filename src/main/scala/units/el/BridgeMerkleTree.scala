@@ -2,6 +2,7 @@ package units.el
 
 import cats.syntax.either.*
 import cats.syntax.traverse.*
+import com.google.common.primitives.Longs
 import com.wavesplatform.common.merkle.{Digest, Merkle}
 import units.client.engine.model.GetLogsResponseEntry
 import units.util.HexBytesConverter
@@ -47,4 +48,25 @@ object BridgeMerkleTree {
 
       case _ => List.empty[Array[Byte]].asRight
     }
+
+  def getFailedTransfersRootHash(indexes: Seq[Long]): Digest =
+    mkFailedTransfersHash(getFailedTransferData(indexes))
+
+  private def mkFailedTransfersHash(data: Seq[Array[Byte]]): Digest =
+    if (data.isEmpty) Array.emptyByteArray
+    else {
+      val levels = Merkle.mkLevels(data)
+      levels.head.head
+    }
+
+  def mkFailedTransferProofs(indexes: List[Long], transferIndex: Int): Seq[Digest] =
+    if (indexes.isEmpty) Nil
+    else {
+      val data   = getFailedTransferData(indexes)
+      val levels = Merkle.mkLevels(data)
+      Merkle.mkProofs(transferIndex, levels)
+    }
+
+  private def getFailedTransferData(indexes: Seq[Long]): Seq[Array[Byte]] =
+    indexes.map(Longs.toByteArray)
 }

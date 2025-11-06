@@ -17,15 +17,11 @@ libraryDependencies ++= Seq(
 ).map(_ % Test)
 
 Test / sourceGenerators += Def.task {
-  val generateSourcesFromContracts = Seq("Bridge", "StandardBridge", "ERC20")
+  val generateSourcesFromContracts = Seq("Bridge", "StandardBridge", "ERC20", "TERC20")
   val contractSources              = baseDirectory.value / ".." / "contracts" / "eth"
   val compiledDir                  = contractSources / "target"
   // --silent to bypass garbage "Counting objects" git logs
-  s"forge build --silent --config-path ${contractSources / "foundry.toml"} --contracts " +
-    s"${contractSources / "src" / "utils" / "TERC20.sol"} " +
-    s"${contractSources / "src" / "StandardBridge.sol"} " +
-    s"${contractSources / "src" / "Bridge.sol"} " +
-    s"${contractSources / "src" / "UnitsMintableERC20.sol"}" !
+  s"forge build --silent --config-path ${contractSources / "foundry.toml"} --contracts ${contractSources / "src"}" !
 
   generateSourcesFromContracts.foreach { contract =>
     val json    = Json.parse(new FileInputStream(compiledDir / s"$contract.sol" / s"$contract.json"))

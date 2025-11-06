@@ -6,11 +6,13 @@ import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import org.web3j.protocol.core.DefaultBlockParameterName
-import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
+import units.client.contract.HasConsensusLayerDappTxHelpers.{EmptyE2CTransfersRootHashHex, EmptyFailedC2ETransfersRootHashHex}
 import units.client.engine.model.EcBlock
 import units.{BlockHash, TestNetworkClient}
 
 class BlockValidationNativeMissingDepositTestSuite extends BaseBlockValidationSuite {
+  // Note: This test doesn't assert behavior in case of a failed transfer (which also means that the deposited tx is missing). For that case we have FailedTransfersTestSuite.
+  // This test only asserts behavior in case of a missing deposited tx while there were no unsuccessful transfers (meaning that the block is considered invalid).
   "Invalid block: native token, missing deposited transaction" in {
     val ethBalanceBefore       = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
     val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
@@ -36,14 +38,15 @@ class BlockValidationNativeMissingDepositTestSuite extends BaseBlockValidationSu
       TxHelpers.invoke(
         invoker = actingMiner,
         dApp = chainContractAddress,
-        func = Some("extendMainChain_v2"),
+        func = Some("extendMainChain_v3"),
         args = List(
           Terms.CONST_STRING(simulatedBlockHash.drop(2)).explicitGet(),
           Terms.CONST_STRING(elParentBlock.hash.hexNoPrefix).explicitGet(),
           Terms.CONST_BYTESTR(hitSource).explicitGet(),
           Terms.CONST_STRING(EmptyE2CTransfersRootHashHex.drop(2)).explicitGet(),
           Terms.CONST_LONG(0),
-          Terms.CONST_LONG(-1)
+          Terms.CONST_LONG(-1),
+          Terms.CONST_STRING(EmptyFailedC2ETransfersRootHashHex.drop(2)).explicitGet()
         )
       )
     )

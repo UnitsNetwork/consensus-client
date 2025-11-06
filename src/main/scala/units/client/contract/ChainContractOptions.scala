@@ -12,7 +12,8 @@ case class ChainContractOptions(
     miningReward: Gwei,
     elNativeBridgeAddress: EthAddress,
     elStandardBridgeAddress: Option[EthAddress],
-    assetTransfersActivationEpoch: Long
+    assetTransfersActivationEpoch: Long,
+    strictC2ETransfersActivationEpoch: Long
 ) {
   def bridgeAddresses(epoch: Int): List[EthAddress] = {
     val before = List(elNativeBridgeAddress)
@@ -33,5 +34,9 @@ case class ChainContractOptions(
   def appendFunction(epoch: Int, reference: BlockHash): AppendBlock =
     AppendBlock(reference, versionOf(epoch))
 
-  private def versionOf(epoch: Int): Int = if (epoch < assetTransfersActivationEpoch) 1 else 2
+  private def versionOf(epoch: Int): Int = () match {
+    case _ if epoch < assetTransfersActivationEpoch                                               => 1
+    case _ if epoch >= assetTransfersActivationEpoch && epoch < strictC2ETransfersActivationEpoch => 2
+    case _                                                                                        => 3
+  }
 }

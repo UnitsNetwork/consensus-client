@@ -8,6 +8,7 @@ import org.web3j.utils.Numeric
 import play.api.libs.functional.syntax.*
 import play.api.libs.json.*
 import units.eth.EthAddress
+import units.util.HexBytesConverter
 import units.util.HexBytesConverter.*
 
 import java.math.BigInteger
@@ -75,6 +76,8 @@ case class DepositedTransaction(
       this.data == that.data
     case _ => false
   }
+
+  def hash: String = HexBytesConverter.toHex(Keccak256.hash(HexBytesConverter.toBytes(this.toHex)))
 }
 
 object DepositedTransaction {

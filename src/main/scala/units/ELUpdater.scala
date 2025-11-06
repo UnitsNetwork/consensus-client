@@ -4,6 +4,7 @@ import cats.syntax.either.*
 import cats.syntax.traverse.*
 import com.typesafe.scalalogging.StrictLogging
 import com.wavesplatform.account.{Address, AddressScheme, KeyPair, PKKeyPair}
+import com.wavesplatform.common.merkle.Digest
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.crypto
 import com.wavesplatform.lang.ValidationError
@@ -12,10 +13,10 @@ import com.wavesplatform.network.ChannelGroupExt
 import com.wavesplatform.state.diffs.FeeValidation.{FeeConstants, FeeUnit, ScriptExtraFee}
 import com.wavesplatform.state.diffs.TransactionDiffer.TransactionValidationError
 import com.wavesplatform.state.{Blockchain, BooleanDataEntry}
+import com.wavesplatform.transaction.*
 import com.wavesplatform.transaction.TxValidationError.InvokeRejectError
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import com.wavesplatform.transaction.smart.script.trace.TracedResult
-import com.wavesplatform.transaction.*
 import com.wavesplatform.utils.{Time, UnsupportedFeature, forceStopApplication}
 import com.wavesplatform.wallet.Wallet
 import io.netty.channel.Channel
@@ -212,7 +213,7 @@ class ELUpdater(
 
     val withdrawals = rewardWithdrawal ++ nativeTransferWithdrawals
 
-    val (depositedTransactions, addedAssets, updateAssetRegistryTransaction, nativeTransfersViaDeposits, assetTransfers) =
+    val (depositedTransactions, addedAssets, updateAssetRegistryTransaction, transferTransactions, nativeTransfersViaDeposits, assetTransfers) =
       prepareTransactions(epochInfo.number, chainContractOptions, lastAssetRegistryIndex + 1, chainContractClient.getAssetRegistrySize, transfers)
 
     val prevRandao = calculateRandao(epochInfo.hitSource, parentBlock.hash)
@@ -237,7 +238,9 @@ class ELUpdater(
             nextBlockUnixTs = nextBlockUnixTs,
             lastC2ETransferIndex = transfers.lastOption.fold(lastC2ETransferIndex)(_.index),
             lastElWithdrawalIndex = lastElWithdrawalIndex + withdrawals.size,
-            lastAssetRegistryIndex = addedAssets.lastOption.fold(lastAssetRegistryIndex)(_.index)
+            lastAssetRegistryIndex = addedAssets.lastOption.fold(lastAssetRegistryIndex)(_.index),
+            transfers = transfers,
+            transferTransactions = transferTransactions
           )
         }
     } else {
@@ -268,7 +271,9 @@ class ELUpdater(
             nextBlockUnixTs = nextBlockUnixTs,
             lastC2ETransferIndex = transfers.lastOption.fold(lastC2ETransferIndex)(_.index),
             lastElWithdrawalIndex = lastElWithdrawalIndex + withdrawals.size,
-            lastAssetRegistryIndex = addedAssets.lastOption.fold(lastAssetRegistryIndex)(_.index)
+            lastAssetRegistryIndex = addedAssets.lastOption.fold(lastAssetRegistryIndex)(_.index),
+            transfers = transfers,
+            transferTransactions = transferTransactions
           )
         }
     }
@@ -336,6 +341,8 @@ class ELUpdater(
           scheduler.scheduleOnceLabeled("tryToForgeNextBlock", (miningData.nextBlockUnixTs - currentUnixTs).seconds)(
             tryToForgeNextBlock(
               miningData.payload,
+              miningData.transfers,
+              miningData.transferTransactions,
               parentBlock.hash,
               miningData.nextBlockUnixTs,
               newState.options.startEpochChainFunction(epochInfo.number, parentBlock.hash, epochInfo.hitSource, nodeChainInfo.toOption),
@@ -353,6 +360,8 @@ class ELUpdater(
 
   private def tryToForgeNextBlock(
       payloadOrId: PayloadId | JsObject,
+      transfers: Seq[ContractTransfer],
+      transferTransactions: Seq[DepositedTransaction],
       referenceHash: BlockHash,
       timestamp: Long,
       contractFunction: ContractFunction,
@@ -373,7 +382,15 @@ class ELUpdater(
         waitForRefApprovalOnCl match {
           case Some(waitingTime) =>
             scheduler.scheduleOnceLabeled("waitForApproval", waitingTime) {
-              tryToForgeNextBlock(payloadOrId, referenceHash, timestamp, contractFunction, chainContractOptions)
+              tryToForgeNextBlock(
+                payloadOrId,
+                transfers,
+                transferTransactions,
+                referenceHash,
+                timestamp,
+                contractFunction,
+                chainContractOptions
+              )
             }
           case _ =>
             val getAndApplyPayloadResult = for {
@@ -414,6 +431,10 @@ class ELUpdater(
                         hash = ecBlock.hash,
                         addresses = chainContractOptions.bridgeAddresses(epochInfo.number)
                       )
+
+                      failedTransfers         = getFailedTransfers(ecBlockLogs, transfers.zip(transferTransactions))
+                      failedTransfersRootHash = BridgeMerkleTree.getFailedTransfersRootHash(failedTransfers.map(_.index))
+
                       transfersRootHash <- BridgeMerkleTree.getE2CTransfersRootHash(ecBlockLogs)
                       // A forged block can be invalid for some reason. In this case we won't send it and its confirmation transaction to the network.
                       expectedContractBlock = ContractBlock(
@@ -425,19 +446,21 @@ class ELUpdater(
                         chainId = m.nodeChainInfo.fold(_.prevChainId + 1, _.id),
                         e2cTransfersRootHash = transfersRootHash,
                         lastC2ETransferIndex = m.lastC2ETransferIndex,
-                        lastAssetRegistryIndex = m.lastAssetRegistryIndex
+                        lastAssetRegistryIndex = m.lastAssetRegistryIndex,
+                        failedC2ETransfersRootHash = failedTransfersRootHash
                       )
                       _ = logger.debug(s"Trying to do a full validation of a forged block ${ecBlock.hash}")
                       _ <- validateAppliedBlock(expectedContractBlock, ecBlock, origState, Some(ecBlockLogs), updateState = false)
-                    } yield (transfersRootHash, expectedContractBlock)
+                    } yield (transfersRootHash, expectedContractBlock, failedTransfersRootHash)
 
                     validateResult match {
                       case Left(err) => logger.error(s"Forged an invalid block ${ecBlock.hash}: $err")
-                      case Right((transfersRootHash, expectedContractBlock)) =>
+                      case Right((transfersRootHash, expectedContractBlock, failedTransfersRootHash)) =>
                         val confirmElBlockOnCl = for {
                           funcCall <- contractFunction.toFunctionCall(
                             ecBlock.hash,
                             transfersRootHash,
+                            failedTransfersRootHash,
                             m.lastC2ETransferIndex,
                             m.lastAssetRegistryIndex
                           )
@@ -478,6 +501,8 @@ class ELUpdater(
                             scheduler.scheduleOnceLabeled("forgeSecond", (nextBlockUnixTs - time.correctedTime() / 1000).min(1).seconds)(
                               tryToForgeNextBlock(
                                 payloadOrId = nextMiningData.payload,
+                                nextMiningData.transfers,            // TODO: nextMiningData.transfers or transfers
+                                nextMiningData.transferTransactions, // TODO: nextMiningData.transferTransactions or transferTransactions
                                 referenceHash = ecBlock.hash,
                                 timestamp = nextBlockUnixTs,
                                 contractFunction = chainContractOptions.appendFunction(epochInfo.number, ecBlock.hash),
@@ -1330,16 +1355,18 @@ class ELUpdater(
       .traverse { txJson => DepositedTransaction.parseValidDepositedTransaction(txJson) }
       .map(_.flatten.toVector)
 
+    (depositedTransactions = expectedDepositedTransactions, transferTransactions = transferTransactions) = prepareTransactions(
+      contractBlock.epoch,
+      options,
+      parentContractBlock.lastAssetRegistryIndex + 1,
+      contractBlock.lastAssetRegistryIndex + 1,
+      expectedTransfers
+    )
+
     _ <-
       if strictC2ETransfersActivated
       then {
-        val (expectedDepositedTransactions, _, _, _, _) = prepareTransactions(
-          contractBlock.epoch,
-          options,
-          parentContractBlock.lastAssetRegistryIndex + 1,
-          contractBlock.lastAssetRegistryIndex + 1,
-          expectedTransfers
-        )
+
         Either.raiseUnless(expectedDepositedTransactions == actualDepositedTransactions)(
           s"Block is not valid, expected and actual deposited transactions don't match."
         )
@@ -1400,7 +1427,16 @@ class ELUpdater(
 
     lastElWithdrawalIndex <- {
       val c2eLogs = ecBlockLogs.filter(_.topics.intersect(C2ETopics).nonEmpty)
-      validateC2ETransfers(actualTransferWithdrawals, c2eLogs, expectedTransfers, prevWithdrawalIndex, strictC2ETransfersActivated)
+      validateC2ETransfers(
+        actualTransferWithdrawals,
+        c2eLogs,
+        expectedTransfers,
+        transferTransactions,
+        prevWithdrawalIndex,
+        strictC2ETransfersActivated,
+        contractBlock.failedC2ETransfersRootHash,
+        contractBlock.hash
+      )
     }
   } yield Some(lastElWithdrawalIndex)
 
@@ -1411,11 +1447,12 @@ class ELUpdater(
       endAssetRegistryIndexExcl: Int,
       transfers: Vector[ContractTransfer]
   ): (
-      Vector[DepositedTransaction],
-      List[ChainContractClient.Registry.RegisteredAsset],
-      Option[DepositedTransaction],
-      Vector[ContractTransfer.NativeViaDeposit],
-      Vector[ContractTransfer.Asset]
+      depositedTransactions: Vector[DepositedTransaction],
+      addedAssets: List[ChainContractClient.Registry.RegisteredAsset],
+      updateAssetRegistryTransaction: Option[DepositedTransaction],
+      transferTransactions: Vector[DepositedTransaction],
+      nativeTransfersViaDeposits: Vector[ContractTransfer.NativeViaDeposit],
+      assetTransfers: Vector[ContractTransfer.Asset]
   ) = {
     val (addedAssets, updateAssetRegistryTransaction) =
       if (epochNumber < chainContractOptions.assetTransfersActivationEpoch) (Nil, None)
@@ -1448,7 +1485,7 @@ class ELUpdater(
       case x: ContractTransfer.Asset            => Right(x)
     }
 
-    val depositedTransactions = updateAssetRegistryTransaction.toVector ++
+    val transferTransactions =
       (for {
         sba      <- chainContractOptions.elStandardBridgeAddress.toVector
         transfer <- nativeAndAssetTransfersViaDeposits
@@ -1474,17 +1511,43 @@ class ELUpdater(
         }
       })
 
-    (depositedTransactions, addedAssets, updateAssetRegistryTransaction, nativeTransfersViaDeposits, assetTransfers)
+    val depositedTransactions = updateAssetRegistryTransaction.toVector ++ transferTransactions
+
+    (depositedTransactions, addedAssets, updateAssetRegistryTransaction, transferTransactions, nativeTransfersViaDeposits, assetTransfers)
+  }
+
+  private def getFailedTransfers(
+      c2eTransferLogs: List[GetLogsResponseEntry],
+      transfersWithTransactions: Seq[(ContractTransfer, DepositedTransaction)]
+  ): Seq[ContractTransfer.Asset | ContractTransfer.NativeViaDeposit] = {
+    val successfulTransferHashes = c2eTransferLogs.map(_.transactionHash).toSet
+    transfersWithTransactions.collect {
+      case (transfer: (ContractTransfer.Asset | ContractTransfer.NativeViaDeposit), dt) if !successfulTransferHashes.contains(dt.hash) =>
+        transfer
+    }
   }
 
   private def validateC2ETransfers(
       actualWithdrawals: Seq[Withdrawal],
       actualTransferLogs: List[GetLogsResponseEntry],
       expectedTransfers: Seq[ContractTransfer],
+      transferTransactions: Seq[DepositedTransaction],
       prevWithdrawalIndex: Long,
-      strictC2ETransfersActivated: Boolean
+      strictC2ETransfersActivated: Boolean,
+      expectedFailedC2ETransfersRootHash: Digest,
+      blockHash: BlockHash
   ): Either[String, Long] = {
-    val totalTransfers = expectedTransfers.size
+    val totalTransfers                = expectedTransfers.size
+    val failedTransfers               = getFailedTransfers(actualTransferLogs, expectedTransfers.zip(transferTransactions))
+    val failedTransfersSet            = failedTransfers.toSet
+    val actualFailedTransfersRootHash = BridgeMerkleTree.getFailedTransfersRootHash(failedTransfers.map(_.index))
+
+    val failedC2ETransfersRootHashCheck =
+      Either.raiseUnless(java.util.Arrays.equals(actualFailedTransfersRootHash, expectedFailedC2ETransfersRootHash)) {
+        s"Failed CL to EL transfers root hash mismatch in block ${blockHash}: "
+          + s"EL=${toHexNoPrefix(actualFailedTransfersRootHash)}, " +
+          s"CL=${toHexNoPrefix(expectedFailedC2ETransfersRootHash)}"
+      }
 
     @tailrec
     def loop(
@@ -1524,24 +1587,58 @@ class ELUpdater(
             case expectedTransfer: ContractTransfer.NativeViaDeposit =>
               if strictC2ETransfersActivated then {
                 actualTransferLogs match {
-                  case Nil => s"$logPrefix Not found EL transfer log, expected $expectedTransfer transfer".asLeft
+                  case Nil =>
+                    val canSkipFailedTransfer = strictC2ETransfersActivated && failedTransfersSet.contains(expectedTransfer)
+                    if canSkipFailedTransfer then {
+                      logger.debug(s"Transfer $expectedTransfer has failed, skipping")
+                      prevWithdrawalIndex.asRight
+                    } else s"$logPrefix Not found EL transfer log, expected $expectedTransfer transfer".asLeft
                   case actualTransferLog :: restActualTransferLogs =>
                     StandardBridge.ETHBridgeFinalized
                       .decodeLog(actualTransferLog)
                       .flatMap(validateC2ENativeTransfer(actualTransferLog.logIndex, _, expectedTransfer)) match {
-                      case Left(e) => e.asLeft
+                      case Left(e) =>
+                        val canSkipFailedTransfer = strictC2ETransfersActivated && failedTransfersSet.contains(expectedTransfer)
+                        if canSkipFailedTransfer then {
+                          logger.debug(s"Transfer $expectedTransfer has failed, skipping")
+                          loop(
+                            actualWithdrawals,
+                            actualTransferLog :: restActualTransferLogs,
+                            restExpectedTransfers,
+                            prevWithdrawalIndex,
+                            currTransferNumber + 1
+                          )
+                        } else e.asLeft
                       case _ => loop(actualWithdrawals, restActualTransferLogs, restExpectedTransfers, prevWithdrawalIndex, currTransferNumber + 1)
                     }
                 }
               } else Left("Native transfers via deposits are unexpected before strict C2E transfers activation")
             case expectedTransfer: ContractTransfer.Asset =>
               actualTransferLogs match {
-                case Nil => s"$logPrefix Not found EL transfer log, expected $expectedTransfer transfer".asLeft
+                case Nil =>
+                  val canSkipFailedTransfer = strictC2ETransfersActivated && failedTransfersSet.contains(expectedTransfer)
+                  if canSkipFailedTransfer
+                  then {
+                    logger.debug(s"Transfer $expectedTransfer has failed, skipping")
+                    prevWithdrawalIndex.asRight
+                  } else s"$logPrefix Not found EL transfer log, expected $expectedTransfer transfer".asLeft
                 case actualTransferLog :: restActualTransferLogs =>
                   StandardBridge.ERC20BridgeFinalized
                     .decodeLog(actualTransferLog)
                     .flatMap(validateC2EAssetTransfer(actualTransferLog.logIndex, _, expectedTransfer, strictC2ETransfersActivated)) match {
-                    case Left(e) => e.asLeft
+                    case Left(e) =>
+                      val canSkipFailedTransfer = strictC2ETransfersActivated && failedTransfersSet.contains(expectedTransfer)
+                      if canSkipFailedTransfer
+                      then {
+                        logger.debug(s"Transfer $expectedTransfer has failed, skipping")
+                        loop(
+                          actualWithdrawals,
+                          actualTransferLog :: restActualTransferLogs,
+                          restExpectedTransfers,
+                          prevWithdrawalIndex,
+                          currTransferNumber + 1
+                        )
+                      } else e.asLeft
                     case _ => loop(actualWithdrawals, restActualTransferLogs, restExpectedTransfers, prevWithdrawalIndex, currTransferNumber + 1)
                   }
               }
@@ -1549,7 +1646,10 @@ class ELUpdater(
       }
     }
 
-    loop(actualWithdrawals, actualTransferLogs, expectedTransfers, prevWithdrawalIndex, currTransferNumber = 1)
+    for {
+      _   <- failedC2ETransfersRootHashCheck
+      res <- loop(actualWithdrawals, actualTransferLogs, expectedTransfers, prevWithdrawalIndex, currTransferNumber = 1)
+    } yield res
   }
 
   private def validateAndApplyBlockFull(
@@ -1804,7 +1904,9 @@ object ELUpdater {
       nextBlockUnixTs: Long,
       lastC2ETransferIndex: WithdrawalIndex,
       lastElWithdrawalIndex: WithdrawalIndex,
-      lastAssetRegistryIndex: Int
+      lastAssetRegistryIndex: Int,
+      transfers: Seq[ContractTransfer],
+      transferTransactions: Seq[DepositedTransaction]
   )
 
   private case class BlockForValidation(contractBlock: ContractBlock, ecBlock: EcBlock) {
