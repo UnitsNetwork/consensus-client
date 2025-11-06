@@ -1902,26 +1902,6 @@ object ELUpdater {
     }
   } yield ()
 
-  private def validateC2ENativeTransfer(
-      logIndex: EthNumber,
-      elTransferEvent: StandardBridge.ETHBridgeFinalized,
-      expectedTransfer: ContractTransfer.NativeViaDeposit
-  ): Either[String, Unit] = {
-    def errorPrefix = s"C2E native transfer with logIndex=$logIndex, transferIndex=${expectedTransfer.index}"
-    for {
-      _ <- Either.raiseUnless(elTransferEvent.from == expectedTransfer.from) {
-        s"$errorPrefix: got from address: ${elTransferEvent.from}, expected: ${expectedTransfer.from}"
-      }
-      _ <- Either.raiseUnless(elTransferEvent.to == expectedTransfer.to)(
-        s"$errorPrefix: got to address: ${elTransferEvent.to}, expected: ${expectedTransfer.to}"
-      )
-      expectedAmount = WAmount(expectedTransfer.amount).scale(NativeTokenElDecimals - NativeTokenClDecimals)
-      _ <- Either.raiseUnless(elTransferEvent.amount == expectedAmount)(
-        s"$errorPrefix: got amount: ${elTransferEvent.amount}, expected ${expectedAmount}"
-      )
-    } yield ()
-  }
-
   private def validateC2EAssetTransfer(
       logIndex: EthNumber,
       elTransferEvent: StandardBridge.ERC20BridgeFinalized,
