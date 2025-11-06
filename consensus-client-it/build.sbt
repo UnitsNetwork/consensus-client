@@ -9,6 +9,7 @@ import java.io.FileInputStream
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import scala.sys.process.*
+import scala.sys.props
 import scala.util.control.NonFatal
 
 description := "Consensus client integration tests"
@@ -81,6 +82,7 @@ Global / concurrentRestrictions := Seq(
   )
 )
 
+val LogbackTestLevel = "logback.test.level"
 inConfig(Test)(
   Seq(
     logsDirectory := {
@@ -93,7 +95,8 @@ inConfig(Test)(
       s"-Dlogback.configurationFile=${(Test / resourceDirectory).value}/logback-test.xml", // Fixes a logback blaming for multiple configs
       s"-Dcc.it.configs.dir=${baseDirectory.value.getParent}/local-network/configs",
       s"-Dcc.it.docker.image=consensus-client:${gitCurrentBranch.value}",
-      s"-Dcc.it.contracts.dir=${baseDirectory.value / ".." / "contracts" / "eth"}"
+      s"-Dcc.it.contracts.dir=${baseDirectory.value / ".." / "contracts" / "eth"}",
+      s"-D$LogbackTestLevel=${props.getOrElse(LogbackTestLevel, "TRACE")}"
     ),
     testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-fFWD", ((Test / logsDirectory).value / "summary.log").toString),
     fork               := true,
