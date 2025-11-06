@@ -9,7 +9,6 @@ import org.web3j.protocol.core.DefaultBlockParameterName
 import org.web3j.protocol.core.methods.response.{EthSendTransaction, TransactionReceipt}
 import org.web3j.tx.RawTransactionManager
 import org.web3j.tx.gas.DefaultGasProvider
-import com.wavesplatform.api.NodeHttpApi.ErrorResponse
 import units.client.contract.{ChainContractClient, ContractBlock}
 import units.docker.EcContainer
 import units.el.{BridgeMerkleTree, E2CTopics, Erc20Client, TERC20Client}
@@ -18,7 +17,7 @@ import units.eth.EthAddress
 import scala.annotation.tailrec
 import scala.jdk.OptionConverters.RichOptional
 
-class FailedTransfersTestSuite1 extends BaseDockerTestSuite {
+class MultipleFailedAssetTransfersTestSuite extends BaseDockerTestSuite {
   private val clRecipient     = clRichAccount1
   private val elSender        = elRichAccount1
   private val elSenderAddress = elRichAddress1
@@ -34,17 +33,17 @@ class FailedTransfersTestSuite1 extends BaseDockerTestSuite {
   private lazy val terc20       = new Erc20Client(ec1.web3j, TErc20Address, txnManager, gasProvider)
   private lazy val terc20client = new TERC20Client(ec1.web3j, TErc20Address, txnManager, gasProvider)
 
-  private val issuedE2CAmount   = UnitsConvert.toAtomic(userAmount * 2, TErc20Decimals)
+  private val issuedE2CAmount   = UnitsConvert.toAtomic(userAmount * 3, TErc20Decimals)
   private val nativeE2CAmount   = UnitsConvert.toAtomic(userAmount, NativeTokenElDecimals)
-  private val burnE2CAmount     = UnitsConvert.toAtomic(userAmount, TErc20Decimals)
-  private val leftoverE2CAmount = UnitsConvert.toAtomic(userAmount, TErc20Decimals)
+  private val burnE2CAmount     = UnitsConvert.toAtomic(userAmount * 3, TErc20Decimals)
+  private val leftoverE2CAmount = UnitsConvert.toAtomic(0, TErc20Decimals)
   private val wavesE2CAmount    = UnitsConvert.toAtomic(userAmount, WwavesDecimals)
 
   private lazy val currNonce =
     AtomicInt(ec1.web3j.ethGetTransactionCount(elSenderAddress.hex, DefaultBlockParameterName.PENDING).send().getTransactionCount.intValueExact())
   def nextNonce: Int = currNonce.getAndIncrement()
 
-  "Mining continues after 2 equivalent transfers: 1 successful and 1 failed" in {
+  "Mining continues after 3 failed C2E transfers, 2 consecutive non-last and 1 last" in {
     withClue("Reduce Standard Bridge balance to make C2E transfer fail") {
       waitForTxn(terc20client.sendBurn(StandardBridgeAddress, burnE2CAmount.bigInteger, nextNonce))
       terc20.getBalance(StandardBridgeAddress) shouldBe leftoverE2CAmount
@@ -66,7 +65,8 @@ class FailedTransfersTestSuite1 extends BaseDockerTestSuite {
       mkC2ETransferTxn(Asset.Waves, WavesDecimals),
       mkC2ETransferTxn(issueAsset, issueAssetDecimals),
       mkC2ETransferTxn(issueAsset, issueAssetDecimals),
-      mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals)
+      mkC2ETransferTxn(chainContract.nativeTokenId, NativeTokenClDecimals),
+      mkC2ETransferTxn(issueAsset, issueAssetDecimals)
     )
     c2eTransferTxns.foreach(waves1.api.broadcast)
     c2eTransferTxns.map(txn => waves1.api.waitForSucceeded(txn.id()))
@@ -74,8 +74,7 @@ class FailedTransfersTestSuite1 extends BaseDockerTestSuite {
     eventually {
       withClue("Issued asset: the sender balance has been reduced even though the transfer has failed") {
         val balanceAfter = clRecipientAssetBalance
-        // Note: 1 for successful, 1 for failed
-        balanceAfter shouldBe (recipientAssetBalanceBeforeC2ETransfer - UnitsConvert.toWavesAtomic(userAmount * 2, issueAssetDecimals))
+        balanceAfter shouldBe (recipientAssetBalanceBeforeC2ETransfer - UnitsConvert.toWavesAtomic(userAmount * 3, issueAssetDecimals))
       }
 
       withClue("Issued asset: the transfer has failed") {
@@ -104,11 +103,8 @@ class FailedTransfersTestSuite1 extends BaseDockerTestSuite {
     }
 
     step("Sender can get their funds back from a failed transfer using a chain contract method")
-    val refundAmount        = UnitsConvert.toWavesAtomic(userAmount, issueAssetDecimals)
-    val balanceBeforeRefund = clRecipientAssetBalance
-
-    val failedTransferIndex         = 2
-    val expectedFailedTransfersRoot = BridgeMerkleTree.getFailedTransfersRootHash(Seq(failedTransferIndex))
+    val failedTransferIndexes       = List(1L, 2L, 4L)
+    val expectedFailedTransfersRoot = BridgeMerkleTree.getFailedTransfersRootHash(failedTransferIndexes)
 
     @tailrec
     def loop(cb: ContractBlock): ContractBlock =
@@ -119,39 +115,83 @@ class FailedTransfersTestSuite1 extends BaseDockerTestSuite {
           case None         => fail("Failed to locate block with failed transfer data")
         }
 
-    val blockWithFailedTransfer = loop(chainContract.getLastBlockMeta(ChainContractClient.DefaultMainChainId).value)
+    val blockWithFailedTransfers = loop(chainContract.getLastBlockMeta(ChainContractClient.DefaultMainChainId).value)
 
-    val failedTransferProof = BridgeMerkleTree
-      .mkFailedTransferProofs(List(failedTransferIndex), transferIndex = 0)
-      .reverse
+    withClue("Refund for transfer 1") {
+      val failedTransferIndex        = 1L
+      val failedTransferIndexInBlock = 0
+      val balanceBeforeRefund        = clRecipientAssetBalance
+      val refundAmount               = UnitsConvert.toWavesAtomic(userAmount, issueAssetDecimals)
+      val failedTransferProof = BridgeMerkleTree
+        .mkFailedTransferProofs(failedTransferIndexes, transferIndex = failedTransferIndexInBlock)
+        .reverse
 
-    val refundInvoke = ChainContract.refundFailedC2ETransfer(
-      sender = clRecipient,
-      blockHash = blockWithFailedTransfer.hash,
-      merkleProof = failedTransferProof,
-      failedTransferIndex = failedTransferIndex,
-      transferIndexInBlock = 0
-    )
-    waves1.api.broadcastAndWait(refundInvoke)
+      val refundInvoke = ChainContract.refundFailedC2ETransfer(
+        sender = clRecipient,
+        blockHash = blockWithFailedTransfers.hash,
+        merkleProof = failedTransferProof,
+        failedTransferIndex = failedTransferIndex,
+        transferIndexInBlock = failedTransferIndexInBlock
+      )
+      waves1.api.broadcastAndWait(refundInvoke)
 
-    withClue("Issued asset: balance after refund increased by the returned funds") {
-      eventually {
-        clRecipientAssetBalance shouldBe (balanceBeforeRefund + refundAmount)
+      withClue("Issued asset: balance after refund increased by the returned funds") {
+        eventually {
+          clRecipientAssetBalance shouldBe (balanceBeforeRefund + refundAmount)
+        }
       }
     }
 
-    step("Attempting to refund the same failed transfer again")
-    val refundInvoke2 = ChainContract.refundFailedC2ETransfer(
-      sender = clRecipient,
-      blockHash = blockWithFailedTransfer.hash,
-      merkleProof = failedTransferProof,
-      failedTransferIndex = failedTransferIndex,
-      transferIndexInBlock = 0
-    )
-    val res2 = waves1.api.broadcast(refundInvoke2)
+    withClue("Refund for transfer 2") {
+      val failedTransferIndex        = 2L
+      val failedTransferIndexInBlock = 1
+      val balanceBeforeRefund        = clRecipientAssetBalance
+      val refundAmount               = UnitsConvert.toWavesAtomic(userAmount, issueAssetDecimals)
+      val failedTransferProof = BridgeMerkleTree
+        .mkFailedTransferProofs(failedTransferIndexes, transferIndex = failedTransferIndexInBlock)
+        .reverse
 
-    val expectedError = ErrorResponse(306, "Error while executing dApp: The funds for this transfer have already been refunded")
-    res2 shouldBe Left(expectedError)
+      val refundInvoke = ChainContract.refundFailedC2ETransfer(
+        sender = clRecipient,
+        blockHash = blockWithFailedTransfers.hash,
+        merkleProof = failedTransferProof,
+        failedTransferIndex = failedTransferIndex,
+        transferIndexInBlock = failedTransferIndexInBlock
+      )
+      waves1.api.broadcastAndWait(refundInvoke)
+
+      withClue("Issued asset: balance after refund increased by the returned funds") {
+        eventually {
+          clRecipientAssetBalance shouldBe (balanceBeforeRefund + refundAmount)
+        }
+      }
+    }
+
+    withClue("Refund for transfer 4") {
+      val failedTransferIndex        = 4L
+      val failedTransferIndexInBlock = 2
+      val balanceBeforeRefund        = clRecipientAssetBalance
+      val refundAmount               = UnitsConvert.toWavesAtomic(userAmount, issueAssetDecimals)
+      val failedTransferProof = BridgeMerkleTree
+        .mkFailedTransferProofs(failedTransferIndexes, transferIndex = failedTransferIndexInBlock)
+        .reverse
+
+      val refundInvoke = ChainContract.refundFailedC2ETransfer(
+        sender = clRecipient,
+        blockHash = blockWithFailedTransfers.hash,
+        merkleProof = failedTransferProof,
+        failedTransferIndex = failedTransferIndex,
+        transferIndexInBlock = failedTransferIndexInBlock
+      )
+      waves1.api.broadcastAndWait(refundInvoke)
+
+      withClue("Issued asset: balance after refund increased by the returned funds") {
+        eventually {
+          clRecipientAssetBalance shouldBe (balanceBeforeRefund + refundAmount)
+        }
+      }
+    }
+
   }
 
   private def clRecipientAssetBalance: Long = waves1.api.balance(clRecipient.toAddress, issueAsset)
@@ -256,7 +296,7 @@ class FailedTransfersTestSuite1 extends BaseDockerTestSuite {
 
     val e2cWithdrawTxns = List(
       mkE2CWithdrawTxn(0, chainContract.nativeTokenId, userAmount, NativeTokenClDecimals),
-      mkE2CWithdrawTxn(1, issueAsset, userAmount * 2, issueAssetDecimals),
+      mkE2CWithdrawTxn(1, issueAsset, userAmount * 3, issueAssetDecimals),
       mkE2CWithdrawTxn(2, Asset.Waves, userAmount, WavesDecimals)
     )
 
@@ -266,7 +306,7 @@ class FailedTransfersTestSuite1 extends BaseDockerTestSuite {
     withClue("Assets received after E2C: ") {
       withClue("Issued asset: the balance was initially sufficient on CL") {
         val balanceAfter = clRecipientAssetBalance
-        balanceAfter shouldBe (recipientAssetBalanceBefore + UnitsConvert.toWavesAtomic(userAmount * 2, issueAssetDecimals))
+        balanceAfter shouldBe (recipientAssetBalanceBefore + UnitsConvert.toWavesAtomic(userAmount * 3, issueAssetDecimals))
       }
       withClue("Issued asset: the StandardBridge balance was initially sufficient on EL") {
         terc20.getBalance(StandardBridgeAddress) shouldBe issuedE2CAmount
