@@ -1539,7 +1539,6 @@ class ELUpdater(
   ): Either[String, Long] = {
     val totalTransfers                = expectedTransfers.size
     val failedTransfers               = getFailedTransfers(actualTransferLogs, expectedTransfers.zip(transferTransactions))
-    val failedTransfersSet            = failedTransfers.toSet
     val actualFailedTransfersRootHash = BridgeMerkleTree.getFailedTransfersRootHash(failedTransfers.map(_.index))
 
     val failedC2ETransfersRootHashCheck =
@@ -1572,73 +1571,25 @@ class ELUpdater(
         case expectedTransfer +: restExpectedTransfers =>
           expectedTransfer match {
             case expectedTransfer: ContractTransfer.NativeViaWithdrawal =>
-              if strictC2ETransfersActivated then Left("Native transfers via withdrawals are unexpected after strict C2E transfers activation")
-              else
-                actualWithdrawals match {
-                  case Seq() => s"$logPrefix Not found EL block withdrawal #$prevWithdrawalIndex, expected $expectedTransfer transfer".asLeft
-                  case actualWithdrawal +: restActualWithdrawals =>
-                    val expectedWithdrawal = toWithdrawal(expectedTransfer, prevWithdrawalIndex + 1)
-                    validateWithdrawal(actualWithdrawal, expectedWithdrawal) match {
-                      case Left(e) => e.asLeft
-                      case _ =>
-                        loop(restActualWithdrawals, actualTransferLogs, restExpectedTransfers, expectedWithdrawal.index, currTransferNumber + 1)
-                    }
-                }
+              actualWithdrawals match {
+                case Seq() => s"$logPrefix Not found EL block withdrawal #$prevWithdrawalIndex, expected $expectedTransfer transfer".asLeft
+                case actualWithdrawal +: restActualWithdrawals =>
+                  val expectedWithdrawal = toWithdrawal(expectedTransfer, prevWithdrawalIndex + 1)
+                  validateWithdrawal(actualWithdrawal, expectedWithdrawal) match {
+                    case Left(e) => e.asLeft
+                    case _ => loop(restActualWithdrawals, actualTransferLogs, restExpectedTransfers, expectedWithdrawal.index, currTransferNumber + 1)
+                  }
+              }
             case expectedTransfer: ContractTransfer.NativeViaDeposit =>
-              if strictC2ETransfersActivated then {
-                actualTransferLogs match {
-                  case Nil =>
-                    val canSkipFailedTransfer = strictC2ETransfersActivated && failedTransfersSet.contains(expectedTransfer)
-                    if canSkipFailedTransfer then {
-                      logger.debug(s"Transfer $expectedTransfer has failed, skipping")
-                      prevWithdrawalIndex.asRight
-                    } else s"$logPrefix Not found EL transfer log, expected $expectedTransfer transfer".asLeft
-                  case actualTransferLog :: restActualTransferLogs =>
-                    StandardBridge.ETHBridgeFinalized
-                      .decodeLog(actualTransferLog)
-                      .flatMap(validateC2ENativeTransfer(actualTransferLog.logIndex, _, expectedTransfer)) match {
-                      case Left(e) =>
-                        val canSkipFailedTransfer = strictC2ETransfersActivated && failedTransfersSet.contains(expectedTransfer)
-                        if canSkipFailedTransfer then {
-                          logger.debug(s"Transfer $expectedTransfer has failed, skipping")
-                          loop(
-                            actualWithdrawals,
-                            actualTransferLog :: restActualTransferLogs,
-                            restExpectedTransfers,
-                            prevWithdrawalIndex,
-                            currTransferNumber + 1
-                          )
-                        } else e.asLeft
-                      case _ => loop(actualWithdrawals, restActualTransferLogs, restExpectedTransfers, prevWithdrawalIndex, currTransferNumber + 1)
-                    }
-                }
-              } else Left("Native transfers via deposits are unexpected before strict C2E transfers activation")
+              Left("Native transfers via deposits are unexpected before strict C2E transfers activation")
             case expectedTransfer: ContractTransfer.Asset =>
               actualTransferLogs match {
-                case Nil =>
-                  val canSkipFailedTransfer = strictC2ETransfersActivated && failedTransfersSet.contains(expectedTransfer)
-                  if canSkipFailedTransfer
-                  then {
-                    logger.debug(s"Transfer $expectedTransfer has failed, skipping")
-                    prevWithdrawalIndex.asRight
-                  } else s"$logPrefix Not found EL transfer log, expected $expectedTransfer transfer".asLeft
+                case Nil => s"$logPrefix Not found EL transfer log, expected $expectedTransfer transfer".asLeft
                 case actualTransferLog :: restActualTransferLogs =>
                   StandardBridge.ERC20BridgeFinalized
                     .decodeLog(actualTransferLog)
                     .flatMap(validateC2EAssetTransfer(actualTransferLog.logIndex, _, expectedTransfer, strictC2ETransfersActivated)) match {
-                    case Left(e) =>
-                      val canSkipFailedTransfer = strictC2ETransfersActivated && failedTransfersSet.contains(expectedTransfer)
-                      if canSkipFailedTransfer
-                      then {
-                        logger.debug(s"Transfer $expectedTransfer has failed, skipping")
-                        loop(
-                          actualWithdrawals,
-                          actualTransferLog :: restActualTransferLogs,
-                          restExpectedTransfers,
-                          prevWithdrawalIndex,
-                          currTransferNumber + 1
-                        )
-                      } else e.asLeft
+                    case Left(e) => e.asLeft
                     case _ => loop(actualWithdrawals, restActualTransferLogs, restExpectedTransfers, prevWithdrawalIndex, currTransferNumber + 1)
                   }
               }
@@ -1646,10 +1597,9 @@ class ELUpdater(
       }
     }
 
-    for {
-      _   <- failedC2ETransfersRootHashCheck
-      res <- loop(actualWithdrawals, actualTransferLogs, expectedTransfers, prevWithdrawalIndex, currTransferNumber = 1)
-    } yield res
+    if strictC2ETransfersActivated
+    then failedC2ETransfersRootHashCheck.map(_ => prevWithdrawalIndex)
+    else loop(actualWithdrawals, actualTransferLogs, expectedTransfers, prevWithdrawalIndex, currTransferNumber = 1)
   }
 
   private def validateAndApplyBlockFull(
