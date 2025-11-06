@@ -80,7 +80,7 @@ class NativeValidTestSuite extends BaseBlockValidationSuite {
 
     step("Assertion: EL height grows")
     val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
-    elBlockAfter.height.longValue shouldBe (elParentBlock.height.longValue + 1)
+    elBlockAfter.hash shouldBe simulatedBlockHash
   }
 
   override def beforeAll(): Unit = setupForNativeTokenTransfer()
