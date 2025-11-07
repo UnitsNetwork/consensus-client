@@ -1547,7 +1547,8 @@ class ELUpdater(
           + s"EL=${toHexNoPrefix(actualFailedTransfersRootHash)}, " +
           s"CL=${toHexNoPrefix(expectedFailedC2ETransfersRootHash)}"
       }
-    logger.debug(s"Failed C2E transfers: ${failedTransfers.mkString(", ")}")
+    if (failedTransfers.nonEmpty) logger.debug(s"Failed C2E transfers: ${failedTransfers.mkString(", ")}")
+
     @tailrec
     def loop(
         actualWithdrawals: Seq[Withdrawal],
