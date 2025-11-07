@@ -237,13 +237,13 @@ trait BaseBlockValidationSuite extends BaseDockerTestSuite {
     transferAssetTokenToClSender()
     leaveSetupMinerAndJoinOthers()
   }
-  
+
   protected def getMainChainLastBlock: EcBlock = {
     val mainChainId = waves1.api.dataByKey(chainContractAddress, "mainChainId").collect { case i: IntegerDataEntry => i.value }.getOrElse(0L)
     val elParentBlockId = waves1.api.dataByKey(chainContractAddress, f"chain_$mainChainId%08d").collect {
       case s: StringDataEntry => BlockHash("0x" + s.value.split(",")(1))
     }.get
-    
+
     ec1.engineApi.getBlockByHash(elParentBlockId).explicitGet().get
   }
 }

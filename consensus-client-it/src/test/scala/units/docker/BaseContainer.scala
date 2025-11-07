@@ -18,6 +18,7 @@ abstract class BaseContainer(val hostName: String) {
   }
 
   def stop(): Unit = {
+    container.getDockerClient.stopContainerCmd(container.getContainerId).exec()
     container.stop()
   }
 

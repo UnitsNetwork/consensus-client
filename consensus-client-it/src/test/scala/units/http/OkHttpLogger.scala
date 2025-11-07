@@ -12,7 +12,7 @@ object OkHttpLogger extends Interceptor with ScorexLogging {
     val req     = chain.request()
     val bodyStr = readRequestBody(req)
 
-    val currRequestId = (Json.parse(bodyStr) \ "id").asOpt[Long].getOrElse(LoggingUtil.currRequestId.toLong)
+    val currRequestId = (Json.parse(bodyStr) \ "id").as[Long]
     log.debug(s"[$currRequestId] ${req.method()} ${req.url()}: body=$bodyStr")
     val res = chain.proceed(req)
     log.debug(s"[$currRequestId] HTTP ${res.code()}: body=${readResponseBody(res)}")

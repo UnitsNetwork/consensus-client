@@ -848,6 +848,12 @@ func join(rewardAddressHex: String) = {
   let normalizedRewardAddress = normalizeEthAddress(rewardAddressHex)
   strict checkNotOverride = ensureNotOverrideOtherMinerPk(normalizedRewardAddress)
 
+  let minerLeftKey = "miner_" + newMiner + "_left"
+  let minerCanJoinAtHeight = this.getInteger(minerLeftKey).valueOrElse(-20) + 20
+
+  strict minerCanJoin = height >= minerCanJoinAtHeight ||
+    throw("Miner can join after height " + minerCanJoinAtHeight.toString())
+
   # Here is 980 complexity consumed, all code below spent more than 1000 of free complexity
 
   # If a miner changed the reward address, we need to delete the previous mapping
@@ -863,7 +869,8 @@ func join(rewardAddressHex: String) = {
   [
     StringEntry(allMinersKey, updatedAllMiners),
     StringEntry(minerRewardAddressKey(newMiner), "0x" + normalizedRewardAddress),
-    BinaryEntry(minerPkKey(normalizedRewardAddress), i.originCallerPublicKey)
+    BinaryEntry(minerPkKey(normalizedRewardAddress), i.originCallerPublicKey),
+    DeleteEntry(minerLeftKey)
   ] ++ deletePrevRewardAddressPk
 }
 
@@ -877,9 +884,9 @@ func leave() = {
   let rewardAddrKey = minerRewardAddressKey(leavingMiner)
   strict prevRewardAddress = this.getString(rewardAddrKey).valueOrErrorMessage("miner has never joined")
 
-  if (thisEpochMiner == i.originCaller) then throw("designated miner can't leave")
-  else [
-    StringEntry(allMinersKey, remainingMiners.makeString_2C(SEP))
+  [
+    StringEntry(allMinersKey, remainingMiners.makeString_2C(SEP)),
+    IntegerEntry("miner_" + leavingMiner + "_left", height)
     # TODO Get miner info at epoch start
     # DeleteEntry(rewardAddrKey), # Can cause empty miner reward address for next blocks
     # DeleteEntry(minerPkKey(prevRewardAddress))
