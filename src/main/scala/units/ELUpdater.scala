@@ -501,8 +501,8 @@ class ELUpdater(
                             scheduler.scheduleOnceLabeled("forgeSecond", (nextBlockUnixTs - time.correctedTime() / 1000).min(1).seconds)(
                               tryToForgeNextBlock(
                                 payloadOrId = nextMiningData.payload,
-                                nextMiningData.transfers,            // TODO: nextMiningData.transfers or transfers
-                                nextMiningData.transferTransactions, // TODO: nextMiningData.transferTransactions or transferTransactions
+                                transfers,
+                                transferTransactions,
                                 referenceHash = ecBlock.hash,
                                 timestamp = nextBlockUnixTs,
                                 contractFunction = chainContractOptions.appendFunction(epochInfo.number, ecBlock.hash),
