@@ -9,7 +9,7 @@ import play.api.libs.functional.syntax.*
 import play.api.libs.json.*
 import units.eth.EthAddress
 import units.util.HexBytesConverter
-import units.util.HexBytesConverter.*
+import units.util.HexBytesConverter.{toHex, toInt, toUint256}
 
 import java.math.BigInteger
 
@@ -56,7 +56,7 @@ case class DepositedTransaction(
       RlpString.create(value),
       RlpString.create(gas),
       RlpString.create(if (isSystemTx) 1 else 0),
-      RlpString.create(toBytes(data))
+      RlpString.create(HexBytesConverter.toBytes(data))
     )
 
     val rlpEncoded       = RlpEncoder.encode(rlpList)
@@ -76,6 +76,8 @@ case class DepositedTransaction(
       this.data == that.data
     case _ => false
   }
+
+  def toBytes: Array[Byte] = HexBytesConverter.toBytes(this.toHex)
 
   def hash: String = HexBytesConverter.toHex(Keccak256.hash(this.toBytes))
 }
@@ -102,7 +104,7 @@ object DepositedTransaction {
 
   def parseValidDepositedTransaction(json: JsValue): Either[String, Option[DepositedTransaction]] =
     if (toInt((json \ "type").as[String]) == Type)
-      ((JsPath \ "sourceHash").read[String].map(toBytes) and
+      ((JsPath \ "sourceHash").read[String].map(HexBytesConverter.toBytes) and
         (JsPath \ "from").read[EthAddress] and
         (JsPath \ "to").readNullable[EthAddress] and
         (JsPath \ "mint").read[String].map(toUint256).map(_.getValue) and
