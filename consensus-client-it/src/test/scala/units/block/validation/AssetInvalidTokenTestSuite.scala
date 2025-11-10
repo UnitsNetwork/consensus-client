@@ -44,6 +44,8 @@ class AssetInvalidTokenTestSuite extends BaseBlockValidationSuite {
       )
     )
 
+    waves1.api.waitForHeight(getBlockEpoch(elParentBlock.hash).get + 1)
+
     step("Register the simulated block on the chain contract")
     waves1.api.broadcastAndWait(
       TxHelpers.invoke(

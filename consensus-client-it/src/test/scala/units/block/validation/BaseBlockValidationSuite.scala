@@ -1,11 +1,12 @@
 package units.block.validation
 
+import com.google.common.primitives.Ints
 import com.wavesplatform.*
 import com.wavesplatform.account.*
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.crypto.Keccak256
-import com.wavesplatform.state.{Height, IntegerDataEntry, StringDataEntry}
+import com.wavesplatform.state.{BinaryDataEntry, Height, IntegerDataEntry, StringDataEntry}
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import com.wavesplatform.transaction.{Asset, TxHelpers}
@@ -246,4 +247,9 @@ trait BaseBlockValidationSuite extends BaseDockerTestSuite {
 
     ec1.engineApi.getBlockByHash(elParentBlockId).explicitGet().get
   }
+  
+  protected def getBlockEpoch(blockHash: BlockHash): Option[Height] = 
+    waves1.api.dataByKey(chainContractAddress, s"block_$blockHash").collect {
+      case b: BinaryDataEntry => Height(Longs.fromByteArray(b.value.arr.slice(8, 16)).toInt)
+    }
 }
