@@ -77,7 +77,7 @@ case class DepositedTransaction(
     case _ => false
   }
 
-  def hash: String = HexBytesConverter.toHex(Keccak256.hash(HexBytesConverter.toBytes(this.toHex)))
+  def hash: String = HexBytesConverter.toHex(Keccak256.hash(this.toBytes))
 }
 
 object DepositedTransaction {
