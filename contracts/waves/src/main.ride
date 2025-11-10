@@ -1077,11 +1077,11 @@ func refundFailedC2ETransfer(blockHashHex: String, merkleProof: List[ByteVector]
   let parts = transferStr.split(SEP)
 
   strict nativeTransferBeforeStrictGuard =
-    if (parts.size() == 2) then {
+    parts.size() == 2 && {
       # - Native transfer, before strict transfers activation
       #   {destElAddressHex with 0x}_{amount}
       throw("Refund is supported only for strict C2E transfers")
-    } else true
+    }
 
   strict assetTransferBeforeStrictGuard =
     if (parts.size() == 4 && parts[0].take(2) == "0x" && parts[1].take(2) == "0x") then {
