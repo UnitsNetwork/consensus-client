@@ -1,6 +1,6 @@
 package units.block.validation
 
-import com.google.common.primitives.Ints
+import com.google.common.primitives.Longs
 import com.wavesplatform.*
 import com.wavesplatform.account.*
 import com.wavesplatform.common.state.ByteStr

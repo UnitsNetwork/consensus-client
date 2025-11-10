@@ -1,6 +1,5 @@
 package units.http
 
-import com.wavesplatform.api.LoggingUtil
 import com.wavesplatform.utils.ScorexLogging
 import okhttp3.{Interceptor, Request, Response}
 import play.api.libs.json.Json
