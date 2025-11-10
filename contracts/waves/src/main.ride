@@ -1073,10 +1073,7 @@ func refundFailedC2ETransfer(blockHashHex: String, merkleProof: List[ByteVector]
   )
 
   let transferOpt = getString(transferKey(failedC2ETransferIndex))
-  let transferStr = match transferOpt {
-    case s: String => s
-    case _         => throw("Transfer #" + failedC2ETransferIndex.toString() + " not found")
-  }
+  let transferStr = transferOpt.valueOrErrorMessage("Transfer #" + failedC2ETransferIndex.toString() + " not found")
   let parts = transferStr.split(SEP)
 
   strict nativeTransferBeforeStrictGuard =
