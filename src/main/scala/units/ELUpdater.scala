@@ -1543,8 +1543,8 @@ class ELUpdater(
 
     val failedC2ETransfersRootHashCheck =
       Either.raiseUnless(java.util.Arrays.equals(actualFailedTransfersRootHash, expectedFailedC2ETransfersRootHash)) {
-        s"Failed CL to EL transfers root hash mismatch in block ${blockHash}: "
-          + s"EL=${toHexNoPrefix(actualFailedTransfersRootHash)}, " +
+        s"Failed CL to EL transfers root hash mismatch in block $blockHash: " +
+          s"EL=${toHexNoPrefix(actualFailedTransfersRootHash)}, " +
           s"CL=${toHexNoPrefix(expectedFailedC2ETransfersRootHash)}"
       }
     if (failedTransfers.nonEmpty) logger.debug(s"Failed C2E transfers: ${failedTransfers.mkString(", ")}")
