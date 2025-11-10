@@ -30,8 +30,6 @@ class AssetValidTestSuite extends BaseBlockValidationSuite {
       )
     )
 
-    val (payload, simulatedBlockHash, hitSource) = mkSimulatedBlock(elParentBlock, withdrawals, depositedTransactions)
-
     step("Transfer on the chain contract")
     waves1.api.broadcastAndWait(
       ChainContract.transfer(
@@ -43,6 +41,7 @@ class AssetValidTestSuite extends BaseBlockValidationSuite {
     )
 
     waves1.api.waitForHeight(getBlockEpoch(elParentBlock.hash).get + 1)
+    val (payload, simulatedBlockHash, hitSource) = mkSimulatedBlock(elParentBlock, withdrawals, depositedTransactions)
 
     step("Register the simulated block on the chain contract")
     waves1.api.broadcastAndWait(

@@ -30,11 +30,10 @@ class NativeUnexpectedDepositTestSuite extends BaseBlockValidationSuite {
       )
     )
 
-    val (payload, simulatedBlockHash, hitSource) = mkSimulatedBlock(elParentBlock, withdrawals, depositedTransactions)
-
     // Note: No transfers on the chain contract in this test case
 
     waves1.api.waitForHeight(getBlockEpoch(elParentBlock.hash).get + 1)
+    val (payload, simulatedBlockHash, hitSource) = mkSimulatedBlock(elParentBlock, withdrawals, depositedTransactions)
 
     step("Register the simulated block on the chain contract")
     waves1.api.broadcastAndWait(

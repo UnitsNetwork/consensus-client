@@ -17,9 +17,8 @@ class NoTransfersTestSuite extends BaseBlockValidationSuite {
 
     val depositedTransactions = Vector.empty
 
-    val (payload, simulatedBlockHash, hitSource) = mkSimulatedBlock(elParentBlock, withdrawals, depositedTransactions)
-    
     waves1.api.waitForHeight(getBlockEpoch(elParentBlock.hash).get + 1)
+    val (payload, simulatedBlockHash, hitSource) = mkSimulatedBlock(elParentBlock, withdrawals, depositedTransactions)
     // Note: No transfers on the chain contract in this test case
 
     step("Register the simulated block on the chain contract")
