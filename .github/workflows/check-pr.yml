@@ -25,25 +25,6 @@ jobs:
           java-version: '11'
           cache: 'sbt'
       - uses: foundry-rs/foundry-toolchain@v1
-      - name: Cache solc
-        id: cache-solc
-        uses: actions/cache@v4
-        with:
-          path: /home/runner/.solc
-          key: solc-v0.8.29
-          restore-keys: solc-
-      - name: Get solc
-        if: ${{ steps.cache-solc.outputs.cache-hit != 'true' }}
-        run: |
-          mkdir -p /home/runner/.solc/v0.8.29
-          wget https://binaries.soliditylang.org/linux-amd64/solc-linux-amd64-v0.8.29+commit.ab55807c -O /home/runner/.solc/v0.8.29/solc-static-linux
-          ln -sf /home/runner/.solc/v0.8.29/solc-static-linux /home/runner/.solc/solc
-          chmod +x /home/runner/.solc/solc
-          echo "/home/runner/.solc" >> $GITHUB_PATH
-      - run: |
-          echo $PATH
-          ls -la /home/runner/.solc
-          solc --version || echo "Solc not found in PATH"
       - uses: sbt/setup-sbt@v1
       - name: Run tests
         run: sbt -Dcc.it.max-parallel-suites=2 -Dlogback.test.level=DEBUG --batch "scalafmtCheck;test;docker;consensus-client-it/test"
