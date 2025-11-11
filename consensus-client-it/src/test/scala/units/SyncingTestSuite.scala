@@ -1,12 +1,12 @@
 package units
 
-import com.wavesplatform.state.Height
+import com.wavesplatform.state.{Height, StringDataEntry}
 import com.wavesplatform.utils.EthEncoding
 import org.web3j.crypto.{RawTransaction, TransactionEncoder}
 import org.web3j.protocol.core.methods.response.{EthSendTransaction, TransactionReceipt}
 import org.web3j.tx.gas.DefaultGasProvider
 import org.web3j.utils.Convert
-import units.docker.EcContainer
+import units.docker.{EcContainer, Networks, WavesNodeContainer}
 
 import java.math.BigInteger
 import scala.jdk.OptionConverters.RichOptional
@@ -16,6 +16,28 @@ import org.scalatest.concurrent.PatienceConfiguration.*
 class SyncingTestSuite extends BaseDockerTestSuite {
   private val elSender = elRichAccount1
   private val amount   = Convert.toWei("1", Convert.Unit.ETHER).toBigInteger
+
+  override protected lazy val waves1: WavesNodeContainer = new WavesNodeContainer(
+    network = network,
+    number = 1,
+    ip = Networks.ipForNode(3),
+    baseSeed = "devnet-2",
+    chainContractAddress = chainContractAddress,
+    ecEngineApiUrl = ec1.engineApiDockerUrl,
+    genesisConfigPath = wavesGenesisConfigPath
+  )
+
+  override def beforeAll(): Unit = {
+    super.beforeAll()
+    waves1.api.broadcast(ChainContract.join(miner21Account, miner21RewardAddress))
+    
+    eventually {
+      waves1.api.dataByKey(chainContractAddress, "allMiners") match {
+        case Some(StringDataEntry(_, value)) => value.split(",").length shouldBe 2
+        case _ => fail("not all miners have joined")
+      }
+    }
+  }
 
   "L2-381 EL transactions appear after rollback" in {
     step("Send transaction 1")
@@ -44,7 +66,7 @@ class SyncingTestSuite extends BaseDockerTestSuite {
     waves1.api.rollback(Height(contractBlock.epoch - 1))
 
     step("Wait for EL blocks")
-    eventually(Timeout(1.minute), Interval(10.seconds)) {
+    eventually(Timeout(2.minutes), Interval(10.seconds)) {
       ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact() should be >= elWaitHeight
     }
 

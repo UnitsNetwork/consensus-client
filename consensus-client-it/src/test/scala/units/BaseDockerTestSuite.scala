@@ -46,7 +46,7 @@ trait BaseDockerTestSuite
 
   protected lazy val wavesGenesisConfigPath = generateWavesGenesisConfig()
 
-  private implicit val httpClientBackend: SttpBackend[Identity, Any] = new LoggingBackend(HttpClientSyncBackend())
+  protected implicit val httpClientBackend: SttpBackend[Identity, Any] = new LoggingBackend(HttpClientSyncBackend())
 
   /*
    * ipForNode(1) -> Ryuk
