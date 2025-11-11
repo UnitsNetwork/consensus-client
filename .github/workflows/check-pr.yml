@@ -37,9 +37,13 @@ jobs:
         run: |
           mkdir -p /home/runner/.solc/v0.8.29
           wget https://binaries.soliditylang.org/linux-amd64/solc-linux-amd64-v0.8.29+commit.ab55807c -O /home/runner/.solc/v0.8.29/solc-static-linux
-          echo "/home/runner/.solc" >> $GITHUB_PATH
           ln -sf /home/runner/.solc/v0.8.29/solc-static-linux /home/runner/.solc/solc
-      - run: which solc || echo "Solc not found in PATH"
+          chmod +x /home/runner/.solc/solc
+          echo "/home/runner/.solc" >> $GITHUB_PATH
+      - run: |
+          echo $PATH
+          ls -la /home/runner/.solc
+          solc --version || echo "Solc not found in PATH"
       - uses: sbt/setup-sbt@v1
       - name: Run tests
         run: sbt -Dcc.it.max-parallel-suites=2 -Dlogback.test.level=DEBUG --batch "scalafmtCheck;test;docker;consensus-client-it/test"
