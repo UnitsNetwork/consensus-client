@@ -46,8 +46,7 @@ case class DepositedTransaction(
     isSystemTx: Boolean,
     data: String
 ) {
-  def toHex: String = {
-
+  private def toBytes: Array[Byte] = {
     val rlpList = new RlpList(
       RlpString.create(sourceHash),
       RlpString.create(Numeric.hexStringToByteArray(from.hex)),
@@ -59,10 +58,11 @@ case class DepositedTransaction(
       RlpString.create(HexBytesConverter.toBytes(data))
     )
 
-    val rlpEncoded       = RlpEncoder.encode(rlpList)
-    val transactionBytes = Array(DepositedTransaction.Type) ++ rlpEncoded
-    Numeric.toHexString(transactionBytes)
+    val rlpEncoded = RlpEncoder.encode(rlpList)
+    Array(DepositedTransaction.Type) ++ rlpEncoded
   }
+
+  def toHex: String = Numeric.toHexString(this.toBytes)
 
   override def equals(obj: Any): Boolean = obj match {
     case that: DepositedTransaction =>
@@ -76,8 +76,6 @@ case class DepositedTransaction(
       this.data == that.data
     case _ => false
   }
-
-  def toBytes: Array[Byte] = HexBytesConverter.toBytes(this.toHex)
 
   def hash: String = HexBytesConverter.toHex(Keccak256.hash(this.toBytes))
 }
