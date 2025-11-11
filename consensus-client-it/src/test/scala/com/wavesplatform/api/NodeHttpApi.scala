@@ -251,7 +251,7 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
 object NodeHttpApi {
   val DefaultApiKeyValue = "testapi"
 
-  case class BlockHeaderResponse(VRF: String)
+  case class BlockHeaderResponse(VRF: String, height: Int)
   object BlockHeaderResponse {
     implicit val blockHeaderResponseFormat: OFormat[BlockHeaderResponse] = Json.format[BlockHeaderResponse]
   }

@@ -10,6 +10,8 @@ import units.docker.EcContainer
 
 import java.math.BigInteger
 import scala.jdk.OptionConverters.RichOptional
+import scala.concurrent.duration.DurationInt
+import org.scalatest.concurrent.PatienceConfiguration.*
 
 class SyncingTestSuite extends BaseDockerTestSuite {
   private val elSender = elRichAccount1
@@ -42,7 +44,9 @@ class SyncingTestSuite extends BaseDockerTestSuite {
     waves1.api.rollback(Height(contractBlock.epoch - 1))
 
     step("Wait for EL blocks")
-    while (ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact() < elWaitHeight) Thread.sleep(3000)
+    eventually(Timeout(1.minute), Interval(10.seconds)) {
+      ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact() should be >= elWaitHeight
+    }
 
     step("Waiting transactions 2 and 3 on EL")
     val txn2ReceiptAfterRb = waitForTxn(txn2Result)
