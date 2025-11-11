@@ -5,5 +5,5 @@ import units.test.TestEnvironment.WavesDockerImage
 
 object DockerImages {
   val WavesNode             = parse(WavesDockerImage)
-  val OpGethExecutionClient = parse("ghcr.io/unitsnetwork/op-geth:1.6.3-race-detector")
+  val OpGethExecutionClient = parse("ghcr.io/unitsnetwork/op-geth:v1.6.3-racedetector")
 }
