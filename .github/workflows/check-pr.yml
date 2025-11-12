@@ -44,3 +44,24 @@ jobs:
           path: consensus-client-it/target/test-logs
           if-no-files-found: warn
           retention-days: 14
+
+  local-network:
+    name: Run Local Network tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+          cache: 'sbt'
+      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: sbt/setup-sbt@v1
+      - run: |
+          sbt --batch docker
+          cd local-network
+          ./restart.sh
+        env:
+          COMPOSE_PROFILES: tests
