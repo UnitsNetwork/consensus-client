@@ -25,6 +25,8 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+      - uses: proudust/gh-describe@70f72d4f6304ea053cf5a3d71c36211d5acc0c73
+        id: ghd
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -38,8 +40,9 @@ jobs:
             echo type=sha
             echo EOF
           } >> "$GITHUB_OUTPUT"
+          echo "cc-version=$(echo ${{ steps.ghd.outputs.describe }} | cut -c 2-)" >> "$GITHUB_OUTPUT"
         id: tag-list
-      - run: sbt --batch buildTarballsForDocker
+      - run: sbt -Dproject.version=${{ steps.tag-list.outputs.cc-version }} --batch buildTarballsForDocker
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
