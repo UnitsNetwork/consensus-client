@@ -359,9 +359,9 @@ class ELUpdater(
       chainContractOptions: ChainContractOptions
   ): Unit = {
     def waitForRefApprovalOnCl: Option[FiniteDuration] = {
-      val timestampAheadTime = (timestamp - time.correctedTime() / 1000).max(0)
+      val timestampAheadTime = (timestamp * 1000 - time.correctedTime()).max(0)
       if (timestampAheadTime > 0) {
-        Some(timestampAheadTime.seconds)
+        Some(timestampAheadTime.millis)
       } else if (!chainContractClient.blockExists(referenceHash)) {
         Some(WaitForReferenceConfirmInterval)
       } else None
@@ -476,7 +476,7 @@ class ELUpdater(
                             }
 
                             // TODO: See a comment about prepareAndApplyPayload call above
-                            scheduler.scheduleOnceLabeled("forgeSecond", (nextBlockUnixTs - time.correctedTime() / 1000).min(1).seconds)(
+                            scheduler.scheduleOnceLabeled("forgeSecond", (nextBlockUnixTs * 1000 - time.correctedTime()).min(200).millis)(
                               tryToForgeNextBlock(
                                 payloadOrId = nextMiningData.payload,
                                 referenceHash = ecBlock.hash,
