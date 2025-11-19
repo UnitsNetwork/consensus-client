@@ -2,7 +2,7 @@ package units
 
 import com.wavesplatform.block.Block.BlockId
 import com.wavesplatform.db.WithState.AddrWithBalance
-import com.wavesplatform.state.IntegerDataEntry
+import com.wavesplatform.state.{Height, IntegerDataEntry}
 import com.wavesplatform.test.produce
 import com.wavesplatform.transaction.{Asset, TxHelpers}
 
@@ -52,13 +52,13 @@ class C2ETransfersTestSuite extends BaseTestSuite {
     r should produce(s"Can't find in the registry: ${issueAssetTxn.id()}")
   }
 
-  "Can't register before activation" in withExtensionDomain(defaultSettings.copy(enableTokenTransfersEpoch = Int.MaxValue)) { d =>
+  "Can't register before activation" in withExtensionDomain(defaultSettings.copy(enableTokenTransfersEpoch = Height(Int.MaxValue))) { d =>
     d.appendMicroBlock(issueAssetTxn)
     val r = d.appendMicroBlockE(d.ChainContract.registerAsset(issueAsset, mkRandomEthAddress(), 8))
     r should produce("Asset transfers must be activated")
   }
 
-  "Can't transfer WAVES before activation" in withExtensionDomain(defaultSettings.copy(enableTokenTransfersEpoch = Int.MaxValue)) { d =>
+  "Can't transfer WAVES before activation" in withExtensionDomain(defaultSettings.copy(enableTokenTransfersEpoch = Height(Int.MaxValue))) { d =>
     val r = d.appendMicroBlockE(d.ChainContract.transferUnsafe(transferSenderAccount, validTransferRecipient, Asset.Waves, 1_000_000))
     r should produce("Asset transfers must be activated")
   }
@@ -97,7 +97,7 @@ class C2ETransfersTestSuite extends BaseTestSuite {
       assetId: Option[Asset] = None,
       queueSize: Int = 0,
       register: Boolean = false
-  ): Either[Throwable, BlockId] = withExtensionDomain(defaultSettings.copy(enableTokenTransfersEpoch = if (register) 0 else Int.MaxValue)) { d =>
+  ): Either[Throwable, BlockId] = withExtensionDomain(defaultSettings.copy(enableTokenTransfersEpoch = Height(if (register) 0 else Int.MaxValue))) { d =>
     val amount = Long.MaxValue / 2
     d.appendMicroBlock(
       issueAssetTxn,

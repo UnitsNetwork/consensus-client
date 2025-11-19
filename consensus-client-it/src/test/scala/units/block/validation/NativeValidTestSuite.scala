@@ -6,12 +6,15 @@ import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
+import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.web3j.protocol.core.DefaultBlockParameterName
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.client.engine.model.EcBlock
 import units.el.*
 import units.eth.EthAddress
 import units.{BlockHash, NetworkL2Block, TestNetworkClient}
+
+import scala.concurrent.duration.*
 
 class NativeValidTestSuite extends BaseBlockValidationSuite {
   "Valid block: native token, correct transfer" in {
@@ -67,21 +70,15 @@ class NativeValidTestSuite extends BaseBlockValidationSuite {
       NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
     )
 
-    step("Assertion: Block exists on EC1")
-    eventually {
-      ec1.engineApi
-        .getBlockByHash(simulatedBlockHash)
-        .explicitGet()
-        .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
+    step("Assertion: EL height grows")
+    eventually(Timeout(30.seconds), Interval(2.seconds)) {
+      val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
+      elBlockAfter.hash shouldBe simulatedBlockHash
     }
 
     step("Assertion: Deposited transaction changes balances")
     val ethBalanceAfter = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
     ethBalanceBefore.longValue shouldBe ethBalanceAfter.longValue - elNativeTokenAmount.longValue
-
-    step("Assertion: EL height grows")
-    val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
-    elBlockAfter.hash shouldBe simulatedBlockHash
   }
 
   override def beforeAll(): Unit = setupForNativeTokenTransfer()

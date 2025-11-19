@@ -4,6 +4,7 @@ import com.typesafe.config.ConfigFactory
 import com.wavesplatform.account.{Address, KeyPair, PrivateKey, SeedKeyPair}
 import com.wavesplatform.db.WithState.AddrWithBalance
 import com.wavesplatform.settings.WavesSettings
+import com.wavesplatform.state.Height
 import com.wavesplatform.test.{DomainPresets, NumericExt}
 import com.wavesplatform.transaction.utils.EthConverters.EthereumAddressExt
 import units.TestSettings.*
@@ -16,7 +17,7 @@ case class TestSettings(
     daoRewardAccount: Option[KeyPair] = None,
     daoRewardAmount: Long = 0,
     blockDelayInSeconds: Int = 2,
-    enableTokenTransfersEpoch: Int = 0,
+    enableTokenTransfersEpoch: Height = Height(0),
     registerWwavesToken: Boolean = false // Almost never needed in unit tests, see TestEcClients, simulate
 ) {
   def finalAdditionalBalances: List[AddrWithBalance] = additionalBalances ++

@@ -7,7 +7,7 @@ import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.lang.v1.compiler.Terms.{CONST_LONG, CONST_STRING}
-import com.wavesplatform.state.{BooleanDataEntry, DataEntry, EmptyDataEntry, IntegerDataEntry, StringDataEntry}
+import com.wavesplatform.state.{BooleanDataEntry, DataEntry, EmptyDataEntry, IntegerDataEntry, StringDataEntry, Height}
 import com.wavesplatform.test.NumericExt
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.smart.{InvokeScriptTransaction, SetScriptTransaction}
@@ -75,20 +75,20 @@ trait HasConsensusLayerDappTxHelpers {
       invoker = invoker
     )
 
-    def enableTokenTransfersWithWaves(standardBridge: EthAddress, wwaves: EthAddress, activationEpoch: Int): InvokeScriptTransaction =
+    def enableTokenTransfersWithWaves(standardBridge: EthAddress, wwaves: EthAddress, activationEpoch: Height): InvokeScriptTransaction =
       TxHelpers.invoke(
         chainContractAddress,
         Some("enableTokenTransfers"),
-        Seq(CONST_STRING(standardBridge.hexNoPrefix).explicitGet(), CONST_STRING(wwaves.hexNoPrefix).explicitGet(), CONST_LONG(activationEpoch)),
+        Seq(CONST_STRING(standardBridge.hexNoPrefix).explicitGet(), CONST_STRING(wwaves.hexNoPrefix).explicitGet(), CONST_LONG(activationEpoch.toInt)),
         invoker = chainContractAccount,
         fee = 0.009.waves
       )
 
-    def enableTokenTransfers(standardBridge: EthAddress, activationEpoch: Int): DataTransaction =
+    def enableTokenTransfers(standardBridge: EthAddress, activationEpoch: Height): DataTransaction =
       TxHelpers.data(
         chainContractAccount,
         Seq(
-          IntegerDataEntry("assetTransfersActivationEpoch", activationEpoch),
+          IntegerDataEntry("assetTransfersActivationEpoch", activationEpoch.toInt),
           StringDataEntry("elStandardBridgeAddress", standardBridge.hex)
         ),
         fee = 0.009.waves

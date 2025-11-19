@@ -5,9 +5,12 @@ import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
+import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.client.engine.model.EcBlock
 import units.{BlockHash, NetworkL2Block, TestNetworkClient}
+
+import scala.concurrent.duration.*
 
 class NoTransfersTestSuite extends BaseBlockValidationSuite {
   "Valid block: no transfers" in {
@@ -45,17 +48,11 @@ class NoTransfersTestSuite extends BaseBlockValidationSuite {
       NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
     )
 
-    step("Assertion: Block exists on EC1")
-    eventually {
-      ec1.engineApi
-        .getBlockByHash(simulatedBlockHash)
-        .explicitGet()
-        .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
-    }
-
     step("Assertion: EL height grows")
-    val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
-    elBlockAfter.hash shouldBe simulatedBlockHash
+    eventually(Timeout(30.seconds), Interval(2.seconds)) {
+      val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
+      elBlockAfter.hash shouldBe simulatedBlockHash
+    }
   }
 
   override def beforeAll(): Unit = setupForNativeTokenTransfer()

@@ -11,7 +11,7 @@ import com.wavesplatform.lang.v1.compiler.Terms.FUNCTION_CALL
 import com.wavesplatform.network.ChannelGroupExt
 import com.wavesplatform.state.diffs.FeeValidation.{FeeConstants, FeeUnit, ScriptExtraFee}
 import com.wavesplatform.state.diffs.TransactionDiffer.TransactionValidationError
-import com.wavesplatform.state.{Blockchain, BooleanDataEntry}
+import com.wavesplatform.state.{Blockchain, BooleanDataEntry, Height}
 import com.wavesplatform.transaction.*
 import com.wavesplatform.transaction.TxValidationError.InvokeRejectError
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
@@ -369,7 +369,7 @@ class ELUpdater(
 
     state match {
       case origState @ Working(epochInfo = epochInfo, chainStatus = m: Mining)
-          if epochInfo.number == blockchain.height && m.currentPayload == payloadOrId =>
+          if epochInfo.number == Height(blockchain.height) && m.currentPayload == payloadOrId =>
         waitForRefApprovalOnCl match {
           case Some(waitingTime) =>
             scheduler.scheduleOnceLabeled("waitForApproval", waitingTime) {
@@ -609,7 +609,7 @@ class ELUpdater(
             case FollowingChain(_, Some(nextExpectedBlock)) =>
               logger.debug(s"Waiting for block $nextExpectedBlock from peers")
               scheduler.scheduleOnceLabeled("nextCheck", WaitRequestedBlockTimeout) {
-                if (blockchain.height == prevState.epochInfo.number) {
+                if (Height(blockchain.height) == prevState.epochInfo.number) {
                   check(missedBlock)
                 }
               }
@@ -626,7 +626,7 @@ class ELUpdater(
     prevState.chainStatus.nextExpectedBlock match {
       case Some(missedBlock) =>
         scheduler.scheduleOnceLabeled("firstCheck", WaitRequestedBlockTimeout) {
-          if (blockchain.height == prevState.epochInfo.number) {
+          if (Height(blockchain.height) == prevState.epochInfo.number) {
             check(missedBlock)
           }
         }
@@ -697,7 +697,7 @@ class ELUpdater(
         lazy val errorOrMinerChanged = newEpochInfo.forall(_.miner != prevState.epochInfo.miner)
 
         if (
-          blockchain.height != prevState.epochInfo.number
+          Height(blockchain.height) != prevState.epochInfo.number
           || !blockchain.vrf(blockchain.height).contains(prevState.epochInfo.hitSource)
           || errorOrMinerChanged
         ) {
@@ -994,8 +994,8 @@ class ELUpdater(
       logger.debug(s"Unexpected state on sync: $other")
   })
 
-  private def validateRandao(block: EcBlock, epochNumber: Int): Result[Unit] =
-    blockchain.vrf(epochNumber) match {
+  private def validateRandao(block: EcBlock, epochNumber: Height): Result[Unit] =
+    blockchain.vrf(epochNumber.toInt) match {
       case None => s"VRF of $epochNumber epoch is empty".asLeft
       case Some(vrf) =>
         val expectedPrevRandao = calculateRandao(vrf, block.parentHash)
@@ -1020,7 +1020,7 @@ class ELUpdater(
       }
     } yield ()
 
-  private def validateTimestamp(newNetworkBlock: NetworkL2Block, parentEcBlock: EcBlock, epoch: Int): Result[Unit] = {
+  private def validateTimestamp(newNetworkBlock: NetworkL2Block, parentEcBlock: EcBlock, epoch: Height): Result[Unit] = {
     val minAppendTs = parentEcBlock.timestamp + chainContractClient.getOptions.blockDelayInSeconds.valueAtEpoch(epoch)
     Either.raiseUnless(newNetworkBlock.timestamp >= minAppendTs) {
       s"timestamp (${newNetworkBlock.timestamp}) of appended block must be greater or equal $minAppendTs, Δ${minAppendTs - newNetworkBlock.timestamp}s"
@@ -1395,7 +1395,7 @@ class ELUpdater(
   } yield Some(lastElWithdrawalIndex)
 
   private def prepareTransactions(
-      epochNumber: Int,
+      epochNumber: Height,
       chainContractOptions: ChainContractOptions,
       startAssetRegistryIndex: Int,
       endAssetRegistryIndexExcl: Int,
@@ -1720,7 +1720,7 @@ object ELUpdater {
   val WaitRequestedBlockTimeout: FiniteDuration       = 2.seconds
   private val MaxTransfersInLogs                      = 5 // Cut huge logs
 
-  case class EpochInfo(number: Int, miner: Address, rewardAddress: EthAddress, hitSource: ByteStr, prevEpochLastBlockHash: Option[BlockHash])
+  case class EpochInfo(number: Height, miner: Address, rewardAddress: EthAddress, hitSource: ByteStr, prevEpochLastBlockHash: Option[BlockHash])
 
   sealed trait State
   object State {

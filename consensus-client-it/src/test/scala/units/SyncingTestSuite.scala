@@ -63,7 +63,7 @@ class SyncingTestSuite extends BaseDockerTestSuite {
 
     step("Rollback CL")
     val elWaitHeight = ec1.web3j.ethBlockNumber().send().getBlockNumber.intValueExact() + 1
-    waves1.api.rollback(Height(contractBlock.epoch - 1))
+    waves1.api.rollback(contractBlock.epoch - 1)
 
     step("Wait for EL blocks")
     eventually(Timeout(2.minutes), Interval(10.seconds)) {

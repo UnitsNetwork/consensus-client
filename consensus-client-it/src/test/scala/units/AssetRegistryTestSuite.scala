@@ -1,5 +1,7 @@
 package units
 
+import com.wavesplatform.state.Height
+
 class AssetRegistryTestSuite extends BaseDockerTestSuite {
   private val clRecipient = clRichAccount1
   private val elSender    = elRichAccount1
@@ -7,7 +9,7 @@ class AssetRegistryTestSuite extends BaseDockerTestSuite {
   private val userAmount = 1
   private val elAmount   = UnitsConvert.toAtomic(userAmount, 18)
 
-  private var activationEpoch = 0
+  private var activationEpoch = Height(0)
 
   "WAVES and issued asset are not registered before activation" in {
     standardBridge.isRegistered(TErc20Address, ignoreExceptions = true) shouldBe false

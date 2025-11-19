@@ -196,7 +196,7 @@ class MultipleTransfersViaDepositsTestSuite extends BaseDockerTestSuite {
     waves1.api.broadcastAndWait(
       TxHelpers.dataEntry(
         chainContractAccount,
-        IntegerDataEntry("strictC2ETransfersActivationEpoch", activationEpoch)
+        IntegerDataEntry("strictC2ETransfersActivationEpoch", activationEpoch.toInt)
       )
     )
 
