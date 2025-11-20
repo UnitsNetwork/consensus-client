@@ -1,24 +1,27 @@
-package units
+package units.block.validation
 
 import com.wavesplatform.account.*
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
+import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import units.client.contract.HasConsensusLayerDappTxHelpers.EmptyE2CTransfersRootHashHex
 import units.client.engine.model.EcBlock
-import units.{BlockHash, TestNetworkClient}
+import units.{BlockHash, NetworkL2Block, TestNetworkClient}
 
-class BlockValidationNoTransfersTestSuite extends BaseBlockValidationSuite {
+import scala.concurrent.duration.*
+
+class NoTransfersTestSuite extends BaseBlockValidationSuite {
   "Valid block: no transfers" in {
-    val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
+    val elParentBlock: EcBlock = getMainChainLastBlock
 
     val withdrawals = Vector(mkRewardWithdrawal(elParentBlock))
 
     val depositedTransactions = Vector.empty
 
+    waves1.api.waitForHeight(getBlockEpoch(elParentBlock.hash).get + 1)
     val (payload, simulatedBlockHash, hitSource) = mkSimulatedBlock(elParentBlock, withdrawals, depositedTransactions)
-
     // Note: No transfers on the chain contract in this test case
 
     step("Register the simulated block on the chain contract")
@@ -28,7 +31,7 @@ class BlockValidationNoTransfersTestSuite extends BaseBlockValidationSuite {
         dApp = chainContractAddress,
         func = Some("extendMainChain_v2"),
         args = List(
-          Terms.CONST_STRING(simulatedBlockHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(simulatedBlockHash.hexNoPrefix).explicitGet(),
           Terms.CONST_STRING(elParentBlock.hash.hexNoPrefix).explicitGet(),
           Terms.CONST_BYTESTR(hitSource).explicitGet(),
           Terms.CONST_STRING(EmptyE2CTransfersRootHashHex.drop(2)).explicitGet(),
@@ -45,17 +48,11 @@ class BlockValidationNoTransfersTestSuite extends BaseBlockValidationSuite {
       NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
     )
 
-    step("Assertion: Block exists on EC1")
-    eventually {
-      ec1.engineApi
-        .getBlockByHash(BlockHash(simulatedBlockHash))
-        .explicitGet()
-        .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
-    }
-
     step("Assertion: EL height grows")
-    val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
-    elBlockAfter.height.longValue shouldBe (elParentBlock.height.longValue + 1)
+    eventually(Timeout(30.seconds), Interval(2.seconds)) {
+      val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
+      elBlockAfter.hash shouldBe simulatedBlockHash
+    }
   }
 
   override def beforeAll(): Unit = setupForNativeTokenTransfer()

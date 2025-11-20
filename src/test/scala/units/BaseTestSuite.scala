@@ -23,6 +23,7 @@ import units.util.HexBytesConverter
 
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.ThreadLocalRandom
+import scala.concurrent.duration.DurationInt
 
 trait BaseTestSuite
     extends AnyFreeSpec
@@ -49,7 +50,8 @@ trait BaseTestSuite
           d.ecGenesisBlock,
           ElMinerDefaultReward.amount.longValue(),
           defaultSettings.daoRewardAccount.map(_.toAddress),
-          defaultSettings.daoRewardAmount
+          defaultSettings.daoRewardAmount,
+          defaultSettings.blockDelayInSeconds
         ),
         if (settings.registerWwavesToken)
           d.ChainContract.enableTokenTransfersWithWaves(
@@ -82,14 +84,15 @@ trait BaseTestSuite
 
       try {
         d = new ExtensionDomain(
-          rdb = new RDB(rdb.db, rdb.txMetaHandle, rdb.txHandle, rdb.txSnapshotHandle, rdb.apiHandle, Seq.empty),
-          blockchainUpdater = bcu,
-          rocksDBWriter = blockchain,
-          settings = settings.wavesSettings,
-          chainRegistryAccount = chainRegistryAccount,
-          nativeBridgeAddress = NativeBridgeAddress,
-          standardBridgeAddress = StandardBridgeAddress,
-          elMinerDefaultReward = ElMinerDefaultReward
+          new RDB(rdb.db, rdb.txMetaHandle, rdb.txHandle, rdb.txSnapshotHandle, rdb.apiHandle, Seq.empty),
+          bcu,
+          blockchain,
+          settings.wavesSettings,
+          chainRegistryAccount,
+          NativeBridgeAddress,
+          StandardBridgeAddress,
+          ElMinerDefaultReward,
+          defaultSettings.blockDelayInSeconds.seconds
         )
 
         d.wallet.generateNewAccounts(2) // Enough for now

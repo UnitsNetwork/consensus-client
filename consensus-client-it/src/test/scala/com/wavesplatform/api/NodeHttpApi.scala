@@ -26,7 +26,7 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
     extends IntegrationTestEventually
     with Matchers
     with ScorexLogging {
-  def blockHeader(atHeight: Int)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Option[BlockHeaderResponse] = {
+  def blockHeader(atHeight: Height)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Option[BlockHeaderResponse] = {
     if (loggingOptions.logRequest) log.debug(s"${loggingOptions.prefix} blockHeader($atHeight)")
     basicRequest
       .get(uri"$apiUri/blocks/headers/at/$atHeight")
@@ -45,7 +45,7 @@ class NodeHttpApi(apiUri: Uri, backend: SttpBackend[Identity, ?], apiKeyValue: S
     }
   }
 
-  def waitForHeight(atLeast: Int)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Height = {
+  def waitForHeight(atLeast: Height)(implicit loggingOptions: LoggingOptions = LoggingOptions()): Height = {
     if (loggingOptions.logCall) log.debug(s"${loggingOptions.prefix} waitForHeight($atLeast)")
     val subsequentLoggingOptions = loggingOptions.copy(logCall = false, logResult = false, logRequest = false)
     val currHeight               = height()(using subsequentLoggingOptions)
@@ -258,7 +258,8 @@ object NodeHttpApi {
 
   case class HeightResponse(height: Height)
   object HeightResponse {
-    implicit val heightResponseFormat: OFormat[HeightResponse] = Json.format[HeightResponse]
+    given Reads[Height] = Reads.IntReads.map(Height.apply)
+    given OFormat[HeightResponse] = Json.format[HeightResponse]
   }
 
   case class BroadcastResponse(id: String)
@@ -268,7 +269,8 @@ object NodeHttpApi {
 
   case class TransactionInfoResponse(height: Height, applicationStatus: String)
   object TransactionInfoResponse {
-    implicit val transactionInfoResponseFormat: OFormat[TransactionInfoResponse] = Json.format[TransactionInfoResponse]
+    given Reads[Height] = Reads.IntReads.map(Height.apply)
+    given OFormat[TransactionInfoResponse] = Json.format[TransactionInfoResponse]
   }
 
   case class BalanceResponse(balance: Long)

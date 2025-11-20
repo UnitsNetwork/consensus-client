@@ -1,6 +1,7 @@
 package units.client.contract
 
 import com.wavesplatform.common.merkle.Digest
+import com.wavesplatform.state.Height
 import units.BlockHash
 import units.client.L2BlockLike
 import units.eth.EthAddress
@@ -9,7 +10,7 @@ import units.util.HexBytesConverter.toHex
 case class ContractBlock(
     hash: BlockHash,
     parentHash: BlockHash,
-    epoch: Int,
+    epoch: Height,
     height: Long,
     minerRewardL2Address: EthAddress,
     chainId: Long,

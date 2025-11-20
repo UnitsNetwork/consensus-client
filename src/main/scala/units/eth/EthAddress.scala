@@ -1,18 +1,10 @@
 package units.eth
 
+import com.wavesplatform.account.Address
 import play.api.libs.json.*
 import units.util.HexBytesConverter
 
-class EthAddress private (val hex: String) {
-  def hexNoPrefix: String = hex.drop(2)
-
-  override def hashCode(): Int = hex.hashCode()
-  override def equals(that: Any): Boolean = that match {
-    case that: EthAddress => this.hex == that.hex
-    case _                => false
-  }
-  override def toString: String = hex
-}
+opaque type EthAddress = String
 
 object EthAddress {
   val AddressHexLength           = 40
@@ -21,7 +13,12 @@ object EthAddress {
   val EmptyHex = "0x" + "0" * EthAddress.AddressHexLength
   val empty    = unsafeFrom(EmptyHex)
 
-  implicit val ethAddressFormat: Format[EthAddress] = implicitly[Format[String]].bimap(unsafeFrom, _.hex)
+  extension (a: EthAddress) {
+    def hex: String         = a
+    def hexNoPrefix: String = a.drop(2)
+  }
+
+  given Format[EthAddress] = implicitly[Format[String]]
 
   def from(hex: String): Either[String, EthAddress] = {
     for {
@@ -38,4 +35,5 @@ object EthAddress {
 
   def unsafeFrom(hex: String): EthAddress        = from(hex).left.map(new RuntimeException(_)).toTry.get
   def unsafeFrom(bytes: Array[Byte]): EthAddress = unsafeFrom(HexBytesConverter.toHex(bytes))
+  def unsafeFrom(address: Address): EthAddress   = unsafeFrom(address.bytes.slice(2, 22))
 }

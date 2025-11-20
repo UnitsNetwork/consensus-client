@@ -81,7 +81,7 @@ if cl_poor_accounts_number > 0:
         atomic_amount_for_each * cl_poor_accounts_number,
         reissuable=True,
         txFee=500_000,
-    )
+    )["id"]
     waves.wait_for_approval(log, reissue_txn_id)
     log.info("Additional tokens issued")
 

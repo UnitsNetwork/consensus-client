@@ -66,7 +66,7 @@ class WavesNodeContainer(
         .withStopTimeout(5) // Otherwise we don't have logs in the end
     }
 
-  lazy val apiPort = container.getMappedPort(ApiPort)
+  lazy val apiPort          = container.getMappedPort(ApiPort)
   lazy val unitsNetworkPort = container.getMappedPort(UnitsNetworkPort)
 
   lazy val api = new NodeHttpApi(uri"http://${container.getHost}:$apiPort", httpClientBackend)
@@ -75,7 +75,7 @@ class WavesNodeContainer(
 }
 
 object WavesNodeContainer {
-  val ApiPort = 6869
+  val ApiPort          = 6869
   val UnitsNetworkPort = 6865
 
   val GenesisTemplateFile = new File(s"$ConfigsDir/wavesnode/genesis-template.conf")
@@ -89,12 +89,8 @@ object WavesNodeContainer {
     val templateFile = ConfigsDir.resolve("wavesnode/genesis-template.conf").toAbsolutePath
 
     val origConfig = ConfigFactory.parseFile(templateFile.toFile)
-    val gap        = 25.seconds // To force node mining at start, otherwise it schedules
-    val overrides = ConfigFactory.parseString(
-      s"""genesis-generator {
-         |  timestamp = ${System.currentTimeMillis() - gap.toMillis}
-         |}""".stripMargin
-    )
+    // To force node mining at start, otherwise it schedules
+    val overrides = ConfigFactory.parseString(s"genesis-generator.timestamp = ${System.currentTimeMillis() - 25.seconds.toMillis}")
 
     val genesisSettings = GenesisBlockGenerator.parseSettings(overrides.withFallback(origConfig))
 

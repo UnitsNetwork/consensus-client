@@ -5,6 +5,9 @@ import com.wavesplatform.state.{Height, IntegerDataEntry, StringDataEntry}
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.transaction.TxHelpers
 
+import scala.concurrent.duration.*
+import org.scalatest.concurrent.PatienceConfiguration.*
+
 class EmptyEpochMinerEvictionTestSuite extends BaseDockerTestSuite {
   private val reporter               = miner11Account
   private val idleMiner              = miner21Account
@@ -27,22 +30,18 @@ class EmptyEpochMinerEvictionTestSuite extends BaseDockerTestSuite {
     waves1.api.dataByKey(chainContractAddress, "allMiners").value shouldBe
       StringDataEntry("allMiners", s"${idleMiner.toAddress},${reporter.toAddress}")
 
-    val lastReportedHeight = Range
-      .inclusive(1, maxSkippedEpochCount)
-      .foldLeft(Height(0))((prevReportedHeight, _) => {
+    val lastReportedHeight = eventually(Timeout(1.minute), Interval(2.seconds)) {
+      chainContract.waitForMinerEpoch(idleMiner)
 
-        // Wait for another idle miner epoch
-        waves1.api.waitForHeight(prevReportedHeight + 1)
-        chainContract.waitForMinerEpoch(idleMiner)
-        val lastWavesBlock = waves1.api.blockHeader(waves1.api.height()).value
-        val vrf            = ByteStr.decodeBase58(lastWavesBlock.VRF).get
-        // Report empty epoch
-        val reportResult = waves1.api.broadcastAndWait(ChainContract.reportEmptyEpoch(reporter, vrf))
-        reportResult.height
-      })
+      val lastWavesBlock = waves1.api.blockHeader(waves1.api.height()).value
 
-    // Assertion: idle miner has been evicted
-    waves1.api.dataByKey(chainContractAddress, "allMiners").value shouldBe StringDataEntry("allMiners", s"${reporter.toAddress}")
+      val vrf = ByteStr.decodeBase58(lastWavesBlock.VRF).get
+      // Report empty epoch
+      val h = waves1.api.broadcastAndWait(ChainContract.reportEmptyEpoch(reporter, vrf)).height
+      // Assertion: idle miner has been evicted
+      waves1.api.dataByKey(chainContractAddress, "allMiners").value shouldBe StringDataEntry("allMiners", s"${reporter.toAddress}")
+      h
+    }
 
     // Assertion: reporter started mining on the same epoch, in which the previous miner has been evicted
     val epochMeta = eventually {

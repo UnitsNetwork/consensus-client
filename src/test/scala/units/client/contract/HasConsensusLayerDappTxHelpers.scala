@@ -7,7 +7,7 @@ import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.lang.v1.compiler.Terms.{CONST_LONG, CONST_STRING}
-import com.wavesplatform.state.{BooleanDataEntry, DataEntry, EmptyDataEntry, IntegerDataEntry, StringDataEntry}
+import com.wavesplatform.state.{BooleanDataEntry, DataEntry, EmptyDataEntry, IntegerDataEntry, StringDataEntry, Height}
 import com.wavesplatform.test.NumericExt
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.smart.{InvokeScriptTransaction, SetScriptTransaction}
@@ -17,6 +17,8 @@ import units.client.contract.HasConsensusLayerDappTxHelpers.*
 import units.client.contract.HasConsensusLayerDappTxHelpers.DefaultFees.ChainContract.*
 import units.eth.{EthAddress, EthereumConstants}
 import units.{BlockHash, ELUpdater}
+
+import scala.annotation.targetName
 
 trait HasConsensusLayerDappTxHelpers {
   def currentHitSource: ByteStr
@@ -57,7 +59,8 @@ trait HasConsensusLayerDappTxHelpers {
         elMinerReward: Long,
         daoAddress: Option[Address],
         daoReward: Long,
-        invoker: KeyPair = chainContractAccount
+        blockDelayInSeconds: Int,
+        invoker: KeyPair = chainContractAccount,
     ): InvokeScriptTransaction = TxHelpers.invoke(
       dApp = chainContractAddress,
       func = "setup".some,
@@ -65,26 +68,27 @@ trait HasConsensusLayerDappTxHelpers {
         Terms.CONST_STRING(genesisBlock.hash.hexNoPrefix).explicitGet(),
         Terms.CONST_LONG(elMinerReward),
         Terms.CONST_STRING(daoAddress.fold("")(_.toString)).explicitGet(),
-        Terms.CONST_LONG(daoReward)
+        Terms.CONST_LONG(daoReward),
+        Terms.CONST_LONG(blockDelayInSeconds)
       ),
       fee = setupFee,
       invoker = invoker
     )
 
-    def enableTokenTransfersWithWaves(standardBridge: EthAddress, wwaves: EthAddress, activationEpoch: Int): InvokeScriptTransaction =
+    def enableTokenTransfersWithWaves(standardBridge: EthAddress, wwaves: EthAddress, activationEpoch: Height): InvokeScriptTransaction =
       TxHelpers.invoke(
         chainContractAddress,
         Some("enableTokenTransfers"),
-        Seq(CONST_STRING(standardBridge.hexNoPrefix).explicitGet(), CONST_STRING(wwaves.hexNoPrefix).explicitGet(), CONST_LONG(activationEpoch)),
+        Seq(CONST_STRING(standardBridge.hexNoPrefix).explicitGet(), CONST_STRING(wwaves.hexNoPrefix).explicitGet(), CONST_LONG(activationEpoch.toInt)),
         invoker = chainContractAccount,
         fee = 0.009.waves
       )
 
-    def enableTokenTransfers(standardBridge: EthAddress, activationEpoch: Int): DataTransaction =
+    def enableTokenTransfers(standardBridge: EthAddress, activationEpoch: Height): DataTransaction =
       TxHelpers.data(
         chainContractAccount,
         Seq(
-          IntegerDataEntry("assetTransfersActivationEpoch", activationEpoch),
+          IntegerDataEntry("assetTransfersActivationEpoch", activationEpoch.toInt),
           StringDataEntry("elStandardBridgeAddress", standardBridge.hex)
         ),
         fee = 0.009.waves
@@ -120,6 +124,7 @@ trait HasConsensusLayerDappTxHelpers {
     ): InvokeScriptTransaction =
       registerAsset(asset, erc20Address.hexNoPrefix, elDecimals, invoker)
 
+    @targetName("registerAssetHexString")
     def registerAsset(asset: IssuedAsset, erc20AddressHex: String, elDecimals: Int, invoker: KeyPair): InvokeScriptTransaction =
       registerAssets(List(asset), List(erc20AddressHex), List(elDecimals), invoker)
 
@@ -160,6 +165,7 @@ trait HasConsensusLayerDappTxHelpers {
         invoker: KeyPair = chainContractAccount
     ): InvokeScriptTransaction = issueAndRegister(erc20Address.hexNoPrefix, elDecimals, name, description, clDecimals, invoker)
 
+    @targetName("issueAndRegisterHexString")
     def issueAndRegister(
         erc20AddressHex: String,
         elDecimals: Int,
