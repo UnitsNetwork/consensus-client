@@ -239,7 +239,7 @@ trait ChainContractClient {
       getStringData("elStandardBridgeAddress")
         .map(EthAddress.unsafeFrom),
       getAssetTransfersActivationEpoch,
-      getStrictC2ETransfersActivationEpoch
+      getStrictC2ETransfersActivationEpoch,
       blockDelay
     )
   }
