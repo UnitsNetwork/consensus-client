@@ -5,7 +5,7 @@ import com.wavesplatform.account.{Address, KeyPair}
 import com.wavesplatform.api.LoggingBackend.LoggingOptions
 import com.wavesplatform.api.NodeHttpApi
 import com.wavesplatform.common.state.ByteStr
-import com.wavesplatform.state.DataEntry
+import com.wavesplatform.state.{DataEntry, Height}
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.utils.ScorexLogging
 import org.scalatest.OptionValues
@@ -29,7 +29,7 @@ class HttpChainContractClient(api: NodeHttpApi, override val contract: Address)
   private val fiveBlocks              = WavesNodeContainer.MaxBlockDelay * 5
   lazy val nativeTokenId: IssuedAsset = IssuedAsset(ByteStr.decodeBase58(getStringData("tokenId").getOrElse(fail("Call setup first"))).get)
 
-  def getEpochFirstBlock(epochNumber: Int): Option[ContractBlock] =
+  def getEpochFirstBlock(epochNumber: Height): Option[ContractBlock] =
     getEpochMeta(epochNumber).flatMap { epochData =>
       getEpochFirstBlock(epochData.lastBlockHash)
     }
@@ -64,7 +64,7 @@ class HttpChainContractClient(api: NodeHttpApi, override val contract: Address)
   }
 
   // This is different from blockchain.height, because we wait this from a contract block
-  def waitForEpoch(atLeast: Int, chainId: Long = DefaultMainChainId): Unit = {
+  def waitForEpoch(atLeast: Height, chainId: Long = DefaultMainChainId): Unit = {
     log.debug(s"waitForEpoch($atLeast)")
     eventually {
       val lastBlock = getLastBlockMeta(chainId).value

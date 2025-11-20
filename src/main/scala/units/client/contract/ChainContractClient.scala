@@ -70,7 +70,7 @@ trait ChainContractClient {
       val bb = ByteBuffer.wrap(blockMeta.arr)
       try {
         val chainHeight = bb.getLong()
-        val epoch       = bb.getLong().toInt // blockMeta is set up in a chain contract and RIDE numbers are Longs
+        val epoch       = Height(bb.getLong().toInt) // blockMeta is set up in a chain contract and RIDE numbers are Longs
         val parentHash  = BlockHash(bb.getByteArray(BlockHashBytesSize))
         val chainId     = if (bb.remaining() >= 8) bb.getLong() else DefaultMainChainId
 
@@ -125,12 +125,12 @@ trait ChainContractClient {
   def getMainChainId: Long =
     getMainChainIdOpt.getOrElse(DefaultMainChainId)
 
-  def getEpochMeta(epoch: Int): Option[EpochContractMeta] = getStringData(f"epoch_$epoch%08d").flatMap { s =>
+  def getEpochMeta(epoch: Height): Option[EpochContractMeta] = getStringData(f"epoch_$epoch%08d").flatMap { s =>
     val items = s.split(Sep)
     if (items.length == 3) for {
       a <- Address.fromString(items(0)).toOption
       e <- items(1).toIntOption
-    } yield EpochContractMeta(a, e, BlockHash(s"0x${items(2)}"))
+    } yield EpochContractMeta(a, Height(e), BlockHash(s"0x${items(2)}"))
     else None
   }
 
@@ -180,10 +180,10 @@ trait ChainContractClient {
     } else None
   }
 
-  private def calculateEpochMiner(epochNumber: Int, blockchain: Blockchain): Either[String, Address] =
+  private def calculateEpochMiner(epochNumber: Height, blockchain: Blockchain): Either[String, Address] =
     for {
-      header    <- blockchain.blockHeader(epochNumber).toRight(s"No header at height $epochNumber")
-      hitSource <- blockchain.hitSource(epochNumber).toRight(s"No VRF value at height $epochNumber")
+      header    <- blockchain.blockHeader(epochNumber.toInt).toRight(s"No header at height $epochNumber")
+      hitSource <- blockchain.hitSource(epochNumber.toInt).toRight(s"No VRF value at height $epochNumber")
       miner <- getAllActualMiners
         .flatMap(miner => calculateMinerDelay(hitSource.arr, header.header.baseTarget, miner, blockchain))
         .minByOption(_._2)
@@ -192,10 +192,10 @@ trait ChainContractClient {
     } yield miner
 
   def calculateEpochInfo(blockchain: Blockchain): Either[String, EpochInfo] = {
-    val epochNumber = blockchain.height
+    val epochNumber = Height(blockchain.height)
     for {
-      _                      <- blockchain.blockHeader(epochNumber).toRight(s"No header at epoch $epochNumber")
-      hitSource              <- blockchain.hitSource(epochNumber).toRight(s"No hit source at epoch $epochNumber")
+      _                      <- blockchain.blockHeader(epochNumber.toInt).toRight(s"No header at epoch $epochNumber")
+      hitSource              <- blockchain.hitSource(epochNumber.toInt).toRight(s"No hit source at epoch $epochNumber")
       miner                  <- this.calculateEpochMiner(epochNumber, blockchain)
       rewardAddress          <- this.getElRewardAddress(miner).toRight(s"No reward address for $miner")
       prevEpochLastBlockHash <- this.getPrevEpochLastBlockHash(epochNumber)
@@ -214,22 +214,40 @@ trait ChainContractClient {
       .orElse(getBinaryData(s"miner${rewardAddress.hexNoPrefix}PK"))
       .map(PublicKey(_))
 
-  def getOptions: ChainContractOptions = ChainContractOptions(
-    miningReward = getLongData("minerReward")
-      .map(Gwei.ofRawGwei)
-      .getOrElse(throw new IllegalStateException("minerReward is empty on contract")),
-    elNativeBridgeAddress = getStringData("elBridgeAddress")
-      .map(EthAddress.unsafeFrom)
-      .getOrElse(throw new IllegalStateException("elBridgeAddress is empty on contract")),
-    elStandardBridgeAddress = getStringData("elStandardBridgeAddress")
-      .map(EthAddress.unsafeFrom),
-    assetTransfersActivationEpoch = getAssetTransfersActivationEpoch,
-    strictC2ETransfersActivationEpoch = getStrictC2ETransfersActivationEpoch
-  )
+  def getOptions: ChainContractOptions = {
+    val minerReward = extractData("minerReward") match {
+      case Some(IntegerDataEntry(value = reward)) => ValueAtEpoch(Gwei.ofRawGwei(0), Gwei.ofRawGwei(reward), Height(1))
+      case Some(StringDataEntry(value = rewards)) =>
+        val Array(oldReward, newReward, changeEpoch) = rewards.split(Sep)
+        ValueAtEpoch(Gwei.ofRawGwei(oldReward.toLong), Gwei.ofRawGwei(newReward.toLong), Height(changeEpoch.toInt))
+      case _ => throw new IllegalStateException("minerReward is empty on contract")
+    }
 
-  private def getAssetTransfersActivationEpoch: Long = getLongData("assetTransfersActivationEpoch").getOrElse(Long.MaxValue)
+    val blockDelay = extractData("blockDelay") match {
+      case Some(IntegerDataEntry(value = delay)) => ValueAtEpoch(0, BigInt(delay).bigInteger.intValueExact(), Height(1))
+      case Some(StringDataEntry(value = delays)) =>
+        val Array(oldDelay, newDelay, changeEpoch) = delays.split(Sep)
+        ValueAtEpoch(oldDelay.toInt, newDelay.toInt, Height(changeEpoch.toInt))
+      case _ => throw new IllegalStateException("blockDelay is empty on contract")
+    }
 
-  def getStrictC2ETransfersActivationEpoch: Long = getLongData("strictC2ETransfersActivationEpoch").getOrElse(Long.MaxValue)
+    ChainContractOptions(
+      minerReward,
+      getStringData("elBridgeAddress")
+        .map(EthAddress.unsafeFrom)
+        .getOrElse(throw new IllegalStateException("elBridgeAddress is empty on contract")),
+      getStringData("elStandardBridgeAddress")
+        .map(EthAddress.unsafeFrom),
+      getAssetTransfersActivationEpoch,
+      getStrictC2ETransfersActivationEpoch
+      blockDelay
+    )
+  }
+
+  private def getActivationEpoch(key: String) = Height(getLongData(key).fold(Int.MaxValue)(v => BigInt(v).bigInteger.intValueExact()))
+
+  private def getAssetTransfersActivationEpoch: Height = getActivationEpoch("assetTransfersActivationEpoch")
+  def getStrictC2ETransfersActivationEpoch: Height     = getActivationEpoch("strictC2ETransfersActivationEpoch")
 
   private def getChainMeta(chainId: Long): Option[(Int, BlockHash)] = {
     val key = f"chain_$chainId%08d"
@@ -281,13 +299,13 @@ trait ChainContractClient {
       // Native transfer, before strict transfers activation
       // {destElAddressHex with 0x}_{amount}
       case Array(EthAddress(destElAddress), NativeTransferAmount(amount)) =>
-        ContractTransfer.NativeViaWithdrawal(atIndex, 0, destElAddress, amount)
+        ContractTransfer.NativeViaWithdrawal(atIndex, Height(0), destElAddress, amount)
 
       // Native transfer, after strict transfers activation
       // {epoch}_{destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}
 
       case Array(Epoch(epoch), EthAddress(destElAddress), EthAddress(fromAddress), NativeTransferAmount(amount)) =>
-        ContractTransfer.NativeViaDeposit(atIndex, epoch, fromAddress, destElAddress, amount)
+        ContractTransfer.NativeViaDeposit(atIndex, Height(epoch), fromAddress, destElAddress, amount)
 
       // Asset transfer, before strict transfers activation
       // {destElAddressHex with 0x}_{fromClAddressHex with 0x}_{amount}_{assetRegistryIndex}
@@ -297,7 +315,7 @@ trait ChainContractClient {
 
         ContractTransfer.Asset(
           index = atIndex,
-          epoch = 0,
+          epoch = Height(0),
           from = fromAddress,
           to = destElAddress,
           amount =
@@ -315,7 +333,7 @@ trait ChainContractClient {
 
         ContractTransfer.Asset(
           index = atIndex,
-          epoch = epoch,
+          epoch = Height(epoch),
           from = fromAddress,
           to = destElAddress,
           amount =
@@ -352,10 +370,10 @@ trait ChainContractClient {
       .map(getRegisteredAssetData)
       .toList
 
-  private def getPrevEpochLastBlockHash(thisEpoch: Int): Either[String, Option[BlockHash]] = {
+  private def getPrevEpochLastBlockHash(thisEpoch: Height): Either[String, Option[BlockHash]] = {
     @tailrec
-    def loop(curEpochNumber: Int): Either[String, Option[BlockHash]] = {
-      if (curEpochNumber <= 0) {
+    def loop(curEpochNumber: Height): Either[String, Option[BlockHash]] = {
+      if (curEpochNumber <= Height(0)) {
         Left(s"Couldn't find previous epoch meta for epoch #$thisEpoch")
       } else {
         this.getEpochMeta(curEpochNumber) match {
@@ -366,7 +384,7 @@ trait ChainContractClient {
     }
 
     this.getEpochMeta(thisEpoch) match {
-      case Some(epochMeta) if epochMeta.prevEpoch == 0 =>
+      case Some(epochMeta) if epochMeta.prevEpoch == Height(0) =>
         Right(None)
       case Some(epochMeta) =>
         this
@@ -462,17 +480,17 @@ object ChainContractClient {
   private class InconsistentContractData(message: String, cause: Throwable = null)
       extends IllegalStateException(s"Probably, you have to upgrade your client. $message", cause)
 
-  case class EpochContractMeta(miner: Address, prevEpoch: Int, lastBlockHash: BlockHash)
+  case class EpochContractMeta(miner: Address, prevEpoch: Height, lastBlockHash: BlockHash)
 
   enum ContractTransfer {
     val index: Long
-    val epoch: Int
+    val epoch: Height
 
-    case NativeViaWithdrawal(index: Long, epoch: Int, to: EthAddress, amount: Long)
-    case NativeViaDeposit(index: Long, epoch: Int, from: EthAddress, to: EthAddress, amount: Long)
+    case NativeViaWithdrawal(index: Long, epoch: Height, to: EthAddress, amount: Long)
+    case NativeViaDeposit(index: Long, epoch: Height, from: EthAddress, to: EthAddress, amount: Long)
     case Asset(
         index: Long,
-        epoch: Int,
+        epoch: Height,
         from: EthAddress,
         to: EthAddress,
         amount: EAmount,

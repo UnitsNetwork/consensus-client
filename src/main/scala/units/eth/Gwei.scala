@@ -5,21 +5,14 @@ import play.api.libs.json.Format
 
 import java.math.BigInteger
 
-class Gwei private (val amount: BigInteger) {
-  def toHex: String = Numeric.toHexStringWithPrefix(amount)
-
-  override def hashCode(): Int = amount.hashCode()
-  override def equals(that: Any): Boolean = that match {
-    case that: Gwei => this.amount.compareTo(that.amount) == 0
-    case _          => false
-  }
-  override def toString: String = s"${amount.toString} Gwei"
-}
+opaque type Gwei = BigInteger
 
 object Gwei {
-  implicit val gweiFormat: Format[Gwei] = implicitly[Format[String]].bimap(ofRawGwei, _.toHex)
+  implicit val gweiFormat: Format[Gwei] = implicitly[Format[String]].bimap(ofRawGwei, Numeric.toHexStringWithPrefix)
+
+  extension (g: Gwei) def amount: BigInteger = g
 
   def ofRawGwei(x: Long): Gwei       = ofRawGwei(BigInteger.valueOf(x))
-  def ofRawGwei(x: BigInteger): Gwei = new Gwei(x)
+  def ofRawGwei(x: BigInteger): Gwei = x
   def ofRawGwei(hex: String): Gwei   = Gwei.ofRawGwei(Numeric.toBigInt(hex))
 }

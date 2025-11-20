@@ -3,6 +3,7 @@ package units.docker
 import okhttp3.Interceptor
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.Network.NetworkImpl
+import org.testcontainers.images.PullPolicy
 import org.web3j.protocol.Web3j
 import org.web3j.protocol.http.HttpService
 import pdi.jwt.{JwtAlgorithm, JwtClaim, JwtJson}
@@ -20,6 +21,7 @@ class OpGethContainer(network: NetworkImpl, number: Int, ip: String)(implicit ht
     extends EcContainer(number) {
 
   protected override val container = new GenericContainer(DockerImages.OpGethExecutionClient)
+    .withImagePullPolicy(PullPolicy.alwaysPull())
     .withNetwork(network)
     .withExposedPorts(RpcPort, EnginePort)
     .withEnv("NODE_NUMBER", number.toString)

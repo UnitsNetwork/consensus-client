@@ -1,4 +1,4 @@
-package units
+package units.block.validation
 
 import com.wavesplatform.*
 import com.wavesplatform.account.*
@@ -6,17 +6,20 @@ import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.transaction.TxHelpers
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
+import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.web3j.protocol.core.DefaultBlockParameterName
 import units.client.contract.HasConsensusLayerDappTxHelpers.{EmptyE2CTransfersRootHashHex, EmptyFailedC2ETransfersRootHashHex}
 import units.client.engine.model.EcBlock
 import units.el.*
 import units.eth.EthAddress
-import units.{BlockHash, TestNetworkClient}
+import units.{BlockHash, NetworkL2Block, TestNetworkClient}
 
-class BlockValidationNativeUnexpectedDepositTestSuite extends BaseBlockValidationSuite {
-  "Invalid block: unexpected deposited transaction" in {
+import scala.concurrent.duration.*
+
+class NativeValidTestSuite extends BaseBlockValidationSuite {
+  "Valid block: native token, correct transfer" in {
     val ethBalanceBefore       = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
-    val elParentBlock: EcBlock = ec1.engineApi.getLastExecutionBlock().explicitGet()
+    val elParentBlock: EcBlock = getMainChainLastBlock
 
     val withdrawals = Vector(mkRewardWithdrawal(elParentBlock))
 
@@ -24,15 +27,24 @@ class BlockValidationNativeUnexpectedDepositTestSuite extends BaseBlockValidatio
       StandardBridge.mkFinalizeBridgeETHTransaction(
         transferIndex = 0L,
         standardBridgeAddress = StandardBridgeAddress,
-        from = EthAddress.unsafeFrom(clSender.toAddress.bytes.drop(2).take(20)),
+        from = EthAddress.unsafeFrom(clSender.toAddress),
         to = elRecipient,
         amount = clNativeTokenAmount.longValue
       )
     )
 
-    val (payload, simulatedBlockHash, hitSource) = mkSimulatedBlock(elParentBlock, withdrawals, depositedTransactions)
+    step("Transfer on the chain contract")
+    waves1.api.broadcastAndWait(
+      ChainContract.transfer(
+        clSender,
+        elRecipient,
+        chainContract.nativeTokenId,
+        clNativeTokenAmount
+      )
+    )
 
-    // Note: No transfers on the chain contract in this test case
+    waves1.api.waitForHeight(getBlockEpoch(elParentBlock.hash).get + 1)
+    val (payload, simulatedBlockHash, hitSource) = mkSimulatedBlock(elParentBlock, withdrawals, depositedTransactions)
 
     step("Register the simulated block on the chain contract")
     waves1.api.broadcastAndWait(
@@ -41,7 +53,7 @@ class BlockValidationNativeUnexpectedDepositTestSuite extends BaseBlockValidatio
         dApp = chainContractAddress,
         func = Some("extendMainChain_v3"),
         args = List(
-          Terms.CONST_STRING(simulatedBlockHash.drop(2)).explicitGet(),
+          Terms.CONST_STRING(simulatedBlockHash.hexNoPrefix).explicitGet(),
           Terms.CONST_STRING(elParentBlock.hash.hexNoPrefix).explicitGet(),
           Terms.CONST_BYTESTR(hitSource).explicitGet(),
           Terms.CONST_STRING(EmptyE2CTransfersRootHashHex.drop(2)).explicitGet(),
@@ -59,21 +71,15 @@ class BlockValidationNativeUnexpectedDepositTestSuite extends BaseBlockValidatio
       NetworkL2Block.signed(payload, actingMiner.privateKey).explicitGet()
     )
 
-    step("Assertion: Block exists on EC1")
-    eventually {
-      ec1.engineApi
-        .getBlockByHash(BlockHash(simulatedBlockHash))
-        .explicitGet()
-        .getOrElse(fail(s"Block $simulatedBlockHash was not found on EC1"))
+    step("Assertion: EL height grows")
+    eventually(Timeout(30.seconds), Interval(2.seconds)) {
+      val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
+      elBlockAfter.hash shouldBe simulatedBlockHash
     }
 
-    step("Assertion: Unexpected deposited transaction doesn't affect balances")
+    step("Assertion: Deposited transaction changes balances")
     val ethBalanceAfter = ec1.web3j.ethGetBalance(elRecipient.toString, DefaultBlockParameterName.LATEST).send().getBalance
-    ethBalanceBefore shouldBe ethBalanceAfter
-
-    step("Assertion: While the block exists on EC1, the height doesn't grow")
-    val elBlockAfter = ec1.engineApi.getLastExecutionBlock().explicitGet()
-    elBlockAfter.height.longValue shouldBe elParentBlock.height.longValue
+    ethBalanceBefore.longValue shouldBe ethBalanceAfter.longValue - elNativeTokenAmount.longValue
   }
 
   override def beforeAll(): Unit = setupForNativeTokenTransfer()

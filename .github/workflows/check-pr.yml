@@ -17,15 +17,6 @@ jobs:
     env:
       JAVA_OPTS: -Dfile.encoding=UTF-8
       BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
-      SBT_IT_TEST_THREADS: 2
-    services:
-      docker:
-        image: docker:latest
-        options: --privileged  # Required for Docker-in-Docker
-        volumes:
-          - /var/run/docker.sock:/var/run/docker.sock
-        ports:
-          - 2375:2375
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -34,26 +25,9 @@ jobs:
           java-version: '11'
           cache: 'sbt'
       - uses: foundry-rs/foundry-toolchain@v1
-      - name: Cache solc
-        id: cache-solc
-        uses: actions/cache@v4
-        with:
-          path: /home/runner/.solc
-          key: solc-v0.8.29
-          restore-keys: solc-
-      - name: Get solc
-        if: ${{ steps.cache-solc.outputs.cache-hit != 'true' }}
-        run: |
-          mkdir -p /home/runner/.solc/v0.8.29
-          wget https://binaries.soliditylang.org/linux-amd64/solc-linux-amd64-v0.8.29+commit.ab55807c -O /home/runner/.solc/v0.8.29/solc-static-linux
-          echo "/home/runner/.solc" >> $GITHUB_PATH
-          ln -sf /home/runner/.solc/v0.8.29/solc-static-linux /home/runner/.solc/solc
-          which solc || echo "Solc not found in PATH"
       - uses: sbt/setup-sbt@v1
       - name: Run tests
-        run: |
-          forge --version
-          sbt --no-colors --color=never --batch "scalafmtCheck;test;docker;consensus-client-it/test"
+        run: sbt -Dcc.it.max-parallel-suites=2 -Dlogback.test.level=OFF --batch "scalafmtCheck;test;docker;consensus-client-it/test"
         env:
           RUN_ID: ${{ github.head_ref }}-${{ github.run_number }}-${{ github.run_attempt }}
       - uses: scacap/action-surefire-report@5609ce4db72c09db044803b344a8968fd1f315da
@@ -70,3 +44,25 @@ jobs:
           path: consensus-client-it/target/test-logs
           if-no-files-found: warn
           retention-days: 14
+
+  local-network:
+    name: Run Local Network tests
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+          cache: 'sbt'
+      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: sbt/setup-sbt@v1
+      - run: |
+          sbt --batch docker
+          cd local-network
+          ./restart.sh
+        env:
+          COMPOSE_PROFILES: tests

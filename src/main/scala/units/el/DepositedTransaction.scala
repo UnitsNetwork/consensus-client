@@ -12,6 +12,7 @@ import units.util.HexBytesConverter
 import units.util.HexBytesConverter.{toHex, toInt, toUint256}
 
 import java.math.BigInteger
+import java.util
 
 /** @param sourceHash
   *   Uniquely identifies the origin of the deposit
@@ -66,7 +67,7 @@ case class DepositedTransaction(
 
   override def equals(obj: Any): Boolean = obj match {
     case that: DepositedTransaction =>
-      this.sourceHash.sameElements(that.sourceHash) &&
+      util.Arrays.equals(sourceHash, that.sourceHash) &&
       this.from == that.from &&
       this.to == that.to &&
       this.mint == that.mint &&

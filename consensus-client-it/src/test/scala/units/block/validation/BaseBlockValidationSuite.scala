@@ -1,11 +1,12 @@
-package units
+package units.block.validation
 
+import com.google.common.primitives.Longs
 import com.wavesplatform.*
 import com.wavesplatform.account.*
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.crypto.Keccak256
-import com.wavesplatform.state.{Height, IntegerDataEntry}
+import com.wavesplatform.state.{BinaryDataEntry, Height, IntegerDataEntry, StringDataEntry}
 import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import com.wavesplatform.transaction.{Asset, TxHelpers}
@@ -14,26 +15,24 @@ import org.web3j.protocol.core.DefaultBlockParameterName
 import org.web3j.tx.RawTransactionManager
 import org.web3j.tx.gas.DefaultGasProvider
 import play.api.libs.json.*
-import units.{BlockHash, ELUpdater}
 import units.client.engine.model.{EcBlock, Withdrawal}
 import units.docker.EcContainer
 import units.el.*
 import units.eth.{EmptyL2Block, EthAddress, EthereumConstants}
 import units.util.{BlockToPayloadMapper, HexBytesConverter}
+import units.{BaseDockerTestSuite, BlockHash, ELUpdater, UnitsConvert}
 
 import scala.concurrent.duration.DurationInt
 import scala.jdk.OptionConverters.RichOptional
 
 trait BaseBlockValidationSuite extends BaseDockerTestSuite {
   protected val setupMiner: SeedKeyPair              = miner11Account // Leaves after setting up the contracts
-  protected val actingMiner: SeedKeyPair             = miner12Account
-  protected val actingMinerRewardAddress: EthAddress = miner12RewardAddress
+  protected val actingMiner: SeedKeyPair             = miner21Account
+  protected val actingMinerRewardAddress: EthAddress = miner21RewardAddress
 
   // Note: additional miners are needed to avoid the actingMiner having majority of the stake
-  protected val additionalMiner1: SeedKeyPair             = miner21Account
-  protected val additionalMiner1RewardAddress: EthAddress = miner21RewardAddress
-  protected val additionalMiner2: SeedKeyPair             = miner31Account
-  protected val additionalMiner2RewardAddress: EthAddress = miner31RewardAddress
+  protected val additionalMiner1: SeedKeyPair             = miner12Account
+  protected val additionalMiner1RewardAddress: EthAddress = miner12RewardAddress
 
   // transfers
   protected val clSender: SeedKeyPair   = clRichAccount1
@@ -66,14 +65,14 @@ trait BaseBlockValidationSuite extends BaseDockerTestSuite {
         if (elParentBlock.height - 1 <= EthereumConstants.GenesisBlockHeight) Right(-1L)
         else ec1.engineApi.getLastWithdrawalIndex(elParentBlock.parentHash)
     }).explicitGet()
-    Withdrawal(elWithdrawalIndexBefore + 1, elParentBlock.minerRewardL2Address, chainContractOptions.miningReward)
+    Withdrawal(elWithdrawalIndexBefore + 1, elParentBlock.minerRewardL2Address, chainContractOptions.miningReward.newValue)
   }
 
   protected final def mkSimulatedBlock(
       elParentBlock: EcBlock,
       withdrawals: Seq[Withdrawal],
       depositedTransactions: Seq[DepositedTransaction]
-  ): (JsObject, String, ByteStr) = {
+  ): (JsObject, BlockHash, ByteStr) = {
     step("Building a simulated block")
     val feeRecipient = actingMinerRewardAddress
 
@@ -104,9 +103,7 @@ trait BaseBlockValidationSuite extends BaseDockerTestSuite {
       )
     )
 
-    val simulatedBlockHash: String = (simulatedBlock \ "hash").as[String]
-
-    (payload, simulatedBlockHash, hitSource)
+    (payload, (simulatedBlock \ "hash").as[BlockHash], hitSource)
   }
 
   protected def deployContractsAndActivateTransferFeatures(): Unit = {
@@ -126,7 +123,7 @@ trait BaseBlockValidationSuite extends BaseDockerTestSuite {
     waves1.api.broadcastAndWait(
       TxHelpers.dataEntry(
         chainContractAccount,
-        IntegerDataEntry("strictC2ETransfersActivationEpoch", activationEpoch)
+        IntegerDataEntry("strictC2ETransfersActivationEpoch", activationEpoch.toInt)
       )
     )
 
@@ -215,39 +212,14 @@ trait BaseBlockValidationSuite extends BaseDockerTestSuite {
     log.debug(s"setupMiner: ${setupMiner.toAddress}")
     log.debug(s"actingMiner: ${actingMiner.toAddress}")
     log.debug(s"additionalMiner1: ${additionalMiner1.toAddress}")
-    log.debug(s"additionalMiner2: ${additionalMiner2.toAddress}")
 
-    step(s"additionalMiner1 join")
-    waves1.api.broadcastAndWait(
-      ChainContract.join(
-        minerAccount = additionalMiner1,
-        elRewardAddress = additionalMiner1RewardAddress
-      )
-    )
-
-    step(s"Wait additionalMiner1 epoch")
-    chainContract.waitForMinerEpoch(additionalMiner1)
+    waves1.api.broadcastAndWait(ChainContract.join(additionalMiner1, additionalMiner1RewardAddress))
+    waves1.api.broadcastAndWait(ChainContract.join(actingMiner, actingMinerRewardAddress))
 
     step(s"setupMiner leave")
     eventually(interval(500 millis)) {
       waves1.api.broadcastAndWait(ChainContract.leave(setupMiner))
     }
-
-    step(s"additionalMiner2 join")
-    waves1.api.broadcastAndWait(
-      ChainContract.join(
-        minerAccount = additionalMiner2,
-        elRewardAddress = additionalMiner2RewardAddress
-      )
-    )
-
-    step(s"actingMiner join")
-    waves1.api.broadcastAndWait(
-      ChainContract.join(
-        minerAccount = actingMiner,
-        elRewardAddress = actingMinerRewardAddress
-      )
-    )
 
     step(s"Wait actingMiner epoch")
     chainContract.waitForMinerEpoch(actingMiner)
@@ -266,4 +238,18 @@ trait BaseBlockValidationSuite extends BaseDockerTestSuite {
     transferAssetTokenToClSender()
     leaveSetupMinerAndJoinOthers()
   }
+
+  protected def getMainChainLastBlock: EcBlock = {
+    val mainChainId = waves1.api.dataByKey(chainContractAddress, "mainChainId").collect { case i: IntegerDataEntry => i.value }.getOrElse(0L)
+    val elParentBlockId = waves1.api.dataByKey(chainContractAddress, f"chain_$mainChainId%08d").collect {
+      case s: StringDataEntry => BlockHash("0x" + s.value.split(",")(1))
+    }.get
+
+    ec1.engineApi.getBlockByHash(elParentBlockId).explicitGet().get
+  }
+  
+  protected def getBlockEpoch(blockHash: BlockHash): Option[Height] = 
+    waves1.api.dataByKey(chainContractAddress, s"block_$blockHash").collect {
+      case b: BinaryDataEntry => Height(Longs.fromByteArray(b.value.arr.slice(8, 16)).toInt)
+    }
 }

@@ -48,7 +48,8 @@ class RegistryTestSuite extends BaseTestSuite {
               d.ecGenesisBlock,
               ElMinerDefaultReward.amount.longValue(),
               defaultSettings.daoRewardAccount.map(_.toAddress),
-              defaultSettings.daoRewardAmount
+              defaultSettings.daoRewardAmount,
+              defaultSettings.blockDelayInSeconds
             )
           ) ++
           settings.initialMiners.map { x => d.ChainContract.join(x.account, x.elRewardAddress) }

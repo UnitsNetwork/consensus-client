@@ -14,7 +14,6 @@ case class ClientConfig(
     executionClientAddress: String,
     apiRequestRetries: Int,
     apiRequestRetryWaitTime: FiniteDuration,
-    blockDelay: FiniteDuration,
     firstBlockMinDelay: FiniteDuration,
     blockSyncRequestTimeout: FiniteDuration,
     network: NetworkSettings,

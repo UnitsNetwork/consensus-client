@@ -1,4 +1,5 @@
 import com.github.sbt.git.SbtGit.git.gitCurrentBranch
+import com.spotify.docker.client.DefaultDockerClient
 import org.web3j.codegen.SolidityFunctionWrapperGenerator
 import org.web3j.tx.Contract
 import play.api.libs.json.Json
@@ -8,11 +9,13 @@ import java.io.FileInputStream
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import scala.sys.process.*
+import scala.sys.props
+import scala.util.control.NonFatal
 
 description := "Consensus client integration tests"
 
 libraryDependencies ++= Seq(
-  "org.testcontainers" % "testcontainers" % "1.20.4",
+  "org.testcontainers" % "testcontainers" % "2.0.1",
   "org.web3j"          % "core"           % "4.9.8"
 ).map(_ % Test)
 
@@ -53,11 +56,29 @@ Test / sourceGenerators += Def.task {
 
 val logsDirectory = taskKey[File]("The directory for logs") // Task to evaluate and recreate the logs directory every time
 
-Global / concurrentRestrictions := {
-  val threadNumber = Option(System.getenv("SBT_IT_TEST_THREADS")).fold(1)(_.toInt)
-  Seq(Tags.limit(Tags.ForkedTestGroup, threadNumber))
-}
+Global / concurrentRestrictions := Seq(
+  Tags.limit(
+    Tags.ForkedTestGroup,
+    Option(Integer.getInteger("cc.it.max-parallel-suites"))
+      .getOrElse[Integer] {
+        try {
+          val docker = DefaultDockerClient.fromEnv().build()
+          try {
+            val dockerCpu: Int = docker.info().cpus()
+            sLog.value.info(s"Docker CPU count: $dockerCpu")
+            dockerCpu * 2
+          } finally docker.close()
+        } catch {
+          case NonFatal(_) =>
+            sLog.value.warn(s"Could not connect to Docker, is the daemon running?")
+            sLog.value.info(s"System CPU count: ${EvaluateTask.SystemProcessors}")
+            EvaluateTask.SystemProcessors
+        }
+      }
+  )
+)
 
+val LogbackTestLevel = "logback.test.level"
 inConfig(Test)(
   Seq(
     logsDirectory := {
@@ -70,7 +91,8 @@ inConfig(Test)(
       s"-Dlogback.configurationFile=${(Test / resourceDirectory).value}/logback-test.xml", // Fixes a logback blaming for multiple configs
       s"-Dcc.it.configs.dir=${baseDirectory.value.getParent}/local-network/configs",
       s"-Dcc.it.docker.image=consensus-client:${gitCurrentBranch.value}",
-      s"-Dcc.it.contracts.dir=${baseDirectory.value / ".." / "contracts" / "eth"}"
+      s"-Dcc.it.contracts.dir=${baseDirectory.value / ".." / "contracts" / "eth"}",
+      s"-D$LogbackTestLevel=${props.getOrElse(LogbackTestLevel, "TRACE")}"
     ),
     testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-fFWD", ((Test / logsDirectory).value / "summary.log").toString),
     fork               := true,
