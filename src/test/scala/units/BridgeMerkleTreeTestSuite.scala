@@ -79,4 +79,29 @@ class BridgeMerkleTreeTestSuite extends BaseTestSuite {
     val actualRootHash = Base64.encode(BridgeMerkleTree.getE2CTransfersRootHash(logs).value)
     actualRootHash shouldBe "TE571PexW4ErsrcEKhn1wRaVjGW/RkvaaOEFN/AMXuQ="
   }
+
+  "getFailedTransfersRootHash, 0 indexes" in {
+    val failedTransfersHash = Base64.encode(BridgeMerkleTree.getFailedTransfersRootHash(List.empty))
+    failedTransfersHash shouldBe ""
+  }
+
+  "getFailedTransfersRootHash, 1 index" in {
+    val failedTransfersHash = Base64.encode(BridgeMerkleTree.getFailedTransfersRootHash(List(1)))
+    failedTransfersHash shouldBe "6wti5laigNSEWvM8kfJjSdt90kLQMMCwb59lJTJnFXU="
+  }
+
+  "getFailedTransfersRootHash, 2 indexes" in {
+    val failedTransfersHash = Base64.encode(BridgeMerkleTree.getFailedTransfersRootHash(List(1, 2)))
+    failedTransfersHash shouldBe "O4J9Z0+sQmyTvf2teltyZzTOkT9NkKlJWbRWs6AT1Bs="
+  }
+
+  "getFailedTransfersRootHash, 3 indexes" in {
+    val failedTransfersHash = Base64.encode(BridgeMerkleTree.getFailedTransfersRootHash(List(1, 2, 3)))
+    failedTransfersHash shouldBe "HfIfxbQd7rf0YiFX99DQz8K6Y0Hnd5DvWFFawYhvXXc="
+  }
+
+  "getFailedTransfersRootHash, 4 indexes" in {
+    val failedTransfersHash = Base64.encode(BridgeMerkleTree.getFailedTransfersRootHash(List(1, 2, 3, 4)))
+    failedTransfersHash shouldBe "bKsOAvL+iFcLAHTgq2HHjXqeBtxz3WUn2QnHkulYXf8="
+  }
 }

@@ -376,6 +376,31 @@ trait HasConsensusLayerDappTxHelpers {
         fee = withdrawFee
       )
 
+    def refundFailedC2ETransfer(
+        sender: KeyPair,
+        blockHash: BlockHash,
+        merkleProof: Seq[Digest],
+        failedTransferIndex: Long,
+        transferIndexInBlock: Int
+    ): InvokeScriptTransaction =
+      TxHelpers.invoke(
+        invoker = sender,
+        dApp = chainContractAddress,
+        func = "refundFailedC2ETransfer".some,
+        args = List(
+          Terms.CONST_STRING(blockHash.hexNoPrefix).explicitGet(),
+          Terms
+            .ARR(
+              merkleProof.map[Terms.EVALUATED](digest => Terms.CONST_BYTESTR(ByteStr(digest)).explicitGet()).toVector,
+              limited = false
+            )
+            .explicitGet(),
+          Terms.CONST_LONG(failedTransferIndex),
+          Terms.CONST_LONG(transferIndexInBlock.toLong)
+        ),
+        fee = refundFailedC2ETransferFee
+      )
+
     def reportEmptyEpoch(minerAccount: KeyPair, vrf: ByteStr = currentHitSource): InvokeScriptTransaction = TxHelpers.invoke(
       invoker = minerAccount,
       dApp = chainContractAddress,
@@ -395,7 +420,8 @@ trait HasConsensusLayerDappTxHelpers {
 }
 
 object HasConsensusLayerDappTxHelpers {
-  val EmptyE2CTransfersRootHashHex = EthereumConstants.NullHex
+  val EmptyE2CTransfersRootHashHex       = EthereumConstants.NullHex
+  val EmptyFailedC2ETransfersRootHashHex = EthereumConstants.NullHex
 
   object DefaultFees {
     object ChainContract {
@@ -413,6 +439,7 @@ object HasConsensusLayerDappTxHelpers {
       val reportEmptyEpochFee             = 0.1.waves
       val claimEmptyEpochReportRewardsFee = 0.1.waves
       val stopFee                         = 0.1.waves
+      val refundFailedC2ETransferFee      = 0.1.waves
     }
   }
 }

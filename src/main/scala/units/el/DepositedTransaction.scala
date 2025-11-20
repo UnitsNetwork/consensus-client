@@ -8,7 +8,8 @@ import org.web3j.utils.Numeric
 import play.api.libs.functional.syntax.*
 import play.api.libs.json.*
 import units.eth.EthAddress
-import units.util.HexBytesConverter.*
+import units.util.HexBytesConverter
+import units.util.HexBytesConverter.{toHex, toInt, toUint256}
 
 import java.math.BigInteger
 import java.util
@@ -46,8 +47,7 @@ case class DepositedTransaction(
     isSystemTx: Boolean,
     data: String
 ) {
-  def toHex: String = {
-
+  private def toBytes: Array[Byte] = {
     val rlpList = new RlpList(
       RlpString.create(sourceHash),
       RlpString.create(Numeric.hexStringToByteArray(from.hex)),
@@ -56,13 +56,14 @@ case class DepositedTransaction(
       RlpString.create(value),
       RlpString.create(gas),
       RlpString.create(if (isSystemTx) 1 else 0),
-      RlpString.create(toBytes(data))
+      RlpString.create(HexBytesConverter.toBytes(data))
     )
 
-    val rlpEncoded       = RlpEncoder.encode(rlpList)
-    val transactionBytes = Array(DepositedTransaction.Type) ++ rlpEncoded
-    Numeric.toHexString(transactionBytes)
+    val rlpEncoded = RlpEncoder.encode(rlpList)
+    Array(DepositedTransaction.Type) ++ rlpEncoded
   }
+
+  def toHex: String = Numeric.toHexString(this.toBytes)
 
   override def equals(obj: Any): Boolean = obj match {
     case that: DepositedTransaction =>
@@ -76,6 +77,8 @@ case class DepositedTransaction(
       this.data == that.data
     case _ => false
   }
+
+  def hash: String = HexBytesConverter.toHex(Keccak256.hash(this.toBytes))
 }
 
 object DepositedTransaction {
@@ -100,7 +103,7 @@ object DepositedTransaction {
 
   def parseValidDepositedTransaction(json: JsValue): Either[String, Option[DepositedTransaction]] =
     if (toInt((json \ "type").as[String]) == Type)
-      ((JsPath \ "sourceHash").read[String].map(toBytes) and
+      ((JsPath \ "sourceHash").read[String].map(HexBytesConverter.toBytes) and
         (JsPath \ "from").read[EthAddress] and
         (JsPath \ "to").readNullable[EthAddress] and
         (JsPath \ "mint").read[String].map(toUint256).map(_.getValue) and

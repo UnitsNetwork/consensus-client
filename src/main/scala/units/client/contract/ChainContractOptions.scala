@@ -11,6 +11,7 @@ case class ChainContractOptions(
     elNativeBridgeAddress: EthAddress,
     elStandardBridgeAddress: Option[EthAddress],
     assetTransfersActivationEpoch: Height,
+    strictC2ETransfersActivationEpoch: Height,
     blockDelayInSeconds: ValueAtEpoch[Int]
 ) {
   def bridgeAddresses(epoch: Height): List[EthAddress] = {
@@ -32,7 +33,10 @@ case class ChainContractOptions(
   def appendFunction(epoch: Height, reference: BlockHash): AppendBlock =
     AppendBlock(reference, versionOf(epoch))
 
-  private def versionOf(epoch: Height): Int = if (epoch < assetTransfersActivationEpoch) 1 else 2
+  private def versionOf(epoch: Height): Int =
+    if (epoch < assetTransfersActivationEpoch) 1
+    else if (epoch < strictC2ETransfersActivationEpoch) 2
+    else 3
 }
 
 case class ValueAtEpoch[A](oldValue: A, newValue: A, changeAtEpoch: Height) {

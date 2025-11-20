@@ -105,7 +105,8 @@ trait ChainContractClient {
           e2cTransfersRootHash,
           lastC2ETransferIndex,
           if (lastAssetRegistryIndex.isValidInt) lastAssetRegistryIndex.toInt
-          else fail(s"$lastAssetRegistryIndex is not a valid int")
+          else fail(s"$lastAssetRegistryIndex is not a valid int"),
+          getBinaryData(s"failedC2ETransfersForBlock_${hash}").map(_.arr).getOrElse(Array.empty)
         )
       } catch {
         case e: Throwable => fail(s"Can't read a block $hash meta, bytes: ${blockMeta.base64}, remaining: ${bb.remaining()}", e)
@@ -238,6 +239,7 @@ trait ChainContractClient {
       getStringData("elStandardBridgeAddress")
         .map(EthAddress.unsafeFrom),
       getAssetTransfersActivationEpoch,
+      getStrictC2ETransfersActivationEpoch,
       blockDelay
     )
   }
