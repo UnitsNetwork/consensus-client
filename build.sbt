@@ -3,7 +3,7 @@ import com.github.sbt.git.SbtGit.GitKeys.gitCurrentBranch
 enablePlugins(UniversalDeployPlugin, GitVersioning, sbtdocker.DockerPlugin, VersionObject)
 
 git.useGitDescribe       := true
-git.baseVersion          := "1.1.0"
+git.baseVersion          := "1.3.0"
 git.uncommittedSignifier := Some("DIRTY")
 
 inScope(Global)(
@@ -33,7 +33,7 @@ name       := "consensus-client"
 maintainer := "Units Network Team"
 
 libraryDependencies ++= {
-  val node        = "1.5.12-SNAPSHOT"
+  val node        = "1.5.12"
   val sttpVersion = "3.11.0"
   Seq(
     "com.wavesplatform"              % "node-testkit"  % node % Test,
