@@ -3,6 +3,7 @@ package units
 import com.typesafe.config.ConfigFactory
 import com.wavesplatform.account.{Address, KeyPair, PrivateKey, SeedKeyPair}
 import com.wavesplatform.db.WithState.AddrWithBalance
+import com.wavesplatform.history.Domain
 import com.wavesplatform.settings.WavesSettings
 import com.wavesplatform.state.Height
 import com.wavesplatform.test.{DomainPresets, NumericExt}
@@ -23,7 +24,7 @@ case class TestSettings(
   def finalAdditionalBalances: List[AddrWithBalance] = additionalBalances ++
     initialMiners.collect { case x if !additionalBalances.exists(_.address == x.address) => AddrWithBalance(x.address, x.wavesBalance) }
 
-  def walletSeed: Array[Byte] = wavesSettings.walletSettings.seed.getOrElse(throw new RuntimeException("No wallet seed")).arr
+  def walletSeed: Array[Byte] = Domain.DefaultWalletSeed
 
   def withEnabledElMining: TestSettings = copy(wavesSettings =
     wavesSettings.copy(config = ConfigFactory.parseString("units.defaults.mining-enable = true").withFallback(wavesSettings.config))

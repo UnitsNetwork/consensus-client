@@ -2,7 +2,7 @@ package units
 
 import cats.syntax.either.*
 import com.wavesplatform.account.{Address, KeyPair, PublicKey, SeedKeyPair}
-import com.wavesplatform.api.common.{CommonAccountsApi, CommonAssetsApi, CommonBlocksApi, CommonTransactionsApi}
+import com.wavesplatform.api.common.{CommonAccountsApi, CommonAssetsApi, CommonBlocksApi, CommonGeneratorsApi, CommonTransactionsApi}
 import com.wavesplatform.api.http.requests.InvokeScriptRequest.FunctionCallPart
 import com.wavesplatform.api.http.utils.UtilsEvaluator
 import com.wavesplatform.block.Block.BlockId
@@ -119,6 +119,7 @@ class ExtensionDomain(
     override def blocksApi: CommonBlocksApi             = self.blocksApi
     override def accountsApi: CommonAccountsApi         = self.accountsApi
     override def assetsApi: CommonAssetsApi             = self.assetsApi
+    override def generatorsApi: CommonGeneratorsApi     = self.generatorsApi
 
     override def utxEvents: Observable[UtxEvent] = Observable.empty
   }

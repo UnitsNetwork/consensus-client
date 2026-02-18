@@ -28,7 +28,7 @@ class C2ETransfersTestSuite extends BaseTestSuite {
       "0x"                                         -> "Invalid Ethereum address",
       "000000000000000000000000000000000000000003" -> "Invalid Ethereum address",
       "0x00000000000000000000000000000000000001"   -> "Invalid Ethereum address",
-      "QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"   -> "Unrecognized character: q"
+      "QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"   -> "Unrecognized character: Q"
     )
   ) { case (address, message) =>
     transferFuncTest(address) should produce(message)
