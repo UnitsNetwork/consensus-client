@@ -1,6 +1,8 @@
 import com.github.sbt.git.SbtGit.GitKeys.gitCurrentBranch
 
-enablePlugins(UniversalDeployPlugin, GitVersioning, sbtdocker.DockerPlugin, VersionObject)
+import scala.sys.process.{Process, ProcessLogger}
+
+enablePlugins(UniversalDeployPlugin, GitVersioning, VersionObject)
 
 git.useGitDescribe       := true
 git.baseVersion          := "1.4.0"
@@ -95,18 +97,23 @@ buildTarballsForDocker := {
   )
 }
 
-inTask(docker)(
-  Seq(
-    imageNames := Seq(
-      ImageName(s"consensus-client:${gitCurrentBranch.value}"), // Integration tests
-      ImageName("consensus-client:local")                       // local-network
-    ),
-    dockerfile := NativeDockerfile(baseDirectory.value / "docker" / "Dockerfile"),
-    buildOptions := BuildOptions(
-      pullBaseImage = BuildOptions.Pull.IfMissing
-    )
+val docker = taskKey[Unit]("Build docker image for integration tests")
+docker := {
+  val log = streams.value.log
+
+  val cwd   = baseDirectory.value / "docker"
+
+  val cmd = Seq("docker", "build", "-t", "consensus-client:local", "-t", s"consensus-client:${gitCurrentBranch.value}",".")
+  log.info(s"Running `${cmd.mkString(" ")}` from $cwd")
+
+  val processLogger = ProcessLogger(
+    (out: String) => log.info(out),
+    (err: String) => log.info(err) // Redirect STDERR to info
   )
-)
+
+  val exit = Process(cmd, cwd).!(processLogger)
+  if (exit != 0) sys.error(s"Docker build failed with exit code $exit")
+}
 
 docker := docker.dependsOn(LocalRootProject / buildTarballsForDocker).value
 
