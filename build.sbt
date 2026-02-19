@@ -34,6 +34,10 @@ inScope(Global)(
 name       := "consensus-client"
 maintainer := "Units Network Team"
 
+//dependencyOverrides ++= Seq(
+//  "org.slf4j" % "slf4j-api" % "1.7.30"
+//)
+
 libraryDependencies ++= {
   val node        = "1.6.1"
   val sttpVersion = "3.11.0"
@@ -43,7 +47,7 @@ libraryDependencies ++= {
     "com.softwaremill.sttp.client3" %% "core"          % sttpVersion,
     "com.softwaremill.sttp.client3" %% "play-json"     % sttpVersion,
     "com.github.jwt-scala"          %% "jwt-play-json" % "11.0.3",
-    "org.web3j"                      % "core"          % "4.9.8"
+    ("org.web3j"                      % "core"          % "4.9.8").exclude("org.slf4j", "slf4j-api")
   )
 }
 
