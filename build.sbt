@@ -34,9 +34,18 @@ inScope(Global)(
 name       := "consensus-client"
 maintainer := "Units Network Team"
 
-//dependencyOverrides ++= Seq(
-//  "org.slf4j" % "slf4j-api" % "1.7.30"
-//)
+// These overrides are needed so that there are no different versions of the same component on the classpath when the extension is installed
+dependencyOverrides ++= Seq(
+  "org.playframework"   %% "play-json"           % "3.0.6",
+  "com.squareup.okhttp3" % "okhttp"              % "4.12.0",
+  "com.squareup.okhttp3" % "logging-interceptor" % "4.12.0",
+  "com.squareup.okio"    % "okio"                % "3.6.0",
+  "com.squareup.okio"    % "okio-jvm"            % "3.16.4",
+  "org.reactivestreams"  % "reactive-streams"    % "1.0.4",
+  "org.jetbrains.kotlin" % "kotlin-stdlib"       % "2.2.20",
+  "org.jetbrains.kotlin" % "kotlin-stdlib-jdk7"  % "1.8.21",
+  "org.jetbrains.kotlin" % "kotlin-stdlib-jdk8"  % "1.8.21"
+)
 
 libraryDependencies ++= {
   val node        = "1.6.1"
@@ -47,7 +56,10 @@ libraryDependencies ++= {
     "com.softwaremill.sttp.client3" %% "core"          % sttpVersion,
     "com.softwaremill.sttp.client3" %% "play-json"     % sttpVersion,
     "com.github.jwt-scala"          %% "jwt-play-json" % "11.0.3",
-    ("org.web3j"                      % "core"          % "4.9.8").exclude("org.slf4j", "slf4j-api")
+    ("org.web3j"                     % "core"          % "4.9.8").excludeAll(
+      ExclusionRule("org.slf4j", "slf4j-api"),
+      ExclusionRule("org.bouncycastle", "bcprov-jdk15on")
+    )
   )
 }
 
@@ -105,9 +117,9 @@ val docker = taskKey[Unit]("Build docker image for integration tests")
 docker := {
   val log = streams.value.log
 
-  val cwd   = baseDirectory.value / "docker"
+  val cwd = baseDirectory.value / "docker"
 
-  val cmd = Seq("docker", "build", "-t", "consensus-client:local", "-t", s"consensus-client:${gitCurrentBranch.value}",".")
+  val cmd = Seq("docker", "build", "-t", "consensus-client:local", "-t", s"consensus-client:${gitCurrentBranch.value}", ".")
   log.info(s"Running `${cmd.mkString(" ")}` from $cwd")
 
   val processLogger = ProcessLogger(
