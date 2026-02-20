@@ -15,7 +15,7 @@ import scala.util.control.NonFatal
 description := "Consensus client integration tests"
 
 libraryDependencies ++= Seq(
-  "org.testcontainers" % "testcontainers" % "2.0.1",
+  "org.testcontainers" % "testcontainers" % "2.0.3",
   "org.web3j"          % "core"           % "4.9.8"
 ).map(_ % Test)
 

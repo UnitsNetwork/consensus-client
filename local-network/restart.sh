@@ -12,8 +12,8 @@ else
   ./delete.sh
 fi
 
-export COMPOSE_PROFILES="${COMPOSE_PROFILES:-}"
+COMPOSE_PROFILES="${COMPOSE_PROFILES:-}"
 echo "Compose profiles are: ${COMPOSE_PROFILES}"
 
-docker compose up -d
-docker compose logs deploy tests -f
+docker compose --profile nodes `[[ "${COMPOSE_PROFILES}" == *bs* ]] && echo --profile bs` up -d
+docker compose --profile nodes up deploy `[[ "${COMPOSE_PROFILES}" == *tests* ]] && echo tests`
