@@ -3,6 +3,7 @@ include:
   - ./configs/blockscout/blockscout.yml
 services:
   ec-1:
+    profiles: [ nodes ]
     container_name: ec-1
     extends:
       file: ../docker/services/op-geth.yml
@@ -23,6 +24,7 @@ services:
 
   # ec-2:
   #   container_name: ec-2
+  #   profiles: [ nodes ]
   #   extends:
   #     file: ../docker/services/op-geth.yml
   #     service: op-geth
@@ -43,6 +45,7 @@ services:
   # Make sure, you have enough RAM to run additional nodes
   # ec-3:
   #   container_name: ec-3
+  #   profiles: [ nodes ]
   #   extends:
   #     file: ../docker/services/op-geth.yml
   #     service: op-geth
@@ -62,6 +65,7 @@ services:
 
   # ec-4:
   #   container_name: ec-4
+  #   profiles: [ nodes ]
   #   extends:
   #     file: ../docker/services/op-geth.yml
   #     service: op-geth
@@ -81,6 +85,7 @@ services:
 
   waves-node-1:
     container_name: waves-node-1
+    profiles: [ nodes ]
     image: ${WAVES_NODE_IMAGE_1:-${WAVES_NODE_IMAGE:-consensus-client:local}}
     ports:
       - "127.0.0.1:16869:6869"
@@ -101,6 +106,7 @@ services:
 
   # Uncomment corresponding cl_miner in local/network.py if you want this node to mine
   # waves-node-2:
+  #   profiles: [ nodes ]
   #   container_name: waves-node-2
   #   image: ${WAVES_NODE_IMAGE_2:-${WAVES_NODE_IMAGE:-consensus-client:local}}
   #   ports:
@@ -120,6 +126,7 @@ services:
   #   pull_policy: never # builds locally
 
   # waves-node-3:
+  #   profiles: [ nodes ]
   #   container_name: waves-node-3
   #   image: ${WAVES_NODE_IMAGE_3:-${WAVES_NODE_IMAGE:-consensus-client:local}}
   #   ports:
@@ -140,6 +147,7 @@ services:
   #   pull_policy: never # builds locally
 
   # waves-node-4:
+  #   profiles: [ nodes ]
   #   container_name: waves-node-4
   #   image: ${WAVES_NODE_IMAGE_4:-${WAVES_NODE_IMAGE:-consensus-client:local}}
   #   ports:
