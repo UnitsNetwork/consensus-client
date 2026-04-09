@@ -8,7 +8,6 @@ import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.crypto.Keccak256
 import com.wavesplatform.state.{BinaryDataEntry, Height, IntegerDataEntry, StringDataEntry}
 import com.wavesplatform.transaction.Asset.IssuedAsset
-import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import com.wavesplatform.transaction.{Asset, TxHelpers}
 import monix.execution.atomic.AtomicInt
 import org.web3j.protocol.core.DefaultBlockParameterName

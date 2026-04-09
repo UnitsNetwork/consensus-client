@@ -1,10 +1,8 @@
 package units.block.validation
 
-import com.wavesplatform.account.*
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.transaction.TxHelpers
-import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import units.client.contract.HasConsensusLayerDappTxHelpers.{EmptyE2CTransfersRootHashHex, EmptyFailedC2ETransfersRootHashHex}
 import units.client.engine.model.EcBlock

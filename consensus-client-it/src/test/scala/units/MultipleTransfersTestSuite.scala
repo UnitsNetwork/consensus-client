@@ -2,7 +2,6 @@ package units
 
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.transaction.Asset
-import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import monix.execution.atomic.AtomicInt
 import org.web3j.protocol.core.DefaultBlockParameterName
