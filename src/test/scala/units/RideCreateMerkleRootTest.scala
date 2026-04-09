@@ -23,20 +23,20 @@ class RideCreateMerkleRootTest extends BaseTestSuite {
         | }
       """.stripMargin
     )
-    d.appendBlock(d.createBlock(PlainBlockVersion, Seq(setScript(secondSigner, dApp))))
+    d.appendBlock(d.createBlock(Seq(setScript(secondSigner, dApp)), version = PlainBlockVersion))
 
     val failedC2ETransferIndexes = List(11L, 12L, 103L, 104L)
-    val transferIndex            = 103L
-    val transferIndexInBlock     = failedC2ETransferIndexes.indexOf(transferIndex)
+    val transferIndex = 103L
+    val transferIndexInBlock = failedC2ETransferIndexes.indexOf(transferIndex)
 
     val root: Array[Byte] = BridgeMerkleTree.getFailedTransfersRootHash(failedC2ETransferIndexes)
     val proofs: Seq[Array[Byte]] = BridgeMerkleTree
       .mkFailedTransferProofs(failedC2ETransferIndexes, transferIndexInBlock)
       .reverse
 
-    val digests  = ARR(proofs.map(b => CONST_BYTESTR(ByteStr(b)).explicitGet()).toVector, limited = false).explicitGet()
+    val digests = ARR(proofs.map(b => CONST_BYTESTR(ByteStr(b)).explicitGet()).toVector, limited = false).explicitGet()
     val invokeTx = invoke(func = Some("merkle"), args = Seq(digests, CONST_LONG(transferIndex), CONST_LONG(transferIndexInBlock)))
-    d.appendBlock(d.createBlock(PlainBlockVersion, Seq(invokeTx)))
+    d.appendBlock(d.createBlock(Seq(invokeTx), version = PlainBlockVersion))
 
     val actual = d.blockchain.accountData(secondAddress, "root").get.value
     actual shouldBe ByteStr(root)

@@ -11,7 +11,7 @@ git.uncommittedSignifier := Some("DIRTY")
 inScope(Global)(
   Seq(
     onChangedBuildSource := ReloadOnSourceChanges,
-    scalaVersion         := "3.7.4",
+    scalaVersion         := "3.8.1",
     organization         := "network.units",
     organizationName     := "Units Network",
     resolvers ++= Seq(Resolver.sonatypeCentralSnapshots, Resolver.mavenLocal),
@@ -39,7 +39,7 @@ dependencyOverrides ++= Seq(
   "org.playframework"   %% "play-json"           % "3.0.6",
   "com.squareup.okhttp3" % "okhttp"              % "4.12.0",
   "com.squareup.okhttp3" % "logging-interceptor" % "4.12.0",
-  "com.squareup.okio"    % "okio"                % "3.6.0",
+  "com.squareup.okio"    % "okio"                % "3.16.4",
   "com.squareup.okio"    % "okio-jvm"            % "3.16.4",
   "org.reactivestreams"  % "reactive-streams"    % "1.0.4",
   "org.jetbrains.kotlin" % "kotlin-stdlib"       % "2.2.20",
@@ -48,15 +48,15 @@ dependencyOverrides ++= Seq(
 )
 
 libraryDependencies ++= {
-  val node        = "1.6.1"
+  val node        = "1.6.2-SNAPSHOT"
   val sttpVersion = "3.11.0"
   Seq(
     "com.wavesplatform"              % "node-testkit"  % node % Test,
     "com.wavesplatform"              % "node"          % node % Provided,
     "com.softwaremill.sttp.client3" %% "core"          % sttpVersion,
     "com.softwaremill.sttp.client3" %% "play-json"     % sttpVersion,
-    "com.github.jwt-scala"          %% "jwt-play-json" % "11.0.3",
-    ("org.web3j"                     % "core"          % "4.9.8").excludeAll(
+    "com.github.jwt-scala"          %% "jwt-play-json" % "11.0.4",
+    ("org.web3j"                     % "core"          % "4.13.0").excludeAll(
       ExclusionRule("org.slf4j", "slf4j-api"),
       ExclusionRule("org.bouncycastle", "bcprov-jdk15on")
     )
