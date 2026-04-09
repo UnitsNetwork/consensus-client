@@ -4,16 +4,16 @@ import scala.sys.process.{Process, ProcessLogger}
 
 enablePlugins(UniversalDeployPlugin, GitVersioning, VersionObject)
 
-git.useGitDescribe       := true
-git.baseVersion          := "1.4.0"
+git.useGitDescribe := true
+git.baseVersion := "1.4.0"
 git.uncommittedSignifier := Some("DIRTY")
 
 inScope(Global)(
   Seq(
     onChangedBuildSource := ReloadOnSourceChanges,
-    scalaVersion         := "3.8.1",
-    organization         := "network.units",
-    organizationName     := "Units Network",
+    scalaVersion := "3.8.1",
+    organization := "network.units",
+    organizationName := "Units Network",
     resolvers ++= Seq(Resolver.sonatypeCentralSnapshots, Resolver.mavenLocal),
     scalacOptions ++= Seq(
       "-feature",
@@ -31,32 +31,41 @@ inScope(Global)(
   )
 )
 
-name       := "consensus-client"
+name := "consensus-client"
 maintainer := "Units Network Team"
+
+def nettyModule(module: String): ModuleID = "io.netty" % s"netty-$module" % "4.2.10.Final"
 
 // These overrides are needed so that there are no different versions of the same component on the classpath when the extension is installed
 dependencyOverrides ++= Seq(
-  "org.playframework"   %% "play-json"           % "3.0.6",
-  "com.squareup.okhttp3" % "okhttp"              % "4.12.0",
+  "org.playframework" %% "play-json" % "3.0.6",
+  "com.squareup.okhttp3" % "okhttp" % "4.12.0",
   "com.squareup.okhttp3" % "logging-interceptor" % "4.12.0",
-  "com.squareup.okio"    % "okio"                % "3.16.4",
-  "com.squareup.okio"    % "okio-jvm"            % "3.16.4",
-  "org.reactivestreams"  % "reactive-streams"    % "1.0.4",
-  "org.jetbrains.kotlin" % "kotlin-stdlib"       % "2.2.20",
-  "org.jetbrains.kotlin" % "kotlin-stdlib-jdk7"  % "1.8.21",
-  "org.jetbrains.kotlin" % "kotlin-stdlib-jdk8"  % "1.8.21"
+  "com.squareup.okio" % "okio" % "3.16.4",
+  "com.squareup.okio" % "okio-jvm" % "3.16.4",
+  "org.apache.httpcomponents" % "httpclient" % "4.5.14",
+  "org.reactivestreams" % "reactive-streams" % "1.0.4",
+  "org.jetbrains.kotlin" % "kotlin-stdlib" % "2.2.20",
+  "org.jetbrains.kotlin" % "kotlin-stdlib-jdk7" % "1.8.21",
+  "org.jetbrains.kotlin" % "kotlin-stdlib-jdk8" % "1.8.21",
+  nettyModule("codec-http2"),
+  nettyModule("codec-http"),
+  nettyModule("handler-proxy"),
+  nettyModule("codec-socks"),
+  nettyModule("transport-native-unix-common"),
+  nettyModule("resolver-dns")
 )
 
 libraryDependencies ++= {
-  val node        = "1.6.2-SNAPSHOT"
+  val node = "1.6.2-SNAPSHOT"
   val sttpVersion = "3.11.0"
   Seq(
-    "com.wavesplatform"              % "node-testkit"  % node % Test,
-    "com.wavesplatform"              % "node"          % node % Provided,
-    "com.softwaremill.sttp.client3" %% "core"          % sttpVersion,
-    "com.softwaremill.sttp.client3" %% "play-json"     % sttpVersion,
-    "com.github.jwt-scala"          %% "jwt-play-json" % "11.0.4",
-    ("org.web3j"                     % "core"          % "4.13.0").excludeAll(
+    "com.wavesplatform" % "node-testkit" % node % Test,
+    "com.wavesplatform" % "node" % node % Provided,
+    "com.softwaremill.sttp.client3" %% "core" % sttpVersion,
+    "com.softwaremill.sttp.client3" %% "play-json" % sttpVersion,
+    "com.github.jwt-scala" %% "jwt-play-json" % "11.0.4",
+    ("org.web3j" % "core" % "4.13.0").excludeAll(
       ExclusionRule("org.slf4j", "slf4j-api"),
       ExclusionRule("org.bouncycastle", "bcprov-jdk15on")
     )
@@ -66,12 +75,12 @@ libraryDependencies ++= {
 Compile / packageDoc / publishArtifact := false
 
 def makeJarName(
-    org: String,
-    name: String,
-    revision: String,
-    artifactName: String,
-    artifactClassifier: Option[String]
-): String =
+                 org: String,
+                 name: String,
+                 revision: String,
+                 artifactName: String,
+                 artifactClassifier: Option[String]
+               ): String =
   org + "." +
     name + "-" +
     Option(artifactName.replace(name, "")).filterNot(_.isEmpty).map(_ + "-").getOrElse("") +
@@ -81,7 +90,7 @@ def makeJarName(
 
 def getJarFullFilename(dep: Attributed[File]): String = {
   val filename: Option[String] = for {
-    module   <- dep.metadata.get(AttributeKey[ModuleID]("moduleID"))
+    module <- dep.metadata.get(AttributeKey[ModuleID]("moduleID"))
     artifact <- dep.metadata.get(AttributeKey[Artifact]("artifact"))
   } yield makeJarName(module.organization, module.name, module.revision, artifact.name, artifact.classifier)
   filename.getOrElse(dep.data.getName)
@@ -94,14 +103,14 @@ def universalDepMappings(deps: Seq[Attributed[File]]): Seq[(File, String)] =
 
 Universal / mappings += {
   val jar = (Compile / packageBin).value
-  val id  = projectID.value
+  val id = projectID.value
   val art = (Compile / packageBin / artifact).value
   jar -> ("lib/" + makeJarName(id.organization, id.name, id.revision, art.name, art.classifier))
 }
 Universal / mappings ++= universalDepMappings((Runtime / dependencyClasspath).value.filterNot { p =>
   p.get(AttributeKey[ModuleID]("moduleID")).exists { m =>
     m.organization == "org.scala-lang" ||
-    m.organization.startsWith("com.fasterxml.jackson")
+      m.organization.startsWith("com.fasterxml.jackson")
   }
 })
 
