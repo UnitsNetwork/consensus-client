@@ -1,6 +1,6 @@
 package units.client.engine
 
-import com.wavesplatform.utils.LoggerFacade
+import com.typesafe.scalalogging.Logger
 import org.slf4j.LoggerFactory
 import play.api.libs.json.JsObject
 import units.client.engine.EngineApiClient.PayloadId
@@ -12,7 +12,7 @@ import units.{BlockHash, Result}
 import scala.util.chaining.scalaUtilChainingOps
 
 class LoggedEngineApiClient(underlying: EngineApiClient) extends EngineApiClient {
-  protected val log: LoggerFacade = LoggerFacade(LoggerFactory.getLogger(underlying.getClass))
+  protected val log = Logger(LoggerFactory.getLogger(underlying.getClass))
 
   override def forkchoiceUpdated(blockHash: BlockHash, finalizedBlockHash: BlockHash, requestId: Int): Result[PayloadStatus] =
     wrap(requestId, s"forkchoiceUpdated($blockHash, f=$finalizedBlockHash)", underlying.forkchoiceUpdated(blockHash, finalizedBlockHash, _))

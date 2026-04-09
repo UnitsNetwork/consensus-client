@@ -2,7 +2,6 @@ package units
 
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.state.IntegerDataEntry
-import com.wavesplatform.transaction.Asset.IssuedAsset
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import com.wavesplatform.transaction.{Asset, TxHelpers}
 import monix.execution.atomic.AtomicInt

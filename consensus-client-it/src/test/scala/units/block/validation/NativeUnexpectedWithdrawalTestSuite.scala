@@ -5,7 +5,6 @@ import com.wavesplatform.account.*
 import com.wavesplatform.common.utils.EitherExt2.explicitGet
 import com.wavesplatform.lang.v1.compiler.Terms
 import com.wavesplatform.transaction.TxHelpers
-import com.wavesplatform.transaction.smart.InvokeScriptTransaction
 import org.web3j.protocol.core.DefaultBlockParameterName
 import units.client.contract.HasConsensusLayerDappTxHelpers.{EmptyE2CTransfersRootHashHex, EmptyFailedC2ETransfersRootHashHex}
 import units.client.engine.model.{EcBlock, Withdrawal}

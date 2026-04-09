@@ -1,7 +1,8 @@
 package units
 
+import com.typesafe.scalalogging.Logger
 import com.wavesplatform.network.{PeerDatabaseImpl, PeerInfo}
-import com.wavesplatform.utils.{LoggerFacade, Schedulers}
+import com.wavesplatform.utils.Schedulers
 import io.netty.channel.Channel
 import io.netty.channel.group.DefaultChannelGroup
 import io.netty.util.concurrent.GlobalEventExecutor
@@ -18,7 +19,7 @@ import scala.io.Source
 
 // A helper to create ConsensusClient due to Scala secondary constructors limitations
 class ConsensusClientDependencies(val config: ClientConfig) extends AutoCloseable {
-  protected lazy val log: LoggerFacade = LoggerFacade(LoggerFactory.getLogger(classOf[ConsensusClient]))
+  protected lazy val log = Logger(LoggerFactory.getLogger(classOf[ConsensusClient]))
 
   private val blockObserverScheduler =
     Schedulers.singleThread(s"block-observer-${config.chainContract}", reporter = { e => log.warn("Error in BlockObserver", e) })
