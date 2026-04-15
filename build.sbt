@@ -11,7 +11,7 @@ git.uncommittedSignifier := Some("DIRTY")
 inScope(Global)(
   Seq(
     onChangedBuildSource := ReloadOnSourceChanges,
-    scalaVersion := "3.8.1",
+    scalaVersion := "3.8.3",
     organization := "network.units",
     organizationName := "Units Network",
     resolvers ++= Seq(Resolver.sonatypeCentralSnapshots, Resolver.mavenLocal),
@@ -34,20 +34,21 @@ inScope(Global)(
 name := "consensus-client"
 maintainer := "Units Network Team"
 
-def nettyModule(module: String): ModuleID = "io.netty" % s"netty-$module" % "4.2.10.Final"
+def nettyModule(module: String): ModuleID = "io.netty" % s"netty-$module" % "4.2.12.Final"
 
 // These overrides are needed so that there are no different versions of the same component on the classpath when the extension is installed
 dependencyOverrides ++= Seq(
   "org.playframework" %% "play-json" % "3.0.6",
   "com.squareup.okhttp3" % "okhttp" % "4.12.0",
   "com.squareup.okhttp3" % "logging-interceptor" % "4.12.0",
-  "com.squareup.okio" % "okio" % "3.16.4",
-  "com.squareup.okio" % "okio-jvm" % "3.16.4",
+  "com.squareup.okio" % "okio" % "3.6.0",
+  "com.squareup.okio" % "okio-jvm" % "3.17.0",
   "org.apache.httpcomponents" % "httpclient" % "4.5.14",
   "org.reactivestreams" % "reactive-streams" % "1.0.4",
-  "org.jetbrains.kotlin" % "kotlin-stdlib" % "2.2.20",
+  "org.jetbrains.kotlin" % "kotlin-stdlib" % "2.1.21",
   "org.jetbrains.kotlin" % "kotlin-stdlib-jdk7" % "1.8.21",
   "org.jetbrains.kotlin" % "kotlin-stdlib-jdk8" % "1.8.21",
+  "org.bouncycastle" % "bcprov-jdk18on" % "1.83",
   nettyModule("codec-http2"),
   nettyModule("codec-http"),
   nettyModule("handler-proxy"),
