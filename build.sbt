@@ -5,7 +5,7 @@ import scala.sys.process.{Process, ProcessLogger}
 enablePlugins(UniversalDeployPlugin, GitVersioning, VersionObject)
 
 git.useGitDescribe := true
-git.baseVersion := "1.4.0"
+git.baseVersion := "1.4.1"
 git.uncommittedSignifier := Some("DIRTY")
 
 inScope(Global)(
@@ -34,7 +34,7 @@ inScope(Global)(
 name := "consensus-client"
 maintainer := "Units Network Team"
 
-def nettyModule(module: String): ModuleID = "io.netty" % s"netty-$module" % "4.2.12.Final"
+def nettyModule(module: String): ModuleID = "io.netty" % s"netty-$module" % "4.2.15.Final"
 
 // These overrides are needed so that there are no different versions of the same component on the classpath when the extension is installed
 dependencyOverrides ++= Seq(
@@ -48,7 +48,7 @@ dependencyOverrides ++= Seq(
   "org.jetbrains.kotlin" % "kotlin-stdlib" % "2.1.21",
   "org.jetbrains.kotlin" % "kotlin-stdlib-jdk7" % "1.8.21",
   "org.jetbrains.kotlin" % "kotlin-stdlib-jdk8" % "1.8.21",
-  "org.bouncycastle" % "bcprov-jdk18on" % "1.83",
+  "org.bouncycastle" % "bcprov-jdk18on" % "1.84",
   nettyModule("codec-http2"),
   nettyModule("codec-http"),
   nettyModule("handler-proxy"),
@@ -58,7 +58,7 @@ dependencyOverrides ++= Seq(
 )
 
 libraryDependencies ++= {
-  val node = "1.6.2-SNAPSHOT"
+  val node = "1.6.3"
   val sttpVersion = "3.11.0"
   Seq(
     "com.wavesplatform" % "node-testkit" % node % Test,

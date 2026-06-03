@@ -75,7 +75,7 @@ func minerPkKey(rewardAddress: String)            = "miner_0x" + rewardAddress +
 func minerChainIdKey(miner: Address)              = "miner_" + miner.toString() + "_ChainId"
 func minerSkippedEpochCountKey(minerAddr: String) = "miner_" + minerAddr + "_SkippedEpochCount"
 
-func refundedFailedC2ETransfersKey(blockHashHex: String, transferIndex: Int) = "refundedFailedC2ETransfers_0x" + blockHashHex + "_" + transferIndex.toString() # any boolean value (true)
+func refundedFailedC2ETransfersKey(failedTransferIndex: Int) = "refundedFailedC2ETransfer_" + pad(failedTransferIndex) # any boolean value (true)
 
 let transfersCount       = this.getInteger(transfersCountKey).valueOrElse(0)
 let maxSkippedEpochCount = getInteger(maxSkippedEpochCountKey).valueOrElse(200)
@@ -971,6 +971,7 @@ func join(rewardAddressHex: String) = {
 
 @Callable(i)
 func leave() = {
+  strict notStopped  = requireNotStopped()
   let leavingMiner = i.originCaller.toString()
 
   func skipLeavingMiner(acc: List[String], miner: String) = if (miner == leavingMiner) then acc else acc :+ miner
@@ -990,6 +991,7 @@ func leave() = {
 
 @Callable(i)
 func transfer(destElAddressHex: String) = {
+  strict notStopped  = requireNotStopped()
   strict normalizedDestElAddressHex = normalizeEthAddress(destElAddressHex)
 
   let t = if (size(i.payments) == 1) then i.payments[0] else throw("Expected one payment as a transfer amount, got " + i.payments.size().toString())
@@ -1031,6 +1033,7 @@ func transfer(destElAddressHex: String) = {
 # blockHashHex without 0x
 @Callable(i)
 func withdraw(blockHashHex: String, merkleProof: List[ByteVector], transferIndexInBlock: Int, amount: Int) = {
+  strict notStopped  = requireNotStopped()
   strict normalizedBlockHashHex = validateBlockHash(cut0x(blockHashHex))
   strict withdrawBlockMeta      = commonWithdrawChecks(normalizedBlockHashHex, merkleProof, transferIndexInBlock, amount)
 
@@ -1064,8 +1067,10 @@ func withdraw(blockHashHex: String, merkleProof: List[ByteVector], transferIndex
 # blockHashHex without 0x
 @Callable(i)
 func refundFailedC2ETransfer(blockHashHex: String, merkleProof: List[ByteVector], failedC2ETransferIndex: Int, transferIndexInBlock: Int) = {
+  strict notStopped  = requireNotStopped()
   strict check = requireStrictC2ETransfersActivated()
   strict normalizedBlockHashHex = validateBlockHash(cut0x(blockHashHex))
+  strict blockIsFinalized = isFinalized(normalizedBlockHashHex)
   let expectedFailedC2ETransfersRootHash = getBinaryValue(failedC2ETransfersKey + normalizedBlockHashHex)
   strict rootExists = expectedFailedC2ETransfersRootHash.size() > 0 || throw("No failed transfers recorded for block " + normalizedBlockHashHex)
   let valueBytes = blake2b256(failedC2ETransferIndex.toBytes())
@@ -1107,7 +1112,7 @@ func refundFailedC2ETransfer(blockHashHex: String, merkleProof: List[ByteVector]
   let callerPkHash = i.caller.bytes.drop(2).take(PUBLIC_KEY_HASH_SIZE)
   strict senderMatches = storedFrom == callerPkHash || throw("Only original sender can refund this transfer")
 
-  let refundsKey = refundedFailedC2ETransfersKey(normalizedBlockHashHex, transferIndexInBlock)
+  let refundsKey = refundedFailedC2ETransfersKey(failedC2ETransferIndex)
   strict noPreviousRefunds = match getBoolean(refundsKey) {
     case _: Boolean => throw("The funds for this transfer have already been refunded")
     case _         => true
@@ -1144,6 +1149,7 @@ func refundFailedC2ETransfer(blockHashHex: String, merkleProof: List[ByteVector]
 # assetIdBase58OrWaves - "Asset ID in Base58" | WAVES_ASSET_NAME
 @Callable(i)
 func withdrawAsset(blockHashHex: String, merkleProof: List[ByteVector], transferIndexInBlock: Int, amount: Int, assetIdBase58OrWaves: String) = {
+  strict notStopped  = requireNotStopped()
   strict normalizedBlockHashHex = validateBlockHash(cut0x(blockHashHex))
 
   strict assetId   = parseAssetId(assetIdBase58OrWaves)
@@ -1194,6 +1200,7 @@ func withdrawAsset(blockHashHex: String, merkleProof: List[ByteVector], transfer
 
 @Callable(i)
 func registerAssets(assetIds: List[String], erc20Addresses: List[String], elDecimals: List[Int]) = {
+  strict notStopped  = requireNotStopped()
   strict activated   = requireAssetTransfersActivated()
   strict validCaller = i.originCaller == this || throw("Only owner of chain contract can do this")
 
@@ -1226,6 +1233,7 @@ func registerAssets(assetIds: List[String], erc20Addresses: List[String], elDeci
 
 @Callable(i)
 func issueAndRegister(erc20AddressHex: String, elDecimals: Int, name: String, description: String, clDecimals: Int) = {
+  strict notStopped  = requireNotStopped()
   strict activated     = requireAssetTransfersActivated()
   strict validCaller   = i.originCaller == this || throw("Only owner of chain contract can do this")
   strict validDecimals = elDecimals <= 8 && elDecimals == clDecimals || elDecimals > clDecimals || throw("Invalid decimals, EL=" + elDecimals.toString() + ", CL=" + clDecimals.toString())
@@ -1245,6 +1253,7 @@ func issueAndRegister(erc20AddressHex: String, elDecimals: Int, name: String, de
 
 @Callable(i)
 func enableTokenTransfers(standardBridgeAddress: String, wavesERC20AddressHex: String, activationEpoch: Int) = {
+  strict notStopped  = requireNotStopped()
   strict validCaller = i.originCaller == this || throw("Only owner of chain contract can do this")
 
   let standardBridgeWasNotConfigured = match getString(elStandardBridgeAddressKey) {
@@ -1312,6 +1321,7 @@ func setup(genesisBlockHashHex: String, minerRewardInGwei: Int, daoAddress: Stri
 
 @Callable(i)
 func reportEmptyEpoch(vrf: ByteVector) = {
+  strict notStopped  = requireNotStopped()
   strict checkEpoch      = ensureCorrectEpoch(vrf)
   strict checkEpochEmpty = match epochMeta(height) {
     case u: Unit => unit
@@ -1332,6 +1342,7 @@ func reportEmptyEpoch(vrf: ByteVector) = {
 
 @Callable(i)
 func claimEmptyEpochReportRewards(epochs: List[Int]) = {
+  strict notStopped  = requireNotStopped()
   strict lengthCheck = if size(epochs) > 100 then throw("Claimed epochs count exceeds 100") else unit
 
   let tokenId = getStringValue(tokenIdKey).fromBase58String()
