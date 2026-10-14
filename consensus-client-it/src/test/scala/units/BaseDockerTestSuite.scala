@@ -21,6 +21,8 @@ import units.el.{NativeBridgeClient, StandardBridgeClient}
 import units.eth.{EthAddress, Gwei}
 import units.test.{CustomMatchers, IntegrationTestEventually, TestEnvironment}
 
+import java.nio.channels.FileChannel
+import java.nio.file.{Path, StandardOpenOption}
 import scala.sys.process.{Process, ProcessLogger}
 
 trait BaseDockerTestSuite
@@ -117,11 +119,14 @@ trait BaseDockerTestSuite
 
   protected def deploySolidityContracts(): Unit = {
     step("Deploy contracts on EL")
-    Process(
-      s"forge script -vvvvv scripts/IT.s.sol:IT --private-key $elRichAccount1PrivateKey --fork-url http://localhost:${ec1.rpcPort} --broadcast",
-      TestEnvironment.ContractsDir,
-      "CHAIN_ID" -> EcContainer.ChainId.toString
-    ).!(ProcessLogger(out => log.info(out), err => log.error(err)))
+    val exitCode = BaseDockerTestSuite.withForgeLock {
+      Process(
+        s"forge script -vvvvv scripts/IT.s.sol:IT --private-key $elRichAccount1PrivateKey --fork-url http://localhost:${ec1.rpcPort} --broadcast",
+        TestEnvironment.ContractsDir,
+        "CHAIN_ID" -> EcContainer.ChainId.toString
+      ).!(ProcessLogger(out => log.info(out), err => log.error(err)))
+    }
+    withClue("forge script exit code:")(exitCode shouldBe 0)
 
     waitForContract(StandardBridgeAddress)
     waitForContract(WWavesAddress)
@@ -153,6 +158,20 @@ trait BaseDockerTestSuite
 
 object BaseDockerTestSuite {
   private val initialized = AtomicBoolean(false)
+
+  private val ForgeLockFile = Path.of(System.getProperty("java.io.tmpdir"), "consensus-client-it-forge.lock")
+
+  /** forge script keeps its broadcast state per script and chain id in the shared contracts cache directory and refuses to run while another process
+    * modifies it. Suites run in parallel JVMs with the same chain id, so deployments are serialized with an OS-level file lock.
+    */
+  def withForgeLock[A](f: => A): A = {
+    val channel = FileChannel.open(ForgeLockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE)
+    try {
+      val lock = channel.lock()
+      try f
+      finally lock.release()
+    } finally channel.close()
+  }
 
   def init(): Unit =
     if (initialized.compareAndSet(expect = false, update = true))
