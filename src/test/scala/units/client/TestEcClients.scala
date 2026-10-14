@@ -10,7 +10,7 @@ import units.client.engine.EngineApiClient.PayloadId
 import units.client.engine.model.*
 import units.client.engine.{EngineApiClient, LoggedEngineApiClient}
 import units.eth.{EthAddress, EthereumConstants}
-import units.{BlockHash, Result, NetworkL2Block}
+import units.{BlockHash, ELUpdater, NetworkL2Block, Result}
 import units.test.take
 
 /** Life of a block:
@@ -144,8 +144,10 @@ class TestEcClients private (
         }
 
         log.debug(s"Chain: ${updatedChain.map(_.hash.take(LogChars)).mkString(" -> ")}")
-        PayloadStatus.Valid
-      }.asRight
+        // Like geth: an all-zero finalized hash means "no finalized block", otherwise it must be on the chain of the new head
+        if (finalizedBlockHash == ELUpdater.NoFinalizedBlockHash || updatedChain.exists(_.hash == finalizedBlockHash)) PayloadStatus.Valid.asRight
+        else s"Payload validation error: final block $finalizedBlockHash not in canonical chain".asLeft
+      }
 
       override def forkchoiceUpdatedWithPayload(
           lastBlockHash: BlockHash,
@@ -158,8 +160,10 @@ class TestEcClients private (
           requestId: Int
       ): Result[PayloadId] = {
         forkChoiceUpdateWithPayloadIdCalls.increment()
-        forkchoiceUpdated(lastBlockHash, finalizedBlockHash, requestId)
+        forkchoiceUpdated(lastBlockHash, finalizedBlockHash, requestId).flatMap(_ => buildPayload(lastBlockHash))
+      }
 
+      private def buildPayload(lastBlockHash: BlockHash): Result[PayloadId] = {
         val nextFutureBlock = futureBlocks.transformAndExtract { xs =>
           val (found, rest) = xs.partition(_.parentHash == lastBlockHash)
           found match {
