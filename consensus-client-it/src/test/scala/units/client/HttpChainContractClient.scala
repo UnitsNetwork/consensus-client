@@ -63,6 +63,23 @@ class HttpChainContractClient(api: NodeHttpApi, override val contract: Address)
     }
   }
 
+  /** Waits for an epoch in which `minerAccount` is the designated miner and no block has been registered yet. Unlike [[waitForMinerEpoch]], it
+    * doesn't return in an epoch that changed hands midway, e.g. after the previous miner left having already mined in it: the epoch's blocks then
+    * belong to the previous miner, and `minerAccount` can only mine in a later epoch.
+    */
+  def waitForUnusedMinerEpoch(minerAccount: KeyPair)(implicit loggingOptions: LoggingOptions = LoggingOptions(logRequest = false)): Unit = {
+    val expectedGenerator = minerAccount.toAddress
+    if (loggingOptions.logCall) log.debug(s"${loggingOptions.prefix} waitForUnusedMinerEpoch($expectedGenerator)")
+
+    val subsequentLoggingOptions = loggingOptions.copy(logCall = false)
+    eventually(timeout(fiveBlocks * 2)) {
+      val epoch = api.height()(using subsequentLoggingOptions)
+      computedGenerator()(using subsequentLoggingOptions) shouldBe expectedGenerator
+      withClue(s"Blocks registered in epoch $epoch: ")(getEpochMeta(epoch) shouldBe empty)
+      withClue("Epoch changed during the check: ")(api.height()(using subsequentLoggingOptions) shouldBe epoch)
+    }
+  }
+
   // This is different from blockchain.height, because we wait this from a contract block
   def waitForEpoch(atLeast: Height, chainId: Long = DefaultMainChainId): Unit = {
     log.debug(s"waitForEpoch($atLeast)")

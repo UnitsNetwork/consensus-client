@@ -221,7 +221,7 @@ trait BaseBlockValidationSuite extends BaseDockerTestSuite {
     }
 
     step(s"Wait actingMiner epoch")
-    chainContract.waitForMinerEpoch(actingMiner)
+    chainContract.waitForUnusedMinerEpoch(actingMiner)
   }
 
   protected def setupForNativeTokenTransfer(): Unit = {
