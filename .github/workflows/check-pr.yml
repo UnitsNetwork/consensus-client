@@ -16,7 +16,6 @@ jobs:
     timeout-minutes: 45
     env:
       JAVA_OPTS: -Dfile.encoding=UTF-8
-      BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
@@ -40,7 +39,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: test-logs_${{ env.BRANCH_NAME }}_${{ github.run_id }}
+          name: test-logs_${{ github.run_id }}_${{ github.run_attempt }}
           path: consensus-client-it/target/test-logs
           if-no-files-found: warn
           retention-days: 14

@@ -24,7 +24,7 @@ trait ChainContractClient {
 
   def extractData(key: String): Option[DataEntry[?]]
 
-  def isContractSetup: Boolean = getLongData("minerReward").isDefined
+  def isContractSetup: Boolean = extractData("minerReward").isDefined
 
   def isStopped: Boolean = getBooleanData("stopped").getOrElse(false)
 

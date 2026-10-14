@@ -247,7 +247,7 @@ class ELUpdater(
       engineApiClient
         .forkchoiceUpdatedWithPayload(
           parentBlock.hash,
-          if (finalizedBlock.height > parentBlock.height) parentBlock.hash else finalizedBlock.hash,
+          finalizedHashFor(parentBlock, finalizedBlock),
           nextBlockUnixTs,
           epochInfo.rewardAddress,
           prevRandao,
@@ -1733,10 +1733,8 @@ class ELUpdater(
     loop(curState.lastContractBlock, List.empty)
   }
 
-  private def confirmBlock(block: L2BlockLike, finalizedBlock: L2BlockLike): Result[PayloadStatus] = {
-    val finalizedBlockHash = if (finalizedBlock.height > block.height) block.hash else finalizedBlock.hash
-    engineApiClient.forkchoiceUpdated(block.hash, finalizedBlockHash)
-  }
+  private def confirmBlock(block: L2BlockLike, finalizedBlock: L2BlockLike): Result[PayloadStatus] =
+    engineApiClient.forkchoiceUpdated(block.hash, finalizedHashFor(block, finalizedBlock))
 
   private def canSupportAnotherAltChain(nodeChainInfo: ChainInfo): Boolean = {
     val chainSupporters = chainContractClient.getSupporters(nodeChainInfo.id)
@@ -1772,6 +1770,19 @@ object ELUpdater {
   private val MaxTransfersInLogs                      = 5 // Cut huge logs
 
   case class EpochInfo(number: Height, miner: Address, rewardAddress: EthAddress, hitSource: ByteStr, prevEpochLastBlockHash: Option[BlockHash])
+
+  /** "No finalized block" in forkchoiceUpdated: EL keeps its previous finalized block. */
+  val NoFinalizedBlockHash: BlockHash = BlockHash(EthereumConstants.EmptyBlockHashHex)
+
+  /** The finalized block to report to EL along with the new head `head`.
+    *
+    * EL rejects a finalized block above the head, and freezes everything up to the finalized block, assuming it can never be reorged. When `head` is
+    * below the contract's finalized block, it may not be on the finalized chain (e.g. a block received from a peer and never registered on the
+    * contract), so it must not be reported as finalized: EL would freeze it, and a later switch to the finalized chain could not replace it. No
+    * finalized block is reported instead.
+    */
+  def finalizedHashFor(head: L2BlockLike, finalizedBlock: L2BlockLike): BlockHash =
+    if (finalizedBlock.height > head.height) NoFinalizedBlockHash else finalizedBlock.hash
 
   sealed trait State
   object State {
