@@ -23,6 +23,7 @@ import units.test.{CustomMatchers, IntegrationTestEventually, TestEnvironment}
 
 import java.nio.channels.FileChannel
 import java.nio.file.{Files, Path, StandardOpenOption}
+import scala.annotation.tailrec
 import scala.sys.process.{Process, ProcessLogger}
 
 trait BaseDockerTestSuite
@@ -123,11 +124,27 @@ trait BaseDockerTestSuite
       // Every suite deploys to a fresh chain, so a previous broadcast for this chain id is never worth resuming. Newer forge versions refuse to
       // --broadcast over an unfinished one, which makes a single failed deployment fail every suite after it.
       BaseDockerTestSuite.deleteRecursively(TestEnvironment.ContractsDir.toPath.resolve(s"broadcast/IT.s.sol/${EcContainer.ChainId}"))
-      Process(
-        s"forge script -vvvvv scripts/IT.s.sol:IT --private-key $elRichAccount1PrivateKey --fork-url http://localhost:${ec1.rpcPort} --broadcast",
+
+      def runForge(mode: String): Int = Process(
+        s"forge script -vvvvv scripts/IT.s.sol:IT --private-key $elRichAccount1PrivateKey --fork-url http://localhost:${ec1.rpcPort} $mode",
         TestEnvironment.ContractsDir,
         "CHAIN_ID" -> EcContainer.ChainId.toString
       ).!(ProcessLogger(out => log.info(out), err => log.error(err)))
+
+      // op-geth answers eth_getTransactionReceipt with "transaction indexing is in progress" until it indexes a new block, and forge gives up
+      // after a few retries within milliseconds. The transactions are already sent by then, so --resume picks up the same broadcast and polls
+      // their receipts again, keeping the contract addresses the tests expect.
+      @tailrec def loop(mode: String, resumesLeft: Int): Int = {
+        val r = runForge(mode)
+        if (r == 0 || resumesLeft == 0) r
+        else {
+          log.warn(s"forge script exited with $r, resuming ($resumesLeft attempts left)")
+          Thread.sleep(2000)
+          loop("--resume", resumesLeft - 1)
+        }
+      }
+
+      loop("--broadcast", resumesLeft = 3)
     }
     withClue("forge script exit code:")(exitCode shouldBe 0)
 

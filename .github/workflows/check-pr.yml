@@ -25,8 +25,8 @@ jobs:
           cache: 'sbt'
       - uses: foundry-rs/foundry-toolchain@v1
         with:
-          # Pinned: "stable" follows the latest release, and forge 1.9+ changed how scripts broadcast and wait for receipts
-          version: v1.8.5
+          # Pinned: "stable" follows the latest release, so a new forge version could change CI unannounced
+          version: v1.10.0
       - uses: sbt/setup-sbt@508b753e53cb6095967669e0911487d2b9bc9f41 # v1.1.22
       - name: Run tests
         # --server: under sbt 2 the default thin client does not pass -D options to the build. testFull: sbt 2's test is incremental
@@ -63,8 +63,8 @@ jobs:
           cache: 'sbt'
       - uses: foundry-rs/foundry-toolchain@v1
         with:
-          # Pinned: "stable" follows the latest release, and forge 1.9+ changed how scripts broadcast and wait for receipts
-          version: v1.8.5
+          # Pinned: "stable" follows the latest release, so a new forge version could change CI unannounced
+          version: v1.10.0
       - uses: sbt/setup-sbt@508b753e53cb6095967669e0911487d2b9bc9f41 # v1.1.22
       - run: |
           sbt --server --batch docker
