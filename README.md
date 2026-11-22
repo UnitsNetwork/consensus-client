@@ -18,4 +18,4 @@
       ```bash 
       sbt "consensus-client-it/test"
       ```
-   3. See logs in `consensus-client-it/target/test-logs`.
+   3. See logs in `target/out/jvm/scala-<version>/consensus-client-it/test-logs`.

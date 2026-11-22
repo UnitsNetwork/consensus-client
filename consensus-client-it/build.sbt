@@ -24,7 +24,7 @@ Test / sourceGenerators += Def.task {
   val contractSources              = baseDirectory.value / ".." / "contracts" / "eth"
   val compiledDir                  = contractSources / "target"
   // --silent to bypass garbage "Counting objects" git logs
-  s"forge build --silent --config-path ${contractSources / "foundry.toml"} --contracts ${contractSources / "src"}" !
+  s"forge build --silent --config-path ${contractSources / "foundry.toml"} --contracts ${contractSources / "src"}".!
 
   generateSourcesFromContracts.foreach { contract =>
     val json    = Json.parse(new FileInputStream(compiledDir / s"$contract.sol" / s"$contract.json"))
@@ -81,7 +81,7 @@ Global / concurrentRestrictions := Seq(
 val LogbackTestLevel = "logback.test.level"
 inConfig(Test)(
   Seq(
-    logsDirectory := {
+    logsDirectory := Def.uncached {
       val runId: String = Option(System.getenv("RUN_ID")).getOrElse(DateTimeFormatter.ofPattern("MM-dd--HH_mm_ss").format(LocalDateTime.now))
       val r             = target.value / "test-logs" / runId
       r.mkdirs()
@@ -97,7 +97,7 @@ inConfig(Test)(
     testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-fFWD", ((Test / logsDirectory).value / "summary.log").toString),
     fork               := true,
     testForkedParallel := true,
-    testGrouping := {
+    testGrouping := Def.uncached {
       val javaHomeVal    = (test / javaHome).value
       val baseLogDirVal  = (Test / logsDirectory).value
       val envVarsVal     = (Test / envVars).value
