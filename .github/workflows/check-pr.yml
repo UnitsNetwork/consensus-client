@@ -24,15 +24,19 @@ jobs:
           java-version: '17'
           cache: 'sbt'
       - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          # Pinned: "stable" follows the latest release, so a new forge version could change CI unannounced
+          version: v1.10.0
       - uses: sbt/setup-sbt@508b753e53cb6095967669e0911487d2b9bc9f41 # v1.1.22
       - name: Run tests
-        run: sbt -Dcc.it.max-parallel-suites=2 -Dlogback.test.level=OFF --batch "scalafmtCheck;test;docker;consensus-client-it/test"
+        # --server: under sbt 2 the default thin client does not pass -D options to the build. testFull: sbt 2's test is incremental
+        run: sbt --server -Dcc.it.max-parallel-suites=2 -Dlogback.test.level=OFF --batch "scalafmtCheck;testFull;docker;consensus-client-it/testFull"
         env:
           RUN_ID: ${{ github.head_ref }}-${{ github.run_number }}-${{ github.run_attempt }}
       - uses: scacap/action-surefire-report@5609ce4db72c09db044803b344a8968fd1f315da
         if: always()
         with:
-          report_paths: '**/target/test-reports/*.xml'
+          report_paths: 'target/out/**/test-reports/*.xml'
           create_check: false
           check_name: 'Check PR'
       - name: Archive logs
@@ -40,7 +44,7 @@ jobs:
         if: always()
         with:
           name: test-logs_${{ github.run_id }}_${{ github.run_attempt }}
-          path: consensus-client-it/target/test-logs
+          path: target/out/jvm/*/consensus-client-it/test-logs
           if-no-files-found: warn
           retention-days: 14
 
@@ -58,9 +62,12 @@ jobs:
           java-version: '17'
           cache: 'sbt'
       - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          # Pinned: "stable" follows the latest release, so a new forge version could change CI unannounced
+          version: v1.10.0
       - uses: sbt/setup-sbt@508b753e53cb6095967669e0911487d2b9bc9f41 # v1.1.22
       - run: |
-          sbt --batch docker
+          sbt --server --batch docker
           cd local-network
           ./restart.sh
         env:
