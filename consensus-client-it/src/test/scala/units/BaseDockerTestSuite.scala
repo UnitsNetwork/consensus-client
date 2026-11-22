@@ -22,7 +22,7 @@ import units.eth.{EthAddress, Gwei}
 import units.test.{CustomMatchers, IntegrationTestEventually, TestEnvironment}
 
 import java.nio.channels.FileChannel
-import java.nio.file.{Path, StandardOpenOption}
+import java.nio.file.{Files, Path, StandardOpenOption}
 import scala.sys.process.{Process, ProcessLogger}
 
 trait BaseDockerTestSuite
@@ -120,6 +120,9 @@ trait BaseDockerTestSuite
   protected def deploySolidityContracts(): Unit = {
     step("Deploy contracts on EL")
     val exitCode = BaseDockerTestSuite.withForgeLock {
+      // Every suite deploys to a fresh chain, so a previous broadcast for this chain id is never worth resuming. Newer forge versions refuse to
+      // --broadcast over an unfinished one, which makes a single failed deployment fail every suite after it.
+      BaseDockerTestSuite.deleteRecursively(TestEnvironment.ContractsDir.toPath.resolve(s"broadcast/IT.s.sol/${EcContainer.ChainId}"))
       Process(
         s"forge script -vvvvv scripts/IT.s.sol:IT --private-key $elRichAccount1PrivateKey --fork-url http://localhost:${ec1.rpcPort} --broadcast",
         TestEnvironment.ContractsDir,
@@ -172,6 +175,13 @@ object BaseDockerTestSuite {
       finally lock.release()
     } finally channel.close()
   }
+
+  def deleteRecursively(dir: Path): Unit =
+    if (Files.exists(dir)) {
+      val walk = Files.walk(dir)
+      try walk.sorted(java.util.Comparator.reverseOrder()).forEach(p => Files.delete(p))
+      finally walk.close()
+    }
 
   def init(): Unit =
     if (initialized.compareAndSet(expect = false, update = true))
